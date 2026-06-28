@@ -63,6 +63,14 @@ export function stripSqlComments(src) {
     .join("\n");
 }
 
+/** Mask SQL `--` comments with spaces so indices stay aligned to the raw source. */
+function maskSqlComments(src) {
+  return src
+    .split("\n")
+    .map((line) => line.replace(/--.*$/, (comment) => " ".repeat(comment.length)))
+    .join("\n");
+}
+
 /** Convert camelCase → snake_case for naming-drift detection. */
 export function camelToSnake(s) {
   return s
@@ -90,19 +98,20 @@ const RISK = Object.freeze({
  * Returns an array of findings:
  *   { kind, risk, lineHint, detail }
  *
- * Pattern detection works on the comment-stripped SQL so doc lines
- * mentioning a pattern do not false-positive.
+ * Pattern detection works on comment-masked SQL so doc lines
+ * mentioning a pattern do not false-positive while match indices
+ * remain aligned to the raw source for contextual checks.
  */
 export function detectFindings(sql) {
   const findings = [];
-  const stripped = stripSqlComments(sql);
-  const lines = stripped.split("\n");
+  const masked = maskSqlComments(sql);
+  const lines = masked.split("\n");
 
   // Track columns this migration adds, by table.
   const columnsAddedByTable = new Map();
   const addColumnRe =
     /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?public"?\.)?"?(\w+)"?[\s\S]*?ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?"?(\w+)"?/gi;
-  for (const m of stripped.matchAll(addColumnRe)) {
+  for (const m of masked.matchAll(addColumnRe)) {
     const table = m[1];
     const column = m[2];
     if (!columnsAddedByTable.has(table)) columnsAddedByTable.set(table, new Set());
@@ -111,7 +120,7 @@ export function detectFindings(sql) {
   // Also capture columns added via CREATE TABLE.
   const createTableRe =
     /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"?public"?\.)?"?(\w+)"?\s*\(([\s\S]*?)\)\s*(?:;|WITHOUT|INHERITS)/gi;
-  for (const m of stripped.matchAll(createTableRe)) {
+  for (const m of masked.matchAll(createTableRe)) {
     const table = m[1];
     const body = m[2];
     if (!columnsAddedByTable.has(table)) columnsAddedByTable.set(table, new Set());
@@ -172,9 +181,9 @@ export function detectFindings(sql) {
   }));
 
   // UPDATE without WHERE → bare full-table update.
-  for (const m of stripped.matchAll(/\bUPDATE\s+("?\w+"?)\s+SET\s+[\s\S]*?(?=;|$)/gi)) {
+  for (const m of masked.matchAll(/\bUPDATE\s+("?\w+"?)\s+SET\s+[\s\S]*?(?=;|$)/gi)) {
     if (!/\bWHERE\b/i.test(m[0])) {
-      const line = lineOf(stripped, m.index);
+      const line = lineOf(masked, m.index);
       findings.push({
         kind: "UPDATE_WITHOUT_WHERE",
         risk: RISK.CRITICAL,
@@ -186,8 +195,8 @@ export function detectFindings(sql) {
   }
 
   // SET NOT NULL without a readiness marker comment.
-  for (const m of stripped.matchAll(/\bSET\s+NOT\s+NULL\b/gi)) {
-    const line = lineOf(stripped, m.index);
+  for (const m of masked.matchAll(/\bSET\s+NOT\s+NULL\b/gi)) {
+    const line = lineOf(masked, m.index);
     // Surrounding context for a "readiness" / "backfill" marker.
     const ctxStart = Math.max(0, m.index - 400);
     const ctx = sql.slice(ctxStart, m.index);
@@ -207,13 +216,13 @@ export function detectFindings(sql) {
   // CREATE INDEX risk: references columns not in this migration's add-set
   // AND not in the small allowlist of pre-existing common columns.
   const ALWAYS_PRESENT = new Set(["id", "created_at", "updated_at"]);
-  for (const m of stripped.matchAll(
+  for (const m of masked.matchAll(
     /CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?"?(\w+)"?\s+ON\s+(?:ONLY\s+)?(?:"?public"?\.)?"?(\w+)"?\s+(?:USING\s+\w+\s+)?\(([^)]+)\)/gi,
   )) {
     const indexName = m[1];
     const table = m[2];
     const colList = m[3];
-    const line = lineOf(stripped, m.index);
+      const line = lineOf(masked, m.index);
     const cols = colList
       .split(",")
       .map((c) => c.trim().replace(/^"|"$/g, "").replace(/\s+(ASC|DESC|NULLS\s+(FIRST|LAST)).*$/i, ""))
@@ -226,7 +235,7 @@ export function detectFindings(sql) {
       // information_schema in a DO block (the Phase O-Final defense).
       // Slice the SAME source the regex matched in (stripped), not
       // the original sql — indices are stripped-relative.
-      const ctx = stripped.slice(Math.max(0, m.index - 800), m.index);
+      const ctx = masked.slice(Math.max(0, m.index - 800), m.index);
       // Every missing column must have a matching column_name='X'
       // guard in the preceding window for us to consider the index
       // safe. Partial guards count as INDEX_COLUMN_RISK.

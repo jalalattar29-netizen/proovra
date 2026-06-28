@@ -117,6 +117,7 @@ enum Color {
   RED
   GREEN
   BLUE
+  @@map("widget_color")
 }
 
 model Widget {
@@ -151,6 +152,7 @@ model User {
         // Part has no @@map, so table === model name.
         expect(p.models.find((m) => m.name === "Part")?.table).toBe("Part");
         expect(p.enums.map((e) => e.name)).toEqual(["Color"]);
+        expect(p.enums[0].dbName).toBe("widget_color");
         expect(p.enums[0].values).toEqual(["RED", "GREEN", "BLUE"]);
     });
     it("respects @map for column names, defaults to field name otherwise", async () => {
@@ -207,6 +209,16 @@ model User {
         const p = parsePrismaSchema(FIXTURE);
         const widget = p.models.find((m) => m.name === "Widget");
         expect(widget.fields.find((f) => f.fieldName === "color")?.isEnum).toBe(true);
+    });
+    it("uses enum @@map for the expected Postgres udt name", async () => {
+        const { parsePrismaSchema, expectedPgType } = await loadAuditCore();
+        const p = parsePrismaSchema(FIXTURE);
+        const widget = p.models.find((m) => m.name === "Widget");
+        const color = widget.fields.find((f) => f.fieldName === "color");
+        expect(expectedPgType(color)).toEqual({
+            acceptable: ["USER-DEFINED"],
+            expectedUdt: "widget_color",
+        });
     });
     it("captures @@unique and @@index", async () => {
         const { parsePrismaSchema } = await loadAuditCore();

@@ -9917,7 +9917,7 @@ model ExternalReviewInvitationDelivery {
   provider         String    @default("RESEND_API") @db.VarChar(40)
   attempt          Int       @default(1)
   providerMsgId    String?   @map("provider_msg_id") @db.VarChar(200)
-  bulkBatchId      String?   @map("bulk_batch_id") @db.VarChar(128)
+  bulkBatchId      String?   @map("bulk_batch_id") @db.Uuid
   failureReason    String?   @map("failure_reason") @db.VarChar(400)
   sentAtUtc        DateTime? @map("sent_at_utc") @db.Timestamptz(6)
   openedAtUtc      DateTime? @map("opened_at_utc") @db.Timestamptz(6)
@@ -10561,7 +10561,7 @@ model CrossOrgReviewGrant {
 model EvidenceExchangePackageBuild {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId         String    @map("team_id") @db.Uuid
-  packageId      String    @unique @map("package_id") @db.VarChar(200)
+  packageId      String    @unique @map("package_id") @db.Uuid
   state          String    @default("PENDING") @db.VarChar(20)
   storageKey     String?   @map("storage_key") @db.VarChar(600)
   payloadSha256  String?   @map("payload_sha256") @db.VarChar(64)
@@ -11473,12 +11473,12 @@ model CollaborationTeamAssignment {
 // constraints on edgeType + decision to keep the vocabulary closed.
 // =============================================================================
 model DuplicateDecision {
-  id              String   @id @default(uuid())
-  teamId          String   @map("team_id")
-  edgeId          String   @map("edge_id")
+  id              String   @id @default(uuid()) @db.Uuid
+  teamId          String   @map("team_id") @db.Uuid
+  edgeId          String   @map("edge_id") @db.Uuid
   edgeType        String   @map("edge_type")
   decision        String
-  decidedByUserId String   @map("decided_by_user_id")
+  decidedByUserId String   @map("decided_by_user_id") @db.Uuid
   reasonNote      String?  @map("reason_note") @db.VarChar(400)
   createdAtUtc    DateTime @default(now()) @map("created_at_utc") @db.Timestamptz(6)
 

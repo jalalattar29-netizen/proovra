@@ -403,6 +403,14 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20261009000000_drop_reviewer_queue_projection",
       // Phase 2B Closure — invitation delivery + SSO federation schema.
       "20261015000000_phase_2b_closure_invitation_delivery_sso",
+      // Phase 2B — HIGH schema drift repair, split into safe additive batches.
+      "20270906000000_phase_2b_1_timestamp_repairs",
+      "20270906010000_phase_2b_2_integer_widening",
+      "20270906020000_phase_2b_3_string_type_alignment",
+      "20270906030000_phase_2b_4_nullability_hardening",
+      "20270906040000_phase_2b_5_enum_alignment",
+      "20270906050000_phase_2b_6_uuid_and_identifier_alignment",
+      "20270906060000_phase_2b_7_json_semantic_repairs",
       // Phase 3A — enterprise redaction platform schema.
       "20261101000000_phase_3a_redaction_platform",
       // Phase 3A Elite Closure — policy engine + video intelligence schema.

@@ -87,7 +87,7 @@ function stripPrismaComments(src) {
  * Parse `services/api/prisma/schema.prisma` content and return:
  *   {
  *     models: [{ name, table, ignored, fields: [...], indexes: [...] }],
- *     enums:  [{ name, values: [...] }],
+ *     enums:  [{ name, dbName, values: [...] }],
  *   }
  *
  * Field shape:
@@ -107,13 +107,16 @@ export function parsePrismaSchema(src) {
   for (const m of cleaned.matchAll(enumMatch)) {
     const name = m[1];
     const body = m[2];
+    const dbNameMatch = /@@map\("([^"]+)"\)/.exec(body);
+    const dbName = dbNameMatch ? dbNameMatch[1] : name;
     const values = body
       .split(/\s+/)
       .map((v) => v.trim())
       .filter((v) => v && !v.startsWith("@"));
-    enums.push({ name, values });
+    enums.push({ name, dbName, values });
   }
   const enumNames = new Set(enums.map((e) => e.name));
+  const enumDbNames = new Map(enums.map((e) => [e.name, e.dbName]));
 
   // Pass 2 — collect model names (so relation fields can be classified).
   const modelNames = new Set();
@@ -141,14 +144,14 @@ export function parsePrismaSchema(src) {
       j++;
     }
     const body = cleaned.slice(bodyStart, j - 1);
-    models.push(parseModelBody(name, body, modelNames, enumNames));
+    models.push(parseModelBody(name, body, modelNames, enumNames, enumDbNames));
     scanFrom = j;
   }
 
   return { models, enums };
 }
 
-function parseModelBody(name, body, modelNames, enumNames) {
+function parseModelBody(name, body, modelNames, enumNames, enumDbNames) {
   let table = name; // default: model name (Prisma's default if no @@map)
   let ignored = false;
   const fields = [];
@@ -248,6 +251,7 @@ function parseModelBody(name, body, modelNames, enumNames) {
     const isId = /@id\b/.test(attrs);
     const isUnique = /@unique\b/.test(attrs);
     const isEnum = enumNames.has(baseType);
+    const enumDbName = isEnum ? (enumDbNames.get(baseType) ?? baseType) : null;
 
     fields.push({
       fieldName,
@@ -263,6 +267,7 @@ function parseModelBody(name, body, modelNames, enumNames) {
       isId,
       isUnique,
       isEnum,
+      enumDbName,
       isRelation: false,
     });
   }
@@ -283,7 +288,10 @@ function parseModelBody(name, body, modelNames, enumNames) {
  */
 export function expectedPgType(field) {
   if (field.isEnum) {
-    return { acceptable: ["USER-DEFINED"], expectedUdt: field.baseType };
+    return {
+      acceptable: ["USER-DEFINED"],
+      expectedUdt: field.enumDbName ?? field.baseType,
+    };
   }
   // Phase 15: `Unsupported("…")` columns (e.g. pgvector
   // `vector(1536)`) are hand-written in a migration. information_schema
@@ -825,7 +833,7 @@ function buildFindings(parsed, db) {
 
   // Enum value check.
   for (const e of parsed.enums) {
-    const dbValues = db.enumsByName.get(e.name);
+    const dbValues = db.enumsByName.get(e.dbName ?? e.name);
     if (!dbValues) continue; // enum not yet created; flagged via udt_name mismatch above
     const missing = e.values.filter((v) => !dbValues.includes(v));
     for (const v of missing) {

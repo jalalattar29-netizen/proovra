@@ -1,0 +1,2465 @@
+{
+  "target": "ep-long-hat-ag5kk101-pooler.c-2.eu-central-1.aws.neon.tech:5432/neondb",
+  "summary": {
+    "tablesExpected": 240,
+    "tablesMissing": 0,
+    "tablesPresent": 240,
+    "columnsExpected": 3499,
+    "columnsMissing": 0,
+    "findingsByRisk": {
+      "CRITICAL": 0,
+      "HIGH": 142,
+      "MEDIUM": 0,
+      "LOW": 79
+    }
+  },
+  "findings": [
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "Report",
+      "table": "reports",
+      "fieldName": "lastVerifiedSourceSnapshot",
+      "column": "last_verified_source_snapshot",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "USER-DEFINED"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "Report",
+      "table": "reports",
+      "fieldName": "lastVerifiedSourceSnapshot",
+      "column": "last_verified_source_snapshot",
+      "actualType": "udt=text",
+      "expectedTypes": [
+        "enum:VerificationSource"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "VerificationView",
+      "table": "verification_views",
+      "fieldName": "verificationStatusSnapshot",
+      "column": "verification_status_snapshot",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "USER-DEFINED"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "VerificationView",
+      "table": "verification_views",
+      "fieldName": "verificationStatusSnapshot",
+      "column": "verification_status_snapshot",
+      "actualType": "udt=text",
+      "expectedTypes": [
+        "enum:VerificationStatus"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "Team",
+      "table": "teams",
+      "fieldName": "billingPlan",
+      "column": "billing_plan",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "USER-DEFINED"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "Team",
+      "table": "teams",
+      "fieldName": "billingPlan",
+      "column": "billing_plan",
+      "actualType": "udt=text",
+      "expectedTypes": [
+        "enum:PlanType"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "Team",
+      "table": "teams",
+      "fieldName": "billingStatus",
+      "column": "billing_status",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "USER-DEFINED"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "Team",
+      "table": "teams",
+      "fieldName": "billingStatus",
+      "column": "billing_status",
+      "actualType": "udt=text",
+      "expectedTypes": [
+        "enum:TeamBillingStatus"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceSavedView",
+      "table": "evidence_saved_views",
+      "fieldName": "ownerUserId",
+      "column": "owner_user_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceSavedView",
+      "table": "evidence_saved_views",
+      "fieldName": "name",
+      "column": "name",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceSavedView",
+      "table": "evidence_saved_views",
+      "fieldName": "filtersJson",
+      "column": "filters_json",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceSavedView",
+      "table": "evidence_saved_views",
+      "fieldName": "scope",
+      "column": "scope",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceSavedView",
+      "table": "evidence_saved_views",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "actualType": "timestamp without time zone",
+      "actualUdt": "timestamp",
+      "expectedTypes": [
+        "timestamp with time zone"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceSavedView",
+      "table": "evidence_saved_views",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "WorkflowReviewDecision",
+      "table": "workflow_review_decisions",
+      "fieldName": "stage",
+      "column": "stage",
+      "actualType": "udt=workflow_review_stage",
+      "expectedTypes": [
+        "enum:WorkflowReviewStage"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "WorkflowReviewDecision",
+      "table": "workflow_review_decisions",
+      "fieldName": "decision",
+      "column": "decision",
+      "actualType": "udt=workflow_review_decision_kind",
+      "expectedTypes": [
+        "enum:WorkflowReviewDecisionKind"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "WorkflowReviewDecision",
+      "table": "workflow_review_decisions",
+      "fieldName": "reasonCode",
+      "column": "reason_code",
+      "actualType": "udt=workflow_review_reason_code",
+      "expectedTypes": [
+        "enum:WorkflowReviewReasonCode"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "TeamMember",
+      "table": "team_members",
+      "fieldName": "accessGrantedAtUtc",
+      "column": "access_granted_at_utc",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DemoRequest",
+      "table": "demo_requests",
+      "fieldName": "leadQuality",
+      "column": "lead_quality",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "USER-DEFINED"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DemoRequest",
+      "table": "demo_requests",
+      "fieldName": "leadQuality",
+      "column": "lead_quality",
+      "actualType": "udt=text",
+      "expectedTypes": [
+        "enum:DemoLeadQuality"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DemoRequest",
+      "table": "demo_requests",
+      "fieldName": "leadTrack",
+      "column": "lead_track",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "USER-DEFINED"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DemoRequest",
+      "table": "demo_requests",
+      "fieldName": "leadTrack",
+      "column": "lead_track",
+      "actualType": "udt=text",
+      "expectedTypes": [
+        "enum:DemoLeadTrack"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DemoRequest",
+      "table": "demo_requests",
+      "fieldName": "recommendedAction",
+      "column": "recommended_action",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "USER-DEFINED"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DemoRequest",
+      "table": "demo_requests",
+      "fieldName": "recommendedAction",
+      "column": "recommended_action",
+      "actualType": "udt=text",
+      "expectedTypes": [
+        "enum:DemoRecommendedAction"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "DemoRequest",
+      "table": "demo_requests",
+      "fieldName": "followUpStatus",
+      "column": "follow_up_status",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "DemoRequest",
+      "table": "demo_requests",
+      "fieldName": "followUpStep",
+      "column": "follow_up_step",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "NotificationDelivery",
+      "table": "notification_deliveries",
+      "fieldName": "eventType",
+      "column": "event_type",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "NotificationDelivery",
+      "table": "notification_deliveries",
+      "fieldName": "recipient",
+      "column": "recipient",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "NotificationDelivery",
+      "table": "notification_deliveries",
+      "fieldName": "recipientName",
+      "column": "recipient_name",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "NotificationDelivery",
+      "table": "notification_deliveries",
+      "fieldName": "subject",
+      "column": "subject",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "NotificationDelivery",
+      "table": "notification_deliveries",
+      "fieldName": "templateKey",
+      "column": "template_key",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "NotificationDelivery",
+      "table": "notification_deliveries",
+      "fieldName": "renderedPreview",
+      "column": "rendered_preview",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "NotificationDelivery",
+      "table": "notification_deliveries",
+      "fieldName": "providerMessageId",
+      "column": "provider_message_id",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "NotificationDelivery",
+      "table": "notification_deliveries",
+      "fieldName": "errorCode",
+      "column": "error_code",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "NotificationDelivery",
+      "table": "notification_deliveries",
+      "fieldName": "errorMessage",
+      "column": "error_message",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "WorkspaceGovernancePolicy",
+      "table": "workspace_governance_policies",
+      "fieldName": "metadataRedactionDefault",
+      "column": "metadata_redaction_default",
+      "actualType": "boolean",
+      "actualUdt": "bool",
+      "expectedTypes": [
+        "jsonb",
+        "json"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "WorkspaceGovernancePolicy",
+      "table": "workspace_governance_policies",
+      "fieldName": "metadataRedactionDefault",
+      "column": "metadata_redaction_default",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceLegalHold",
+      "table": "evidence_legal_holds",
+      "fieldName": "title",
+      "column": "title",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceLegalHold",
+      "table": "evidence_legal_holds",
+      "fieldName": "reason",
+      "column": "reason",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceLegalHold",
+      "table": "evidence_legal_holds",
+      "fieldName": "releaseNote",
+      "column": "release_note",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceLegalHold",
+      "table": "evidence_legal_holds",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "actualType": "timestamp without time zone",
+      "actualUdt": "timestamp",
+      "expectedTypes": [
+        "timestamp with time zone"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceLegalHold",
+      "table": "evidence_legal_holds",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "SecurityEvent",
+      "table": "security_events",
+      "fieldName": "userAgent",
+      "column": "userAgent",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "UploadSession",
+      "table": "upload_sessions",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "UploadSession",
+      "table": "upload_sessions",
+      "fieldName": "multipartUploadId",
+      "column": "multipart_upload_id",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "UploadSession",
+      "table": "upload_sessions",
+      "fieldName": "failureReason",
+      "column": "failure_reason",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "CaseLegalHold",
+      "table": "case_legal_holds",
+      "fieldName": "placedByUserId",
+      "column": "placed_by_user_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "EvidenceIntelligenceJob",
+      "table": "evidence_intelligence_jobs",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "EvidenceExtractedText",
+      "table": "evidence_extracted_texts",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceExtractedText",
+      "table": "evidence_extracted_texts",
+      "fieldName": "provider",
+      "column": "provider",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceExtractedText",
+      "table": "evidence_extracted_texts",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "actualType": "timestamp without time zone",
+      "actualUdt": "timestamp",
+      "expectedTypes": [
+        "timestamp with time zone"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceExtractedText",
+      "table": "evidence_extracted_texts",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "EvidenceEntity",
+      "table": "evidence_entities",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceEntity",
+      "table": "evidence_entities",
+      "fieldName": "value",
+      "column": "value",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceEntity",
+      "table": "evidence_entities",
+      "fieldName": "normalizedValue",
+      "column": "normalized_value",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "EvidenceSemanticChunk",
+      "table": "evidence_semantic_chunks",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceSemanticChunk",
+      "table": "evidence_semantic_chunks",
+      "fieldName": "chunkText",
+      "column": "chunk_text",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "EvidenceSimilarity",
+      "table": "evidence_similarities",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "DiscussionThread",
+      "table": "discussion_threads",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DiscussionThread",
+      "table": "discussion_threads",
+      "fieldName": "resolutionNote",
+      "column": "resolution_note",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DiscussionThread",
+      "table": "discussion_threads",
+      "fieldName": "escalationReason",
+      "column": "escalation_reason",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DiscussionThread",
+      "table": "discussion_threads",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "actualType": "timestamp without time zone",
+      "actualUdt": "timestamp",
+      "expectedTypes": [
+        "timestamp with time zone"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "DiscussionThread",
+      "table": "discussion_threads",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "DiscussionMessage",
+      "table": "discussion_messages",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DiscussionMessage",
+      "table": "discussion_messages",
+      "fieldName": "body",
+      "column": "body",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "DiscussionMention",
+      "table": "discussion_mentions",
+      "fieldName": "threadId",
+      "column": "thread_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "DiscussionMention",
+      "table": "discussion_mentions",
+      "fieldName": "mentionedUserId",
+      "column": "mentioned_user_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "DiscussionMention",
+      "table": "discussion_mentions",
+      "fieldName": "createdAt",
+      "column": "created_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "DiscussionParticipant",
+      "table": "discussion_participants",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "StepUpChallenge",
+      "table": "step_up_challenges",
+      "fieldName": "resourceId",
+      "column": "resource_id",
+      "actualType": "uuid",
+      "actualUdt": "uuid",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "TrustedDevice",
+      "table": "trusted_devices",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "actualType": "timestamp without time zone",
+      "actualUdt": "timestamp",
+      "expectedTypes": [
+        "timestamp with time zone"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "TrustedDevice",
+      "table": "trusted_devices",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "MfaPendingChallenge",
+      "table": "mfa_pending_challenges",
+      "fieldName": "purpose",
+      "column": "purpose",
+      "actualType": "udt=mfa_challenge_purpose",
+      "expectedTypes": [
+        "enum:MfaChallengePurpose"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "MfaRecoveryRequest",
+      "table": "mfa_recovery_requests",
+      "fieldName": "status",
+      "column": "status",
+      "actualType": "udt=mfa_recovery_request_status",
+      "expectedTypes": [
+        "enum:MfaRecoveryRequestStatus"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "OperationalIncident",
+      "table": "operational_incidents",
+      "fieldName": "safeSummary",
+      "column": "safe_summary",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "OperationalIncident",
+      "table": "operational_incidents",
+      "fieldName": "firstSeenAtUtc",
+      "column": "first_seen_at_utc",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "OperationalIncident",
+      "table": "operational_incidents",
+      "fieldName": "lastSeenAtUtc",
+      "column": "last_seen_at_utc",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "OperationalIncident",
+      "table": "operational_incidents",
+      "fieldName": "occurrenceCount",
+      "column": "occurrence_count",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "OperationalIncident",
+      "table": "operational_incidents",
+      "fieldName": "openedBySystem",
+      "column": "opened_by_system",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "OperationalIncident",
+      "table": "operational_incidents",
+      "fieldName": "resolutionNote",
+      "column": "resolution_note",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "OperationalIncident",
+      "table": "operational_incidents",
+      "fieldName": "createdAt",
+      "column": "created_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "OperationalIncident",
+      "table": "operational_incidents",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "OperationalIncidentEvent",
+      "table": "operational_incident_events",
+      "fieldName": "incidentId",
+      "column": "incident_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "OperationalIncidentEvent",
+      "table": "operational_incident_events",
+      "fieldName": "eventType",
+      "column": "event_type",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "OperationalIncidentEvent",
+      "table": "operational_incident_events",
+      "fieldName": "safeMessage",
+      "column": "safe_message",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowInstance",
+      "table": "evidence_workflow_instances",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowInstance",
+      "table": "evidence_workflow_instances",
+      "fieldName": "intakeMode",
+      "column": "intake_mode",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowInstance",
+      "table": "evidence_workflow_instances",
+      "fieldName": "actorRole",
+      "column": "actor_role",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceWorkflowInstance",
+      "table": "evidence_workflow_instances",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "actualType": "timestamp without time zone",
+      "actualUdt": "timestamp",
+      "expectedTypes": [
+        "timestamp with time zone"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowInstance",
+      "table": "evidence_workflow_instances",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowInstanceEvidence",
+      "table": "evidence_workflow_instance_evidence",
+      "fieldName": "id",
+      "column": "id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowInstanceEvidence",
+      "table": "evidence_workflow_instance_evidence",
+      "fieldName": "workflowInstanceId",
+      "column": "workflow_instance_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowInstanceEvidence",
+      "table": "evidence_workflow_instance_evidence",
+      "fieldName": "evidenceId",
+      "column": "evidence_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowInstanceEvidence",
+      "table": "evidence_workflow_instance_evidence",
+      "fieldName": "createdAt",
+      "column": "created_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowStepInstance",
+      "table": "evidence_workflow_step_instances",
+      "fieldName": "workflowInstanceId",
+      "column": "workflow_instance_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowStepInstance",
+      "table": "evidence_workflow_step_instances",
+      "fieldName": "stepKey",
+      "column": "step_key",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowStepInstance",
+      "table": "evidence_workflow_step_instances",
+      "fieldName": "orderIndex",
+      "column": "order_index",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceWorkflowStepInstance",
+      "table": "evidence_workflow_step_instances",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "actualType": "timestamp without time zone",
+      "actualUdt": "timestamp",
+      "expectedTypes": [
+        "timestamp with time zone"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowStepInstance",
+      "table": "evidence_workflow_step_instances",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowVisibilityDecision",
+      "table": "evidence_workflow_visibility_decisions",
+      "fieldName": "workflowInstanceId",
+      "column": "workflow_instance_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowVisibilityDecision",
+      "table": "evidence_workflow_visibility_decisions",
+      "fieldName": "fieldKey",
+      "column": "field_key",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowVisibilityDecision",
+      "table": "evidence_workflow_visibility_decisions",
+      "fieldName": "reason",
+      "column": "reason",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceWorkflowVisibilityDecision",
+      "table": "evidence_workflow_visibility_decisions",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "actualType": "timestamp without time zone",
+      "actualUdt": "timestamp",
+      "expectedTypes": [
+        "timestamp with time zone"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceWorkflowVisibilityDecision",
+      "table": "evidence_workflow_visibility_decisions",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceSearchDocument",
+      "table": "evidence_search_documents",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceSearchDocument",
+      "table": "evidence_search_documents",
+      "fieldName": "documentType",
+      "column": "document_type",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceSearchDocument",
+      "table": "evidence_search_documents",
+      "fieldName": "sourceId",
+      "column": "source_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceSearchDocument",
+      "table": "evidence_search_documents",
+      "fieldName": "title",
+      "column": "title",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceSearchDocument",
+      "table": "evidence_search_documents",
+      "fieldName": "title",
+      "column": "title",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceSearchDocument",
+      "table": "evidence_search_documents",
+      "fieldName": "subtitle",
+      "column": "subtitle",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceSearchDocument",
+      "table": "evidence_search_documents",
+      "fieldName": "summary",
+      "column": "summary",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceSearchDocument",
+      "table": "evidence_search_documents",
+      "fieldName": "sourceUpdatedAtUtc",
+      "column": "source_updated_at_utc",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceSearchDocument",
+      "table": "evidence_search_documents",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "actualType": "timestamp without time zone",
+      "actualUdt": "timestamp",
+      "expectedTypes": [
+        "timestamp with time zone"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceSearchDocument",
+      "table": "evidence_search_documents",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "SavedSearchView",
+      "table": "saved_search_views",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "SavedSearchView",
+      "table": "saved_search_views",
+      "fieldName": "createdByUserId",
+      "column": "created_by_user_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "SavedSearchView",
+      "table": "saved_search_views",
+      "fieldName": "queryJson",
+      "column": "query_json",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "SavedSearchView",
+      "table": "saved_search_views",
+      "fieldName": "createdAt",
+      "column": "created_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "SavedSearchView",
+      "table": "saved_search_views",
+      "fieldName": "updatedAt",
+      "column": "updated_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "ReviewerOpsReminder",
+      "table": "reviewer_ops_reminders",
+      "fieldName": "id",
+      "column": "id",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "uuid"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "ReviewerOpsReminder",
+      "table": "reviewer_ops_reminders",
+      "fieldName": "dedupKey",
+      "column": "dedup_key",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "ReviewerOpsReminder",
+      "table": "reviewer_ops_reminders",
+      "fieldName": "workflowId",
+      "column": "workflow_id",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "uuid"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "ReviewerOpsReminder",
+      "table": "reviewer_ops_reminders",
+      "fieldName": "escalationId",
+      "column": "escalation_id",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "uuid"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "ReviewerOpsReminder",
+      "table": "reviewer_ops_reminders",
+      "fieldName": "reviewerUserId",
+      "column": "reviewer_user_id",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "uuid"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "ReviewerOpsReminder",
+      "table": "reviewer_ops_reminders",
+      "fieldName": "safeSummary",
+      "column": "safe_summary",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "ReviewerOpsReminder",
+      "table": "reviewer_ops_reminders",
+      "fieldName": "status",
+      "column": "status",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "EvidenceExchangePackageDelivery",
+      "table": "evidence_exchange_package_deliveries",
+      "fieldName": "deliveredAt",
+      "column": "delivered_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "EvidenceExchangePackageDelivery",
+      "table": "evidence_exchange_package_deliveries",
+      "fieldName": "channel",
+      "column": "channel",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "EvidenceExchangePackageDelivery",
+      "table": "evidence_exchange_package_deliveries",
+      "fieldName": "deliveredAtUtc",
+      "column": "delivered_at_utc",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RetentionPolicyConfig",
+      "table": "retention_policy_configs",
+      "fieldName": "createdByUserId",
+      "column": "created_by_user_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "ExternalReviewInvitationDelivery",
+      "table": "external_review_invitation_deliveries",
+      "fieldName": "attempt",
+      "column": "attempt",
+      "actualType": "smallint",
+      "actualUdt": "int2",
+      "expectedTypes": [
+        "integer"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "ExternalReviewInvitationDelivery",
+      "table": "external_review_invitation_deliveries",
+      "fieldName": "bulkBatchId",
+      "column": "bulk_batch_id",
+      "actualType": "uuid",
+      "actualUdt": "uuid",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "ExternalReviewInvitationDelivery",
+      "table": "external_review_invitation_deliveries",
+      "fieldName": "recipientEmail",
+      "column": "recipient_email",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "ExternalReviewInvitationDelivery",
+      "table": "external_review_invitation_deliveries",
+      "fieldName": "subject",
+      "column": "subject",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionProject",
+      "table": "redaction_projects",
+      "fieldName": "artifactKind",
+      "column": "artifact_kind",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "RedactionVersion",
+      "table": "redaction_versions",
+      "fieldName": "versionOrdinal",
+      "column": "version_ordinal",
+      "actualType": "smallint",
+      "actualUdt": "int2",
+      "expectedTypes": [
+        "integer"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionVersion",
+      "table": "redaction_versions",
+      "fieldName": "authoredByUserId",
+      "column": "authored_by_user_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionRegion",
+      "table": "redaction_regions",
+      "fieldName": "authoredByUserId",
+      "column": "authored_by_user_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionDetection",
+      "table": "redaction_detections",
+      "fieldName": "rawConfidence",
+      "column": "raw_confidence",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionDetection",
+      "table": "redaction_detections",
+      "fieldName": "confidenceBand",
+      "column": "confidence_band",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionDetection",
+      "table": "redaction_detections",
+      "fieldName": "kind",
+      "column": "kind",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionDetection",
+      "table": "redaction_detections",
+      "fieldName": "suggestedRegionKind",
+      "column": "suggested_region_kind",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionDetection",
+      "table": "redaction_detections",
+      "fieldName": "suggestedRegionGeometry",
+      "column": "suggested_region_geometry",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionDetection",
+      "table": "redaction_detections",
+      "fieldName": "suggestedMethod",
+      "column": "suggested_method",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionDetection",
+      "table": "redaction_detections",
+      "fieldName": "decisionState",
+      "column": "decision_state",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionDecision",
+      "table": "redaction_decisions",
+      "fieldName": "decidedAtUtc",
+      "column": "decided_at_utc",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionDecision",
+      "table": "redaction_decisions",
+      "fieldName": "versionId",
+      "column": "version_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionDecision",
+      "table": "redaction_decisions",
+      "fieldName": "detectionId",
+      "column": "detection_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionDecision",
+      "table": "redaction_decisions",
+      "fieldName": "decisionState",
+      "column": "decision_state",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "RedactionApproval",
+      "table": "redaction_approvals",
+      "fieldName": "approvedAtUtc",
+      "column": "approved_at_utc",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionApproval",
+      "table": "redaction_approvals",
+      "fieldName": "approverUserId",
+      "column": "approver_user_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "RedactionApproval",
+      "table": "redaction_approvals",
+      "fieldName": "decidedAtUtc",
+      "column": "decided_at_utc",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "TrustCenterArticle",
+      "table": "trust_center_articles",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "TrustCenterArticle",
+      "table": "trust_center_articles",
+      "fieldName": "summary",
+      "column": "summary",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "TrustCenterArticle",
+      "table": "trust_center_articles",
+      "fieldName": "body",
+      "column": "body",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "TrustCenterArticle",
+      "table": "trust_center_articles",
+      "fieldName": "driftState",
+      "column": "drift_state",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "TrustCenterArticleVersion",
+      "table": "trust_center_article_versions",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "TrustCenterArticleVersion",
+      "table": "trust_center_article_versions",
+      "fieldName": "title",
+      "column": "title",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "TrustCenterArticleVersion",
+      "table": "trust_center_article_versions",
+      "fieldName": "summary",
+      "column": "summary",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "TrustCenterArticleVersion",
+      "table": "trust_center_article_versions",
+      "fieldName": "state",
+      "column": "state",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "TrustCenterArticleVersion",
+      "table": "trust_center_article_versions",
+      "fieldName": "authoredByUserId",
+      "column": "authored_by_user_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "Subprocessor",
+      "table": "subprocessors",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "Subprocessor",
+      "table": "subprocessors",
+      "fieldName": "slug",
+      "column": "slug",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "Subprocessor",
+      "table": "subprocessors",
+      "fieldName": "vendor",
+      "column": "vendor",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "Subprocessor",
+      "table": "subprocessors",
+      "fieldName": "purpose",
+      "column": "purpose",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "Subprocessor",
+      "table": "subprocessors",
+      "fieldName": "region",
+      "column": "region",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "Subprocessor",
+      "table": "subprocessors",
+      "fieldName": "dataCategories",
+      "column": "data_categories",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "Subprocessor",
+      "table": "subprocessors",
+      "fieldName": "changeHistorySummary",
+      "column": "change_history_summary",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "SubprocessorVersion",
+      "table": "subprocessor_versions",
+      "fieldName": "effectiveAt",
+      "column": "effective_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "SubprocessorVersion",
+      "table": "subprocessor_versions",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "SubprocessorVersion",
+      "table": "subprocessor_versions",
+      "fieldName": "changeSummary",
+      "column": "change_summary",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "SubprocessorVersion",
+      "table": "subprocessor_versions",
+      "fieldName": "snapshot",
+      "column": "snapshot",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "StatusComponent",
+      "table": "status_components",
+      "fieldName": "description",
+      "column": "description",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "StatusComponent",
+      "table": "status_components",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "StatusComponent",
+      "table": "status_components",
+      "fieldName": "upstreamSource",
+      "column": "upstream_source",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "Department",
+      "table": "departments",
+      "fieldName": "organizationId",
+      "column": "organization_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "Department",
+      "table": "departments",
+      "fieldName": "slug",
+      "column": "slug",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "DelegatedAdminGrant",
+      "table": "delegated_admin_grants",
+      "fieldName": "granteeUserId",
+      "column": "granted_to_user_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "DelegatedAdminGrant",
+      "table": "delegated_admin_grants",
+      "fieldName": "organizationId",
+      "column": "organization_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "GovernancePolicy",
+      "table": "governance_policies",
+      "fieldName": "slug",
+      "column": "slug",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "GovernancePolicy",
+      "table": "governance_policies",
+      "fieldName": "summary",
+      "column": "summary",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "GovernancePolicy",
+      "table": "governance_policies",
+      "fieldName": "rule",
+      "column": "rule",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "GovernancePolicy",
+      "table": "governance_policies",
+      "fieldName": "version",
+      "column": "version",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "GovernancePolicy",
+      "table": "governance_policies",
+      "fieldName": "createdByUserId",
+      "column": "created_by_user_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "GovernancePolicyAssignment",
+      "table": "governance_policy_assignments",
+      "fieldName": "scopeTargetId",
+      "column": "scope_target_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "GovernancePolicyAssignment",
+      "table": "governance_policy_assignments",
+      "fieldName": "scope",
+      "column": "scope",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "GovernancePolicyAssignment",
+      "table": "governance_policy_assignments",
+      "fieldName": "assignedByUserId",
+      "column": "assigned_by_user_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "GovernancePolicyAssignment",
+      "table": "governance_policy_assignments",
+      "fieldName": "createdAt",
+      "column": "created_at",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "AccessReviewCampaign",
+      "table": "access_review_campaigns",
+      "fieldName": "startsAtUtc",
+      "column": "starts_at_utc",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "AccessReviewCampaign",
+      "table": "access_review_campaigns",
+      "fieldName": "endsAtUtc",
+      "column": "ends_at_utc",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "AccessReviewCampaign",
+      "table": "access_review_campaigns",
+      "fieldName": "name",
+      "column": "name",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "AccessReviewCampaign",
+      "table": "access_review_campaigns",
+      "fieldName": "scheduledStartUtc",
+      "column": "scheduled_start_utc",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "AccessReviewCampaign",
+      "table": "access_review_campaigns",
+      "fieldName": "scheduledEndUtc",
+      "column": "scheduled_end_utc",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "AccessReviewCampaign",
+      "table": "access_review_campaigns",
+      "fieldName": "createdByUserId",
+      "column": "created_by_user_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "AccessReviewItem",
+      "table": "access_review_items",
+      "fieldName": "decision",
+      "column": "decision",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "AccessReviewItem",
+      "table": "access_review_items",
+      "fieldName": "grantRef",
+      "column": "grant_ref",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "CrossOrgReviewGrant",
+      "table": "cross_org_review_grants",
+      "fieldName": "createdByUserId",
+      "column": "granted_by_user_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "CrossOrgReviewGrant",
+      "table": "cross_org_review_grants",
+      "fieldName": "scope",
+      "column": "scope",
+      "actualType": "character varying",
+      "actualUdt": "varchar",
+      "expectedTypes": [
+        "jsonb",
+        "json"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "CrossOrgReviewGrant",
+      "table": "cross_org_review_grants",
+      "fieldName": "invitingOrganizationId",
+      "column": "inviting_organization_id",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "CrossOrgReviewGrant",
+      "table": "cross_org_review_grants",
+      "fieldName": "invitedOrgSlug",
+      "column": "invited_org_slug",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceExchangePackageBuild",
+      "table": "evidence_exchange_package_builds",
+      "fieldName": "id",
+      "column": "id",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "uuid"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "EvidenceExchangePackageBuild",
+      "table": "evidence_exchange_package_builds",
+      "fieldName": "packageId",
+      "column": "package_id",
+      "actualType": "text",
+      "actualUdt": "text",
+      "expectedTypes": [
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "MediaIntelligenceRecord",
+      "table": "media_intelligence_records",
+      "fieldName": "providerConfidence",
+      "column": "provider_confidence",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "MediaIntelligenceRecord",
+      "table": "media_intelligence_records",
+      "fieldName": "providerRecordKey",
+      "column": "provider_record_key",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "MediaIntelligenceEntity",
+      "table": "media_intelligence_entities",
+      "fieldName": "valueHash",
+      "column": "value_hash",
+      "risk": "LOW"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "MediaIntelligenceEntity",
+      "table": "media_intelligence_entities",
+      "fieldName": "rawConfidence",
+      "column": "raw_confidence",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "RedactionPolicyVersion",
+      "table": "redaction_policy_versions",
+      "fieldName": "versionOrdinal",
+      "column": "version_ordinal",
+      "actualType": "smallint",
+      "actualUdt": "int2",
+      "expectedTypes": [
+        "integer"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "RedactionPolicyAssignment",
+      "table": "redaction_policy_assignments",
+      "fieldName": "policyVersionId",
+      "column": "version_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "VideoTimelineEvent",
+      "table": "video_timeline_events",
+      "fieldName": "startMs",
+      "column": "start_ms",
+      "actualType": "integer",
+      "actualUdt": "int4",
+      "expectedTypes": [
+        "bigint"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "VideoTimelineEvent",
+      "table": "video_timeline_events",
+      "fieldName": "endMs",
+      "column": "end_ms",
+      "actualType": "integer",
+      "actualUdt": "int4",
+      "expectedTypes": [
+        "bigint"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NULLABLE_PRISMA_REQUIRED",
+      "model": "DepartmentMembership",
+      "table": "department_memberships",
+      "fieldName": "grantedByUserId",
+      "column": "granted_by_user_id",
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "SecurityClaimCheck",
+      "table": "security_claim_checks",
+      "fieldName": "lastVerifiedAt",
+      "column": "last_verified_at",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "VideoFrame",
+      "table": "video_frames",
+      "fieldName": "timestampMs",
+      "column": "timestamp_ms",
+      "actualType": "integer",
+      "actualUdt": "int4",
+      "expectedTypes": [
+        "bigint"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "VideoFrame",
+      "table": "video_frames",
+      "fieldName": "timestampMs",
+      "column": "timestamp_ms",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "VideoFrame",
+      "table": "video_frames",
+      "fieldName": "byteSize",
+      "column": "byte_size",
+      "actualType": "integer",
+      "actualUdt": "int4",
+      "expectedTypes": [
+        "bigint"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "NULLABLE_DB_NOT_NULL_PRISMA_OPTIONAL",
+      "model": "VideoTrackDetection",
+      "table": "video_track_detections",
+      "fieldName": "rawConfidence",
+      "column": "raw_confidence",
+      "risk": "LOW"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DuplicateDecision",
+      "table": "duplicate_decisions",
+      "fieldName": "id",
+      "column": "id",
+      "actualType": "uuid",
+      "actualUdt": "uuid",
+      "expectedTypes": [
+        "text",
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DuplicateDecision",
+      "table": "duplicate_decisions",
+      "fieldName": "teamId",
+      "column": "team_id",
+      "actualType": "uuid",
+      "actualUdt": "uuid",
+      "expectedTypes": [
+        "text",
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DuplicateDecision",
+      "table": "duplicate_decisions",
+      "fieldName": "edgeId",
+      "column": "edge_id",
+      "actualType": "uuid",
+      "actualUdt": "uuid",
+      "expectedTypes": [
+        "text",
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "TYPE_MISMATCH",
+      "model": "DuplicateDecision",
+      "table": "duplicate_decisions",
+      "fieldName": "decidedByUserId",
+      "column": "decided_by_user_id",
+      "actualType": "uuid",
+      "actualUdt": "uuid",
+      "expectedTypes": [
+        "text",
+        "character varying"
+      ],
+      "risk": "HIGH"
+    },
+    {
+      "kind": "MISSING_ENUM_VALUE",
+      "enumName": "CustodyEventType",
+      "value": "CAPTURE_TRUST_EVENT",
+      "risk": "HIGH"
+    }
+  ],
+  "recentMigrations": [
+    {
+      "migration_name": "20270829000000_phase_2a_live_missing_columns_catchup",
+      "started_at": "2026-06-27T17:19:40.790Z",
+      "finished_at": "2026-06-27T17:19:40.969Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270905000000_contributor_identity_snapshot",
+      "started_at": "2026-06-26T16:09:02.161Z",
+      "finished_at": "2026-06-26T16:09:02.190Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270904000000_report_claims_package_verified",
+      "started_at": "2026-06-26T16:09:02.114Z",
+      "finished_at": "2026-06-26T16:09:02.150Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270903000000_verification_package_validation_status",
+      "started_at": "2026-06-25T14:22:08.817Z",
+      "finished_at": "2026-06-25T14:22:08.859Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270902000000_verification_package_hash",
+      "started_at": "2026-06-25T14:22:08.777Z",
+      "finished_at": "2026-06-25T14:22:08.806Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270901000000_verification_package_validation_findings",
+      "started_at": "2026-06-25T14:22:08.671Z",
+      "finished_at": "2026-06-25T14:22:08.766Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270830000000_evr_p10_tsa_retry_tracking",
+      "started_at": "2026-06-24T23:05:49.354Z",
+      "finished_at": "2026-06-24T23:05:49.402Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270829000000_evr_p4_canonical_verification_record",
+      "started_at": "2026-06-24T23:05:49.281Z",
+      "finished_at": "2026-06-24T23:05:49.341Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270828000000_email_verification_tokens",
+      "started_at": "2026-06-24T06:13:44.539Z",
+      "finished_at": "2026-06-24T06:13:44.633Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270827000000_contact_sales_lead_capture",
+      "started_at": "2026-06-20T14:16:00.884Z",
+      "finished_at": "2026-06-20T14:16:01.025Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270826000000_pricing_hardening_enterprise_plan_record_caps",
+      "started_at": "2026-06-20T05:59:48.549Z",
+      "finished_at": "2026-06-20T05:59:48.609Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270825000000_intake_link_location_collection",
+      "started_at": "2026-06-17T05:16:32.166Z",
+      "finished_at": "2026-06-17T05:16:32.218Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270824000000_intake_link_archive",
+      "started_at": "2026-06-16T15:07:22.578Z",
+      "finished_at": "2026-06-16T15:07:22.621Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270823000000_communication_message_idem_key_split",
+      "started_at": "2026-06-16T15:07:22.512Z",
+      "finished_at": "2026-06-16T15:07:22.568Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270822000000_intake_link_sender_identity",
+      "started_at": "2026-06-16T09:27:09.999Z",
+      "finished_at": "2026-06-16T09:27:10.044Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270821000000_phase_search_evidence_search_documents_legacy_drop_not_null",
+      "started_at": "2026-06-15T23:54:12.842Z",
+      "finished_at": "2026-06-15T23:54:12.907Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270820000000_add_inbox_item_state",
+      "started_at": "2026-06-08T22:15:20.962Z",
+      "finished_at": "2026-06-08T22:15:21.016Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270819010000_phase_t_subprocessor_versions_runtime_repair",
+      "started_at": "2026-06-07T19:29:44.306Z",
+      "finished_at": "2026-06-07T19:29:44.341Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270819000000_phase_t_trust_center_versions_published_at_repair",
+      "started_at": "2026-06-07T19:29:44.258Z",
+      "finished_at": "2026-06-07T19:29:44.294Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270818030000_phase_t_trust_center_drift_repair",
+      "started_at": "2026-06-07T15:05:49.167Z",
+      "finished_at": "2026-06-07T15:05:49.220Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270818020000_phase_t_reviewer_disagreements_defaults",
+      "started_at": "2026-06-07T15:05:49.127Z",
+      "finished_at": "2026-06-07T15:05:49.156Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270818010000_phase_t_coding_values_id_default",
+      "started_at": "2026-06-07T15:05:49.087Z",
+      "finished_at": "2026-06-07T15:05:49.116Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270818000000_phase_t_coding_values_updated_at_default",
+      "started_at": "2026-06-07T15:05:49.044Z",
+      "finished_at": "2026-06-07T15:05:49.076Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270817000000_phase_t_coding_schema_uuid_default_repair",
+      "started_at": "2026-06-06T15:29:50.386Z",
+      "finished_at": "2026-06-06T15:29:50.432Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270816000000_phase_t_template_identity_columns",
+      "started_at": "2026-06-05T20:37:17.400Z",
+      "finished_at": "2026-06-05T20:37:17.458Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270815000000_phase_closure_webhook_delivery_duration",
+      "started_at": "2026-06-05T10:15:34.017Z",
+      "finished_at": "2026-06-05T10:15:34.050Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270814000000_phase4_webhook_dual_signing_rotation",
+      "started_at": "2026-06-05T10:15:33.949Z",
+      "finished_at": "2026-06-05T10:15:34.006Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270813000000_phase2_api_key_dual_active_rotation",
+      "started_at": "2026-06-05T10:15:33.869Z",
+      "finished_at": "2026-06-05T10:15:33.938Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270812000000_wave3_custody_event_type_widening",
+      "started_at": "2026-06-04T15:49:52.170Z",
+      "finished_at": "2026-06-04T15:49:52.204Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270811000000_wave2_duplicate_decisions",
+      "started_at": "2026-06-04T15:49:52.119Z",
+      "finished_at": "2026-06-04T15:49:52.158Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270810000000_wave1_graph_taxonomy_renames",
+      "started_at": "2026-06-04T15:49:52.065Z",
+      "finished_at": "2026-06-04T15:49:52.107Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270809000000_phase_2_1_final_drift_closure",
+      "started_at": "2026-06-03T07:20:15.573Z",
+      "finished_at": "2026-06-03T07:20:15.630Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270808000000_phase2_drift_repair_lifecycle_webhooks",
+      "started_at": "2026-06-03T07:20:15.509Z",
+      "finished_at": "2026-06-03T07:20:15.562Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270807000000_phase2_drift_repair_redaction",
+      "started_at": "2026-06-03T07:20:15.364Z",
+      "finished_at": "2026-06-03T07:20:15.498Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270806000000_phase2_drift_repair_governance",
+      "started_at": "2026-06-03T07:20:15.273Z",
+      "finished_at": "2026-06-03T07:20:15.353Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270805000000_phase2_drift_repair_trust_status",
+      "started_at": "2026-06-03T07:20:15.145Z",
+      "finished_at": "2026-06-03T07:20:15.262Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270804000000_phase1_production_drift_stabilization",
+      "started_at": "2026-06-03T07:20:15.049Z",
+      "finished_at": "2026-06-03T07:20:15.133Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270803000000_phase_governance_additive_repair",
+      "started_at": "2026-06-03T07:20:14.995Z",
+      "finished_at": "2026-06-03T07:20:15.038Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270802000000_phase_sentry_batch_schema_drift_repair",
+      "started_at": "2026-06-02T11:33:16.855Z",
+      "finished_at": "2026-06-02T11:33:16.910Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270801000000_phase16_semantic_usage",
+      "started_at": "2026-06-02T09:06:11.387Z",
+      "finished_at": "2026-06-02T09:06:11.433Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270701000000_phase15_semantic_search",
+      "started_at": "2026-06-02T09:06:11.303Z",
+      "finished_at": "2026-06-02T09:06:11.374Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270601000000_phase13_intelligence_chain",
+      "started_at": "2026-06-02T09:06:11.232Z",
+      "finished_at": "2026-06-02T09:06:11.291Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20260606120000_phase12_perceptual_foundation",
+      "started_at": "2026-06-02T09:06:11.076Z",
+      "finished_at": "2026-06-02T09:06:11.219Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270501000000_phase_10_paypal_webhook_payload_hash",
+      "started_at": "2026-06-01T17:35:45.183Z",
+      "finished_at": "2026-06-01T17:35:45.215Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270401000000_phase_10_paypal_webhook_idempotency",
+      "started_at": "2026-06-01T17:35:45.126Z",
+      "finished_at": "2026-06-01T17:35:45.172Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270301000000_phase_7_collaboration_completion",
+      "started_at": "2026-06-01T17:35:44.987Z",
+      "finished_at": "2026-06-01T17:35:45.115Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270201000000_phase_5_collaboration_teams",
+      "started_at": "2026-06-01T17:35:44.728Z",
+      "finished_at": "2026-06-01T17:35:44.975Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270109000000_phase_r7_redaction_policy_unique",
+      "started_at": "2026-05-31T22:41:46.777Z",
+      "finished_at": "2026-05-31T22:41:46.809Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270108000000_phase_r7_intelligence_schema_fix",
+      "started_at": "2026-05-31T22:41:46.730Z",
+      "finished_at": "2026-05-31T22:41:46.767Z",
+      "rolled_back_at": null
+    },
+    {
+      "migration_name": "20270107000000_phase_r7_capture_trust_schema_fix",
+      "started_at": "2026-05-31T22:41:46.691Z",
+      "finished_at": "2026-05-31T22:41:46.720Z",
+      "rolled_back_at": null
+    }
+  ]
+}
