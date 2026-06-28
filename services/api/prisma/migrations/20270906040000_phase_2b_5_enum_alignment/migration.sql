@@ -121,7 +121,7 @@ DECLARE
     IF EXISTS (
       SELECT 1 FROM "reports"
        WHERE "last_verified_source_snapshot" IS NOT NULL
-         AND "last_verified_source_snapshot" NOT IN (
+         AND "last_verified_source_snapshot"::text NOT IN (
            'REPORT_GENERATED',
            'PUBLIC_VERIFY_VIEWED',
            'TECHNICAL_VERIFICATION_CHECKED'
@@ -150,7 +150,7 @@ DECLARE
     IF EXISTS (
       SELECT 1 FROM "verification_views"
        WHERE "verification_status_snapshot" IS NOT NULL
-         AND "verification_status_snapshot" NOT IN (
+         AND "verification_status_snapshot"::text NOT IN (
            'MATERIALS_AVAILABLE',
            'RECORDED_INTEGRITY_VERIFIED',
            'REVIEW_REQUIRED',
@@ -187,7 +187,7 @@ DECLARE
     IF EXISTS (
       SELECT 1 FROM "teams"
        WHERE "billing_plan" IS NOT NULL
-         AND "billing_plan" NOT IN ('FREE', 'PAYG', 'PRO', 'TEAM', 'ENTERPRISE')
+         AND "billing_plan"::text NOT IN ('FREE', 'PAYG', 'PRO', 'TEAM', 'ENTERPRISE')
        LIMIT 1
     ) THEN
       RAISE EXCEPTION 'Cannot convert teams.billing_plan to PlanType: invalid values exist';
@@ -220,7 +220,7 @@ DECLARE
     IF EXISTS (
       SELECT 1 FROM "teams"
        WHERE "billing_status" IS NOT NULL
-         AND "billing_status" NOT IN ('INACTIVE', 'ACTIVE', 'PAST_DUE', 'CANCELED')
+         AND "billing_status"::text NOT IN ('INACTIVE', 'ACTIVE', 'PAST_DUE', 'CANCELED')
        LIMIT 1
     ) THEN
       RAISE EXCEPTION 'Cannot convert teams.billing_status to TeamBillingStatus: invalid values exist';
@@ -254,7 +254,7 @@ DECLARE
     IF EXISTS (
       SELECT 1 FROM "demo_requests"
        WHERE "lead_quality" IS NOT NULL
-         AND "lead_quality" NOT IN ('LOW', 'MEDIUM', 'HIGH')
+         AND "lead_quality"::text NOT IN ('LOW', 'MEDIUM', 'HIGH')
        LIMIT 1
     ) THEN
       RAISE EXCEPTION 'Cannot convert demo_requests.lead_quality to DemoLeadQuality: invalid values exist';
@@ -290,7 +290,7 @@ DECLARE
     IF EXISTS (
       SELECT 1 FROM "demo_requests"
        WHERE "lead_track" IS NOT NULL
-         AND "lead_track" NOT IN ('DISCOVERY', 'SALES', 'ENTERPRISE')
+         AND "lead_track"::text NOT IN ('DISCOVERY', 'SALES', 'ENTERPRISE')
        LIMIT 1
     ) THEN
       RAISE EXCEPTION 'Cannot convert demo_requests.lead_track to DemoLeadTrack: invalid values exist';
@@ -333,7 +333,7 @@ END IF;
     IF EXISTS (
       SELECT 1 FROM "demo_requests"
        WHERE "recommended_action" IS NOT NULL
-         AND "recommended_action" NOT IN (
+         AND "recommended_action"::text NOT IN (
            'reply_with_resources',
            'offer_demo',
            'route_enterprise'
