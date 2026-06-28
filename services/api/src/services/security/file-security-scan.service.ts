@@ -45,7 +45,7 @@ export function isMalwareScanningEnabled(): boolean {
 
 export type ScanRequest = {
   evidenceId: string;
-  teamId: string | null;
+  teamId: string;
 };
 
 export type ScanResult = {

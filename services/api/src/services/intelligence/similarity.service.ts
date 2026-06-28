@@ -44,7 +44,7 @@ const TEXT_THRESHOLD = 0.4;
 async function upsertSimilarity(
   client: PrismaClient,
   input: {
-    teamId: string | null;
+    teamId: string;
     sourceEvidenceId: string;
     targetEvidenceId: string;
     kind: EvidenceSimilarityKind;
@@ -98,9 +98,10 @@ export async function detectHashDuplicatesForEvidence(
     select: { id: true, teamId: true, fileSha256: true },
   });
   if (!me || !me.fileSha256) return [];
+  const teamId = me.teamId!;
   const peers = await client.evidence.findMany({
     where: {
-      teamId: me.teamId,
+      teamId,
       fileSha256: me.fileSha256,
       id: { not: me.id },
       deletedAt: null,
@@ -111,7 +112,7 @@ export async function detectHashDuplicatesForEvidence(
   const out: DbSimilarity[] = [];
   for (const p of peers) {
     const row = await upsertSimilarity(client, {
-      teamId: me.teamId,
+      teamId,
       sourceEvidenceId: me.id,
       targetEvidenceId: p.id,
       kind: "HASH_DUPLICATE",
@@ -140,13 +141,14 @@ export async function detectFilenameSimilarForEvidence(
     },
   });
   if (!me) return [];
+  const teamId = me.teamId!;
   const myName = me.displayFileName ?? me.originalFileName ?? "";
   const myTokens = filenameTokens(myName);
   if (myTokens.size < 2) return [];
 
   const peers = await client.evidence.findMany({
     where: {
-      teamId: me.teamId,
+      teamId,
       id: { not: me.id },
       deletedAt: null,
     },
@@ -161,7 +163,7 @@ export async function detectFilenameSimilarForEvidence(
     const score = jaccardSimilarity(myTokens, peerTokens);
     if (score >= FILENAME_THRESHOLD) {
       const row = await upsertSimilarity(client, {
-        teamId: me.teamId,
+        teamId,
         sourceEvidenceId: me.id,
         targetEvidenceId: p.id,
         kind: "FILENAME_SIMILAR",
@@ -188,6 +190,7 @@ export async function detectTextSimilarForEvidence(
     select: { id: true, teamId: true },
   });
   if (!me) return [];
+  const teamId = me.teamId!;
   const myTexts = await client.evidenceExtractedText.findMany({
     where: {
       evidenceId: me.id,
@@ -204,7 +207,7 @@ export async function detectTextSimilarForEvidence(
 
   const peers = await client.evidenceExtractedText.findMany({
     where: {
-      teamId: me.teamId,
+      teamId,
       status: "COMPLETED",
       kind: { in: sourceTextKind as never },
       evidenceId: { not: me.id },
@@ -224,7 +227,7 @@ export async function detectTextSimilarForEvidence(
     const score = textSimilarity(myText, peerText);
     if (score >= TEXT_THRESHOLD) {
       const row = await upsertSimilarity(client, {
-        teamId: me.teamId,
+        teamId,
         sourceEvidenceId: me.id,
         targetEvidenceId: peerId,
         kind: input.kind,

@@ -761,10 +761,16 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20270829000000_evr_p4_canonical_verification_record",
 "20270830000000_evr_p10_tsa_retry_tracking",
 "20270901000000_verification_package_validation_findings",
-"20270902000000_verification_package_hash",
+      "20270902000000_verification_package_hash",
 "20270903000000_verification_package_validation_status",
 "20270904000000_report_claims_package_verified",
 "20270905000000_contributor_identity_snapshot",
+      // Phase 2C-D LOW-drift cleanup. Safe single-statement DB relaxation:
+      // media_intelligence_records.provider_confidence DROP NOT NULL so the
+      // DB matches the already-nullable runtime/model contract. Unrelated to
+      // Phase 32.7.2 SecurityEvent mapping, so allowlisting preserves the
+      // original guardrail intent without blocking later safe schema work.
+      "20270906070000_phase_2c_d_provider_confidence_nullable_relaxation",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

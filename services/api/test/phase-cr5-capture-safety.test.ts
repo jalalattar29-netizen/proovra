@@ -228,7 +228,10 @@ const CAPTURE_ROUTES_BYTES_EXACT = 21793;
 // import + guard block + AppError throw + security event). Pure read
 // followed by an early throw — no change to the sealing/custody
 // chain semantics.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 48332;
+// Phase 2C-D mechanical rebaseline: 48,332 → 48,327. The only delta is
+// non-null assertions at the file-security scan callsite so the compile-time
+// contract matches the already-required runtime/team-scoped flow.
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 48327;
 const CUSTODY_EVENTS_SVC_BYTES_EXACT = 5155;
 const TIMESTAMP_SVC_BYTES_EXACT = 12988;
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the

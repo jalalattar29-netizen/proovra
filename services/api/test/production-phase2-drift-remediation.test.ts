@@ -266,7 +266,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "team_id",
     typeRe: /UUID/,
     model: "SubprocessorVersion",
-    mapRe: mapUuid("team_id"),
+    mapRe: mapUuid("team_id", false),
   },
   {
     migrationId: "20270805000000_phase2_drift_repair_trust_status",

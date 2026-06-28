@@ -66,7 +66,7 @@ function chunkText(text: string, chunkBytes = DEFAULT_CHUNK_BYTES): string[] {
 
 export type IndexInput = {
   evidenceId: string;
-  teamId: string | null;
+  teamId: string;
   text: string;
 };
 

@@ -507,9 +507,12 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     //   gate added before sealing (validator import + guard block +
     //   AppError throw + security event). Read-only logic, single
     //   early-return path.
+    // Phase 2C-D mechanical rebaseline: 48,332 → 48,327. Only compile-time
+    // non-null assertions changed at the file-security scan handoff; no
+    // finalize/report/custody behavior changed.
     expect(
       statSync(apiSrcPath("services/evidence-complete.service.ts")).size,
-    ).toBe(48332);
+    ).toBe(48327);
   });
 
   it("CR1.6 byte-exact pin on custody-events.service.ts holds (5,155 bytes)", () => {

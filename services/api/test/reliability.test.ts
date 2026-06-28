@@ -179,7 +179,7 @@ describe("upload session projection — privacy", () => {
     const completed = projectUploadSession({
       id: "11111111-1111-4111-8111-111111111111",
       evidenceId: "22222222-2222-4222-8222-222222222222",
-      teamId: null,
+      teamId: "33333333-3333-4333-8333-333333333333",
       status: "COMPLETED" as never,
       isMultipart: false,
       expectedPartCount: null,
@@ -200,7 +200,7 @@ describe("upload session projection — privacy", () => {
       ...{
         id: "11111111-1111-4111-8111-111111111111",
         evidenceId: "22222222-2222-4222-8222-222222222222",
-        teamId: null,
+        teamId: "33333333-3333-4333-8333-333333333333",
         status: "STALLED" as never,
         isMultipart: false,
         expectedPartCount: null,

@@ -3926,7 +3926,7 @@ enum UploadSessionStatus {
 model UploadSession {
   id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   evidenceId String  @unique @map("evidence_id") @db.Uuid
-  teamId     String? @map("team_id") @db.Uuid
+  teamId     String  @map("team_id") @db.Uuid
 
   status UploadSessionStatus @default(CREATED)
 
@@ -4087,7 +4087,7 @@ enum EvidenceIntelligenceJobStatus {
 model EvidenceIntelligenceJob {
   id             String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   evidenceId     String                        @map("evidence_id") @db.Uuid
-  teamId         String?                       @map("team_id") @db.Uuid
+  teamId         String                        @map("team_id") @db.Uuid
   kind           EvidenceIntelligenceJobKind
   status         EvidenceIntelligenceJobStatus @default(PENDING)
   provider       String?                       @db.VarChar(64)
@@ -4131,7 +4131,7 @@ enum EvidenceExtractedTextStatus {
 model EvidenceExtractedText {
   id              String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   evidenceId      String                      @map("evidence_id") @db.Uuid
-  teamId          String?                     @map("team_id") @db.Uuid
+  teamId          String                      @map("team_id") @db.Uuid
   kind            EvidenceExtractedTextKind
   status          EvidenceExtractedTextStatus @default(PENDING)
   // Provider name + version. Operators can audit which engine produced
@@ -4186,7 +4186,7 @@ enum EvidenceEntitySource {
 model EvidenceEntity {
   id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   evidenceId      String               @map("evidence_id") @db.Uuid
-  teamId          String?              @map("team_id") @db.Uuid
+  teamId          String               @map("team_id") @db.Uuid
   kind            EvidenceEntityKind
   source          EvidenceEntitySource
   // The raw matched text — what the operator sees.
@@ -4212,7 +4212,7 @@ model EvidenceEntity {
 model EvidenceSemanticChunk {
   id                  String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   evidenceId          String                       @map("evidence_id") @db.Uuid
-  teamId              String?                      @map("team_id") @db.Uuid
+  teamId              String                       @map("team_id") @db.Uuid
   chunkIndex          Int                          @map("chunk_index")
   chunkText           String                       @map("chunk_text")
   embeddingProvider   String?                      @map("embedding_provider") @db.VarChar(64)
@@ -4277,7 +4277,7 @@ enum EvidenceSimilarityKind {
 
 model EvidenceSimilarity {
   id               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId           String?                @map("team_id") @db.Uuid
+  teamId           String                 @map("team_id") @db.Uuid
   sourceEvidenceId String                 @map("source_evidence_id") @db.Uuid
   targetEvidenceId String                 @map("target_evidence_id") @db.Uuid
   kind             EvidenceSimilarityKind
@@ -4345,7 +4345,7 @@ enum DiscussionThreadVisibility {
 
 model DiscussionThread {
   id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId            String? @map("team_id") @db.Uuid
+  teamId            String  @map("team_id") @db.Uuid
   evidenceId        String  @map("evidence_id") @db.Uuid
   // Optional linkage to a Phase 7 evidence request — when set, the
   // thread shows up on the request detail surface AND on the
@@ -4406,7 +4406,7 @@ enum DiscussionMessageAuthorKind {
 model DiscussionMessage {
   id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   threadId String  @map("thread_id") @db.Uuid
-  teamId   String? @map("team_id") @db.Uuid
+  teamId   String  @map("team_id") @db.Uuid
 
   authorKind                 DiscussionMessageAuthorKind @map("author_kind")
   authorUserId               String?                     @map("author_user_id") @db.Uuid
@@ -4472,7 +4472,7 @@ enum DiscussionParticipantRole {
 model DiscussionParticipant {
   id              String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   threadId        String                    @map("thread_id") @db.Uuid
-  teamId          String?                   @map("team_id") @db.Uuid
+  teamId          String                    @map("team_id") @db.Uuid
   userId          String?                   @map("user_id") @db.Uuid
   intakeSessionId String?                   @map("intake_session_id") @db.Uuid
   role            DiscussionParticipantRole @default(PARTICIPANT)
@@ -9423,7 +9423,7 @@ model EvidenceExchangePackageDelivery {
   // R7 — additive delivery fields
   recipientEmail   String?   @map("recipient_email") @db.VarChar(320)
   recipientOrgSlug String?   @map("recipient_org_slug") @db.VarChar(64)
-  channel          String?   @db.VarChar(40)
+  channel          String    @db.VarChar(40)
   downloadedAtUtc  DateTime? @map("downloaded_at_utc") @db.Timestamptz(6)
   verifiedAtUtc    DateTime? @map("verified_at_utc") @db.Timestamptz(6)
   deliveredAtUtc   DateTime? @map("delivered_at_utc") @db.Timestamptz(6)
@@ -10162,7 +10162,7 @@ model RedactionActivity {
 
 model TrustCenterArticle {
   id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId                   String?   @map("team_id") @db.Uuid
+  teamId                   String    @map("team_id") @db.Uuid
   kind                     String    @db.VarChar(40)
   section                  String    @db.VarChar(80)
   slug                     String    @db.VarChar(120)
@@ -10197,7 +10197,7 @@ model TrustCenterArticleVersion {
   publishedAt              DateTime? @map("published_at") @db.Timestamptz(6)
   publishedAtUtc           DateTime? @map("published_at_utc") @db.Timestamptz(6)
   // R7-trust additive — service-required columns (trust-center.service.listTrustArticleVersions)
-  teamId                   String?   @map("team_id") @db.Uuid
+  teamId                   String    @map("team_id") @db.Uuid
   title                    String    @db.VarChar(300)
   summary                  String    @db.VarChar(800)
   state                    String    @db.VarChar(20)
@@ -10221,7 +10221,7 @@ model Subprocessor {
   country              String?  @db.VarChar(80)
   description          String?  @db.VarChar(800)
   // R7 additive
-  teamId               String?  @map("team_id") @db.Uuid
+  teamId               String   @map("team_id") @db.Uuid
   slug                 String   @db.VarChar(120)
   vendor               String   @db.VarChar(200)
   purpose              String   @db.VarChar(600)
@@ -10250,7 +10250,7 @@ model SubprocessorVersion {
   // R7-trust: default — service writes one version row per upsert without an explicit effectiveAt; default to NOW()
   effectiveAt      DateTime  @default(now()) @map("effective_at") @db.Timestamptz(6)
   // R7 additive
-  teamId           String?   @map("team_id") @db.Uuid
+  teamId           String    @map("team_id") @db.Uuid
   effectiveAtUtc   DateTime? @map("effective_at_utc") @db.Timestamptz(6)
   // R7-trust additive — service-required columns (subprocessor.service writes these on every version)
   changeSummary    String    @map("change_summary") @db.VarChar(800)
@@ -10271,7 +10271,7 @@ model StatusComponent {
   health            String   @default("OPERATIONAL") @db.VarChar(30)
   description       String   @db.VarChar(400)
   // R7 additive
-  teamId            String?  @map("team_id") @db.Uuid
+  teamId            String   @map("team_id") @db.Uuid
   upstreamSource    String   @map("upstream_source") @db.VarChar(80)
   upstreamReference String?  @map("upstream_reference") @db.VarChar(200)
   // R7-trust: projection requires non-null; default to creation time so legacy rows fill in
@@ -10943,7 +10943,7 @@ model SecurityClaimCheck {
   evidencePaths              Json      @default("[]") @map("evidence_paths")
   limitation                 String?   @db.VarChar(400)
   ownerUserId                String?   @map("owner_user_id") @db.Uuid
-  lastVerifiedAt             DateTime? @map("last_verified_at") @db.Timestamptz(6)
+  lastVerifiedAt             DateTime  @map("last_verified_at") @db.Timestamptz(6)
   createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 

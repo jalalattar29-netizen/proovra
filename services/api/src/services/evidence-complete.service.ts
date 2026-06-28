@@ -1312,10 +1312,10 @@ const captureMethod =
         select: { id: true, teamId: true },
       });
       if (ev) {
-        await enqueueScan({ evidenceId: ev.id, teamId: ev.teamId });
+        await enqueueScan({ evidenceId: ev.id, teamId: ev.teamId! });
         // Fire-and-forget runScan; the scanner is responsible for its
         // own timeouts. Completion returns immediately either way.
-        runScan({ evidenceId: ev.id, teamId: ev.teamId }).catch(() => null);
+        runScan({ evidenceId: ev.id, teamId: ev.teamId! }).catch(() => null);
       }
     } catch (err) {
       // Never fail completion on scan enqueue — scanner is best-effort.

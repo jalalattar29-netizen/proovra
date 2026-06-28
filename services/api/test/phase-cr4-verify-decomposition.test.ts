@@ -191,7 +191,11 @@ describe("CR4 Group 1 — file-size guards", () => {
     //   work — pulls validateRequiredChecklistMapping + AppError import +
     //   guard block + audit security event. Pure read; no change to the
     //   custody chain or sealing semantics.
-    expect(sz).toBe(48332);
+    // Phase 2C-D mechanical rebaseline: 48,332 → 48,327. Only non-null
+    // assertions were added at the file-security enqueue callsite after
+    // UploadSession / intelligence teamId tightening; no evidence-complete
+    // lifecycle behavior changed.
+    expect(sz).toBe(48327);
   });
 
   it("custody-events.service.ts pin (CR1.6 — 5,155 bytes)", () => {

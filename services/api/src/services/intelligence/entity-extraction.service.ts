@@ -43,7 +43,7 @@ function normaliseFor(
 
 export type ExtractEntitiesInput = {
   evidenceId: string;
-  teamId: string | null;
+  teamId: string;
   text: string;
   source: DbEntitySource;
 };

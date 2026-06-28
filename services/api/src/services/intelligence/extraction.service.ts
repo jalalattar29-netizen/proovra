@@ -46,7 +46,7 @@ const MAX_TEXT_BYTES = 5 * 1024 * 1024; // 5 MiB per extraction row
 
 export type ExtractionInput = {
   evidenceId: string;
-  teamId: string | null;
+  teamId: string;
   /**
    * Caller supplies the file MIME and optional pre-fetched bytes. The
    * service NEVER reads the original evidence file directly — the
@@ -133,7 +133,7 @@ export function configuredTranscriptProviderName(): string {
 export async function enqueueIntelligenceJob(
   input: {
     evidenceId: string;
-    teamId: string | null;
+    teamId: string;
     kind: EvidenceIntelligenceJobKind;
     provider?: string | null;
   },

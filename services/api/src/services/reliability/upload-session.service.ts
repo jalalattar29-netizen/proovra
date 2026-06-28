@@ -44,7 +44,7 @@ export class UploadSessionTransitionError extends Error {
 
 export type EnsureUploadSessionInput = {
   evidenceId: string;
-  teamId: string | null;
+  teamId: string;
   isMultipart?: boolean;
   expectedPartCount?: number | null;
 };

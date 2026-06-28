@@ -155,9 +155,11 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     // Phase CAPTURE-HARDENING: 46,824 → 48,332 — required-checklist
     //   gate added before sealing. Pure read + early throw; no
     //   change to signature / TSA / lock / report semantics.
+    // Phase 2C-D mechanical rebaseline: 48,332 → 48,327 from non-null
+    // assertions only at the file-security scan handoff.
     expect(
       statSync(apiSrcPath("services/evidence-complete.service.ts")).size,
-    ).toBe(48332);
+    ).toBe(48327);
   });
   it("CR1.6 byte-exact pin on custody-events.service.ts holds", () => {
     expect(
