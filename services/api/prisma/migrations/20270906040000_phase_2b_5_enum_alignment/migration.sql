@@ -1,38 +1,32 @@
 -- Phase 2B.5 — enum alignment
 --
--- Live precheck summary:
---   * text-backed enum drift only on:
---       reports.last_verified_source_snapshot
---       verification_views.verification_status_snapshot
---       teams.billing_plan
---       teams.billing_status
---       demo_requests.lead_quality
---       demo_requests.lead_track
---       demo_requests.recommended_action
---   * enum-map false positives on workflow_review_decisions and MFA
---     are fixed in the audit script, not in the DB
---   * missing enum value: CustodyEventType.CAPTURE_TRUST_EVENT
+-- Clean, idempotent, production-safe rewrite.
 --
--- Safety rules:
+-- Scope:
+--   * Create required enum types if absent.
+--   * Add missing CustodyEventType.CAPTURE_TRUST_EVENT if absent.
+--   * Convert text-backed enum columns to Prisma enum types.
+--   * Skip conversion automatically if a column is already converted.
+--
+-- Safety:
+--   * no DROP columns
+--   * no FK changes
 --   * no destructive enum changes
---   * validate every stored value before cast
---   * create enum types only when absent
+--   * no outer BEGIN/COMMIT
+--   * all value checks cast column values to text
+--   * all enum casts use ::text::EnumName
+--   * defaults are dropped before conversion and restored only where appropriate
 
 DO $$
-DECLARE
-  teams_billing_plan_had_default BOOLEAN := FALSE;
-  teams_billing_status_had_default BOOLEAN := FALSE;
-  demo_lead_quality_had_default BOOLEAN := FALSE;
-  demo_lead_track_had_default BOOLEAN := FALSE;
-  demo_recommended_action_had_default BOOLEAN := FALSE;
-  BEGIN
+BEGIN
   BEGIN
     CREATE TYPE "VerificationSource" AS ENUM (
       'REPORT_GENERATED',
       'PUBLIC_VERIFY_VIEWED',
       'TECHNICAL_VERIFICATION_CHECKED'
     );
-  EXCEPTION WHEN duplicate_object THEN NULL;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
   END;
 
   BEGIN
@@ -42,7 +36,8 @@ DECLARE
       'REVIEW_REQUIRED',
       'FAILED'
     );
-  EXCEPTION WHEN duplicate_object THEN NULL;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
   END;
 
   BEGIN
@@ -53,7 +48,8 @@ DECLARE
       'TEAM',
       'ENTERPRISE'
     );
-  EXCEPTION WHEN duplicate_object THEN NULL;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
   END;
 
   BEGIN
@@ -63,7 +59,8 @@ DECLARE
       'PAST_DUE',
       'CANCELED'
     );
-  EXCEPTION WHEN duplicate_object THEN NULL;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
   END;
 
   BEGIN
@@ -72,7 +69,8 @@ DECLARE
       'MEDIUM',
       'HIGH'
     );
-  EXCEPTION WHEN duplicate_object THEN NULL;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
   END;
 
   BEGIN
@@ -81,7 +79,8 @@ DECLARE
       'SALES',
       'ENTERPRISE'
     );
-  EXCEPTION WHEN duplicate_object THEN NULL;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
   END;
 
   BEGIN
@@ -90,272 +89,267 @@ DECLARE
       'offer_demo',
       'route_enterprise'
     );
-  EXCEPTION WHEN duplicate_object THEN NULL;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
   END;
+END $$;
 
+DO $$
+BEGIN
   IF EXISTS (
     SELECT 1
-      FROM pg_type t
-      JOIN pg_namespace n ON n.oid = t.typnamespace
-     WHERE n.nspname = 'public'
-       AND t.typname = 'CustodyEventType'
-  ) AND NOT EXISTS (
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE n.nspname = 'public'
+      AND t.typname = 'CustodyEventType'
+  )
+  AND NOT EXISTS (
     SELECT 1
-      FROM pg_type t
-      JOIN pg_enum e ON e.enumtypid = t.oid
-      JOIN pg_namespace n ON n.oid = t.typnamespace
-     WHERE n.nspname = 'public'
-       AND t.typname = 'CustodyEventType'
-       AND e.enumlabel = 'CAPTURE_TRUST_EVENT'
+    FROM pg_type t
+    JOIN pg_enum e ON e.enumtypid = t.oid
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE n.nspname = 'public'
+      AND t.typname = 'CustodyEventType'
+      AND e.enumlabel = 'CAPTURE_TRUST_EVENT'
   ) THEN
-    EXECUTE 'ALTER TYPE "CustodyEventType" ADD VALUE ''CAPTURE_TRUST_EVENT''';
+    ALTER TYPE "CustodyEventType" ADD VALUE 'CAPTURE_TRUST_EVENT';
   END IF;
+END $$;
 
+-- reports.last_verified_source_snapshot: text -> VerificationSource
+DO $$
+BEGIN
   IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-     WHERE table_schema = 'public'
-       AND table_name = 'reports'
-       AND column_name = 'last_verified_source_snapshot'
-       AND data_type = 'text'
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'reports'
+      AND column_name = 'last_verified_source_snapshot'
+      AND udt_name = 'text'
   ) THEN
     IF EXISTS (
-      SELECT 1 FROM "reports"
-       WHERE "last_verified_source_snapshot" IS NOT NULL
-         AND "last_verified_source_snapshot"::text NOT IN (
-           'REPORT_GENERATED',
-           'PUBLIC_VERIFY_VIEWED',
-           'TECHNICAL_VERIFICATION_CHECKED'
-         )
-       LIMIT 1
+      SELECT 1
+      FROM "reports"
+      WHERE "last_verified_source_snapshot" IS NOT NULL
+        AND "last_verified_source_snapshot"::text NOT IN (
+          'REPORT_GENERATED',
+          'PUBLIC_VERIFY_VIEWED',
+          'TECHNICAL_VERIFICATION_CHECKED'
+        )
+      LIMIT 1
     ) THEN
       RAISE EXCEPTION 'Cannot convert reports.last_verified_source_snapshot to VerificationSource: invalid values exist';
     END IF;
 
-    EXECUTE 'ALTER TABLE "reports" ALTER COLUMN "last_verified_source_snapshot" DROP DEFAULT';
-    EXECUTE 'ALTER TABLE "reports"
-      ALTER COLUMN "last_verified_source_snapshot" TYPE "VerificationSource"
-      USING CASE
-        WHEN "last_verified_source_snapshot" IS NULL THEN NULL
-        ELSE "last_verified_source_snapshot"::"VerificationSource"
-      END';
-  END IF;
+    ALTER TABLE "reports"
+      ALTER COLUMN "last_verified_source_snapshot" DROP DEFAULT;
 
+    ALTER TABLE "reports"
+      ALTER COLUMN "last_verified_source_snapshot" TYPE "VerificationSource"
+      USING "last_verified_source_snapshot"::text::"VerificationSource";
+  END IF;
+END $$;
+
+-- verification_views.verification_status_snapshot: text -> VerificationStatus
+DO $$
+BEGIN
   IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-     WHERE table_schema = 'public'
-       AND table_name = 'verification_views'
-       AND column_name = 'verification_status_snapshot'
-       AND data_type = 'text'
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'verification_views'
+      AND column_name = 'verification_status_snapshot'
+      AND udt_name = 'text'
   ) THEN
     IF EXISTS (
-      SELECT 1 FROM "verification_views"
-       WHERE "verification_status_snapshot" IS NOT NULL
-         AND "verification_status_snapshot"::text NOT IN (
-           'MATERIALS_AVAILABLE',
-           'RECORDED_INTEGRITY_VERIFIED',
-           'REVIEW_REQUIRED',
-           'FAILED'
-         )
-       LIMIT 1
+      SELECT 1
+      FROM "verification_views"
+      WHERE "verification_status_snapshot" IS NOT NULL
+        AND "verification_status_snapshot"::text NOT IN (
+          'MATERIALS_AVAILABLE',
+          'RECORDED_INTEGRITY_VERIFIED',
+          'REVIEW_REQUIRED',
+          'FAILED'
+        )
+      LIMIT 1
     ) THEN
       RAISE EXCEPTION 'Cannot convert verification_views.verification_status_snapshot to VerificationStatus: invalid values exist';
     END IF;
 
-    EXECUTE 'ALTER TABLE "verification_views" ALTER COLUMN "verification_status_snapshot" DROP DEFAULT';
-    EXECUTE 'ALTER TABLE "verification_views"
-      ALTER COLUMN "verification_status_snapshot" TYPE "VerificationStatus"
-      USING CASE
-        WHEN "verification_status_snapshot" IS NULL THEN NULL
-        ELSE "verification_status_snapshot"::"VerificationStatus"
-      END';
-  END IF;
+    ALTER TABLE "verification_views"
+      ALTER COLUMN "verification_status_snapshot" DROP DEFAULT;
 
+    ALTER TABLE "verification_views"
+      ALTER COLUMN "verification_status_snapshot" TYPE "VerificationStatus"
+      USING "verification_status_snapshot"::text::"VerificationStatus";
+  END IF;
+END $$;
+
+-- teams.billing_plan: text -> PlanType
+DO $$
+BEGIN
   IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-     WHERE table_schema = 'public'
-       AND table_name = 'teams'
-       AND column_name = 'billing_plan'
-       AND data_type = 'text'
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'teams'
+      AND column_name = 'billing_plan'
+      AND udt_name = 'text'
   ) THEN
-    SELECT EXISTS (
-      SELECT 1 FROM information_schema.columns
-       WHERE table_schema = 'public'
-         AND table_name = 'teams'
-         AND column_name = 'billing_plan'
-         AND column_default IS NOT NULL
-    ) INTO teams_billing_plan_had_default;
     IF EXISTS (
-      SELECT 1 FROM "teams"
-       WHERE "billing_plan" IS NOT NULL
-         AND "billing_plan"::text NOT IN ('FREE', 'PAYG', 'PRO', 'TEAM', 'ENTERPRISE')
-       LIMIT 1
+      SELECT 1
+      FROM "teams"
+      WHERE "billing_plan" IS NOT NULL
+        AND "billing_plan"::text NOT IN ('FREE', 'PAYG', 'PRO', 'TEAM', 'ENTERPRISE')
+      LIMIT 1
     ) THEN
       RAISE EXCEPTION 'Cannot convert teams.billing_plan to PlanType: invalid values exist';
     END IF;
-    IF teams_billing_plan_had_default THEN
-      EXECUTE 'ALTER TABLE "teams" ALTER COLUMN "billing_plan" DROP DEFAULT';
-    END IF;
-    EXECUTE 'ALTER TABLE "teams"
-      ALTER COLUMN "billing_plan" TYPE "PlanType"
-      USING "billing_plan"::"PlanType"';
-    IF teams_billing_plan_had_default THEN
-      EXECUTE 'ALTER TABLE "teams" ALTER COLUMN "billing_plan" SET DEFAULT ''FREE''::"PlanType"';
-    END IF;
-  END IF;
 
+    ALTER TABLE "teams"
+      ALTER COLUMN "billing_plan" DROP DEFAULT;
+
+    ALTER TABLE "teams"
+      ALTER COLUMN "billing_plan" TYPE "PlanType"
+      USING "billing_plan"::text::"PlanType";
+
+    ALTER TABLE "teams"
+      ALTER COLUMN "billing_plan" SET DEFAULT 'FREE'::"PlanType";
+  END IF;
+END $$;
+
+-- teams.billing_status: text -> TeamBillingStatus
+DO $$
+BEGIN
   IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-     WHERE table_schema = 'public'
-       AND table_name = 'teams'
-       AND column_name = 'billing_status'
-       AND data_type = 'text'
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'teams'
+      AND column_name = 'billing_status'
+      AND udt_name = 'text'
   ) THEN
-    SELECT EXISTS (
-      SELECT 1 FROM information_schema.columns
-       WHERE table_schema = 'public'
-         AND table_name = 'teams'
-         AND column_name = 'billing_status'
-         AND column_default IS NOT NULL
-    ) INTO teams_billing_status_had_default;
     IF EXISTS (
-      SELECT 1 FROM "teams"
-       WHERE "billing_status" IS NOT NULL
-         AND "billing_status"::text NOT IN ('INACTIVE', 'ACTIVE', 'PAST_DUE', 'CANCELED')
-       LIMIT 1
+      SELECT 1
+      FROM "teams"
+      WHERE "billing_status" IS NOT NULL
+        AND "billing_status"::text NOT IN ('INACTIVE', 'ACTIVE', 'PAST_DUE', 'CANCELED')
+      LIMIT 1
     ) THEN
       RAISE EXCEPTION 'Cannot convert teams.billing_status to TeamBillingStatus: invalid values exist';
     END IF;
-    IF teams_billing_status_had_default THEN
-      EXECUTE 'ALTER TABLE "teams" ALTER COLUMN "billing_status" DROP DEFAULT';
-    END IF;
-    EXECUTE 'ALTER TABLE "teams"
+
+    ALTER TABLE "teams"
+      ALTER COLUMN "billing_status" DROP DEFAULT;
+
+    ALTER TABLE "teams"
       ALTER COLUMN "billing_status" TYPE "TeamBillingStatus"
-      USING "billing_status"::"TeamBillingStatus"';
-    IF teams_billing_status_had_default THEN
-      EXECUTE 'ALTER TABLE "teams" ALTER COLUMN "billing_status" SET DEFAULT ''INACTIVE''::"TeamBillingStatus"';
-    END IF;
+      USING "billing_status"::text::"TeamBillingStatus";
+
+    ALTER TABLE "teams"
+      ALTER COLUMN "billing_status" SET DEFAULT 'INACTIVE'::"TeamBillingStatus";
   END IF;
+END $$;
 
+-- demo_requests.lead_quality: text -> DemoLeadQuality
+DO $$
+BEGIN
   IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-     WHERE table_schema = 'public'
-       AND table_name = 'demo_requests'
-       AND column_name = 'lead_quality'
-       AND data_type = 'text'
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'demo_requests'
+      AND column_name = 'lead_quality'
+      AND udt_name = 'text'
   ) THEN
-
-      SELECT EXISTS (
-      SELECT 1 FROM information_schema.columns
-       WHERE table_schema = 'public'
-         AND table_name = 'demo_requests'
-         AND column_name = 'lead_quality'
-         AND column_default IS NOT NULL
-    ) INTO demo_lead_quality_had_default;
     IF EXISTS (
-      SELECT 1 FROM "demo_requests"
-       WHERE "lead_quality" IS NOT NULL
-         AND "lead_quality"::text NOT IN ('LOW', 'MEDIUM', 'HIGH')
-       LIMIT 1
+      SELECT 1
+      FROM "demo_requests"
+      WHERE "lead_quality" IS NOT NULL
+        AND "lead_quality"::text NOT IN ('LOW', 'MEDIUM', 'HIGH')
+      LIMIT 1
     ) THEN
       RAISE EXCEPTION 'Cannot convert demo_requests.lead_quality to DemoLeadQuality: invalid values exist';
     END IF;
-    IF demo_lead_quality_had_default THEN
-      EXECUTE 'ALTER TABLE "demo_requests" ALTER COLUMN "lead_quality" DROP DEFAULT';
-    END IF;
-    EXECUTE 'ALTER TABLE "demo_requests"
-      ALTER COLUMN "lead_quality" TYPE "DemoLeadQuality"
-      USING CASE
-        WHEN "lead_quality" IS NULL THEN NULL
-        ELSE "lead_quality"::"DemoLeadQuality"
-      END';
-    IF demo_lead_quality_had_default THEN
-      EXECUTE 'ALTER TABLE "demo_requests" ALTER COLUMN "lead_quality" SET DEFAULT ''LOW''::"DemoLeadQuality"';
-    END IF;
-  END IF;
 
+    ALTER TABLE "demo_requests"
+      ALTER COLUMN "lead_quality" DROP DEFAULT;
+
+    ALTER TABLE "demo_requests"
+      ALTER COLUMN "lead_quality" TYPE "DemoLeadQuality"
+      USING "lead_quality"::text::"DemoLeadQuality";
+
+    ALTER TABLE "demo_requests"
+      ALTER COLUMN "lead_quality" SET DEFAULT 'LOW'::"DemoLeadQuality";
+  END IF;
+END $$;
+
+-- demo_requests.lead_track: text -> DemoLeadTrack
+DO $$
+BEGIN
   IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-     WHERE table_schema = 'public'
-       AND table_name = 'demo_requests'
-       AND column_name = 'lead_track'
-       AND data_type = 'text'
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'demo_requests'
+      AND column_name = 'lead_track'
+      AND udt_name = 'text'
   ) THEN
-    SELECT EXISTS (
-      SELECT 1 FROM information_schema.columns
-       WHERE table_schema = 'public'
-         AND table_name = 'demo_requests'
-         AND column_name = 'lead_track'
-         AND column_default IS NOT NULL
-    ) INTO demo_lead_track_had_default;
     IF EXISTS (
-      SELECT 1 FROM "demo_requests"
-       WHERE "lead_track" IS NOT NULL
-         AND "lead_track"::text NOT IN ('DISCOVERY', 'SALES', 'ENTERPRISE')
-       LIMIT 1
+      SELECT 1
+      FROM "demo_requests"
+      WHERE "lead_track" IS NOT NULL
+        AND "lead_track"::text NOT IN ('DISCOVERY', 'SALES', 'ENTERPRISE')
+      LIMIT 1
     ) THEN
       RAISE EXCEPTION 'Cannot convert demo_requests.lead_track to DemoLeadTrack: invalid values exist';
     END IF;
-        IF demo_lead_track_had_default THEN
-      EXECUTE 'ALTER TABLE "demo_requests"
-        ALTER COLUMN "lead_track" DROP DEFAULT';
-    END IF;
-    EXECUTE 'ALTER TABLE "demo_requests"
+
+    ALTER TABLE "demo_requests"
+      ALTER COLUMN "lead_track" DROP DEFAULT;
+
+    ALTER TABLE "demo_requests"
       ALTER COLUMN "lead_track" TYPE "DemoLeadTrack"
-      USING CASE
-        WHEN "lead_track" IS NULL THEN NULL
-        ELSE "lead_track"::"DemoLeadTrack"
-      END';
+      USING "lead_track"::text::"DemoLeadTrack";
 
-    IF demo_lead_track_had_default THEN
-      EXECUTE 'ALTER TABLE "demo_requests"
-        ALTER COLUMN "lead_track"
-        SET DEFAULT ''DISCOVERY''::"DemoLeadTrack"';
-    END IF;
+    ALTER TABLE "demo_requests"
+      ALTER COLUMN "lead_track" SET DEFAULT 'DISCOVERY'::"DemoLeadTrack";
+  END IF;
+END $$;
 
-END IF;
-
+-- demo_requests.recommended_action: text -> DemoRecommendedAction
+DO $$
+BEGIN
   IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-     WHERE table_schema = 'public'
-       AND table_name = 'demo_requests'
-       AND column_name = 'recommended_action'
-       AND data_type = 'text'
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'demo_requests'
+      AND column_name = 'recommended_action'
+      AND udt_name = 'text'
   ) THEN
-      SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'demo_requests'
-        AND column_name = 'recommended_action'
-        AND column_default IS NOT NULL
-    )
-    INTO demo_recommended_action_had_default;
     IF EXISTS (
-      SELECT 1 FROM "demo_requests"
-       WHERE "recommended_action" IS NOT NULL
-         AND "recommended_action"::text NOT IN (
-           'reply_with_resources',
-           'offer_demo',
-           'route_enterprise'
-         )
-       LIMIT 1
+      SELECT 1
+      FROM "demo_requests"
+      WHERE "recommended_action" IS NOT NULL
+        AND "recommended_action"::text NOT IN (
+          'reply_with_resources',
+          'offer_demo',
+          'route_enterprise'
+        )
+      LIMIT 1
     ) THEN
       RAISE EXCEPTION 'Cannot convert demo_requests.recommended_action to DemoRecommendedAction: invalid values exist';
     END IF;
-        IF demo_recommended_action_had_default THEN
-      EXECUTE 'ALTER TABLE "demo_requests"
-        ALTER COLUMN "recommended_action" DROP DEFAULT';
-    END IF;
-    EXECUTE 'ALTER TABLE "demo_requests"
+
+    ALTER TABLE "demo_requests"
+      ALTER COLUMN "recommended_action" DROP DEFAULT;
+
+    ALTER TABLE "demo_requests"
       ALTER COLUMN "recommended_action" TYPE "DemoRecommendedAction"
-      USING CASE
-        WHEN "recommended_action" IS NULL THEN NULL
-        ELSE "recommended_action"::"DemoRecommendedAction"
-      END';
-          IF demo_recommended_action_had_default THEN
-      EXECUTE 'ALTER TABLE "demo_requests"
-        ALTER COLUMN "recommended_action"
-        SET DEFAULT ''reply_with_resources''::"DemoRecommendedAction"';
-    END IF;
+      USING "recommended_action"::text::"DemoRecommendedAction";
+
+    ALTER TABLE "demo_requests"
+      ALTER COLUMN "recommended_action" SET DEFAULT 'reply_with_resources'::"DemoRecommendedAction";
   END IF;
 END $$;
