@@ -714,7 +714,7 @@ const teamId =
   <div className="app-sidebar-v2-inner">
     <div className="app-sidebar-v2-brand">
       <img
-        src="/assets/branding/report-header.png"
+src="/assets/branding/footer-logo.png"
         alt="PROOVRA"
         className="app-sidebar-v2-brand-logo"
       />
