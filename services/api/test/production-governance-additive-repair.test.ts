@@ -132,11 +132,15 @@ interface SchemaPin {
 }
 
 const SCHEMA_PINS: ReadonlyArray<SchemaPin> = [
+  // Phase 2C-B intentionally tightened these verified Category A LOW drift
+  // fields from optional to required in Prisma; DB is already NOT NULL and
+  // runtime safety was verified in
+  // docs/operations/phase-2c-a-runtime-safety-audit.md.
   // CrossOrgReviewGrant
   {
     model: "CrossOrgReviewGrant",
     column: "inviting_organization_id",
-    fieldRe: /invitingOrganizationId\s+String\?\s+@map\("inviting_organization_id"\)\s+@db\.Uuid/,
+    fieldRe: /invitingOrganizationId\s+String\s+@map\("inviting_organization_id"\)\s+@db\.Uuid/,
   },
   {
     model: "CrossOrgReviewGrant",
@@ -146,7 +150,7 @@ const SCHEMA_PINS: ReadonlyArray<SchemaPin> = [
   {
     model: "CrossOrgReviewGrant",
     column: "invited_org_slug",
-    fieldRe: /invitedOrgSlug\s+String\?\s+@map\("invited_org_slug"\)\s+@db\.VarChar\(120\)/,
+    fieldRe: /invitedOrgSlug\s+String\s+@map\("invited_org_slug"\)\s+@db\.VarChar\(120\)/,
   },
   {
     model: "CrossOrgReviewGrant",
@@ -157,7 +161,7 @@ const SCHEMA_PINS: ReadonlyArray<SchemaPin> = [
   {
     model: "AccessReviewCampaign",
     column: "scheduled_end_utc",
-    fieldRe: /scheduledEndUtc\s+DateTime\?\s+@map\("scheduled_end_utc"\)\s+@db\.Timestamptz\(6\)/,
+    fieldRe: /scheduledEndUtc\s+DateTime\s+@map\("scheduled_end_utc"\)\s+@db\.Timestamptz\(6\)/,
   },
   {
     model: "AccessReviewCampaign",
@@ -172,33 +176,33 @@ const SCHEMA_PINS: ReadonlyArray<SchemaPin> = [
   {
     model: "AccessReviewCampaign",
     column: "created_by_user_id",
-    fieldRe: /createdByUserId\s+String\?\s+@map\("created_by_user_id"\)\s+@db\.Uuid/,
+    fieldRe: /createdByUserId\s+String\s+@map\("created_by_user_id"\)\s+@db\.Uuid/,
   },
   // GovernancePolicy
   {
     model: "GovernancePolicy",
     column: "slug",
-    fieldRe: /slug\s+String\?\s+@db\.VarChar\(120\)/,
+    fieldRe: /slug\s+String\s+@db\.VarChar\(120\)/,
   },
   {
     model: "GovernancePolicy",
     column: "summary",
-    fieldRe: /summary\s+String\?\s+@db\.VarChar\(600\)/,
+    fieldRe: /summary\s+String\s+@db\.VarChar\(600\)/,
   },
   {
     model: "GovernancePolicy",
     column: "rule",
-    fieldRe: /rule\s+Json\?/,
+    fieldRe: /rule\s+Json\b/,
   },
   {
     model: "GovernancePolicy",
     column: "version",
-    fieldRe: /version\s+Int\?\s+@default\(1\)/,
+    fieldRe: /version\s+Int\s+@default\(1\)/,
   },
   {
     model: "GovernancePolicy",
     column: "created_by_user_id",
-    fieldRe: /createdByUserId\s+String\?\s+@map\("created_by_user_id"\)\s+@db\.Uuid/,
+    fieldRe: /createdByUserId\s+String\s+@map\("created_by_user_id"\)\s+@db\.Uuid/,
   },
   // Department
   {
@@ -209,7 +213,7 @@ const SCHEMA_PINS: ReadonlyArray<SchemaPin> = [
   {
     model: "Department",
     column: "slug",
-    fieldRe: /slug\s+String\?\s+@db\.VarChar\(120\)/,
+    fieldRe: /slug\s+String\s+@db\.VarChar\(120\)/,
   },
 ];
 
@@ -481,7 +485,7 @@ describe("Phase Governance Additive Repair — route fallbacks (GROUP D, skipped
 
 describe("Phase Governance Additive Repair — Prisma schema still declares each added column (GROUP E)", () => {
   for (const { model, column, fieldRe } of SCHEMA_PINS) {
-    it(`E — ${model} declares ${column} as an optional field (matches migration)`, () => {
+    it(`E — ${model} declares ${column} with the expected Prisma field shape after Phase 2C-B`, () => {
       // Slice the schema to just the model block — pure additive cleanliness.
       const modelRe = new RegExp(`model\\s+${model}\\s*\\{[\\s\\S]+?^\\}`, "m");
       const block = SCHEMA_PRISMA.match(modelRe);

@@ -408,7 +408,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "scope",
     typeRe: /VARCHAR\(40\)/,
     model: "GovernancePolicyAssignment",
-    mapRe: /scope\s+String\?\s+@db\.VarChar\(40\)/,
+    mapRe: /scope\s+String\s+@db\.VarChar\(40\)/,
   },
   {
     migrationId: "20270806000000_phase2_drift_repair_governance",
@@ -432,7 +432,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "assigned_by_user_id",
     typeRe: /UUID/,
     model: "GovernancePolicyAssignment",
-    mapRe: mapUuid("assigned_by_user_id"),
+    mapRe: mapUuid("assigned_by_user_id", false),
   },
   {
     migrationId: "20270806000000_phase2_drift_repair_governance",
@@ -462,13 +462,17 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
   // -------------------------------------------------------------------------
   // Domain 3 — Redaction (20 columns)
   // -------------------------------------------------------------------------
+  // Phase 2C-B intentionally tightened these verified Category A LOW drift
+  // fields from optional to required in Prisma; DB is already NOT NULL and
+  // runtime safety was verified in
+  // docs/operations/phase-2c-a-runtime-safety-audit.md.
   {
     migrationId: "20270807000000_phase2_drift_repair_redaction",
     table: "redaction_versions",
     column: "authored_by_user_id",
     typeRe: /UUID/,
     model: "RedactionVersion",
-    mapRe: mapUuid("authored_by_user_id"),
+    mapRe: mapUuid("authored_by_user_id", false),
   },
   {
     migrationId: "20270807000000_phase2_drift_repair_redaction",
@@ -500,7 +504,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "kind",
     typeRe: /VARCHAR\(40\)/,
     model: "RedactionDetection",
-    mapRe: /kind\s+String\?\s+@db\.VarChar\(40\)/,
+    mapRe: /kind\s+String\s+@db\.VarChar\(40\)/,
   },
   {
     migrationId: "20270807000000_phase2_drift_repair_redaction",
@@ -508,7 +512,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "suggested_region_kind",
     typeRe: /VARCHAR\(40\)/,
     model: "RedactionDetection",
-    mapRe: mapVarchar("suggested_region_kind", 40),
+    mapRe: mapVarchar("suggested_region_kind", 40, false),
   },
   {
     migrationId: "20270807000000_phase2_drift_repair_redaction",
@@ -516,7 +520,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "suggested_region_geometry",
     typeRe: /JSONB/,
     model: "RedactionDetection",
-    mapRe: mapJson("suggested_region_geometry"),
+    mapRe: mapJson("suggested_region_geometry", false),
   },
   {
     migrationId: "20270807000000_phase2_drift_repair_redaction",
@@ -524,7 +528,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "suggested_method",
     typeRe: /VARCHAR\(40\)/,
     model: "RedactionDetection",
-    mapRe: mapVarchar("suggested_method", 40),
+    mapRe: mapVarchar("suggested_method", 40, false),
   },
   {
     migrationId: "20270807000000_phase2_drift_repair_redaction",
@@ -532,7 +536,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "decision_state",
     typeRe: /VARCHAR\(20\)/,
     model: "RedactionDetection",
-    mapRe: mapVarchar("decision_state", 20),
+    mapRe: mapVarchar("decision_state", 20, false),
   },
   {
     migrationId: "20270807000000_phase2_drift_repair_redaction",
@@ -540,7 +544,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "version_id",
     typeRe: /UUID/,
     model: "RedactionDecision",
-    mapRe: mapUuid("version_id"),
+    mapRe: mapUuid("version_id", false),
   },
   {
     migrationId: "20270807000000_phase2_drift_repair_redaction",
@@ -548,7 +552,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "approver_user_id",
     typeRe: /UUID/,
     model: "RedactionApproval",
-    mapRe: mapUuid("approver_user_id"),
+    mapRe: mapUuid("approver_user_id", false),
   },
   {
     migrationId: "20270807000000_phase2_drift_repair_redaction",
@@ -556,7 +560,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
     column: "decided_at_utc",
     typeRe: /TIMESTAMPTZ\(6\)(?!\s+NOT\s+NULL)/,
     model: "RedactionApproval",
-    mapRe: mapTimestamptz("decided_at_utc"),
+    mapRe: /DateTime\s+@default\(now\(\)\)\s+@map\("decided_at_utc"\)\s+@db\.Timestamptz\(6\)/,
   },
   {
     migrationId: "20270807000000_phase2_drift_repair_redaction",
