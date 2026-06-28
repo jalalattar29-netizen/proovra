@@ -1,6 +1,5 @@
-## -- Phase 2B.5 — enum alignment
-
-## -- Clean, idempotent, production-safe rewrite.
+-- Phase 2B.5 — enum alignment
+-- Clean, idempotent, production-safe rewrite.
 
 -- Scope:
 --   * Create required enum types if absent.
