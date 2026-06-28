@@ -341,19 +341,12 @@ export function AppTopbarV2({
                     The block is suppressed for solo personal-only
                     accounts to avoid org-shaped noise. */}
                 {organizations.length > 0 || personalSpace?.id ? (
-                  <div
-                    className="app-topbar-v2-workspace-menu-help"
-                    data-workspace-menu-help
-                    style={{
-                      padding: "8px 12px",
-                      borderBottom: "1px solid rgba(127,127,127,0.18)",
-                      fontSize: 12,
-                      color: "#475569",
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    <strong style={{ display: "block", marginBottom: 2 }}>
-                      Workspace vs Organization
+<div
+  className="app-topbar-v2-workspace-menu-help"
+  data-workspace-menu-help
+>
+<strong>
+                        Workspace vs Organization
                     </strong>
                     Workspace = where evidence work happens.
                     {organizations.length > 0
@@ -363,7 +356,6 @@ export function AppTopbarV2({
                       href="/about/trust"
                       data-workspace-menu-help-link
                       onClick={() => setWorkspaceOpen(false)}
-                      style={{ textDecoration: "underline" }}
                     >
                       Learn more
                     </Link>
@@ -430,30 +422,11 @@ export function AppTopbarV2({
                               ? "app-topbar-v2-workspace-menu-item is-active"
                               : "app-topbar-v2-workspace-menu-item"
                           }
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            width: "100%",
-                            border: "none",
-                            background: "transparent",
-                            cursor: "pointer",
-                            padding: "8px 12px",
-                            textAlign: "left",
-                          }}
                         >
                           <UserCircle size={14} strokeWidth={1.9} />
-                          <div
-                            style={{
-                              flex: 1,
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: 2,
-                              minWidth: 0,
-                            }}
-                          >
-                            <span data-workspace-option-name>Personal Space</span>
-                            <small style={{ opacity: 0.7 }}>Owner</small>
+<div className="app-topbar-v2-workspace-menu-item-copy">
+                              <span data-workspace-option-name>Personal Space</span>
+<small>Owner</small>
                           </div>
                           <small data-workspace-scope-chip="PERSONAL">
                             Personal
@@ -502,29 +475,10 @@ export function AppTopbarV2({
                               ? "app-topbar-v2-workspace-menu-item is-active"
                               : "app-topbar-v2-workspace-menu-item"
                           }
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            width: "100%",
-                            border: "none",
-                            background: "transparent",
-                            cursor: "pointer",
-                            padding: "8px 12px",
-                            textAlign: "left",
-                          }}
                         >
                           <Users size={14} strokeWidth={1.9} />
-                          <div
-                            style={{
-                              flex: 1,
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: 2,
-                              minWidth: 0,
-                            }}
-                          >
-                            <span
+<div className="app-topbar-v2-workspace-menu-item-copy">
+                              <span
                               data-workspace-option-name
                               style={{
                                 overflow: "hidden",
@@ -537,7 +491,7 @@ export function AppTopbarV2({
                                 "Organization workspace"}
                             </span>
                             {org.role ? (
-                              <small style={{ opacity: 0.7 }}>{org.role}</small>
+<small>{org.role}</small>
                             ) : null}
                           </div>
                           <small data-workspace-scope-chip="TEAM">
