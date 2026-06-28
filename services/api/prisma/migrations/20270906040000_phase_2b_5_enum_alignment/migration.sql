@@ -18,9 +18,10 @@
 --   * validate every stored value before cast
 --   * create enum types only when absent
 
-BEGIN;
-
 DO $$
+DECLARE
+  teams_billing_plan_had_default BOOLEAN := FALSE;
+  teams_billing_status_had_default BOOLEAN := FALSE;
 BEGIN
   BEGIN
     CREATE TYPE "VerificationSource" AS ENUM (
@@ -169,6 +170,13 @@ BEGIN
        AND column_name = 'billing_plan'
        AND data_type = 'text'
   ) THEN
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'teams'
+         AND column_name = 'billing_plan'
+         AND column_default IS NOT NULL
+    ) INTO teams_billing_plan_had_default;
     IF EXISTS (
       SELECT 1 FROM "teams"
        WHERE "billing_plan" IS NOT NULL
@@ -177,9 +185,15 @@ BEGIN
     ) THEN
       RAISE EXCEPTION 'Cannot convert teams.billing_plan to PlanType: invalid values exist';
     END IF;
+    IF teams_billing_plan_had_default THEN
+      EXECUTE 'ALTER TABLE "teams" ALTER COLUMN "billing_plan" DROP DEFAULT';
+    END IF;
     EXECUTE 'ALTER TABLE "teams"
       ALTER COLUMN "billing_plan" TYPE "PlanType"
       USING "billing_plan"::"PlanType"';
+    IF teams_billing_plan_had_default THEN
+      EXECUTE 'ALTER TABLE "teams" ALTER COLUMN "billing_plan" SET DEFAULT ''FREE''::"PlanType"';
+    END IF;
   END IF;
 
   IF EXISTS (
@@ -189,6 +203,13 @@ BEGIN
        AND column_name = 'billing_status'
        AND data_type = 'text'
   ) THEN
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'teams'
+         AND column_name = 'billing_status'
+         AND column_default IS NOT NULL
+    ) INTO teams_billing_status_had_default;
     IF EXISTS (
       SELECT 1 FROM "teams"
        WHERE "billing_status" IS NOT NULL
@@ -197,9 +218,15 @@ BEGIN
     ) THEN
       RAISE EXCEPTION 'Cannot convert teams.billing_status to TeamBillingStatus: invalid values exist';
     END IF;
+    IF teams_billing_status_had_default THEN
+      EXECUTE 'ALTER TABLE "teams" ALTER COLUMN "billing_status" DROP DEFAULT';
+    END IF;
     EXECUTE 'ALTER TABLE "teams"
       ALTER COLUMN "billing_status" TYPE "TeamBillingStatus"
       USING "billing_status"::"TeamBillingStatus"';
+    IF teams_billing_status_had_default THEN
+      EXECUTE 'ALTER TABLE "teams" ALTER COLUMN "billing_status" SET DEFAULT ''INACTIVE''::"TeamBillingStatus"';
+    END IF;
   END IF;
 
   IF EXISTS (
@@ -275,5 +302,3 @@ BEGIN
       END';
   END IF;
 END $$;
-
-COMMIT;
