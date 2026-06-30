@@ -12,9 +12,6 @@
 
 import type { CSSProperties } from "react";
 
-const EXIF_ABSENT_NOTE =
-  "Embedded camera metadata was not present in the uploaded file. This is common for downloaded, exported, screenshotted, generated, or stripped files and does not affect the recorded integrity result.";
-
 export type VerifyTechnicalMetadata = {
   media: {
     filesAnalyzed: number;
@@ -88,7 +85,22 @@ export function VerifyTechnicalMetadataSection({
 
   const exif = technicalMetadata.exif;
   const ce = technicalMetadata.captureEnvironment;
-  const net = technicalMetadata.network;
+
+  // Reviewer-safe Capture Device card only. Camera (the physical device)
+  // comes from EXIF; OS/device from the parsed capture environment. NO
+  // media-status / resolution / network / IP / UA / engine / platform /
+  // EXIF-GPS — those are duplicative or non-public.
+  const camera = exif && exif.exifPresent ? exif.camera : null;
+  const os = ce ? [ce.osName, ce.osVersion].filter(Boolean).join(" ") || null : null;
+  const deviceClass = ce?.deviceClass ?? null;
+  const captureTime = exif && exif.exifPresent ? exif.originalCaptureTime : null;
+
+  const hasAny =
+    meaningful(camera) ||
+    meaningful(os) ||
+    meaningful(deviceClass) ||
+    meaningful(captureTime);
+  if (!hasAny) return null;
 
   return (
     <div
@@ -98,81 +110,18 @@ export function VerifyTechnicalMetadataSection({
         borderRadius: 18,
         padding: 18,
         display: "grid",
-        gap: 14,
+        gap: 6,
       }}
     >
       <div style={{ ...typo.kicker, fontSize: 10.5, color: brand.accent }}>
-        Technical metadata
+        Capture device
       </div>
-
-      {/* Media card */}
-      <div data-testid="verify-technical-media" style={{ display: "grid", gap: 4 }}>
-        <div style={{ ...typo.small, fontWeight: 700 }}>Media</div>
-        <Row label="Primary type" value={technicalMetadata.media.primaryMediaType} />
-        <div style={typo.small}>
-          Files analysed: {technicalMetadata.media.filesAnalyzed} / {technicalMetadata.media.filesTotal}
-        </div>
-        <Row label="Resolution / duration / pages" value={technicalMetadata.media.resolutionSummary} />
-        <Row label="Metadata status" value={technicalMetadata.media.metadataStatus} />
+      <div data-testid="verify-technical-capture-device" style={{ display: "grid", gap: 4 }}>
+        <Row label="Capture Device" value={camera} />
+        <Row label="Operating system" value={os} />
+        <Row label="Device" value={deviceClass} />
+        <Row label="EXIF Original Capture Time" value={captureTime} />
       </div>
-
-      {/* EXIF card — rich rows when present; reassuring note when absent */}
-      {exif && exif.applicable ? (
-        <div data-testid="verify-technical-exif" style={{ display: "grid", gap: 4 }}>
-          <div style={{ ...typo.small, fontWeight: 700 }}>EXIF (file-embedded metadata)</div>
-          {exif.exifPresent ? (
-            <>
-              <Row label="Camera" value={exif.camera} />
-              <Row label="Lens" value={exif.lensModel} />
-              <Row label="Original capture time (from file)" value={exif.originalCaptureTime} />
-              <Row label="ISO" value={exif.iso} />
-              <Row label="Aperture" value={exif.aperture} />
-              <Row label="Exposure" value={exif.exposureTime} />
-              <Row label="Shutter speed" value={exif.shutterSpeed} />
-              <Row label="Orientation" value={exif.orientation} />
-              <Row label="Software" value={exif.softwareTag} />
-              <div style={typo.small}>
-                EXIF GPS: {exif.gpsPresent ? "Present (coordinates withheld)" : "Not present"}
-              </div>
-              <Row label="Resolution" value={exif.resolution} />
-            </>
-          ) : (
-            <div style={{ ...typo.small, fontSize: 12, opacity: 0.85 }}>{EXIF_ABSENT_NOTE}</div>
-          )}
-        </div>
-      ) : null}
-
-      {/* Capture environment card */}
-      {ce ? (
-        <div data-testid="verify-technical-capture-env" style={{ display: "grid", gap: 4 }}>
-          <div style={{ ...typo.small, fontWeight: 700 }}>Capture environment</div>
-          <div style={{ ...typo.small, fontSize: 12, opacity: 0.8 }}>
-            How this material entered PROOVRA. This is distinct from the
-            file&apos;s embedded metadata above.
-          </div>
-          <Row label="Submitted through" value={ce.uploadSource} />
-          <Row
-            label="Browser"
-            value={[ce.browserName, ce.browserVersion].filter(Boolean).join(" ") || null}
-          />
-          <Row
-            label="Operating system"
-            value={[ce.osName, ce.osVersion].filter(Boolean).join(" ") || null}
-          />
-          <Row label="Device" value={ce.deviceClass} />
-          <Row label="Engine" value={ce.engine} />
-          <Row label="Platform" value={ce.platform} />
-          <Row label="Timezone" value={ce.timezone} />
-        </div>
-      ) : null}
-
-      {/* Network card — public shows Country only (when available) */}
-      {net && meaningful(net.country) ? (
-        <div data-testid="verify-technical-network" style={{ display: "grid", gap: 4 }}>
-          <div style={{ ...typo.small, fontWeight: 700 }}>Network</div>
-          <Row label="Country" value={net.country} />
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -326,6 +326,8 @@ export type TechnicalSummaryReportData = {
   exif: {
     exifPresent: boolean;
     camera: string | null;
+    cameraMake: string | null;
+    cameraModel: string | null;
     lensModel: string | null;
     originalCaptureTime: string | null;
     iso: number | null;

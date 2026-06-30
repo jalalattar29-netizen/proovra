@@ -248,6 +248,8 @@ const TECH_SUMMARY = {
   exif: {
     exifPresent: true,
     camera: "Apple iPhone 14 Pro",
+    cameraMake: "Apple",
+    cameraModel: "iPhone 14 Pro",
     lensModel: null,
     originalCaptureTime: "2024-11-15T10:22:05Z",
     iso: 80,
@@ -267,7 +269,7 @@ const TECH_SUMMARY = {
     browserName: "Chrome",
     browserVersion: "138",
     osName: "Windows",
-    osVersion: "10/11",
+    osVersion: null,
     deviceClass: "DESKTOP",
     engine: "Blink",
     platform: "Windows x64",
@@ -325,16 +327,16 @@ describe("Media Intelligence Observations — removed from the report", () => {
 // The deterministic "Media Technical Summary" remains
 // =============================================================================
 
-describe("Media Technical Summary still renders (forensic metadata remains)", () => {
+describe("Capture Device & Camera Metadata still renders (device enrichment remains)", () => {
   it("renders the technical summary section independently", async () => {
     const vm = await buildReportViewModel(
       buildInput({ technicalSummary: TECH_SUMMARY }),
     );
     const html = renderReportHtml(vm);
-    expect(html).toContain("Media &amp; Capture Metadata");
+    expect(html).toContain("Capture Device &amp; Camera Metadata");
     expect(html).toContain("technical-summary-section");
-    // EXIF GPS stays a presence flag — never coordinates.
-    expect(html).toContain("coordinates withheld");
+    // No EXIF GPS exposure — location lives in Capture Context only.
+    expect(html).not.toContain("coordinates withheld");
     expect(html).not.toMatch(/-?\d+\.\d{4,}/);
   });
 
@@ -346,7 +348,7 @@ describe("Media Technical Summary still renders (forensic metadata remains)", ()
       }),
     );
     const html = renderReportHtml(vm);
-    expect(html).toContain("Media &amp; Capture Metadata");
+    expect(html).toContain("Capture Device &amp; Camera Metadata");
     expect(html).not.toContain("Media Intelligence Observations");
   });
 });

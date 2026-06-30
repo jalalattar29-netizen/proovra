@@ -90,6 +90,11 @@ describe("technical-metadata verify projection — privacy boundary", () => {
     expect(ce.browserName).toBe("Chrome");
     expect("userAgentHash" in ce).toBe(false);
     expect("ipAddressMasked" in ce).toBe(false);
+    expect("locale" in ce).toBe(false);
+    // engine / platform / network are package/internal-only — never public.
+    expect(ce.engine).toBeNull();
+    expect(ce.platform).toBeNull();
+    expect(result!.network).toBeNull();
   });
 
   it("internal projection includes masked IP + UA hash + locale", async () => {
@@ -103,6 +108,75 @@ describe("technical-metadata verify projection — privacy boundary", () => {
     expect(ce.userAgentHash).toBe("sha256:deadbeef");
     expect(ce.ipAddressMasked).toBe("203.0.x.x");
     expect(ce.locale).toBe("en-GB");
+  });
+
+  // Fake prisma that also returns an intake-link SMS delivery row.
+  function fakePrismaWithDelivery() {
+    return {
+      $queryRawUnsafe: async (q: string) => {
+        if (q.includes("evidence_parts")) {
+          return [
+            {
+              id: "part-1",
+              original_file_name: "photo.jpg",
+              mime_type: "image/jpeg",
+              size_bytes: 100,
+              sha256: "a".repeat(64),
+              technical_metadata: {
+                schemaVersion: "1.0",
+                mediaKind: "IMAGE",
+                mimeType: "image/jpeg",
+                parseResult: "OK",
+                metadataStatus: "PRESENT",
+                parserName: "exifr",
+                parserVersion: "test",
+                exifPresent: true,
+                cameraMake: "Apple",
+                cameraModel: "iPhone 14 Pro",
+              },
+            },
+          ];
+        }
+        if (q.includes("communication_messages")) {
+          return [
+            {
+              recipient_preview: "+49 ••• ••• 1234",
+              channel: "SMS",
+              status: "DELIVERED",
+              sent_at_utc: "2026-06-30T10:00:00.000Z",
+            },
+          ];
+        }
+        return [{ capture_environment: { schemaVersion: "1.0" } }];
+      },
+    } as never;
+  }
+
+  it("internal projection includes masked intake delivery; public never does", async () => {
+    const internalResult = await projectVerifyTechnicalMetadata({
+      teamId: "team-1",
+      evidenceId: "ev-1",
+      prisma: fakePrismaWithDelivery(),
+      internal: true,
+    });
+    expect(internalResult!.intakeDelivery).toBeTruthy();
+    expect(internalResult!.intakeDelivery!.maskedRecipient).toBe(
+      "+49 ••• ••• 1234",
+    );
+    expect(internalResult!.intakeDelivery!.channel).toBe("sms");
+    expect(internalResult!.intakeDelivery!.deliveryStatus).toBe("delivered");
+
+    const publicResult = await projectVerifyTechnicalMetadata({
+      teamId: "team-1",
+      evidenceId: "ev-1",
+      prisma: fakePrismaWithDelivery(),
+      internal: false,
+    });
+    expect(publicResult!.intakeDelivery ?? null).toBeNull();
+
+    // No full phone digit-run on either projection.
+    expect(JSON.stringify(internalResult)).not.toMatch(/\d{7,}/);
+    expect(JSON.stringify(publicResult)).not.toMatch(/\d{7,}/);
   });
 
   it("neither projection exposes raw IP, raw UA, or GPS coordinates", async () => {

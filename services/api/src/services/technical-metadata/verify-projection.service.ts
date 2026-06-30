@@ -61,7 +61,8 @@ export type VerifyTechnicalMetadata = {
     engine: string | null;
     platform: string | null;
     timezone: string | null;
-    locale: string | null;
+    /** Internal-only. Browser locale. */
+    locale?: string | null;
     /** Internal-only. UA hash, never the raw User-Agent. */
     userAgentHash?: string | null;
     /** Internal-only. Masked IP (e.g. "203.0.x.x"), never the raw IP. */
@@ -73,6 +74,15 @@ export type VerifyTechnicalMetadata = {
     region?: string | null;
     maskedIp?: string | null;
     networkType?: string | null;
+  } | null;
+  /** Internal-only. Masked intake-link delivery context (never the full
+   *  phone). Absent on the public projection and when not an intake
+   *  delivery. */
+  intakeDelivery?: {
+    channel: string;
+    maskedRecipient: string;
+    deliveryStatus: "delivered" | "sent" | "unknown";
+    sentAtUtc: string | null;
   } | null;
 };
 
@@ -183,13 +193,15 @@ export async function projectVerifyTechnicalMetadata(input: {
           osName: (ceRaw.osName as string | null) ?? null,
           osVersion: (ceRaw.osVersion as string | null) ?? null,
           deviceClass: (ceRaw.deviceClass as string | null) ?? null,
-          engine: (ceRaw.engine as string | null) ?? null,
-          platform: (ceRaw.platform as string | null) ?? null,
           timezone: (ceRaw.timezone as string | null) ?? null,
-          locale: (ceRaw.locale as string | null) ?? null,
-          // Internal-only privacy-safe extras (UA hash + masked IP).
+          // engine / platform / locale are technical/non-public — internal
+          // only (they live in the verification package for the public).
+          engine: input.internal ? ((ceRaw.engine as string | null) ?? null) : null,
+          platform: input.internal ? ((ceRaw.platform as string | null) ?? null) : null,
+          // Internal-only privacy-safe extras (UA hash + masked IP + locale).
           ...(input.internal
             ? {
+                locale: (ceRaw.locale as string | null) ?? null,
                 userAgentHash: (ceRaw.userAgentHash as string | null) ?? null,
                 ipAddressMasked: (ceRaw.ipAddressMasked as string | null) ?? null,
               }
@@ -197,27 +209,80 @@ export async function projectVerifyTechnicalMetadata(input: {
         }
       : null;
 
-    // Network: public surfaces country only; internal adds region +
-    // masked IP + network type. Never full IP anywhere.
+    // Network is NEVER public — country/region/masked-IP/type are
+    // internal-only (the public verify card shows device/camera only).
+    // Never full IP anywhere.
     const ntRaw = (ceRaw?.networkType as string | null) ?? null;
     const country = (ceRaw?.country as string | null) ?? null;
     const network =
+      input.internal &&
       ceRaw &&
       (country ||
-        (input.internal &&
-          ((ceRaw.ipAddressMasked as string | null) ||
-            (ceRaw.region as string | null))))
+        (ceRaw.ipAddressMasked as string | null) ||
+        (ceRaw.region as string | null))
         ? {
             country,
-            ...(input.internal
-              ? {
-                  region: (ceRaw.region as string | null) ?? null,
-                  maskedIp: (ceRaw.ipAddressMasked as string | null) ?? null,
-                  networkType: ntRaw && ntRaw !== "UNKNOWN" ? ntRaw : null,
-                }
-              : {}),
+            region: (ceRaw.region as string | null) ?? null,
+            maskedIp: (ceRaw.ipAddressMasked as string | null) ?? null,
+            networkType: ntRaw && ntRaw !== "UNKNOWN" ? ntRaw : null,
           }
         : null;
+
+    // Internal-only: masked intake-link delivery context (never the full
+    // phone — uses the already-masked recipient_preview stored on
+    // communication_messages). Isolated so a failure cannot blank the rest.
+    let intakeDelivery: VerifyTechnicalMetadata["intakeDelivery"] = null;
+    if (input.internal) {
+      try {
+        const rows = (await prisma.$queryRawUnsafe(
+          `SELECT cm."recipient_preview", cm."channel", cm."status",
+                  cm."sent_at_utc"
+             FROM "communication_messages" cm
+             JOIN "workflow_intake_sessions" wis
+               ON wis."id" = cm."related_intake_session_id"
+            WHERE wis."evidence_id" = $1
+              AND cm."purpose" = 'INTAKE_LINK'
+              AND cm."channel" IN ('SMS', 'WHATSAPP')
+            ORDER BY cm."created_at" DESC
+            LIMIT 1`,
+          input.evidenceId,
+        )) as Array<{
+          recipient_preview: string | null;
+          channel: string | null;
+          status: string | null;
+          sent_at_utc: Date | string | null;
+        }>;
+        const d = rows[0];
+        if (d && d.recipient_preview) {
+          const status = (d.status ?? "").toUpperCase();
+          const deliveryStatus =
+            status === "DELIVERED"
+              ? "delivered"
+              : status === "SENT" || status === "QUEUED" || status === "RETRY_SCHEDULED"
+                ? "sent"
+                : "unknown";
+          let sentAtUtc: string | null = null;
+          try {
+            sentAtUtc =
+              d.sent_at_utc == null
+                ? null
+                : d.sent_at_utc instanceof Date
+                  ? d.sent_at_utc.toISOString()
+                  : new Date(d.sent_at_utc).toISOString();
+          } catch {
+            sentAtUtc = null;
+          }
+          intakeDelivery = {
+            channel: (d.channel ?? "").toLowerCase() || "unknown",
+            maskedRecipient: d.recipient_preview,
+            deliveryStatus,
+            sentAtUtc,
+          };
+        }
+      } catch {
+        intakeDelivery = null;
+      }
+    }
 
     return {
       media: {
@@ -230,6 +295,7 @@ export async function projectVerifyTechnicalMetadata(input: {
       exif,
       captureEnvironment,
       network,
+      ...(intakeDelivery ? { intakeDelivery } : {}),
     };
   } catch {
     return null;

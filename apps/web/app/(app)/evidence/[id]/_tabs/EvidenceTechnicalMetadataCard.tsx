@@ -67,6 +67,12 @@ type VerifyTechnicalMetadata = {
     maskedIp?: string | null;
     networkType?: string | null;
   } | null;
+  intakeDelivery?: {
+    channel: string;
+    maskedRecipient: string;
+    deliveryStatus: "delivered" | "sent" | "unknown";
+    sentAtUtc: string | null;
+  } | null;
 };
 
 function na(v: string | null | undefined): string {
@@ -160,7 +166,7 @@ export function EvidenceTechnicalMetadataCard({
                     { label: "Camera", value: na(data.exif.camera) },
                     { label: "Lens", value: na(data.exif.lensModel) },
                     {
-                      label: "Original capture time (from file)",
+                      label: "EXIF Original Capture Time",
                       value: na(data.exif.originalCaptureTime),
                     },
                     { label: "ISO", value: data.exif.iso != null ? String(data.exif.iso) : "Not available" },
@@ -272,6 +278,46 @@ export function EvidenceTechnicalMetadataCard({
                     { label: "Country", value: na(data.network.country) },
                     { label: "Region", value: na(data.network.region) },
                     { label: "Network type", value: na(data.network.networkType) },
+                  ])}
+                />
+              </div>
+            ) : null}
+
+            {/* Intake delivery — masked recipient only (never full phone). */}
+            {data.intakeDelivery ? (
+              <div data-testid="evidence-technical-intake-delivery">
+                <h3 style={{ margin: "0 0 2px 0", fontSize: 13, fontWeight: 650 }}>
+                  Intake delivery
+                </h3>
+                <p className="evidence-detail-muted">
+                  How the intake link reached the contributor. The recipient is
+                  masked; the full phone number is never shown here.
+                </p>
+                <KeyValueGrid
+                  items={meaningfulRows([
+                    {
+                      label: "Channel",
+                      value: na(
+                        data.intakeDelivery.channel === "sms"
+                          ? "SMS"
+                          : data.intakeDelivery.channel === "whatsapp"
+                            ? "WhatsApp"
+                            : data.intakeDelivery.channel,
+                      ),
+                    },
+                    {
+                      label: "Recipient",
+                      value: na(data.intakeDelivery.maskedRecipient),
+                    },
+                    {
+                      label: "Status",
+                      value:
+                        data.intakeDelivery.deliveryStatus === "delivered"
+                          ? "Delivered"
+                          : data.intakeDelivery.deliveryStatus === "sent"
+                            ? "Sent"
+                            : "Unknown",
+                    },
                   ])}
                 />
               </div>

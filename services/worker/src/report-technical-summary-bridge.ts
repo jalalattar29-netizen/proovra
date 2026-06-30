@@ -24,6 +24,8 @@ import { logger } from "./logger.js";
 export type ReportExifSummary = {
   exifPresent: boolean;
   camera: string | null;
+  cameraMake: string | null;
+  cameraModel: string | null;
   lensModel: string | null;
   originalCaptureTime: string | null;
   iso: number | null;
@@ -145,6 +147,8 @@ export async function buildReportTechnicalSummary(input: {
         exif = {
           exifPresent: e.exifPresent,
           camera: formatCameraLabel(e.cameraMake, e.cameraModel),
+          cameraMake: e.cameraMake,
+          cameraModel: e.cameraModel,
           lensModel: e.lensModel,
           originalCaptureTime: e.originalCaptureTime,
           iso: e.iso,

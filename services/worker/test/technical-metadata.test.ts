@@ -70,6 +70,17 @@ describe("UA engine + platform detection", () => {
     expect(ua.engine).toBeNull();
     expect(ua.platform).toBeNull();
   });
+  it("Windows NT 10.0 → osName Windows with NO fabricated version", () => {
+    const ua = parseUserAgent(CHROME_WIN);
+    expect(ua.osName).toBe("Windows");
+    // The UA cannot prove Windows 10 vs 11, so no version is invented.
+    expect(ua.osVersion).toBeNull();
+  });
+  it("Android keeps its provable version", () => {
+    const ua = parseUserAgent(FIREFOX_ANDROID);
+    expect(ua.osName).toBe("Android");
+    expect(ua.osVersion).toBe("13");
+  });
 });
 
 describe("humanization + smart rows", () => {
@@ -318,7 +329,7 @@ describe("verification package technical-metadata files", () => {
     };
   }
 
-  it("emits media/exif/capture files with rich EXIF and never a full IP", async () => {
+  it("emits exif-details/device-enrichment/capture-environment and never a full IP", async () => {
     const { buildTechnicalMetadataPackageFiles } = await import(
       "../src/verification-package-technical-metadata.js"
     );
@@ -328,6 +339,7 @@ describe("verification package technical-metadata files", () => {
       uploadSource: "WEB_APP",
       browserName: "Chrome",
       osName: "Windows",
+      osVersion: null,
       deviceClass: "DESKTOP",
       engine: "Blink",
       platform: "Windows x64",
@@ -346,21 +358,50 @@ describe("verification package technical-metadata files", () => {
       evidenceId: "ev-1",
     });
     const byPath = new Map(files.map((f) => [f.path, f.json]));
-    expect(byPath.has("technical-metadata/media-summary.json")).toBe(true);
-    expect(byPath.has("technical-metadata/exif-summary.json")).toBe(true);
+    // The slimmed package: deep EXIF + device roll-up + capture env.
+    expect(byPath.has("technical-metadata/exif-details.json")).toBe(true);
+    expect(byPath.has("technical-metadata/device-enrichment.json")).toBe(true);
     expect(byPath.has("technical-metadata/capture-environment.json")).toBe(true);
-    expect(byPath.has("technical-metadata/network-summary.json")).toBe(true);
+    // The duplicative manifest-style files are gone.
+    expect(byPath.has("technical-metadata/media-summary.json")).toBe(false);
+    expect(byPath.has("technical-metadata/network-summary.json")).toBe(false);
+    expect(byPath.has("technical-metadata/exif-summary.json")).toBe(false);
 
-    const exif = byPath.get("technical-metadata/exif-summary.json") as {
+    const exif = byPath.get("technical-metadata/exif-details.json") as {
+      source: string;
       parts: Array<Record<string, unknown>>;
     };
+    expect(exif.source).toBe("exif");
     expect(exif.parts[0]!.iso).toBe(80);
     expect(exif.parts[0]!.aperture).toBe("f/1.8");
     expect(exif.parts[0]!.orientation).toBe(1);
+    expect(exif.parts[0]!.source).toBe("exif");
+    expect(exif.parts[0]!.partId).toBe("part-1");
+    expect(typeof exif.parts[0]!.extractedAt).toBe("string");
+    expect(Array.isArray(exif.parts[0]!.fieldsPresent)).toBe(true);
 
-    const net = byPath.get("technical-metadata/network-summary.json") as Record<string, unknown>;
-    expect(net.maskedIp).toBe("203.0.x.x");
-    expect(net.country).toBe("GB");
+    const device = byPath.get(
+      "technical-metadata/device-enrichment.json",
+    ) as {
+      fields: Record<
+        string,
+        { value: string; source: string; confidence: string }
+      >;
+    };
+    // Field-level source/confidence per the enterprise schema.
+    expect(device.fields.operatingSystem!.value).toBe("Windows");
+    expect(device.fields.operatingSystem!.source).toBe("capture_environment");
+    expect(device.fields.operatingSystem!.confidence).toBe("medium");
+    expect(device.fields.captureDevice!.value).toBe("Apple iPhone 14 Pro");
+    expect(device.fields.captureDevice!.source).toBe("exif");
+    expect(device.fields.cameraMake!.value).toBe("Apple");
+    expect(device.fields.cameraModel!.value).toBe("iPhone 14 Pro");
+
+    const env = byPath.get(
+      "technical-metadata/capture-environment.json",
+    ) as Record<string, unknown>;
+    expect(env.ipAddressMasked).toBe("203.0.x.x");
+    expect(env.country).toBe("GB");
 
     // No full IP / raw UA anywhere in the whole package payload.
     const serialized = JSON.stringify(files);
@@ -368,29 +409,105 @@ describe("verification package technical-metadata files", () => {
     expect(serialized).not.toMatch(/Mozilla\/5\.0/);
   });
 
-  it("omits network-summary.json when no network values exist", async () => {
+  it("omits capture-environment.json when no capture environment was recorded", async () => {
     const { buildTechnicalMetadataPackageFiles } = await import(
       "../src/verification-package-technical-metadata.js"
     );
-    const captureEnv = {
-      schemaVersion: "1.0",
-      captureMethod: "UPLOAD",
-      uploadSource: "WEB_APP",
-      browserName: "Chrome",
-      deviceClass: "DESKTOP",
-      timezone: "Europe/London",
-      ipAddressMasked: null,
-      country: null,
-      region: null,
-      networkType: "UNKNOWN",
-    };
     const files = await buildTechnicalMetadataPackageFiles({
-      prisma: fakePrisma(captureEnv) as never,
+      prisma: fakePrisma(null) as never,
       teamId: "team-1",
       evidenceId: "ev-1",
     });
     expect(
-      files.find((f) => f.path === "technical-metadata/network-summary.json"),
+      files.find(
+        (f) => f.path === "technical-metadata/capture-environment.json",
+      ),
+    ).toBeUndefined();
+    // EXIF still emits from the part itself, independent of capture env.
+    expect(
+      files.find((f) => f.path === "technical-metadata/exif-details.json"),
+    ).toBeDefined();
+  });
+
+  // ---- intake-recipient-context.json (masked phone privacy) ----
+  function fakePrismaWithIntake(
+    delivery: Record<string, unknown> | null,
+  ) {
+    return {
+      $queryRawUnsafe: async (q: string) => {
+        if (q.includes("evidence_parts")) {
+          return [
+            {
+              id: "part-1",
+              original_file_name: "photo.jpg",
+              mime_type: "image/jpeg",
+              sha256: "a".repeat(64),
+              technical_metadata: TM_IMAGE,
+            },
+          ];
+        }
+        if (q.includes("communication_messages")) {
+          return delivery ? [delivery] : [];
+        }
+        return [{ capture_environment: null }];
+      },
+    };
+  }
+
+  it("emits a masked intake-recipient-context.json (never the full phone)", async () => {
+    const { buildTechnicalMetadataPackageFiles } = await import(
+      "../src/verification-package-technical-metadata.js"
+    );
+    const files = await buildTechnicalMetadataPackageFiles({
+      prisma: fakePrismaWithIntake({
+        recipient_preview: "+49 ••• ••• 1234",
+        recipient_hash: "deadbeef",
+        channel: "SMS",
+        status: "DELIVERED",
+        sent_at_utc: "2026-06-30T10:00:00.000Z",
+        delivered_at_utc: "2026-06-30T10:00:05.000Z",
+      }) as never,
+      teamId: "team-1",
+      evidenceId: "ev-1",
+    });
+    const entry = files.find(
+      (f) => f.path === "technical-metadata/intake-recipient-context.json",
+    );
+    expect(entry).toBeDefined();
+    const json = entry!.json as {
+      source: string;
+      recipient: { masked: string; hash: string; fullValueIncluded: boolean };
+      delivery: { channel: string; deliveryStatus: string };
+      privacy: Record<string, string>;
+    };
+    expect(json.source).toBe("intake_link_delivery");
+    expect(json.recipient.masked).toBe("+49 ••• ••• 1234");
+    expect(json.recipient.fullValueIncluded).toBe(false);
+    expect(json.recipient.hash).toContain("hmac-sha256:");
+    expect(json.delivery.channel).toBe("sms");
+    expect(json.delivery.deliveryStatus).toBe("delivered");
+    expect(json.privacy.publicReport).toBe("not_included");
+    expect(json.privacy.publicVerify).toBe("not_included");
+
+    // No full phone digit-run anywhere in the package payload.
+    const serialized = JSON.stringify(files);
+    expect(serialized).not.toMatch(/\+49\d{6,}/);
+    expect(serialized).not.toMatch(/\b\d{10,}\b/);
+  });
+
+  it("does NOT emit intake-recipient-context.json when there is no phone delivery", async () => {
+    const { buildTechnicalMetadataPackageFiles } = await import(
+      "../src/verification-package-technical-metadata.js"
+    );
+    const files = await buildTechnicalMetadataPackageFiles({
+      prisma: fakePrismaWithIntake(null) as never,
+      teamId: "team-1",
+      evidenceId: "ev-1",
+    });
+    expect(
+      files.find(
+        (f) => f.path === "technical-metadata/intake-recipient-context.json",
+      ),
     ).toBeUndefined();
   });
 });
@@ -463,7 +580,7 @@ describe("verification-package: advisory output removed", () => {
   });
 });
 
-describe("PDF report: Media Technical Summary section", () => {
+describe("PDF report: Capture Device & Camera Metadata section", () => {
   it("is byte-neutral when technicalSummary is null", async () => {
     const { renderTechnicalSummarySection } = await import(
       "../src/report-v2/sections/technical-summary.js"
@@ -494,17 +611,21 @@ describe("PDF report: Media Technical Summary section", () => {
         exif: {
           exifPresent: true,
           camera: "Apple iPhone 14 Pro",
+          cameraMake: "Apple",
+          cameraModel: "iPhone 14 Pro",
           lensModel: null,
           originalCaptureTime: "2024-11-15T10:22:05Z",
           iso: 80,
           aperture: "f/1.8",
           exposureTime: "1/120s",
           shutterSpeed: null,
-          whiteBalance: null,
+          // Auto white balance + normal (landscape) orientation must be
+          // hidden from the PDF.
+          whiteBalance: "Auto",
           orientation: 1,
           gpsPresent: true,
           resolution: "4032×3024",
-          softwareTag: null,
+          softwareTag: "S731BXXS7BZF3",
           metadataStatus: "PRESENT",
         },
         captureEnvironment: {
@@ -513,8 +634,10 @@ describe("PDF report: Media Technical Summary section", () => {
           browserName: "Chrome",
           browserVersion: "138",
           osName: "Windows",
-          osVersion: "10/11",
-          deviceClass: "DESKTOP",
+          // Exact Windows version is unprovable → no version, renders "Windows".
+          osVersion: null,
+          // Mobile device-class → browser is shown even with a camera.
+          deviceClass: "MOBILE",
           engine: "Blink",
           platform: "Windows x64",
           timezone: "Europe/London",
@@ -528,22 +651,38 @@ describe("PDF report: Media Technical Summary section", () => {
         },
       },
     } as never);
-    expect(html).toContain("Media &amp; Capture Metadata");
-    expect(html).toContain("EXIF Summary");
-    expect(html).toContain("Capture Environment");
+    // Reframed device/camera enrichment — not a generic media metadata block.
+    expect(html).toContain("Capture Device &amp; Camera Metadata");
+    expect(html).toContain("Camera Metadata");
     // Humanized labels — never the raw enum.
     expect(html).toContain("PROOVRA Web Application");
     expect(html).toContain("Secure Browser Capture");
     expect(html).not.toContain("WEB_APP");
     expect(html).not.toContain("SECURE_CAPTURE");
-    // Rich EXIF rows + engine/platform present.
-    expect(html).toContain("Blink");
-    expect(html).toContain("Windows x64");
+    // Camera make/model are split when both are reliably available.
+    expect(html).toContain("Camera Make");
+    expect(html).toContain("Camera Model");
+    expect(html).toContain("iPhone 14 Pro");
     expect(html).toContain("f/1.8");
-    // Network block (masked IP — never full IP).
-    expect(html).toContain("203.0.x.x");
-    // GPS presence flag only — no coordinates, no raw UA string.
-    expect(html).toContain("coordinates withheld");
+    // EXIF Original Capture Time label (distinct from PROOVRA timestamps).
+    expect(html).toContain("EXIF Original Capture Time");
+    // OS renders as "Windows" — never the fabricated "10/11".
+    expect(html).toContain("Windows");
+    expect(html).not.toContain("10/11");
+    // Browser shown for mobile device-class even alongside a camera.
+    expect(html).toContain("Chrome");
+    // Auto white balance + normal orientation are hidden from the PDF.
+    expect(html).not.toContain("White balance");
+    expect(html).not.toContain("Orientation");
+    // Raw firmware/software build id never reaches the PDF.
+    expect(html).not.toContain("S731BXXS7BZF3");
+    // Duplicative / privacy-sensitive blocks are gone from the PDF.
+    expect(html).not.toContain("EXIF Summary");
+    expect(html).not.toContain("203.0.x.x"); // no network block in PDF
+    expect(html).not.toContain("Blink"); // engine is package-only
+    expect(html).not.toContain("Windows x64"); // platform is package-only
+    expect(html).not.toMatch(/Files analysed/i);
+    // No coordinates, no raw UA string.
     expect(html).not.toMatch(/-?\d+\.\d{4,}/);
     expect(html).not.toContain("Mozilla/5.0");
   });

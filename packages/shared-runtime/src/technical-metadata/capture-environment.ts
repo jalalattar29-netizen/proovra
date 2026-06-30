@@ -87,13 +87,18 @@ export function parseUserAgent(ua: string | null | undefined): ParsedUserAgent {
   if (/Windows NT/.test(s)) {
     osName = "Windows";
     const v = s.match(/Windows NT ([\d.]+)/);
-    const map: Record<string, string> = {
-      "10.0": "10/11",
+    // The UA token freezes at "Windows NT 10.0" for BOTH Windows 10 and 11 —
+    // the exact version cannot be proven from the UA, so we leave it
+    // unversioned ("Windows") rather than fabricate "10/11". Older tokens
+    // (8.1/8/7) are still distinguishable and kept.
+    const map: Record<string, string | null> = {
+      "10.0": null,
       "6.3": "8.1",
       "6.2": "8",
       "6.1": "7",
     };
-    osVersion = v ? (map[v[1] ?? ""] ?? (v[1] ?? null)) : null;
+    const token = v?.[1] ?? "";
+    osVersion = token in map ? map[token] : (v?.[1] ?? null);
   } else if (/iPhone|iPad|iPod/.test(s)) {
     osName = "iOS";
     const v = s.match(/OS (\d+[_\d]*)/);

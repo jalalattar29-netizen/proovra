@@ -1,149 +1,149 @@
 /**
- * "Media & Capture Metadata" report section.
+ * "Capture Device & Camera Metadata" — a narrow ENRICHMENT appendix.
  *
- * Enterprise, compact, SMART-RENDERED:
- *   * Media / EXIF / Capture Environment / Network sub-blocks.
- *   * Only meaningful rows render (no null / empty / "unknown" / zero-only
- *     rows; no empty blocks).
- *   * Human-readable labels only — never internal enum constants.
- *   * EXIF GPS is a presence flag; no coordinates, no raw EXIF dump.
- *   * No raw IP, no raw User-Agent; masked IP / no IP in the public PDF.
- *   * When EXIF is absent, one short reassuring note instead of empty rows.
+ * This is NOT a generic media-metadata section. It deliberately does NOT
+ * repeat anything already in the report: no evidence type / item count /
+ * structure, no "Mixed", no files-analysed, no metadata-complete/partial,
+ * no global resolution, no hashes, no EXIF GPS / location (Capture Context
+ * owns location), and no network/IP.
+ *
+ * It shows only the genuinely-enriching device facts:
+ *   * Capture Device — "Captured with" (device from EXIF), OS, device
+ *     class, submission method, and (for non-camera/desktop uploads) a
+ *     little browser/timezone context.
+ *   * Camera Metadata — only when the file carried real EXIF: camera,
+ *     original capture time, ISO, aperture, shutter/exposure, white
+ *     balance, orientation.
+ *
+ * Smart-rendered: only meaningful rows; the whole block hides when empty;
+ * desktop uploads (no EXIF) never show camera rows. Raw firmware build ids
+ * are kept out of the PDF (they live in the verification package).
  * BYTE-NEUTRAL when vm.technicalSummary is null.
  */
 
 import { ReportViewModel } from "../types.js";
 import { renderCompactKeyValueList, renderPageSection } from "../ui.js";
 import {
-  EXIF_ABSENT_NOTE,
   humanizeCaptureMethod,
   humanizeUploadSource,
   metadataRows,
-  metadataStatusLabel,
 } from "@proovra/shared-runtime/technical-metadata";
 
-function block(title: string, rows: Array<{ label: string; value: string }>): string {
-  if (rows.length === 0) return "";
-  return `
-    <h3 class="subsection-title">${title}</h3>
-    ${renderCompactKeyValueList(rows)}
-  `;
+function orientationLabel(o: number | null): string | null {
+  if (o == null) return null;
+  // EXIF orientation 1..8 → portrait/landscape (reviewer-friendly).
+  return o >= 5 ? "Portrait" : "Landscape";
+}
+
+/** Orientation is only worth showing in the PDF when it is NOT the normal
+ *  landscape default — i.e. when it carries information (portrait/rotated).
+ *  The raw orientation value still lives in the verification package. */
+function meaningfulOrientation(o: number | null): string | null {
+  return orientationLabel(o) === "Portrait" ? "Portrait" : null;
+}
+
+/** White balance is only worth showing when it is NOT the camera default
+ *  "Auto". The raw value still lives in the verification package. */
+function meaningfulWhiteBalance(wb: string | null): string | null {
+  if (!wb) return null;
+  return wb.trim().toLowerCase() === "auto" ? null : wb;
+}
+
+const MOBILE_DEVICE_CLASSES = new Set(["MOBILE", "PHONE", "TABLET"]);
+function isMobileClass(deviceClass: string | null | undefined): boolean {
+  return (
+    deviceClass != null && MOBILE_DEVICE_CLASSES.has(deviceClass.toUpperCase())
+  );
 }
 
 export function renderTechnicalSummarySection(vm: ReportViewModel): string {
   const ts = vm.technicalSummary;
   if (!ts) return "";
 
-  // ---- Media ----
-  const pm = ts.primaryMedia;
-  const mediaRows = metadataRows([
-    { label: "Primary media type", value: ts.primaryMediaType },
-    {
-      label: "Files analysed",
-      value: `${ts.mediaFilesAnalyzed} / ${ts.mediaFilesTotal}`,
-    },
-    { label: "Resolution", value: ts.resolutionSummary, display: ts.resolutionSummary ?? undefined },
-    {
-      label: "Duration",
-      value: pm?.durationMs ?? null,
-      display: pm?.durationMs != null ? `${Math.round(pm.durationMs / 1000)}s` : undefined,
-    },
-    { label: "Video codec", value: pm?.videoCodec ?? null },
-    {
-      label: "Frame rate",
-      value: pm?.frameRate ?? null,
-      display: pm?.frameRate != null ? `${pm.frameRate} fps` : undefined,
-    },
-    {
-      label: "Page count",
-      value: pm?.pageCount ?? null,
-      display: pm?.pageCount != null ? String(pm.pageCount) : undefined,
-    },
-    { label: "Metadata", value: ts.metadataStatus },
-  ]);
-  const mediaBlock = block("Media", mediaRows);
+  const ce = ts.captureEnvironment;
+  const exif = ts.exif;
+  const hasExif = Boolean(exif && exif.exifPresent);
+  const camera = hasExif ? exif!.camera : null;
 
-  // ---- EXIF ----
-  let exifBlock = "";
-  if (ts.exif) {
-    if (ts.exif.exifPresent) {
-      const rows = metadataRows([
-        { label: "Camera", value: ts.exif.camera },
-        { label: "Lens", value: ts.exif.lensModel },
-        { label: "Original capture time", value: ts.exif.originalCaptureTime },
-        { label: "ISO", value: ts.exif.iso },
-        { label: "Aperture", value: ts.exif.aperture },
-        { label: "Exposure", value: ts.exif.exposureTime },
-        { label: "Shutter speed", value: ts.exif.shutterSpeed },
-        { label: "White balance", value: ts.exif.whiteBalance },
-        { label: "Orientation", value: ts.exif.orientation },
-        { label: "Software", value: ts.exif.softwareTag },
+  // Show Browser when there is no EXIF camera (desktop) OR the upload came
+  // from a mobile device-class (mobile browser / intake link) where the
+  // browser is genuinely informative even alongside a camera.
+  const showBrowser = ce ? !camera || isMobileClass(ce.deviceClass) : false;
+
+  // ---- Capture Device ----
+  // "Capture Device" prefers the EXIF camera (the physical capture device);
+  // for desktop uploads with no EXIF it is omitted and the row set falls
+  // back to the browser/OS context.
+  const deviceRows = ce
+    ? metadataRows([
+        { label: "Capture Device", value: camera },
         {
-          label: "EXIF GPS",
-          value: ts.exif.gpsPresent ? "Present (coordinates withheld)" : "Not present",
+          label: "Operating system",
+          value: ce.osName,
+          display: [ce.osName, ce.osVersion].filter(Boolean).join(" ") || undefined,
         },
-        { label: "Resolution", value: ts.exif.resolution },
-      ]);
-      exifBlock = `
-        <h3 class="subsection-title">EXIF Summary</h3>
-        <p class="muted-note">Metadata embedded in the file by the capturing device or software. The original capture time is read from the file itself, distinct from PROOVRA's capture and preservation timestamps.</p>
+        { label: "Device", value: ce.deviceClass, display: ce.deviceClass ? titleCase(ce.deviceClass) : undefined },
+        { label: "Submitted through", value: humanizeUploadSource(ce.uploadSource) },
+        { label: "Capture method", value: humanizeCaptureMethod(ce.captureMethod) },
+        ...(showBrowser
+          ? [
+              {
+                label: "Browser",
+                value: ce.browserName,
+                display: [ce.browserName, ce.browserVersion].filter(Boolean).join(" ") || undefined,
+              },
+            ]
+          : []),
+        { label: "Timezone", value: ce.timezone },
+      ])
+    : [];
+
+  const deviceBlock =
+    deviceRows.length > 0
+      ? `<h3 class="subsection-title">Capture Device</h3>${renderCompactKeyValueList(deviceRows)}`
+      : "";
+
+  // ---- Camera Metadata (only when the file carried real EXIF) ----
+  let cameraBlock = "";
+  if (hasExif) {
+    // Split make/model ONLY when both are reliably available; otherwise the
+    // combined "Camera" label is the single reliable device name.
+    const make = exif!.cameraMake;
+    const model = exif!.cameraModel;
+    const cameraRows =
+      make && model
+        ? [
+            { label: "Camera Make", value: make },
+            { label: "Camera Model", value: model },
+          ]
+        : [{ label: "Camera", value: exif!.camera }];
+
+    const rows = metadataRows([
+      ...cameraRows,
+      { label: "Lens", value: exif!.lensModel },
+      { label: "EXIF Original Capture Time", value: exif!.originalCaptureTime },
+      { label: "ISO", value: exif!.iso },
+      { label: "Aperture", value: exif!.aperture },
+      { label: "Shutter / exposure", value: exif!.shutterSpeed ?? exif!.exposureTime },
+      { label: "White balance", value: meaningfulWhiteBalance(exif!.whiteBalance) },
+      { label: "Orientation", value: meaningfulOrientation(exif!.orientation) },
+    ]);
+    if (rows.length > 0) {
+      cameraBlock = `
+        <h3 class="subsection-title">Camera Metadata</h3>
+        <p class="muted-note">Embedded in the file by the capturing device. The EXIF Original Capture Time is read from the file itself and is distinct from PROOVRA's submission and preservation timestamps.</p>
         ${renderCompactKeyValueList(rows)}
-      `;
-    } else {
-      // EXIF absent → one short reassuring note, no empty rows.
-      exifBlock = `
-        <h3 class="subsection-title">EXIF Summary</h3>
-        <p class="muted-note">${EXIF_ABSENT_NOTE}</p>
       `;
     }
   }
 
-  // ---- Capture Environment ----
-  let captureBlock = "";
-  if (ts.captureEnvironment) {
-    const ce = ts.captureEnvironment;
-    const rows = metadataRows([
-      { label: "Submitted through", value: humanizeUploadSource(ce.uploadSource) },
-      { label: "Capture method", value: humanizeCaptureMethod(ce.captureMethod) },
-      {
-        label: "Browser",
-        value: ce.browserName,
-        display: [ce.browserName, ce.browserVersion].filter(Boolean).join(" ") || undefined,
-      },
-      {
-        label: "Operating system",
-        value: ce.osName,
-        display: [ce.osName, ce.osVersion].filter(Boolean).join(" ") || undefined,
-      },
-      { label: "Device", value: ce.deviceClass, display: ce.deviceClass ? titleCase(ce.deviceClass) : undefined },
-      { label: "Engine", value: ce.engine },
-      { label: "Platform", value: ce.platform },
-      { label: "Timezone", value: ce.timezone },
-      { label: "Locale", value: ce.locale },
-    ]);
-    captureBlock = block("Capture Environment", rows);
-  }
-
-  // ---- Network ----
-  let networkBlock = "";
-  if (ts.network) {
-    const n = ts.network;
-    const rows = metadataRows([
-      { label: "Masked IP", value: n.maskedIp },
-      { label: "Country", value: n.country },
-      { label: "Region", value: n.region },
-      { label: "Network type", value: n.networkType },
-    ]);
-    networkBlock = block("Network", rows);
-  }
-
-  const body = `${mediaBlock}${exifBlock}${captureBlock}${networkBlock}`;
+  const body = `${deviceBlock}${cameraBlock}`;
   if (body.trim().length === 0) return "";
 
   return renderPageSection(
-    "Media & Capture Metadata",
+    "Capture Device & Camera Metadata",
     `
-      <p class="section-intro">Deterministic technical metadata about the recorded material and the environment in which it entered PROOVRA. Advisory context for reviewers; it does not change the integrity verdict.</p>
+      <p class="section-intro">Device and camera context for the recorded material. Advisory enrichment for reviewers; it does not change the integrity verdict, and location (where recorded) is shown in the Capture Context above.</p>
       ${body}
     `,
     { className: "technical-summary-section" },
@@ -153,6 +153,3 @@ export function renderTechnicalSummarySection(vm: ReportViewModel): string {
 function titleCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
-
-// Re-exported for any caller still importing the status label from here.
-export { metadataStatusLabel };
