@@ -7,6 +7,8 @@ import { renderIntegrityProofSection } from "./sections/integrity-proof.js";
 import { renderCustodySection } from "./sections/custody.js";
 import { renderCustodyHashChainSection } from "./sections/custody-hash-chain.js";
 import { renderForensicIntegrityStatementSection } from "./sections/forensic-integrity-statement.js";
+import { renderTechnicalSummarySection } from "./sections/technical-summary.js";
+import { renderMediaIntelligenceSection } from "./sections/media-intelligence.js";
 import { renderIntelligenceSummarySection } from "./sections/intelligence-summary.js";
 import { renderLifecycleSummarySection } from "./sections/lifecycle-summary.js";
 import { renderLegalInterpretationSection } from "./sections/legal-interpretation.js";
@@ -21,6 +23,23 @@ export function renderReportHtml(vm: ReportViewModel): string {
     renderCustodySection(vm),
     renderCustodyHashChainSection(vm),
     renderForensicIntegrityStatementSection(vm),
+    // Enterprise Technical Metadata layer — compact "Media Technical
+    // Summary" (media facts + EXIF summary + capture environment).
+    // Returns "" when vm.technicalSummary is null, preserving byte
+    // output for callers that don't supply it. Positioned after the
+    // Forensic Integrity Statement so technical file facts sit with the
+    // integrity context and before the advisory/intelligence sections.
+    renderTechnicalSummarySection(vm),
+    // Phase 31.10 — bounded "Media Intelligence Observations" (advisory
+    // signals + derived thumbnails + OCR/transcript availability).
+    // Returns "" when vm.mediaIntelligence is null or carries no signals
+    // / thumbnails / OCR entries, so legacy byte output is preserved.
+    // Positioned AFTER the Forensic Integrity Statement (which carries
+    // the "Reviewer Verification Workflow" heading) and the new compact
+    // "Media Technical Summary", and BEFORE the Legal Interpretation
+    // hierarchy. This is the ADVISORY layer — semantically distinct from
+    // the deterministic "Media Technical Summary" above it.
+    renderMediaIntelligenceSection(vm),
     // Phase 4A Final Closure — bounded "Intelligence Summary" section.
     // Returns "" when vm.intelligenceSummary is null OR carries no
     // document/transcript/provider activity, so legacy byte output is

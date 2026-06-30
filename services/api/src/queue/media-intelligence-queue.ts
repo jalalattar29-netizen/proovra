@@ -87,6 +87,12 @@ export const MEDIA_INTELLIGENCE_JOB_KINDS = [
   "extract_transcript_deepgram",
   "wire_ocr_transcript",
   "reindex",
+  // Enterprise Technical Metadata layer — deterministic Layer-1 file
+  // metadata extraction (dimensions / codec / EXIF presence / PDF
+  // producer). Worker downloads bytes per part, dispatches to the
+  // image/video/pdf parser, and writes EvidencePart.technical_metadata.
+  // Never blocks the lifecycle; graceful-degrades to FAILED/UNSUPPORTED.
+  "extract_technical_metadata",
   "reconcile",
 ] as const;
 

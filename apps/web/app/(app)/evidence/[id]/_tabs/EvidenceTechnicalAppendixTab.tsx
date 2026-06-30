@@ -39,6 +39,7 @@ import {
   SectionHeading,
   type EvidenceDetailCtx,
 } from "./_lib";
+import { EvidenceTechnicalMetadataCard } from "./EvidenceTechnicalMetadataCard";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
   PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
@@ -255,7 +256,7 @@ function pillToneFromTrustTone(tone: string | undefined): string {
 }
 
 export function EvidenceTechnicalAppendixTab({ ctx }: { ctx: EvidenceDetailCtx }) {
-  const { workspace, preservation, trustDecision } = ctx;
+  const { workspace, preservation, trustDecision, evidenceId } = ctx;
   const searchParams = useSearchParams();
   // Phase EVIDENCE-TRUSTDECISION-STRUCTURED — raw-JSON debug gate.
   // The previous always-on raw-JSON dump exposed internal projection
@@ -314,6 +315,12 @@ export function EvidenceTechnicalAppendixTab({ ctx }: { ctx: EvidenceDetailCtx }
           <TrustDecisionSummary trust={trustForRender ?? null} />
         </div>
       </details>
+
+      {/* Enterprise Technical Metadata — compact Media / EXIF / Capture
+          Environment surface (collapsed; below the trust summary so it
+          never sits above the primary record actions). Self-fetches the
+          privacy-safe internal projection. */}
+      <EvidenceTechnicalMetadataCard evidenceId={evidenceId} />
 
       {/* 2. Manifest, TSA imprint, hash semantics */}
       <details data-evidence-technical-block="hashes" style={{ marginBottom: 8 }}>

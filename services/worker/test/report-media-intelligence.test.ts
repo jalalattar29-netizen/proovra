@@ -295,6 +295,73 @@ describe("Phase 31.10 — byte-neutrality: no intelligence input", () => {
 });
 
 // =============================================================================
+// Coexistence — advisory "Media Intelligence" vs deterministic
+// "Media Technical Summary" are independent, separately-gated sections.
+// =============================================================================
+
+describe("Media Intelligence vs Media Technical Summary coexistence", () => {
+  const TECH_SUMMARY = {
+    mediaFilesAnalyzed: 1,
+    mediaFilesTotal: 1,
+    metadataStatus: "Complete" as const,
+    primaryMediaType: "Image",
+    resolutionSummary: "4032×3024",
+    exif: {
+      camera: "Apple iPhone 14 Pro",
+      originalCaptureTime: "2024-11-15T10:22:05Z",
+      gpsPresent: true,
+      resolution: "4032×3024",
+      softwareTag: null,
+      metadataStatus: "PRESENT" as const,
+    },
+    captureEnvironment: {
+      uploadSource: "WEB_APP",
+      captureMethod: "SECURE_CAPTURE",
+      browserOs: "Chrome on Windows",
+      deviceClass: "DESKTOP",
+      timezone: "Europe/London",
+    },
+  };
+
+  it("renders the advisory section AND the technical summary as distinct sections", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({
+        mediaIntelligence: SAMPLE_INTELLIGENCE,
+        technicalSummary: TECH_SUMMARY,
+      }),
+    );
+    const html = renderReportHtml(vm);
+    // Both headings present, and the deterministic technical summary
+    // appears BEFORE the advisory observations.
+    const idxTech = html.indexOf("Media Technical Summary");
+    const idxAdvisory = html.indexOf("Media Intelligence Observations");
+    expect(idxTech).toBeGreaterThan(0);
+    expect(idxAdvisory).toBeGreaterThan(idxTech);
+    // Distinct section classes — no merged/duplicated block.
+    expect(html).toContain("technical-summary-section");
+    expect(html).toContain("media-intelligence-section");
+  });
+
+  it("renders the technical summary even when no advisory observations exist", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({ mediaIntelligence: null, technicalSummary: TECH_SUMMARY }),
+    );
+    const html = renderReportHtml(vm);
+    expect(html).toContain("Media Technical Summary");
+    expect(html).not.toContain("Media Intelligence Observations");
+  });
+
+  it("renders the advisory section even when no technical summary exists", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE, technicalSummary: null }),
+    );
+    const html = renderReportHtml(vm);
+    expect(html).toContain("Media Intelligence Observations");
+    expect(html).not.toContain("Media Technical Summary");
+  });
+});
+
+// =============================================================================
 // PART 2 — Positive path
 // =============================================================================
 

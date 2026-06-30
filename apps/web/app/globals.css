@@ -9,6 +9,19 @@
 @import "../components/workspace-admin/workspace-admin.css";
 @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap");
 
+/* Cookie-banner scope — the cookie consent banner (vanilla-cookieconsent
+   `#cc-main`) and the privacy-preferences launcher are rendered once in
+   the ROOT layout so they cover public/marketing/external pages. The
+   (app) route-group layout adds `body.is-internal-app` while an
+   authenticated/internal page is mounted; these rules hide the banner +
+   launcher there so they appear on public pages only. The CMP still
+   initialises globally, so consent storage + analytics are unaffected —
+   only the visible chrome is suppressed on internal pages. */
+body.is-internal-app #cc-main,
+body.is-internal-app [data-testid="privacy-preferences-launcher"] {
+  display: none !important;
+}
+
 html,
 body {
   font-family:

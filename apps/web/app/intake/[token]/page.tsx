@@ -505,6 +505,25 @@ export default function ExternalIntakePage({
             // null is sent explicitly so the wire shape is stable
             // and contract tests can pin it.
             webkitRelativePath: relativePath,
+            // Enterprise Capture Environment — silent, privacy-safe
+            // client context for the intake contributor's browser. The
+            // server records it (on the first part) as part of the
+            // capture environment. No UI; best-effort and guarded so an
+            // environment without Intl/navigator never breaks the upload.
+            captureTimezone:
+              (() => {
+                try {
+                  return (
+                    Intl.DateTimeFormat().resolvedOptions().timeZone || null
+                  );
+                } catch {
+                  return null;
+                }
+              })(),
+            captureLocale:
+              typeof navigator !== "undefined" && navigator.language
+                ? navigator.language
+                : null,
           }),
         },
         { auth: false },

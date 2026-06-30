@@ -201,6 +201,12 @@ const CreateEvidenceBody = z.object({
   // Optional: link this Evidence to an existing CaptureSession draft so that
   // the draft is moved to FINALIZED status and the audit trail is preserved.
   captureSessionId: z.string().uuid().optional(),
+  // Enterprise Capture Environment layer — silently-collected client
+  // context. The browser sends Intl timezone + navigator.language so the
+  // privacy-safe CaptureEnvironment record can record where the material
+  // entered PROOVRA. Both optional + bounded; never required.
+  captureTimezone: z.string().trim().min(1).max(64).optional(),
+  captureLocale: z.string().trim().min(1).max(35).optional(),
   gps: z
     .object({
       lat: z.number().finite().min(-90).max(90),
@@ -4747,6 +4753,40 @@ intakePlanJson:
         },
       });
 
+      // Enterprise Capture Environment layer — record the privacy-safe
+      // PROOVRA upload environment (parsed browser/OS/device + timezone /
+      // locale + UA HASH and masked IP only; NEVER raw UA / raw IP).
+      // Best-effort + non-blocking via the shared writer: a failure here
+      // must never fail evidence creation. This is distinct from the
+      // file's embedded EXIF metadata and from the preservation
+      // (OTS/RFC3161) state.
+      {
+        const { recordCaptureEnvironment } = await import(
+          "../services/technical-metadata/capture-environment-writer.js"
+        );
+        await recordCaptureEnvironment({
+          evidenceId: result.id,
+          rawUserAgent: req.headers["user-agent"] ?? null,
+          rawIp: req.ip ?? null,
+          timezone: body.captureTimezone ?? null,
+          locale: body.captureLocale ?? null,
+          acceptLanguage:
+            typeof req.headers["accept-language"] === "string"
+              ? req.headers["accept-language"]
+              : null,
+          captureMethod: body.captureSessionId ? "SECURE_CAPTURE" : "UPLOAD",
+          // TODO(capture-environment): set uploadSource: "API" when a
+          // reliable API-key / service-token marker is available on this
+          // route. As of now POST /v1/evidence is JWT session auth only
+          // (requireAuthAndLegal; AuthProvider = GOOGLE|APPLE|GUEST|EMAIL)
+          // — there is no programmatic-caller marker on req.user to key
+          // off, and the integrations-auth / internal-service-auth
+          // middlewares do not guard this route. Leaving WEB_APP rather
+          // than inventing an unreliable signal.
+          uploadSource: "WEB_APP",
+        });
+      }
+
       // Phase 9.5 — apply workspace retention policy on create. Resolves
       // the workspace's defaultRetentionDays; only sets retentionUntilUtc
       // when it is longer than any existing explicit retention. Never
@@ -4976,6 +5016,46 @@ if (
       throw err;
     }
   });
+
+  // Enterprise Technical Metadata layer — internal (authenticated)
+  // projection for the Evidence Detail "Technical Metadata" surface.
+  // Returns the privacy-safe Media / EXIF / Capture Environment shape.
+  // Internal callers additionally get a masked IP, a User-Agent HASH,
+  // and locale — never the raw IP or raw User-Agent, never GPS
+  // coordinates. Access is owner/workspace-scoped via
+  // getEvidenceWithOwnerAccess (throws statusCode on no access).
+  app.get(
+    "/v1/evidence/:id/technical-metadata",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+
+      let evidence: SelectedEvidence;
+      try {
+        evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
+      }
+
+      const { projectVerifyTechnicalMetadata } = await import(
+        "../services/technical-metadata/verify-projection.service.js"
+      );
+      const technicalMetadata = await projectVerifyTechnicalMetadata({
+        teamId: evidence.teamId ?? null,
+        evidenceId: id,
+        internal: true,
+      });
+
+      return reply.code(200).send({ technicalMetadata });
+    },
+  );
 
   app.patch(
     "/v1/evidence/:id/label",
@@ -12274,10 +12354,27 @@ const captureTrust = evidence.teamId
     })()
   : null;
 
+// Enterprise Technical Metadata layer — privacy-safe Media / EXIF /
+// Capture Environment projection. Never throws; null when no data.
+const technicalMetadata = await (async () => {
+  try {
+    const { projectVerifyTechnicalMetadata } = await import(
+      "../services/technical-metadata/verify-projection.service.js"
+    );
+    return await projectVerifyTechnicalMetadata({
+      teamId: evidence.teamId ?? null,
+      evidenceId: evidence.id,
+    });
+  } catch {
+    return null;
+  }
+})();
+
 return reply.code(200).send({
   evidenceId: evidence.id,
   mediaIntelligenceAdvisory,
   captureTrust,
+  technicalMetadata,
   trustDecision,
 trustDecisionConsistency,
   verificationSnapshot,

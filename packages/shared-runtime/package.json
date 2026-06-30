@@ -17,6 +17,11 @@
       "import": "./dist/media-intelligence/index.js",
       "default": "./dist/media-intelligence/index.js"
     },
+    "./technical-metadata": {
+      "types": "./dist/technical-metadata/index.d.ts",
+      "import": "./dist/technical-metadata/index.js",
+      "default": "./dist/technical-metadata/index.js"
+    },
     "./graph": {
       "types": "./dist/graph/index.d.ts",
       "import": "./dist/graph/index.js",

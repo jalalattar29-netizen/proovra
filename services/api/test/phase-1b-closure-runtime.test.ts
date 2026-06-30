@@ -195,6 +195,13 @@ const EVIDENCE_ROUTES = readSource(
 const VERIFY_PAGE = readSource(
   "../../../apps/web/app/verify/[token]/page.tsx",
 );
+// CR4 decomposition — the bounded capture-trust panel was extracted from
+// the verify orchestrator into this component (same testids, same
+// honest-no-data behaviour). Source-contract assertions that previously
+// scanned the page now scan the component.
+const VERIFY_CAPTURE_INTEGRITY = readSource(
+  "../../../apps/web/components/verify-v2/VerifyCaptureIntegritySection.tsx",
+);
 const VERIFICATION_PACKAGE = readSource(
   "../../../services/worker/src/verification-package.ts",
 );
@@ -381,16 +388,21 @@ describe("Phase 1B Closure — wiring: verify page surfaces trust", () => {
     expect(EVIDENCE_ROUTES).toMatch(/captureTrust,/);
   });
   it("verify page renders the bounded fields", () => {
+    // The page still wires the captureTrust projection into the
+    // extracted section component...
     expect(VERIFY_PAGE).toMatch(/captureTrust/);
-    expect(VERIFY_PAGE).toMatch(/verify-capture-trust/);
-    expect(VERIFY_PAGE).toMatch(/verify-capture-trust-class/);
-    expect(VERIFY_PAGE).toMatch(/verify-capture-trust-signature/);
-    expect(VERIFY_PAGE).toMatch(/verify-capture-trust-attestation/);
-    expect(VERIFY_PAGE).toMatch(/verify-capture-trust-time/);
-    expect(VERIFY_PAGE).toMatch(/verify-capture-trust-limitations/);
+    expect(VERIFY_PAGE).toMatch(/VerifyCaptureIntegritySection/);
+    // ...and the component renders the bounded testid fields.
+    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/verify-capture-trust/);
+    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/verify-capture-trust-class/);
+    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/verify-capture-trust-signature/);
+    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/verify-capture-trust-attestation/);
+    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/verify-capture-trust-time/);
+    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/verify-capture-trust-limitations/);
   });
   it("verify page renders nothing when captureTrust is null (honest no-data)", () => {
-    expect(VERIFY_PAGE).toMatch(/captureTrust\s*\?\s*\(/);
+    // The extracted component early-returns null on a null projection.
+    expect(VERIFY_CAPTURE_INTEGRITY).toMatch(/if \(!captureTrust\) return null/);
   });
 });
 

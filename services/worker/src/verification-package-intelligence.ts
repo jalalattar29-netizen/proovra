@@ -135,6 +135,26 @@ const MAX_TIMELINE_EVENTS = 400;
 const SUMMARY_CHAR_MAX = 240;
 const IDENT_CHAR_MAX = 120;
 
+// Package signal-scope filter. Workspace/corpus CORRELATION signals
+// reference OTHER evidence / files / similarity-search results in the
+// owning workspace. They must NOT appear in a verification package by
+// default — a package can be shared outside the workspace, and these
+// signals would leak internal corpus context. Only file-LOCAL technical
+// observations (EXIF/MIME/codec/availability/capture-time) are package-
+// safe. The deterministic technical metadata lives separately under
+// technical-metadata/.
+//
+// TODO(internal-package-mode): when a restricted/internal package mode
+// is introduced, that mode MAY include these signals, clearly labelled
+// as restricted workspace-correlation observations. Until then the
+// default (and only) behaviour is to exclude them.
+const PACKAGE_RESTRICTED_SIGNAL_TYPES = new Set([
+  "DUPLICATE_HASH_MATCH",
+  "SIMILAR_FILE_CANDIDATE",
+  "POSSIBLE_DERIVATIVE_FILE",
+  "TRANSCODING_LINEAGE_CANDIDATE",
+]);
+
 const ALLOWED_SEVERITIES = new Set(["INFO", "REVIEW_RECOMMENDED", "ATTENTION"]);
 const ALLOWED_CONFIDENCES = new Set(["LOW", "MEDIUM", "HIGH"]);
 const ALLOWED_STATUSES = new Set(["PENDING", "ACKNOWLEDGED", "DISMISSED"]);
@@ -178,10 +198,35 @@ export function buildIntelligencePackageManifests(
   if (!input) return [];
   const out: IntelligencePackageManifestEntry[] = [];
 
-  if (input.mediaSignals && input.mediaSignals.length > 0) {
+  // Filter out restricted workspace/corpus-correlation signals BEFORE
+  // building the manifest, so both advisory-signals.json AND its
+  // deprecated media_intelligence.json alias carry only package-safe,
+  // file-local technical observations. The alias can never leak
+  // restricted signals because it is built from the same filtered list.
+  const packageSafeSignals = (input.mediaSignals ?? []).filter(
+    (s) => !PACKAGE_RESTRICTED_SIGNAL_TYPES.has(s.signalType),
+  );
+
+  if (packageSafeSignals.length > 0) {
+    const advisoryManifest = buildMediaIntelligenceManifest(packageSafeSignals);
+    // Enterprise rename: these are ADVISORY OBSERVATIONS (deterministic
+    // signals + workspace correlation), NOT the file's technical
+    // metadata. True media technical metadata now lives under
+    // technical-metadata/. The canonical filename is advisory-signals.json;
+    // media_intelligence.json is retained as a DEPRECATED ALIAS for
+    // backward compatibility with existing package consumers.
+    out.push({
+      path: "intelligence/advisory-signals.json",
+      json: advisoryManifest,
+    });
     out.push({
       path: "intelligence/media_intelligence.json",
-      json: buildMediaIntelligenceManifest(input.mediaSignals),
+      json: {
+        ...advisoryManifest,
+        deprecated: true,
+        renamedTo: "intelligence/advisory-signals.json",
+        note: "DEPRECATED ALIAS. These are advisory observations, not media technical metadata. Deterministic file technical metadata now lives under technical-metadata/. This file is retained only for backward compatibility and will be removed in a future package version.",
+      },
     });
   }
   if (input.derivedAssets && input.derivedAssets.length > 0) {

@@ -552,15 +552,20 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     ).toBeLessThanOrEqual(51999);
   });
 
-  it("CR5 UPPER pin on useCaptureSessionOrchestration.ts holds (≤ 34,744 bytes)", () => {
+  it("CR5 UPPER pin on useCaptureSessionOrchestration.ts holds (≤ 35,015 bytes)", () => {
     // Phase HOME-DATA-OWNERSHIP rebaseline: 34,411 → 34,744 (active
     // workspace id stamped into the POST /v1/evidence body so personal
     // evidence is never orphaned with team_id NULL).
+    // Enterprise Capture Environment rebaseline: 34,744 → 35,015 — silent
+    // client tz/locale hints on POST /v1/evidence; the bulk was extracted
+    // to ./captureEnvironmentClient (getClientCaptureEnvironment), leaving
+    // only an import + a spread in this hook. See phase-cr5-capture-safety
+    // for the canonical CR5 pin + rationale.
     expect(
       statSync(
         webPath("app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts"),
       ).size,
-    ).toBeLessThanOrEqual(34744);
+    ).toBeLessThanOrEqual(35015);
   });
 });
 

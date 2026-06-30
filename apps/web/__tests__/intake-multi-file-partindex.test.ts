@@ -83,6 +83,32 @@ test("onChange max-files guard uses the LOCAL counter, not React state", () => {
   );
 });
 
+test("intake part submission includes silent captureTimezone + captureLocale", () => {
+  // Enterprise Capture Environment — the intake client sends the
+  // contributor browser's timezone + language so the server can record
+  // the privacy-safe capture environment. Guarded (try/catch + navigator
+  // existence check) so a missing Intl/navigator never breaks upload.
+  assert.match(
+    SRC,
+    /captureTimezone:[\s\S]{0,160}Intl\.DateTimeFormat\(\)\.resolvedOptions\(\)\.timeZone/,
+    "intake POST body must send captureTimezone from Intl",
+  );
+  assert.match(
+    SRC,
+    /captureLocale:[\s\S]{0,120}navigator\.language/,
+    "intake POST body must send captureLocale from navigator.language",
+  );
+  // Privacy: the client sends only tz/locale; raw IP + raw User-Agent are
+  // derived (and masked/hashed) server-side. The intake stageFile body
+  // must not include a rawIp / rawUserAgent field.
+  const stageStart = SRC.indexOf("async function stageFile");
+  const stageBody = SRC.slice(stageStart, stageStart + 2500);
+  assert.ok(
+    !/rawIp\b|rawUserAgent\b/.test(stageBody),
+    "intake stageFile must not send raw IP / raw User-Agent in the body",
+  );
+});
+
 test("selecting 5 files sends partIndex 0..4 (deterministic local-counter walk)", () => {
   // Sequence simulation: nextIndex starts at parts.length (0 on a
   // fresh session), then the loop body increments by 1 for each

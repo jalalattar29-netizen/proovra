@@ -73,6 +73,24 @@ model Evidence {
   reviewReadyAtUtc                  DateTime? @map("review_ready_at_utc") @db.Timestamptz(6)
   reviewerSummaryVersion            Int?      @map("reviewer_summary_version")
 
+  // Enterprise Technical Metadata layer (additive, nullable).
+  //   technicalMetadata  — denormalized Layer-1 deterministic file facts
+  //                        for SINGLE-file evidence. Canonical per-part
+  //                        copies live on EvidencePart.technicalMetadata;
+  //                        this mirror is a convenience for the common
+  //                        single-part case so readers don't need a join.
+  //                        Shape: TechnicalMetadata (see
+  //                        @proovra/shared-runtime/technical-metadata).
+  //   captureEnvironment — privacy-safe PROOVRA upload/capture environment
+  //                        (browser/OS/device/timezone/locale + UA HASH and
+  //                        masked IP only — NEVER raw UA or raw IP). Shape:
+  //                        CaptureEnvironment (same module). This describes
+  //                        the environment the material entered PROOVRA in;
+  //                        it is NOT the file's embedded EXIF metadata and
+  //                        NOT the preservation (OTS/RFC3161) state.
+  technicalMetadata                 Json?     @map("technical_metadata")
+  captureEnvironment                Json?     @map("capture_environment")
+
   lat                      Float?
   lng                      Float?
   accuracyMeters           Float?    @map("accuracy_meters")
@@ -351,6 +369,16 @@ model EvidencePart {
   checklistStepId                  String?              @map("checklist_step_id") @db.VarChar(120)
   sourceLabel                      String?              @map("source_label") @db.VarChar(120)
   clientSignals                    Json?                @map("client_signals")
+  // Enterprise Technical Metadata layer (additive, nullable). Canonical
+  // per-part deterministic Layer-1 file facts (MIME, dimensions, codec,
+  // EXIF presence summary, etc.) produced by the technical-metadata
+  // parser. Shape: TechnicalMetadata
+  // (@proovra/shared-runtime/technical-metadata). Multipart evidence
+  // stores one record per part here; single-file evidence is also
+  // mirrored onto Evidence.technicalMetadata for convenience.
+  technicalMetadata                Json?                @map("technical_metadata")
+  technicalMetaParsedAt            DateTime?            @map("technical_meta_parsed_at") @db.Timestamptz(6)
+  technicalMetaParser              String?              @map("technical_meta_parser") @db.VarChar(64)
   uploadedByUserId                 String?              @map("uploaded_by_user_id") @db.Uuid
   uploadedAtUtc                    DateTime?            @map("uploaded_at_utc") @db.Timestamptz(6)
   // Phase 12 — perceptual-similarity foundation. 64-bit pHash + dHash

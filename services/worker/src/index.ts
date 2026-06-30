@@ -1999,3 +1999,30 @@ logger.info(
   },
   "worker.started"
 );
+
+// Enterprise Technical Metadata — one-time media-tooling capability
+// diagnostic. Surfaces whether ffprobe (deterministic video/audio
+// metadata) is actually available in this runtime so SRE can confirm
+// production parses video rather than silently degrading to UNSUPPORTED.
+// NEVER blocks startup and NEVER throws — capability detection is
+// itself non-throwing.
+void (async () => {
+  try {
+    const { detectFfmpegCapability } = await import("./ffmpeg-capability.js");
+    const cap = await detectFfmpegCapability();
+    logger.info(
+      cap.ok
+        ? {
+            ok: true,
+            source: cap.source,
+            ffmpegAvailable: true,
+            ffprobeAvailable: cap.ffprobePath !== null,
+            ffprobePath: cap.ffprobePath,
+          }
+        : { ok: false, ffmpegAvailable: false, ffprobeAvailable: false, reason: cap.reason },
+      "worker.media_tooling.capability",
+    );
+  } catch {
+    /* diagnostic only — never affects worker boot */
+  }
+})();

@@ -108,6 +108,13 @@ export interface EvidenceFinalizationFanoutResult {
    * non-blocking.
    */
   transcriptExtractionEnqueued: boolean;
+  /**
+   * Enterprise Technical Metadata layer — true when the finalize
+   * fanout enqueued (or collapsed onto an in-flight)
+   * `extract_technical_metadata` job. Fires for all evidence types.
+   * Failure to enqueue is non-blocking.
+   */
+  technicalMetadataEnqueued: boolean;
   failureReasons: string[];
 }
 
@@ -149,6 +156,7 @@ export async function runEvidenceFinalizationFanout(
     perceptualHashEnqueued: false,
     ocrExtractionEnqueued: false,
     transcriptExtractionEnqueued: false,
+    technicalMetadataEnqueued: false,
     failureReasons: [],
   };
 
@@ -425,6 +433,34 @@ export async function runEvidenceFinalizationFanout(
     logger?.warn?.(
       { ...tag, err: msg.slice(0, 200) },
       "finalize_fanout.transcript_extraction_failed",
+    );
+  }
+
+  // (7) Enterprise Technical Metadata — deterministic Layer-1 file
+  // metadata extraction. Fires for every evidence type (image / video /
+  // audio / PDF all carry meaningful technical facts). The worker
+  // graceful-degrades per part when tooling (ffprobe) or bytes are
+  // unavailable, so there is no probe gate here — the dedupe key
+  // (kind, evidenceId) collapses repeat finalizations. Best-effort +
+  // non-blocking, identical to steps 1-6.
+  try {
+    const enqueueResult = await enqueueMediaIntelligenceAnalysis({
+      teamId: input.teamId,
+      evidenceId: input.evidenceId,
+      kind: "extract_technical_metadata",
+    });
+    result.technicalMetadataEnqueued =
+      enqueueResult.enqueued === true ||
+      (enqueueResult.enqueued === false &&
+        typeof enqueueResult.reason === "string" &&
+        enqueueResult.reason.startsWith("job_"));
+  } catch (err) {
+    const msg =
+      err instanceof Error ? err.message : "technical_metadata_failed";
+    result.failureReasons.push(`technical_metadata:${msg.slice(0, 80)}`);
+    logger?.warn?.(
+      { ...tag, err: msg.slice(0, 200) },
+      "finalize_fanout.technical_metadata_failed",
     );
   }
 

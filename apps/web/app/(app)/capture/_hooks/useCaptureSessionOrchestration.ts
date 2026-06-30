@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getClientCaptureEnvironment } from "./captureEnvironmentClient";
 
 import { useToast } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
@@ -658,6 +659,9 @@ export function useCaptureSessionOrchestration({
           contentMd5Base64: primaryIntegrity.contentMd5Base64,
           intakePlanJson,
           captureSessionId: captureSessionId ?? undefined,
+          // Enterprise Capture Environment — silent client tz/locale hints
+          // (extracted to ./captureEnvironmentClient for size + reuse).
+          ...getClientCaptureEnvironment(),
         }),
       });
 

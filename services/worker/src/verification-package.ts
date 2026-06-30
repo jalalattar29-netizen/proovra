@@ -3471,6 +3471,39 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       }
     }
 
+    // Enterprise Technical Metadata layer — emit the compact
+    // technical-metadata/*.json files (media summary, EXIF summary when
+    // applicable, capture environment). Appended BEFORE the checksums
+    // index so each file's SHA-256 is recorded. Best-effort: a failure
+    // returns no entries and package generation continues unchanged.
+    if (data.evidenceId) {
+      try {
+        const [
+          { buildTechnicalMetadataPackageFiles },
+          { prisma },
+        ] = await Promise.all([
+          import("./verification-package-technical-metadata.js"),
+          import("./db.js"),
+        ]);
+        const tmEntries = await buildTechnicalMetadataPackageFiles({
+          prisma,
+          teamId: data.teamId ?? null,
+          evidenceId: data.evidenceId as string,
+        });
+        for (const entry of tmEntries) {
+          appendPackageEntry(
+            archive,
+            packageEntries,
+            entry.path,
+            jsonBuffer(entry.json),
+            "application/json"
+          );
+        }
+      } catch {
+        // additive only — never fail package generation on technical metadata
+      }
+    }
+
     // Phase 1B Closure — emit `provenance/chain.json` when a chain
     // projection was loaded. Appended BEFORE the checksums index so the
     // chain's SHA-256 is recorded in `package-checksums.json` alongside

@@ -238,6 +238,30 @@ export async function citizenCaptureRoutes(app: FastifyInstance) {
         return reply.code(code).send({ denial: result.denial });
       }
 
+      // Enterprise Capture Environment layer — record the privacy-safe
+      // PROOVRA capture environment for the citizen/mobile ingest path.
+      // Reuses the shared writer (UA hash + masked IP only; never raw).
+      // Best-effort + non-blocking — never fails the capture. The signed
+      // citizen payload is NOT modified; locale is derived from
+      // Accept-Language, timezone left null (no client signal here).
+      {
+        const { recordCaptureEnvironment } = await import(
+          "../services/technical-metadata/capture-environment-writer.js"
+        );
+        await recordCaptureEnvironment({
+          evidenceId: result.evidenceId,
+          rawUserAgent: req.headers["user-agent"] ?? null,
+          rawIp: req.ip ?? null,
+          timezone: null,
+          acceptLanguage:
+            typeof req.headers["accept-language"] === "string"
+              ? req.headers["accept-language"]
+              : null,
+          captureMethod: "MOBILE",
+          uploadSource: "MOBILE_APP",
+        });
+      }
+
       return reply.code(202).send({
         receipt: {
           provenanceClass: result.provenanceClass,

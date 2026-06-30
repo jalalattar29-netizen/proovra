@@ -462,9 +462,23 @@ describe("Phase 32.8B — sidebar renderer consumes the canonical filter pipelin
 // =============================================================================
 
 describe("Phase 32.8B — no-regression invariants", () => {
-  it("preserves the Verification-first trust card on the sidebar (Phase 28-J)", () => {
-    expect(SIDEBAR).toMatch(/Verification-first/);
-    expect(SIDEBAR).toMatch(/We do not store truth/);
+  it("renders the enterprise sidebar from ROUTE_REGISTRY with a support affordance", () => {
+    // The legacy Verification-first trust card was intentionally removed
+    // from the internal sidebar during the enterprise navigation
+    // redesign; trust messaging now belongs in report/verify/package
+    // surfaces, not persistent app navigation. This test pins the
+    // CURRENT intended sidebar behaviour instead of the retired card.
+    //
+    // Sidebar still renders the Need help? / Contact support affordance.
+    expect(SIDEBAR).toMatch(/Need help\?/);
+    expect(SIDEBAR).toMatch(/Contact support/);
+    // Sidebar nav is driven by the canonical ROUTE_REGISTRY (not the
+    // legacy server-provided navigation envelope).
+    expect(SIDEBAR).toMatch(/ROUTE_REGISTRY/);
+    // And the sidebar never performs its own data fetching — there is no
+    // apiFetch(...) call site in the component (comments referencing the
+    // invariant are fine; an actual call would have a paren).
+    expect(SIDEBAR).not.toMatch(/apiFetch\(/);
   });
 
   it("preserves the support link in the sidebar", () => {

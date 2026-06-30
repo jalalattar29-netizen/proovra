@@ -101,7 +101,14 @@ RUN apk add --no-cache \
     freetype \
     harfbuzz \
     fontconfig \
-    ttf-freefont
+    ttf-freefont \
+    ffmpeg
+# `ffmpeg` (Alpine package) provides BOTH the `ffmpeg` and `ffprobe`
+# binaries on PATH. ffprobe powers deterministic video/audio technical
+# metadata extraction (codec / duration / dimensions / frame rate). The
+# worker degrades gracefully to parseResult:"UNSUPPORTED" if ffprobe is
+# ever absent at runtime — evidence completion never fails over it — so
+# this install is a quality upgrade, not a hard runtime dependency.
 
 RUN python3 -m ensurepip || true
 RUN python3 -m venv /opt/ots-venv

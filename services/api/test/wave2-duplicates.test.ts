@@ -267,15 +267,24 @@ describe("Wave 2 — perceptual-hash producer wiring in finalize fanout", () => 
     const graphEnqueues = (
       FANOUT.match(/await\s+enqueueGraphReconcileJob\(/g) ?? []
     ).length;
-    // 1 search + 4 media (analyze_metadata + compute_perceptual_hashes
-    // + extract_ocr_azure + extract_transcript_deepgram) + 1 graph
-    // reconcile = 6 total enqueues. Wave 4 added the OCR + transcript
-    // producer enqueues; see services/api/test/wave4-provider-extraction-wiring.test.ts
-    // for the canonical Wave 4 pins.
+    // 1 search + 5 media (analyze_metadata + compute_perceptual_hashes
+    // + extract_ocr_azure + extract_transcript_deepgram +
+    // extract_technical_metadata) + 1 graph reconcile = 7 total enqueues.
+    // Wave 4 added the OCR + transcript producer enqueues; the Enterprise
+    // Technical Metadata work added the 5th media enqueue
+    // (extract_technical_metadata) — see the explicit assertion below.
     expect(searchEnqueues).toBe(1);
-    expect(mediaEnqueues).toBe(4);
+    expect(mediaEnqueues).toBe(5);
     expect(graphEnqueues).toBe(1);
-    expect(searchEnqueues + mediaEnqueues + graphEnqueues).toBe(6);
+    expect(searchEnqueues + mediaEnqueues + graphEnqueues).toBe(7);
+
+    // Keep the count meaningful: the 5th media enqueue must be exactly
+    // the deterministic technical-metadata extraction job (not a
+    // duplicate or an unrelated kind). This pins the new enqueue so a
+    // future accidental extra enqueue can't satisfy the count silently.
+    expect(FANOUT).toMatch(
+      /enqueueMediaIntelligenceAnalysis\(\{[\s\S]*?kind:\s*"extract_technical_metadata"/,
+    );
   });
 });
 

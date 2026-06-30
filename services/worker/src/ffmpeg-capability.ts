@@ -87,6 +87,18 @@ export async function detectFfmpegCapability(): Promise<FfmpegCapability> {
         } catch {
           /* optional dep missing — ffprobe just stays null */
         }
+        // ffmpeg-static ships ffmpeg but NOT ffprobe, and ffprobe-static
+        // is not a dependency. Before giving up on ffprobe, fall back to
+        // a system `ffprobe` on PATH (the production worker image
+        // installs the Alpine `ffmpeg` package, which provides both
+        // binaries). This is what makes deterministic video metadata
+        // parsing actually work in production rather than degrading to
+        // UNSUPPORTED. If no system ffprobe exists, ffprobePath stays
+        // null and the video parser graceful-degrades — capture is
+        // never blocked.
+        if (!ffprobePath && (await probeBinary("ffprobe", ["-version"]))) {
+          ffprobePath = "ffprobe";
+        }
         cached = {
           ok: true,
           ffmpegPath: candidate,

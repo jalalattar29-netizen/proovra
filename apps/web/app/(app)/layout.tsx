@@ -41,8 +41,17 @@ export default function AppLayout({
   // (which uses only the root layout) stays clean.
   useEffect(() => {
     document.body.classList.add("has-app-decor");
+    // Cookie-banner scope — mark the authenticated app shell so the
+    // public cookie consent banner + privacy launcher (rendered once in
+    // the ROOT layout for marketing/external pages) are hidden on
+    // internal pages. Layout-scoped via the (app) route group — no
+    // fragile per-route pathname allowlist. Consent persistence and
+    // analytics init are unaffected (the CMP still initialises globally;
+    // only the visible banner/launcher are suppressed on internal pages).
+    document.body.classList.add("is-internal-app");
     return () => {
       document.body.classList.remove("has-app-decor");
+      document.body.classList.remove("is-internal-app");
     };
   }, []);
 

@@ -135,9 +135,16 @@ describe("Phase 32.8C FINAL-4 — topbar CSS", () => {
   });
 
   it("defines the dropdown menu container + grouped section styles", () => {
-    expect(TOPBAR_CSS).toMatch(/\.app-topbar-v2-workspace-menu\s*\{/);
-    expect(TOPBAR_CSS).toMatch(/\.app-topbar-v2-workspace-menu-group\s*\{/);
-    expect(TOPBAR_CSS).toMatch(/\.app-topbar-v2-workspace-menu-group-label\s*\{/);
+    // The `.app-topbar-v2-workspace-menu` container rule is authored as a
+    // COMMA-GROUPED selector (it shares the dropdown surface styles with
+    // `.app-topbar-v2-account-menu`), so the selector head is followed by
+    // a comma rather than `{`. Match either form ([,{]) — the assertion
+    // still proves the dropdown-container rule exists, just tolerant of
+    // the grouped authoring. The trailing `[,{]` (not `-`) keeps this
+    // distinct from `-menu-group` / `-menu-group-label` below.
+    expect(TOPBAR_CSS).toMatch(/\.app-topbar-v2-workspace-menu\s*[,{]/);
+    expect(TOPBAR_CSS).toMatch(/\.app-topbar-v2-workspace-menu-group\s*[,{]/);
+    expect(TOPBAR_CSS).toMatch(/\.app-topbar-v2-workspace-menu-group-label\s*[,{]/);
   });
 
   it("defines the active-state outline for the current workspace", () => {

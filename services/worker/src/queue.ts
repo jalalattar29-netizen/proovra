@@ -1072,6 +1072,10 @@ export type MediaIntelligenceJobKind =
   | "extract_transcript_deepgram"
   | "wire_ocr_transcript"
   | "reindex"
+  // Enterprise Technical Metadata layer — deterministic Layer-1 file
+  // metadata extraction. Worker downloads bytes per part, dispatches to
+  // the image/video/pdf parser, writes EvidencePart.technical_metadata.
+  | "extract_technical_metadata"
   | "reconcile";
 
 export type MediaIntelligenceJobPayload = {

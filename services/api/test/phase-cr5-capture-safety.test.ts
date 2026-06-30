@@ -194,7 +194,14 @@ const PRE_CR5_PAGE_BYTES = 51999;
 // orphaned with team_id NULL again. Real behaviour change, minimal
 // footprint: one import, one hook call, one body field + bounded
 // comments.
-const PRE_CR5_ORCH_BYTES = 34744;
+// Enterprise Capture Environment rebaseline: 34,744 → 35,015. The capture
+// flow now sends silent, privacy-safe client tz/locale hints on POST
+// /v1/evidence. The BULK of that logic was extracted to the
+// ./captureEnvironmentClient helper (getClientCaptureEnvironment) to keep
+// this hook decomposed — the residual here is just one import + a spread
+// of the helper result into the request body. Real behaviour change
+// (capture-environment metadata), minimal in-file footprint.
+const PRE_CR5_ORCH_BYTES = 35015;
 const PRE_CR5_RESUMABLE_BYTES = 13423;
 const PRE_CR5_CAMERA_BYTES = 12473;
 const PRE_CR5_AUDIO_BYTES = 8978;

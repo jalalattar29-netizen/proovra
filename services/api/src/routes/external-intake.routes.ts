@@ -626,6 +626,11 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           // sanitiser. Cap at 1024 chars so an exotic deep path
           // doesn't get past the request-body limit.
           webkitRelativePath: z.string().max(1024).nullable().optional(),
+          // Enterprise Capture Environment — optional, silent client
+          // context for the intake-link contributor's browser. Both are
+          // privacy-safe (timezone / language tag); never required.
+          captureTimezone: z.string().trim().min(1).max(64).nullable().optional(),
+          captureLocale: z.string().trim().min(1).max(35).nullable().optional(),
         })
         .parse(req.body ?? {});
 
@@ -723,6 +728,30 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           durationMs: body.durationMs ?? null,
           webkitRelativePath: body.webkitRelativePath ?? null,
         });
+
+        // Enterprise Capture Environment layer — record the privacy-safe
+        // PROOVRA capture environment for the intake-link ingest path,
+        // once per session (on the first part). Reuses the shared writer
+        // (UA hash + masked IP only; never raw). Best-effort +
+        // non-blocking — never fails the upload.
+        if (body.partIndex === 0 && session.evidenceId) {
+          const { recordCaptureEnvironment } = await import(
+            "../services/technical-metadata/capture-environment-writer.js"
+          );
+          await recordCaptureEnvironment({
+            evidenceId: session.evidenceId,
+            rawUserAgent: req.headers["user-agent"] ?? null,
+            rawIp: req.ip ?? null,
+            timezone: body.captureTimezone ?? null,
+            locale: body.captureLocale ?? null,
+            acceptLanguage:
+              typeof req.headers["accept-language"] === "string"
+                ? req.headers["accept-language"]
+                : null,
+            captureMethod: "INTAKE_LINK",
+            uploadSource: "INTAKE_LINK",
+          });
+        }
 
         return reply.code(201).send({
           part: projectExternalPart(result.part),

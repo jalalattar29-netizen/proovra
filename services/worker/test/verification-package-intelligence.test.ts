@@ -95,8 +95,88 @@ describe("Phase 31.9 — selective emission", () => {
         },
       ],
     });
-    expect(r).toHaveLength(1);
-    expect(r[0]!.path).toBe("intelligence/media_intelligence.json");
+    // Enterprise rename: media signals now emit the canonical
+    // advisory-signals.json PLUS a deprecated media_intelligence.json
+    // alias for backward compatibility.
+    expect(r).toHaveLength(2);
+    expect(r.map((m) => m.path).sort()).toEqual([
+      "intelligence/advisory-signals.json",
+      "intelligence/media_intelligence.json",
+    ]);
+  });
+
+  it("excludes restricted workspace/corpus-correlation signals from the package (advisory-signals.json + alias)", () => {
+    const r = buildIntelligencePackageManifests({
+      mediaSignals: [
+        {
+          id: "safe-1",
+          signalType: "EXIF_MISSING",
+          materialId: null,
+          severity: "INFO",
+          confidence: "MEDIUM",
+          safeSummary: "No EXIF metadata was observed.",
+          status: "PENDING",
+          createdAtUtc: "2026-05-20T00:00:00.000Z",
+        },
+        {
+          id: "restricted-dup",
+          signalType: "DUPLICATE_HASH_MATCH",
+          materialId: "other-evidence-abc",
+          severity: "INFO",
+          confidence: "HIGH",
+          safeSummary: "Byte-identical material observed elsewhere in workspace.",
+          status: "PENDING",
+          createdAtUtc: "2026-05-20T00:00:00.000Z",
+        },
+        {
+          id: "restricted-sim",
+          signalType: "SIMILAR_FILE_CANDIDATE",
+          materialId: "other-evidence-def",
+          severity: "REVIEW_RECOMMENDED",
+          confidence: "MEDIUM",
+          safeSummary: "Similar file candidate in workspace.",
+          status: "PENDING",
+          createdAtUtc: "2026-05-20T00:00:00.000Z",
+        },
+      ],
+    });
+    // Both the canonical file and the deprecated alias are built from the
+    // SAME filtered list, so neither can leak restricted signals.
+    for (const path of [
+      "intelligence/advisory-signals.json",
+      "intelligence/media_intelligence.json",
+    ]) {
+      const entry = r.find((m) => m.path === path);
+      expect(entry, `${path} should be present`).toBeDefined();
+      const serialized = JSON.stringify(entry!.json);
+      expect(serialized).toContain("EXIF_MISSING");
+      expect(serialized).not.toContain("DUPLICATE_HASH_MATCH");
+      expect(serialized).not.toContain("SIMILAR_FILE_CANDIDATE");
+      // No reference to the other-evidence corpus ids leaks through.
+      expect(serialized).not.toContain("other-evidence-abc");
+      expect(serialized).not.toContain("other-evidence-def");
+      const count = (entry!.json as { count?: number }).count;
+      expect(count).toBe(1); // only the safe EXIF_MISSING signal
+    }
+  });
+
+  it("emits NO advisory manifest when every signal is restricted", () => {
+    const r = buildIntelligencePackageManifests({
+      mediaSignals: [
+        {
+          id: "only-restricted",
+          signalType: "POSSIBLE_DERIVATIVE_FILE",
+          materialId: "other-evidence-xyz",
+          severity: "INFO",
+          confidence: "LOW",
+          safeSummary: "Possible derivative file.",
+          status: "PENDING",
+          createdAtUtc: "2026-05-20T00:00:00.000Z",
+        },
+      ],
+    });
+    expect(r.find((m) => m.path === "intelligence/advisory-signals.json")).toBeUndefined();
+    expect(r.find((m) => m.path === "intelligence/media_intelligence.json")).toBeUndefined();
   });
 
   it("emits ONLY derived_assets_manifest.json when only derived assets are present", () => {
@@ -121,6 +201,7 @@ describe("Phase 31.9 — selective emission", () => {
   it("emits all 5 manifests when every input is supplied", () => {
     const r = buildIntelligencePackageManifests(fullInput());
     expect(r.map((m) => m.path).sort()).toEqual([
+      "intelligence/advisory-signals.json",
       "intelligence/derived_assets_manifest.json",
       "intelligence/graph_relationships.json",
       "intelligence/media_intelligence.json",

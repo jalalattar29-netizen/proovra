@@ -55,6 +55,8 @@ import {
   timestampTone,
   truncateHash,
 } from "../../../components/verify-v2/_helpers";
+import { VerifyTechnicalMetadataSection } from "../../../components/verify-v2/VerifyTechnicalMetadataSection";
+import { VerifyCaptureIntegritySection } from "../../../components/verify-v2/VerifyCaptureIntegritySection";
 // Type-only imports kept to exactly the symbols this file actually
 // references. Nine type aliases that were imported here but never used
 // anywhere downstream (VerifyTimelineEvent, VerifyReviewTrail,
@@ -2838,6 +2840,36 @@ export default function VerifyPage() {
     limitations: ReadonlyArray<string>;
   } | null>(null);
 
+  // Enterprise Technical Metadata layer — privacy-safe Media / EXIF /
+  // Capture Environment projection. Null when the API has nothing to
+  // surface; we render no section in that case (honest no-data).
+  const [technicalMetadata, setTechnicalMetadata] = useState<{
+    media: {
+      filesAnalyzed: number;
+      filesTotal: number;
+      metadataStatus: string;
+      primaryMediaType: string;
+      resolutionSummary: string | null;
+    };
+    exif: {
+      applicable: boolean;
+      camera: string | null;
+      originalCaptureTime: string | null;
+      gpsPresent: boolean;
+      resolution: string | null;
+      softwareTag: string | null;
+      metadataStatus: string;
+    } | null;
+    captureEnvironment: {
+      uploadSource: string | null;
+      captureMethod: string | null;
+      browserName: string | null;
+      osName: string | null;
+      deviceClass: string | null;
+      timezone: string | null;
+    } | null;
+  } | null>(null);
+
   // Phase 4B Final Closure (I3) — lifecycle transparency projection.
   // Fetched from /public/verify/:id/lifecycle after evidenceId resolves.
   // No auth required. Bounded counts + chips + ids only.
@@ -2929,6 +2961,12 @@ function isAccessEventType(eventType?: string | null): boolean {
     // already applied the public-safety projection so we just store
     // the shape verbatim.
     setMediaIntelligenceAdvisory(data.mediaIntelligenceAdvisory ?? null);
+    // Enterprise Technical Metadata layer — stored verbatim from the
+    // API's privacy-safe projection (no raw IP / UA / GPS coordinates).
+    setTechnicalMetadata(
+      (data as { technicalMetadata?: typeof technicalMetadata }).technicalMetadata ??
+        null,
+    );
     // Phase 1B Closure — bounded captureTrust projection from the API.
     // Reshape from the projection's nested chain.capture/server/time
     // structure into the flat bounded fields the verify section renders.
@@ -5478,7 +5516,7 @@ Reviewer Action
         color: VERIFY_BRAND.accent,
       }}
     >
-      Media intelligence
+      Advisory observations
     </div>
     <div
       style={{
@@ -5517,59 +5555,29 @@ Reviewer Action
 ) : null}
 
 {/*
-  Phase 1B Closure — bounded capture-trust panel. Renders only when the
-  API returned a non-null projection. NEVER fabricates a class / verdict
-  when the underlying chain is empty (honest no-data).
+  Enterprise Technical Metadata layer — privacy-safe Media / EXIF /
+  Capture Environment cards. Extracted to VerifyTechnicalMetadataSection
+  (CR4 decomposition) — same testids, same privacy-safe payload, renders
+  null when the projection is absent.
 */}
-{captureTrust ? (
-  <div
-    data-testid="verify-capture-trust"
-    role="status"
-    style={{
-      border: "1px solid rgba(11,46,39,0.16)",
-      borderLeft: `5px solid ${VERIFY_BRAND.accent}`,
-      background: "rgba(11,46,39,0.045)",
-      borderRadius: 18,
-      padding: 18,
-      display: "grid",
-      gap: 8,
-    }}
-  >
-    <div
-      data-testid="verify-capture-trust-class"
-      style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, color: VERIFY_BRAND.accent }}
-    >
-      Capture trust — {captureTrust.provenanceClassLabel || "Unclassified"}
-    </div>
-    <div data-testid="verify-capture-trust-signature" style={VERIFY_TYPO.small}>
-      Source signature: {captureTrust.signatureVerdict}
-    </div>
-    <div data-testid="verify-capture-trust-attestation" style={VERIFY_TYPO.small}>
-      Device attestation: {captureTrust.attestationVerdict}
-    </div>
-    <div data-testid="verify-capture-trust-time" style={VERIFY_TYPO.small}>
-      Trusted time: RFC3161 {captureTrust.rfc3161Applied ? "applied" : "absent"}
-      {" / "}
-      OpenTimestamps {captureTrust.otsApplied ? "applied" : "absent"}
-      {" / "}
-      Server-countersigned {captureTrust.serverCountersigned ? "yes" : "no"}
-    </div>
-    {captureTrust.limitations.length > 0 ? (
-      <ul
-        data-testid="verify-capture-trust-limitations"
-        style={{ ...VERIFY_TYPO.small, margin: 0, paddingLeft: 18 }}
-      >
-        {captureTrust.limitations.map((l) => (
-          <li key={l}>{l}</li>
-        ))}
-      </ul>
-    ) : (
-      <div data-testid="verify-capture-trust-limitations" style={VERIFY_TYPO.small}>
-        No standing limitations declared for this artifact.
-      </div>
-    )}
-  </div>
-) : null}
+<VerifyTechnicalMetadataSection
+  technicalMetadata={technicalMetadata}
+  typo={VERIFY_TYPO}
+  brand={VERIFY_BRAND}
+/>
+
+{/*
+  Capture-trust panel — extracted to VerifyCaptureIntegritySection (CR4
+  decomposition). The CURRENT preservation verification (trusted timestamp
+  + blockchain anchoring) is shown prominently ABOVE. The full capture-
+  side panel renders only on a positive capture-side signal; otherwise a
+  reassuring Advanced details accordion is shown. Behaviour is unchanged.
+*/}
+<VerifyCaptureIntegritySection
+  captureTrust={captureTrust}
+  typo={VERIFY_TYPO}
+  brand={VERIFY_BRAND}
+/>
 
 {lifecycleTransparency ? (
   <VerifyLifecycleSection lifecycleTransparency={lifecycleTransparency} />

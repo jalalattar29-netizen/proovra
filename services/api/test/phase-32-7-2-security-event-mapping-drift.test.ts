@@ -771,6 +771,14 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Phase 32.7.2 SecurityEvent mapping, so allowlisting preserves the
       // original guardrail intent without blocking later safe schema work.
       "20270906070000_phase_2c_d_provider_confidence_nullable_relaxation",
+      // Enterprise Technical Metadata + Capture Environment layer.
+      // Additive, nullable-only (ADD COLUMN IF NOT EXISTS on evidence /
+      // evidence_parts: technical_metadata + capture_environment +
+      // technical_meta_parsed_at/parser). No destructive change, no FK /
+      // enum change. Unrelated to Phase 32.7.2 SecurityEvent mapping;
+      // allowlisted so the guardrail keeps detecting UNattributed
+      // migrations while permitting this deliberate metadata work.
+      "20270907000000_technical_metadata_capture_environment",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

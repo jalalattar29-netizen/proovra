@@ -336,22 +336,25 @@ describe("OTS package artifact — processor wiring", () => {
 
   it("processor passes ots payload to createVerificationPackage", () => {
     expect(processorSrc).toContain("createVerificationPackage({");
-    // Ensure the ots field is wired and pulls from reportEvidencePayload
-    expect(processorSrc).toMatch(/ots:\s*\{[\s\S]*?proofBase64:\s*prepared\.reportEvidencePayload\.otsProofBase64/);
+    // Ensure the ots field is wired and pulls from the FINALIZED report
+    // evidence payload — the canonical post-finalization OTS state that
+    // the package builder must seal (the earlier `prepared` payload is
+    // pre-finalization and does not carry the upgraded OTS fields).
+    expect(processorSrc).toMatch(/ots:\s*\{[\s\S]*?proofBase64:\s*[\s\S]*?finalized\.finalizedReportEvidencePayload\.otsProofBase64/);
     expect(processorSrc).toContain(
-      "status: prepared.reportEvidencePayload.otsStatus",
+      "status: finalized.finalizedReportEvidencePayload.otsStatus",
     );
     expect(processorSrc).toContain(
       "bitcoinTxid:",
     );
     expect(processorSrc).toContain(
-      "prepared.reportEvidencePayload.otsBitcoinTxid",
+      "finalized.finalizedReportEvidencePayload.otsBitcoinTxid",
     );
     expect(processorSrc).toContain(
-      "prepared.reportEvidencePayload.otsAnchoredAtUtc",
+      "finalized.finalizedReportEvidencePayload.otsAnchoredAtUtc",
     );
     expect(processorSrc).toContain(
-      "prepared.reportEvidencePayload.otsFailureReason",
+      "finalized.finalizedReportEvidencePayload.otsFailureReason",
     );
   });
 

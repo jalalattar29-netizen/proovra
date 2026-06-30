@@ -305,6 +305,34 @@ export type ReportCustodyEvent = {
   category?: "forensic" | "access";
 };
 
+/**
+ * Enterprise Technical Metadata layer — compact, reviewer-facing
+ * projection rendered by the "Media Technical Summary" report section.
+ * Privacy-safe by construction: no raw GPS, no raw IP, no raw UA.
+ */
+export type TechnicalSummaryReportData = {
+  mediaFilesAnalyzed: number;
+  mediaFilesTotal: number;
+  metadataStatus: "Complete" | "Partial" | "Missing" | "Unavailable";
+  primaryMediaType: string;
+  resolutionSummary: string | null;
+  exif: {
+    camera: string | null;
+    originalCaptureTime: string | null;
+    gpsPresent: boolean;
+    resolution: string | null;
+    softwareTag: string | null;
+    metadataStatus: "PRESENT" | "PARTIAL" | "MISSING" | "CONFLICT" | "UNKNOWN";
+  } | null;
+  captureEnvironment: {
+    uploadSource: string | null;
+    captureMethod: string | null;
+    browserOs: string | null;
+    deviceClass: string | null;
+    timezone: string | null;
+  } | null;
+};
+
 export type ReportV2Input = {
   evidence: ReportEvidence;
   custodyEvents: ReportCustodyEvent[];
@@ -333,6 +361,13 @@ export type ReportV2Input = {
    * private notes, multipart upload ids — none can be passed.
    */
   mediaIntelligence?: MediaIntelligenceReportInput | null;
+  /**
+   * Enterprise Technical Metadata layer — OPTIONAL compact technical
+   * summary (media facts + EXIF summary + capture environment). When
+   * null/omitted, the "Media Technical Summary" section emits nothing
+   * and the report is byte-identical to the pre-feature output.
+   */
+  technicalSummary?: TechnicalSummaryReportData | null;
   /**
    * Phase 4A Final Closure — OPTIONAL bounded intelligence summary.
    * When null/omitted, NO new HTML is emitted.
@@ -627,6 +662,12 @@ export type ReportViewModel = {
    * `buildReportViewModel` verbatim.
    */
   mediaIntelligence: MediaIntelligenceReportInput | null;
+
+  /**
+   * Enterprise Technical Metadata layer — compact technical summary
+   * projection. `null` => renderer emits NO new HTML.
+   */
+  technicalSummary: TechnicalSummaryReportData | null;
 
   /**
    * Phase 4A Final Closure — bounded intelligence summary projection.

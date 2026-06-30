@@ -143,6 +143,20 @@ export async function processMediaIntelligenceJob(
     });
   }
 
+  // Enterprise Technical Metadata layer — deterministic Layer-1 file
+  // facts per part (dimensions / codec / EXIF presence / PDF producer).
+  // Downloads a bounded byte range per part, dispatches to the
+  // image/video/pdf parser, writes evidence_parts.technical_metadata.
+  // Never blocks the lifecycle; graceful-degrades per part.
+  if (kind === "extract_technical_metadata") {
+    return processExtractTechnicalMetadataJob({
+      jobId: job.id,
+      teamId,
+      evidenceId,
+      evidencePartId: evidencePartId ?? null,
+    });
+  }
+
   // Wave 4 — automatic OCR producer branch. Fetches PDF / image bytes
   // from S3 (bounded byte cap to avoid runaway Azure cost), routes
   // through the canonical azure-document-intelligence adapter via
@@ -546,6 +560,179 @@ async function processExtractExifJob(
   // The job emits no signals directly — the analyzer reads the
   // persisted summaries on its next pass and emits the bounded
   // signal set (EXIF_TIMESTAMP_MISMATCH, DEVICE_METADATA_OBSERVATION).
+  return { ok: true, signalsEmitted: 0 };
+}
+
+// =============================================================================
+// Enterprise Technical Metadata — extract_technical_metadata job branch
+// =============================================================================
+//
+// For each part of an evidence record:
+//   1. Download a bounded byte range (image: 5MB header; pdf/av: the
+//      full object up to TM_MAX_BYTES — ffprobe / pdfjs need more than
+//      a header, and the moov atom can live at the file's end).
+//   2. Dispatch to the image/video/pdf parser (graceful-degrade: a
+//      missing ffprobe → UNSUPPORTED, a corrupt file → FAILED).
+//   3. Persist the bounded TechnicalMetadata JSON to
+//      evidence_parts.technical_metadata. For single-part evidence we
+//      also mirror onto evidence.technical_metadata for convenience.
+//
+// Hard rules (mirror the EXIF branch):
+//   * NEVER throws to BullMQ on a structural failure — returns success.
+//   * NEVER writes any column other than technical_metadata /
+//     technical_meta_parsed_at / technical_meta_parser.
+//   * NEVER persists raw GPS coordinates — the parsers emit gpsPresent
+//     booleans only.
+
+type ExtractTechnicalMetadataInput = {
+  jobId: string | undefined;
+  teamId: string;
+  evidenceId: string;
+  evidencePartId: string | null;
+};
+
+// Header read for images is enough for exifr + sharp metadata. PDFs and
+// audio/video need a full(er) read; capped so a pathological multi-GB
+// upload can't drag the worker down.
+const TM_IMAGE_BYTES = 5 * 1024 * 1024;
+const TM_MAX_BYTES = 128 * 1024 * 1024;
+
+async function processExtractTechnicalMetadataJob(
+  input: ExtractTechnicalMetadataInput,
+): Promise<{ ok: true; signalsEmitted: number; deferred?: boolean }> {
+  const { jobId, teamId, evidenceId, evidencePartId } = input;
+
+  let dispatchTechnicalMetadata: typeof import("./technical-metadata/dispatch.js")["dispatchTechnicalMetadata"];
+  try {
+    ({ dispatchTechnicalMetadata } = await import(
+      "./technical-metadata/dispatch.js"
+    ));
+  } catch (err) {
+    logger.error(
+      { jobId, err: err instanceof Error ? err.message : "unknown" },
+      "technical_metadata.import_failed",
+    );
+    throw err;
+  }
+
+  let parts: Array<{
+    id: string;
+    storage_bucket: string | null;
+    storage_key: string | null;
+    mime_type: string | null;
+    size_bytes: bigint | number | null;
+  }> = [];
+  try {
+    parts = (await prisma.$queryRawUnsafe(
+      `SELECT p."id", p."storage_bucket", p."storage_key",
+              p."mime_type", p."size_bytes"
+         FROM "evidence_parts" p
+         JOIN "evidence" e ON e."id" = p."evidence_id"
+         WHERE e."team_id" = $1
+           AND e."id" = $2
+           ${evidencePartId ? `AND p."id" = $3` : ""}`,
+      ...(evidencePartId
+        ? [teamId, evidenceId, evidencePartId]
+        : [teamId, evidenceId]),
+    )) as typeof parts;
+  } catch (err) {
+    logger.warn(
+      { jobId, teamId, evidenceId, err: err instanceof Error ? err.message : "unknown" },
+      "technical_metadata.lookup_failed",
+    );
+    await tryBump("media_intelligence_processor_failed_total");
+    return { ok: true, signalsEmitted: 0 };
+  }
+
+  if (parts.length === 0) {
+    logger.warn(
+      { jobId, teamId, evidenceId, evidencePartId },
+      "technical_metadata.no_parts_found",
+    );
+    return { ok: true, signalsEmitted: 0 };
+  }
+
+  const totalParts = parts.length;
+  let succeeded = 0;
+  for (const part of parts) {
+    if (!part.storage_bucket || !part.storage_key) continue;
+
+    const mime = (part.mime_type ?? "").toLowerCase();
+    const isImage = mime.startsWith("image/");
+    const sizeNum =
+      typeof part.size_bytes === "bigint"
+        ? Number(part.size_bytes)
+        : (part.size_bytes ?? null);
+    // Image: header only. Others: full object capped at TM_MAX_BYTES.
+    const cap = isImage ? TM_IMAGE_BYTES : TM_MAX_BYTES;
+    const upper =
+      sizeNum != null && sizeNum > 0
+        ? Math.min(sizeNum, cap) - 1
+        : cap - 1;
+
+    let bytes: Buffer | null = null;
+    try {
+      bytes = await getObjectRange({
+        bucket: part.storage_bucket,
+        key: part.storage_key,
+        range: `bytes=0-${Math.max(0, upper)}`,
+      });
+    } catch (err) {
+      logger.warn(
+        { jobId, partId: part.id, err: err instanceof Error ? err.message.slice(0, 120) : "unknown" },
+        "technical_metadata.fetch_failed",
+      );
+      continue;
+    }
+    if (!bytes || bytes.byteLength === 0) continue;
+
+    const metadata = await dispatchTechnicalMetadata(bytes, part.mime_type);
+
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "evidence_parts"
+            SET "technical_metadata" = $1::jsonb,
+                "technical_meta_parsed_at" = NOW(),
+                "technical_meta_parser" = $2
+          WHERE "id" = $3`,
+        JSON.stringify(metadata),
+        `${metadata.parserName}@${metadata.parserVersion}`.slice(0, 64),
+        part.id,
+      );
+      succeeded += 1;
+
+      // Single-part evidence — mirror onto evidence.technical_metadata
+      // so single-file readers don't need a join.
+      if (totalParts === 1) {
+        try {
+          await prisma.$executeRawUnsafe(
+            `UPDATE "evidence"
+                SET "technical_metadata" = $1::jsonb
+              WHERE "id" = $2`,
+            JSON.stringify(metadata),
+            evidenceId,
+          );
+        } catch {
+          /* mirror is best-effort */
+        }
+      }
+    } catch (err) {
+      logger.warn(
+        { jobId, partId: part.id, err: err instanceof Error ? err.message.slice(0, 120) : "unknown" },
+        "technical_metadata.persist_failed",
+      );
+    }
+  }
+
+  await tryBump(
+    succeeded > 0
+      ? "media_intelligence_processor_completed_total"
+      : "media_intelligence_processor_failed_total",
+  );
+  logger.info(
+    { jobId, teamId, evidenceId, partsProcessed: totalParts, succeeded },
+    "technical_metadata.job_completed",
+  );
   return { ok: true, signalsEmitted: 0 };
 }
 

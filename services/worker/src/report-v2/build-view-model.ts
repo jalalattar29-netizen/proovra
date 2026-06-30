@@ -1777,6 +1777,10 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     // the renderer emits NO additional HTML.
     mediaIntelligence: input.mediaIntelligence ?? null,
 
+    // Enterprise Technical Metadata layer — compact technical summary
+    // carried verbatim. Null for callers that don't supply it.
+    technicalSummary: input.technicalSummary ?? null,
+
     // Phase 4A Final Closure — intelligence summary carried verbatim.
     intelligenceSummary: input.intelligenceSummary ?? null,
 

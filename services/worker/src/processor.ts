@@ -84,6 +84,7 @@ import {
   buildReportPdfV2WithSignatureOutcome,
 } from "./report-v2/build-report-pdf.js";
 import { buildReportMediaIntelligence } from "./media-intelligence-report-bridge.js";
+import { buildReportTechnicalSummary } from "./report-technical-summary-bridge.js";
 import { buildVerificationPackageIntelligence } from "./verification-package-intelligence-bridge.js";
 import {
   enqueueEvidencePurgeJob,
@@ -302,6 +303,9 @@ type ReportBuildParams = {
   // Phase 31.11 — OPTIONAL projection passed through to the
   // renderer. NULL = legacy byte-identical output.
   mediaIntelligence?: Parameters<typeof buildReportPdfV2>[0]["mediaIntelligence"];
+  // Enterprise Technical Metadata layer — OPTIONAL compact technical
+  // summary. NULL = no "Media Technical Summary" section.
+  technicalSummary?: Parameters<typeof buildReportPdfV2>[0]["technicalSummary"];
 };
 
 type PreparedReportArtifacts = {
@@ -2708,6 +2712,15 @@ const trustDecision = buildTrustDecision({
     evidenceId,
   });
 
+  // Enterprise Technical Metadata layer — compact technical summary
+  // projection (media facts + EXIF summary + capture environment).
+  // Never throws; null means the "Media Technical Summary" section
+  // renders nothing.
+  const reportTechnicalSummary = await buildReportTechnicalSummary({
+    teamId: evidence.teamId ?? null,
+    evidenceId,
+  });
+
   const reportBuildParams: ReportBuildParams = {
     evidence: reportEvidencePayload,
     custodyEvents: custodyEventsForReport,
@@ -2718,6 +2731,7 @@ const trustDecision = buildTrustDecision({
     downloadUrl: evidenceDetailUrl,
     externalMode: false,
     mediaIntelligence: reportMediaIntelligence,
+    technicalSummary: reportTechnicalSummary,
   };
 
 // Phase A2 — call the signature-aware variant so the Report row
@@ -3246,6 +3260,10 @@ const effectiveReportEvidencePayload = {
           teamId: evidence.teamId ?? null,
           evidenceId: prepared.evidenceId,
         });
+        const finalizedReportTechnicalSummary = await buildReportTechnicalSummary({
+          teamId: evidence.teamId ?? null,
+          evidenceId: prepared.evidenceId,
+        });
 
         // Phase O1.5C — bounded report.render.pdf span.
         await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_RENDER_PDF, { "proovra.operation": "report_render_pdf", "proovra.evidence_id": prepared.evidenceId }, () => undefined);
@@ -3259,6 +3277,7 @@ const effectiveReportEvidencePayload = {
           downloadUrl: prepared.downloadUrl,
           externalMode: false,
           mediaIntelligence: finalizedReportMediaIntelligence,
+          technicalSummary: finalizedReportTechnicalSummary,
         });
 
         await assertWorkspaceAllowsReportArtifact({

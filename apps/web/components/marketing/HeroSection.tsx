@@ -417,7 +417,7 @@ export function HeroSection() {
 Digital evidence infrastructure for legal, insurance, investigation, compliance, and public-sector teams that require trusted records, verification, and audit-ready reporting.
           </p>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             {/* CTA cleanup: replaced "Try live verification" with
                 "View sample report" pointing at the canonical sample
                 report PDF. Same primary navy-pill treatment, opens in a
@@ -431,6 +431,16 @@ Digital evidence infrastructure for legal, insurance, investigation, compliance,
               View sample report
               <ArrowRight size={16} />
             </a>
+            {/* Offline verifier — secondary/technical-trust CTA. Links to
+                the existing /offline-verifier page. Sits between the
+                primary "View sample report" and the "Request a demo"
+                sales CTA so the trust → sales hierarchy reads cleanly. */}
+            <Link
+              href={MARKETING_LINKS.offlineVerifier}
+              className={MARKETING_BTN.heroSecondary}
+            >
+              Offline verifier
+            </Link>
             <Link
               href={MARKETING_LINKS.requestDemo}
               className={MARKETING_BTN.heroSecondary}
