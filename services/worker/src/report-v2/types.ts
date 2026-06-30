@@ -316,9 +316,24 @@ export type TechnicalSummaryReportData = {
   metadataStatus: "Complete" | "Partial" | "Missing" | "Unavailable";
   primaryMediaType: string;
   resolutionSummary: string | null;
+  primaryMedia: {
+    mediaKind: string;
+    durationMs: number | null;
+    videoCodec: string | null;
+    frameRate: number | null;
+    pageCount: number | null;
+  } | null;
   exif: {
+    exifPresent: boolean;
     camera: string | null;
+    lensModel: string | null;
     originalCaptureTime: string | null;
+    iso: number | null;
+    aperture: string | null;
+    exposureTime: string | null;
+    shutterSpeed: string | null;
+    whiteBalance: string | null;
+    orientation: number | null;
     gpsPresent: boolean;
     resolution: string | null;
     softwareTag: string | null;
@@ -327,9 +342,21 @@ export type TechnicalSummaryReportData = {
   captureEnvironment: {
     uploadSource: string | null;
     captureMethod: string | null;
-    browserOs: string | null;
+    browserName: string | null;
+    browserVersion: string | null;
+    osName: string | null;
+    osVersion: string | null;
     deviceClass: string | null;
+    engine: string | null;
+    platform: string | null;
     timezone: string | null;
+    locale: string | null;
+  } | null;
+  network: {
+    maskedIp: string | null;
+    country: string | null;
+    region: string | null;
+    networkType: string | null;
   } | null;
 };
 

@@ -129,10 +129,18 @@ export async function buildTechnicalMetadataPackageFiles(input: {
             cameraMake: exif.cameraMake,
             cameraModel: exif.cameraModel,
             camera: formatCameraLabel(exif.cameraMake, exif.cameraModel),
+            lensModel: exif.lensModel,
             originalCaptureTime: exif.originalCaptureTime,
+            iso: exif.iso,
+            aperture: exif.aperture,
+            exposureTime: exif.exposureTime,
+            shutterSpeed: exif.shutterSpeed,
+            whiteBalance: exif.whiteBalance,
+            orientation: exif.orientation,
             gpsPresent: exif.gpsPresent,
             resolution: exif.resolution,
             softwareTag: exif.softwareTag,
+            compression: exif.compression,
             metadataStatus: exif.metadataStatus,
           })),
         },
@@ -168,6 +176,35 @@ export async function buildTechnicalMetadataPackageFiles(input: {
         attestationResult: captureEnv?.attestationResult ?? null,
       },
     });
+
+    // ---- 4. network-summary.json (only when at least one useful field) ----
+    // Privacy-safe: masked IP + country/region (when the geo service
+    // resolved them) + network type. NEVER full IP / ASN / ISP / VPN.
+    const maskedIp = captureEnv?.ipAddressMasked ?? null;
+    const country = captureEnv?.country ?? null;
+    const region = captureEnv?.region ?? null;
+    const networkType =
+      captureEnv?.networkType && captureEnv.networkType !== "UNKNOWN"
+        ? captureEnv.networkType
+        : null;
+    if (maskedIp || country || region || networkType) {
+      out.push({
+        path: "technical-metadata/network-summary.json",
+        json: {
+          schemaVersion: TECHNICAL_METADATA_SCHEMA_VERSION,
+          schema: "PROOVRA_TECHNICAL_NETWORK_SUMMARY",
+          evidenceId: input.evidenceId,
+          generatedAtUtc,
+          advisory:
+            "Privacy-safe network summary. Contains a masked IP plus best-effort country/region/network-type only — never the full IP, ASN, ISP, or VPN/proxy detection.",
+          maskedIp,
+          country,
+          region,
+          networkType: networkType ?? "Unknown",
+          ipSourceHeader: captureEnv?.ipSourceHeader ?? null,
+        },
+      });
+    }
 
     return out;
   } catch (err) {

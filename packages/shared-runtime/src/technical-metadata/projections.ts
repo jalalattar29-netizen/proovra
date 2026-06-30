@@ -59,6 +59,13 @@ export function imageMetadataFromExif(
     gpsPresent: exif.hasGps === true,
     softwareTag: exif.software ?? null,
     orientation: exif.orientation ?? null,
+    lensModel: exif.lensModel ?? null,
+    iso: exif.iso ?? null,
+    aperture: exif.aperture ?? null,
+    exposureTime: exif.exposureTime ?? null,
+    shutterSpeed: exif.shutterSpeed ?? null,
+    whiteBalance: exif.whiteBalance ?? null,
+    compression: exif.compression ?? null,
   };
 }
 
@@ -101,10 +108,18 @@ export function deriveExifSummary(
     exifPresent: false,
     cameraMake: null,
     cameraModel: null,
+    lensModel: null,
     originalCaptureTime: null,
+    iso: null,
+    aperture: null,
+    exposureTime: null,
+    shutterSpeed: null,
+    whiteBalance: null,
+    orientation: null,
     gpsPresent: false,
     resolution: null,
     softwareTag: null,
+    compression: null,
     metadataStatus: "UNKNOWN",
   };
   if (!tm) return notApplicable;
@@ -123,10 +138,18 @@ export function deriveExifSummary(
     exifPresent: tm.exifPresent === true,
     cameraMake: tm.cameraMake ?? null,
     cameraModel: tm.cameraModel ?? null,
+    lensModel: tm.lensModel ?? null,
     originalCaptureTime: tm.originalCaptureTime ?? null,
+    iso: tm.iso ?? null,
+    aperture: tm.aperture ?? null,
+    exposureTime: tm.exposureTime ?? null,
+    shutterSpeed: tm.shutterSpeed ?? null,
+    whiteBalance: tm.whiteBalance ?? null,
+    orientation: tm.orientation ?? null,
     gpsPresent: tm.gpsPresent === true,
     resolution,
     softwareTag: tm.softwareTag ?? null,
+    compression: tm.compression ?? null,
     metadataStatus: tm.metadataStatus,
   };
 }
@@ -154,6 +177,12 @@ export type PerPartMediaSummary = {
   height: number | null;
   durationMs: number | null;
   codec: string | null;
+  container: string | null;
+  videoCodec: string | null;
+  audioCodec: string | null;
+  frameRate: number | null;
+  bitrate: number | null;
+  streamCount: number | null;
   pageCount: number | null;
   metadataStatus: TechnicalMetadata["metadataStatus"];
   parseResult: TechnicalMetadata["parseResult"];
@@ -184,6 +213,12 @@ export function toPerPartMediaSummary(
     height: tm?.heightPx ?? null,
     durationMs: tm?.durationMs ?? null,
     codec,
+    container: tm?.container ?? null,
+    videoCodec: tm?.videoCodec ?? null,
+    audioCodec: tm?.audioCodec ?? null,
+    frameRate: tm?.frameRate ?? null,
+    bitrate: tm?.bitrate ?? null,
+    streamCount: tm?.streamCount ?? null,
     pageCount: tm?.pageCount ?? null,
     metadataStatus: tm?.metadataStatus ?? "UNKNOWN",
     parseResult: tm?.parseResult ?? "UNSUPPORTED",

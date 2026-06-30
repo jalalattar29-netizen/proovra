@@ -35,6 +35,11 @@ export type ParsedUserAgent = {
   osName: string | null;
   osVersion: string | null;
   deviceClass: DeviceClass;
+  /** Rendering engine: "Blink" | "WebKit" | "Gecko" | null. */
+  engine: string | null;
+  /** Platform/arch: "Windows x64" | "Windows ARM" | "macOS" | "iOS" |
+   *  "Android" | "Linux" | null. */
+  platform: string | null;
 };
 
 /**
@@ -48,6 +53,8 @@ export function parseUserAgent(ua: string | null | undefined): ParsedUserAgent {
     osName: null,
     osVersion: null,
     deviceClass: "UNKNOWN",
+    engine: null,
+    platform: null,
   };
   if (!ua || typeof ua !== "string") return empty;
   const s = ua.slice(0, 512);
@@ -113,12 +120,56 @@ export function parseUserAgent(ua: string | null | undefined): ParsedUserAgent {
     deviceClass = "SERVER";
   }
 
+  // ---- Engine ---- (iOS forces WebKit for every browser; Gecko =
+  //      Firefox-family; everything Chromium-derived = Blink.)
+  let engine: string | null = null;
+  if (osName === "iOS" || /AppleWebKit/.test(s)) {
+    if (/Gecko\/|Firefox\//.test(s) && !/like Gecko/.test(s)) engine = "Gecko";
+    else if (browserName === "Firefox") engine = "Gecko";
+    else if (
+      browserName === "Safari" ||
+      osName === "iOS" ||
+      (browserName === null && /AppleWebKit/.test(s) && !/Chrome|Chromium|CriOS/.test(s))
+    ) {
+      engine = "WebKit";
+    } else engine = "Blink";
+  } else if (browserName === "Firefox") {
+    engine = "Gecko";
+  } else if (
+    browserName === "Chrome" ||
+    browserName === "Edge" ||
+    browserName === "Opera" ||
+    browserName === "Samsung Internet"
+  ) {
+    engine = "Blink";
+  }
+
+  // ---- Platform / architecture ----
+  let platform: string | null = null;
+  if (osName === "Windows") {
+    platform = /Win64|x64|WOW64/.test(s)
+      ? "Windows x64"
+      : /ARM/.test(s)
+        ? "Windows ARM"
+        : "Windows";
+  } else if (osName === "macOS") {
+    platform = "macOS";
+  } else if (osName === "iOS") {
+    platform = "iOS";
+  } else if (osName === "Android") {
+    platform = "Android";
+  } else if (osName === "Linux") {
+    platform = "Linux";
+  }
+
   return {
     browserName: bounded(browserName),
     browserVersion: bounded(browserVersion),
     osName: bounded(osName),
     osVersion: bounded(osVersion),
     deviceClass,
+    engine,
+    platform,
   };
 }
 
@@ -160,6 +211,13 @@ export type BuildCaptureEnvironmentInput = {
   uploadSource?: UploadSource | string | null;
   attestationAttempted?: boolean | null;
   attestationResult?: string | null;
+  // Privacy-safe network summary. Country/region come from the caller's
+  // (existing) geo service — never derived from the raw IP here. Full IP /
+  // ASN / ISP / VPN are NOT accepted.
+  country?: string | null;
+  region?: string | null;
+  networkType?: string | null;
+  ipSourceHeader?: string | null;
 };
 
 const CAPTURE_METHODS: ReadonlyArray<CaptureMethodLabel> = [
@@ -222,10 +280,16 @@ export function buildCaptureEnvironment(
     osName: ua.osName,
     osVersion: ua.osVersion,
     deviceClass: ua.deviceClass,
+    engine: ua.engine,
+    platform: ua.platform,
     timezone,
     locale,
     userAgentHash: hashUserAgent(input.rawUserAgent ?? null),
     ipAddressMasked: maskIp(input.rawIp ?? null),
+    country: bounded(input.country ?? null),
+    region: bounded(input.region ?? null),
+    networkType: bounded(input.networkType ?? null) ?? "UNKNOWN",
+    ipSourceHeader: bounded(input.ipSourceHeader ?? null),
     attestationAttempted: input.attestationAttempted === true,
     attestationResult: bounded(input.attestationResult ?? null),
   };

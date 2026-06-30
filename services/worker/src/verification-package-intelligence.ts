@@ -198,37 +198,21 @@ export function buildIntelligencePackageManifests(
   if (!input) return [];
   const out: IntelligencePackageManifestEntry[] = [];
 
-  // Filter out restricted workspace/corpus-correlation signals BEFORE
-  // building the manifest, so both advisory-signals.json AND its
-  // deprecated media_intelligence.json alias carry only package-safe,
-  // file-local technical observations. The alias can never leak
-  // restricted signals because it is built from the same filtered list.
-  const packageSafeSignals = (input.mediaSignals ?? []).filter(
-    (s) => !PACKAGE_RESTRICTED_SIGNAL_TYPES.has(s.signalType),
-  );
+  // advisory-signals.json + the deprecated media_intelligence.json alias
+  // are NO LONGER EMITTED (product decision). They carried only low-value
+  // advisory/workspace-correlation observations (duplicate/similar
+  // material) without hashes or reviewer-actionable proof, which added no
+  // forensic value to the verification package. Deterministic, file-local
+  // technical metadata now lives exclusively under technical-metadata/
+  // (media-summary.json + exif-summary.json + capture-environment.json),
+  // which is emitted by verification-package-technical-metadata.ts. The
+  // signal pipeline + DB rows are intentionally left intact — only the
+  // package output is removed. `input.mediaSignals` is consequently
+  // ignored here; the `buildMediaIntelligenceManifest` builder and the
+  // PACKAGE_RESTRICTED_SIGNAL_TYPES set are retained (dead in the default
+  // package path) so a future internal/full package mode can re-enable a
+  // clearly-labelled, restricted-signal-free advisory file if needed.
 
-  if (packageSafeSignals.length > 0) {
-    const advisoryManifest = buildMediaIntelligenceManifest(packageSafeSignals);
-    // Enterprise rename: these are ADVISORY OBSERVATIONS (deterministic
-    // signals + workspace correlation), NOT the file's technical
-    // metadata. True media technical metadata now lives under
-    // technical-metadata/. The canonical filename is advisory-signals.json;
-    // media_intelligence.json is retained as a DEPRECATED ALIAS for
-    // backward compatibility with existing package consumers.
-    out.push({
-      path: "intelligence/advisory-signals.json",
-      json: advisoryManifest,
-    });
-    out.push({
-      path: "intelligence/media_intelligence.json",
-      json: {
-        ...advisoryManifest,
-        deprecated: true,
-        renamedTo: "intelligence/advisory-signals.json",
-        note: "DEPRECATED ALIAS. These are advisory observations, not media technical metadata. Deterministic file technical metadata now lives under technical-metadata/. This file is retained only for backward compatibility and will be removed in a future package version.",
-      },
-    });
-  }
   if (input.derivedAssets && input.derivedAssets.length > 0) {
     out.push({
       path: "intelligence/derived_assets_manifest.json",
@@ -266,7 +250,10 @@ export function buildIntelligencePackageManifests(
 // Manifest builders
 // =============================================================================
 
-function buildMediaIntelligenceManifest(
+// Exported for unit-test coverage of the bounded-output contract and for
+// a future internal/full package mode. NOT emitted in the default
+// verification package (see buildIntelligencePackageManifests).
+export function buildMediaIntelligenceManifest(
   signals: NonNullable<IntelligencePackageInput["mediaSignals"]>,
 ) {
   return {

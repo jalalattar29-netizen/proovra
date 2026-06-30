@@ -55,7 +55,10 @@ import {
   timestampTone,
   truncateHash,
 } from "../../../components/verify-v2/_helpers";
-import { VerifyTechnicalMetadataSection } from "../../../components/verify-v2/VerifyTechnicalMetadataSection";
+import {
+  VerifyTechnicalMetadataSection,
+  type VerifyTechnicalMetadata,
+} from "../../../components/verify-v2/VerifyTechnicalMetadataSection";
 import { VerifyCaptureIntegritySection } from "../../../components/verify-v2/VerifyCaptureIntegritySection";
 // Type-only imports kept to exactly the symbols this file actually
 // references. Nine type aliases that were imported here but never used
@@ -2820,9 +2823,12 @@ export default function VerifyPage() {
   const [humanSummary, setHumanSummary] = useState<VerifyHumanSummary | null>(null);
   const [captureContext, setCaptureContext] = useState<VerifyCaptureContext>(null);
   // Phase 31.12 — bounded public-safe media intelligence advisory.
-  // The API returns null when no surfaceable signals exist OR when
-  // the projection fails. We render no section in either case.
-  const [mediaIntelligenceAdvisory, setMediaIntelligenceAdvisory] =
+  // Media Intelligence / Advisory Observations was REMOVED from the
+  // public verify page (product decision). The API still returns
+  // `mediaIntelligenceAdvisory`, so the setter is retained to consume the
+  // field without warnings, but the value is never read/rendered — hence
+  // the empty first tuple slot.
+  const [, setMediaIntelligenceAdvisory] =
     useState<NonNullable<VerifyResponse["mediaIntelligenceAdvisory"]> | null>(
       null,
     );
@@ -2843,32 +2849,8 @@ export default function VerifyPage() {
   // Enterprise Technical Metadata layer — privacy-safe Media / EXIF /
   // Capture Environment projection. Null when the API has nothing to
   // surface; we render no section in that case (honest no-data).
-  const [technicalMetadata, setTechnicalMetadata] = useState<{
-    media: {
-      filesAnalyzed: number;
-      filesTotal: number;
-      metadataStatus: string;
-      primaryMediaType: string;
-      resolutionSummary: string | null;
-    };
-    exif: {
-      applicable: boolean;
-      camera: string | null;
-      originalCaptureTime: string | null;
-      gpsPresent: boolean;
-      resolution: string | null;
-      softwareTag: string | null;
-      metadataStatus: string;
-    } | null;
-    captureEnvironment: {
-      uploadSource: string | null;
-      captureMethod: string | null;
-      browserName: string | null;
-      osName: string | null;
-      deviceClass: string | null;
-      timezone: string | null;
-    } | null;
-  } | null>(null);
+  const [technicalMetadata, setTechnicalMetadata] =
+    useState<VerifyTechnicalMetadata | null>(null);
 
   // Phase 4B Final Closure (I3) — lifecycle transparency projection.
   // Fetched from /public/verify/:id/lifecycle after evidenceId resolves.
@@ -5488,71 +5470,15 @@ Reviewer Action
 ) : null}
 
 {/*
-  Phase 31.12 — Media intelligence public advisory.
-  Renders ONLY a bounded count + a fixed disclaimer. Never per-signal
-  detail. Never material attribution. Anyone hitting this page is
-  anonymous; surfacing per-signal detail could leak the workspace's
-  review activity. The API has already projected the public-safe
-  shape — we just present it.
+  Media Intelligence / Advisory Observations REMOVED (product decision).
+  The public advisory block surfaced only a bounded count of low-value
+  workspace/correlation observations (duplicate/similar material) with no
+  hashes or reviewer-actionable proof, which added no forensic value to
+  the public verification page. Public verification now focuses on the
+  Technical Metadata cards below (Media / EXIF / Capture Environment) and
+  the preservation + custody verdicts above. The API still returns
+  `mediaIntelligenceAdvisory`; it is simply no longer rendered.
 */}
-{mediaIntelligenceAdvisory && mediaIntelligenceAdvisory.hasObservations ? (
-  <div
-    role="status"
-    data-testid="verify-media-intelligence-advisory"
-    style={{
-      border: "1px solid rgba(11,46,39,0.16)",
-      borderLeft: `5px solid ${VERIFY_BRAND.accent}`,
-      background: "rgba(11,46,39,0.045)",
-      borderRadius: 18,
-      padding: 18,
-      display: "grid",
-      gap: 10,
-    }}
-  >
-    <div
-      style={{
-        ...VERIFY_TYPO.kicker,
-        fontSize: 10.5,
-        color: VERIFY_BRAND.accent,
-      }}
-    >
-      Advisory observations
-    </div>
-    <div
-      style={{
-        ...VERIFY_TYPO.value,
-        fontSize: 15,
-        lineHeight: 1.55,
-      }}
-    >
-      Advisory observations available
-      <span
-        style={{
-          marginLeft: 8,
-          padding: "2px 10px",
-          fontSize: 12,
-          fontWeight: 600,
-          background: "rgba(11,46,39,0.08)",
-          border: "1px solid rgba(11,46,39,0.18)",
-          color: VERIFY_BRAND.ink,
-          borderRadius: 999,
-        }}
-      >
-        {mediaIntelligenceAdvisory.observationCount}
-      </span>
-    </div>
-    <div
-      style={{
-        ...VERIFY_TYPO.small,
-        fontSize: 13,
-        color: VERIFY_BRAND.ink,
-        lineHeight: 1.5,
-      }}
-    >
-      {mediaIntelligenceAdvisory.advisory}
-    </div>
-  </div>
-) : null}
 
 {/*
   Enterprise Technical Metadata layer — privacy-safe Media / EXIF /

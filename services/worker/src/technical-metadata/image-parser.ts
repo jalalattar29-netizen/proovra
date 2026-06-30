@@ -50,6 +50,13 @@ export async function parseImageMetadata(
       hasGps: false,
       orientation: null,
       software: null,
+      lensModel: null,
+      iso: null,
+      aperture: null,
+      exposureTime: null,
+      shutterSpeed: null,
+      whiteBalance: null,
+      compression: null,
     };
   }
 

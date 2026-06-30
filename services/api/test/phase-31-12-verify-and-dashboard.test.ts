@@ -260,43 +260,15 @@ describe("Phase 31.12 — Verify page UI", () => {
     );
   });
 
-  it("section renders ONLY when hasObservations is true", () => {
-    expect(src).toMatch(
-      /mediaIntelligenceAdvisory && mediaIntelligenceAdvisory\.hasObservations/,
-    );
-  });
-
-  it("section displays bounded count + advisory disclaimer text — never per-signal detail", () => {
-    const start = src.indexOf("verify-media-intelligence-advisory");
-    expect(start).toBeGreaterThan(0);
-    const end = src.indexOf(") : null}", start);
-    expect(end).toBeGreaterThan(start);
-    const block = src.slice(start, end);
-    expect(block).toContain("mediaIntelligenceAdvisory.observationCount");
-    expect(block).toContain("mediaIntelligenceAdvisory.advisory");
-    // No per-signal detail keys should appear in the rendered block.
-    for (const banned of [
-      "safeSummary",
-      "signalType",
-      "materialId",
-      "severity",
-      "confidence",
-      "createdAtUtc",
-    ]) {
-      expect(
-        block,
-        `verify UI block surfaces per-signal field ${banned}`,
-      ).not.toContain(banned);
-    }
-  });
-
-  it("section uses safe wording — no forbidden vocabulary in the new JSX block", () => {
-    const start = src.indexOf("verify-media-intelligence-advisory");
-    const end = src.indexOf(") : null}", start);
-    const block = src.slice(start, end);
-    const forbidden =
-      /\b(tamper(ed|ing)?|forged|fake|authentic(ity)?|admissible|proves?|confirms?|manipulated|doctored)\b/i;
-    expect(block).not.toMatch(forbidden);
+  it("Media Intelligence / Advisory Observations block is REMOVED from the verify page (product decision)", () => {
+    // The low-value advisory block (bounded count + disclaimer for
+    // workspace/correlation observations) was removed from the public
+    // verify page. The API still returns `mediaIntelligenceAdvisory`
+    // (type + setter retained above) but it is no longer rendered.
+    expect(src).not.toContain('data-testid="verify-media-intelligence-advisory"');
+    expect(src).not.toContain("Advisory observations available");
+    expect(src).not.toContain("mediaIntelligenceAdvisory.observationCount");
+    expect(src).not.toContain("mediaIntelligenceAdvisory.advisory");
   });
 });
 

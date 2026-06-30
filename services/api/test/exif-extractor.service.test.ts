@@ -146,6 +146,14 @@ describe("EXIF extractor — output shape", () => {
       "rawGps",
       "orientation",
       "software",
+      // Rich photographic EXIF (bounded numeric / short strings; PII-safe).
+      "lensModel",
+      "iso",
+      "aperture",
+      "exposureTime",
+      "shutterSpeed",
+      "whiteBalance",
+      "compression",
     ]);
     for (const k of Object.keys(r.summary)) {
       expect(allowed.has(k), `unexpected output key: ${k}`).toBe(true);

@@ -16,6 +16,8 @@ import {
   aggregateMetadataStatus,
   deriveExifSummary,
   formatCameraLabel,
+  humanizeCaptureMethod,
+  humanizeUploadSource,
   primaryMediaTypeLabel,
   toPerPartMediaSummary,
 } from "@proovra/shared-runtime/technical-metadata";
@@ -32,26 +34,45 @@ export type VerifyTechnicalMetadata = {
   };
   exif: {
     applicable: boolean;
+    exifPresent: boolean;
     camera: string | null;
+    lensModel: string | null;
     originalCaptureTime: string | null;
+    iso: number | null;
+    aperture: string | null;
+    exposureTime: string | null;
+    shutterSpeed: string | null;
+    whiteBalance: string | null;
+    orientation: number | null;
     gpsPresent: boolean;
     resolution: string | null;
     softwareTag: string | null;
     metadataStatus: string;
   } | null;
   captureEnvironment: {
+    /** Human-readable, e.g. "PROOVRA Web Application" — never the enum. */
     uploadSource: string | null;
     captureMethod: string | null;
     browserName: string | null;
+    browserVersion: string | null;
     osName: string | null;
+    osVersion: string | null;
     deviceClass: string | null;
+    engine: string | null;
+    platform: string | null;
     timezone: string | null;
-    /** Internal-only (authenticated workspace UI). Privacy-safe: a
-     *  hash, never the raw User-Agent. Omitted on the public page. */
+    locale: string | null;
+    /** Internal-only. UA hash, never the raw User-Agent. */
     userAgentHash?: string | null;
     /** Internal-only. Masked IP (e.g. "203.0.x.x"), never the raw IP. */
     ipAddressMasked?: string | null;
-    locale?: string | null;
+  } | null;
+  /** Public: country only. Internal adds region + masked IP + type. */
+  network: {
+    country: string | null;
+    region?: string | null;
+    maskedIp?: string | null;
+    networkType?: string | null;
   } | null;
 };
 
@@ -129,8 +150,16 @@ export async function projectVerifyTechnicalMetadata(input: {
       if (e.applicable) {
         exif = {
           applicable: true,
+          exifPresent: e.exifPresent,
           camera: formatCameraLabel(e.cameraMake, e.cameraModel),
+          lensModel: e.lensModel,
           originalCaptureTime: e.originalCaptureTime,
+          iso: e.iso,
+          aperture: e.aperture,
+          exposureTime: e.exposureTime,
+          shutterSpeed: e.shutterSpeed,
+          whiteBalance: e.whiteBalance,
+          orientation: e.orientation,
           gpsPresent: e.gpsPresent,
           resolution: e.resolution,
           softwareTag: e.softwareTag,
@@ -142,23 +171,53 @@ export async function projectVerifyTechnicalMetadata(input: {
 
     const captureEnvironment = ceRaw
       ? {
-          uploadSource: (ceRaw.uploadSource as string | null) ?? null,
-          captureMethod: (ceRaw.captureMethod as string | null) ?? null,
+          // Humanized labels — never the raw enum on any surface.
+          uploadSource: humanizeUploadSource(
+            (ceRaw.uploadSource as string | null) ?? null,
+          ),
+          captureMethod: humanizeCaptureMethod(
+            (ceRaw.captureMethod as string | null) ?? null,
+          ),
           browserName: (ceRaw.browserName as string | null) ?? null,
+          browserVersion: (ceRaw.browserVersion as string | null) ?? null,
           osName: (ceRaw.osName as string | null) ?? null,
+          osVersion: (ceRaw.osVersion as string | null) ?? null,
           deviceClass: (ceRaw.deviceClass as string | null) ?? null,
+          engine: (ceRaw.engine as string | null) ?? null,
+          platform: (ceRaw.platform as string | null) ?? null,
           timezone: (ceRaw.timezone as string | null) ?? null,
-          // Internal-only privacy-safe extras. Both are derived (a hash
-          // and a masked address) — never the raw UA or raw IP.
+          locale: (ceRaw.locale as string | null) ?? null,
+          // Internal-only privacy-safe extras (UA hash + masked IP).
           ...(input.internal
             ? {
                 userAgentHash: (ceRaw.userAgentHash as string | null) ?? null,
                 ipAddressMasked: (ceRaw.ipAddressMasked as string | null) ?? null,
-                locale: (ceRaw.locale as string | null) ?? null,
               }
             : {}),
         }
       : null;
+
+    // Network: public surfaces country only; internal adds region +
+    // masked IP + network type. Never full IP anywhere.
+    const ntRaw = (ceRaw?.networkType as string | null) ?? null;
+    const country = (ceRaw?.country as string | null) ?? null;
+    const network =
+      ceRaw &&
+      (country ||
+        (input.internal &&
+          ((ceRaw.ipAddressMasked as string | null) ||
+            (ceRaw.region as string | null))))
+        ? {
+            country,
+            ...(input.internal
+              ? {
+                  region: (ceRaw.region as string | null) ?? null,
+                  maskedIp: (ceRaw.ipAddressMasked as string | null) ?? null,
+                  networkType: ntRaw && ntRaw !== "UNKNOWN" ? ntRaw : null,
+                }
+              : {}),
+          }
+        : null;
 
     return {
       media: {
@@ -170,6 +229,7 @@ export async function projectVerifyTechnicalMetadata(input: {
       },
       exif,
       captureEnvironment,
+      network,
     };
   } catch {
     return null;

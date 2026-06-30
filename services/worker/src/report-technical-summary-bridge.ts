@@ -22,8 +22,16 @@ import { prisma } from "./db.js";
 import { logger } from "./logger.js";
 
 export type ReportExifSummary = {
+  exifPresent: boolean;
   camera: string | null;
+  lensModel: string | null;
   originalCaptureTime: string | null;
+  iso: number | null;
+  aperture: string | null;
+  exposureTime: string | null;
+  shutterSpeed: string | null;
+  whiteBalance: string | null;
+  orientation: number | null;
   gpsPresent: boolean;
   resolution: string | null;
   softwareTag: string | null;
@@ -33,9 +41,22 @@ export type ReportExifSummary = {
 export type ReportCaptureEnvironment = {
   uploadSource: string | null;
   captureMethod: string | null;
-  browserOs: string | null;
+  browserName: string | null;
+  browserVersion: string | null;
+  osName: string | null;
+  osVersion: string | null;
   deviceClass: string | null;
+  engine: string | null;
+  platform: string | null;
   timezone: string | null;
+  locale: string | null;
+};
+
+export type ReportNetworkSummary = {
+  maskedIp: string | null;
+  country: string | null;
+  region: string | null;
+  networkType: string | null;
 };
 
 export type TechnicalSummaryReportInput = {
@@ -44,8 +65,17 @@ export type TechnicalSummaryReportInput = {
   metadataStatus: "Complete" | "Partial" | "Missing" | "Unavailable";
   primaryMediaType: string;
   resolutionSummary: string | null;
+  /** Primary part's media facts for the smart Media card. */
+  primaryMedia: {
+    mediaKind: string;
+    durationMs: number | null;
+    videoCodec: string | null;
+    frameRate: number | null;
+    pageCount: number | null;
+  } | null;
   exif: ReportExifSummary | null;
   captureEnvironment: ReportCaptureEnvironment | null;
+  network: ReportNetworkSummary | null;
 };
 
 export async function buildReportTechnicalSummary(input: {
@@ -113,8 +143,16 @@ export async function buildReportTechnicalSummary(input: {
       const e = deriveExifSummary(p.technical_metadata);
       if (e.applicable) {
         exif = {
+          exifPresent: e.exifPresent,
           camera: formatCameraLabel(e.cameraMake, e.cameraModel),
+          lensModel: e.lensModel,
           originalCaptureTime: e.originalCaptureTime,
+          iso: e.iso,
+          aperture: e.aperture,
+          exposureTime: e.exposureTime,
+          shutterSpeed: e.shutterSpeed,
+          whiteBalance: e.whiteBalance,
+          orientation: e.orientation,
           gpsPresent: e.gpsPresent,
           resolution: e.resolution,
           softwareTag: e.softwareTag,
@@ -129,22 +167,42 @@ export async function buildReportTechnicalSummary(input: {
       (evidenceRows[0]?.capture_environment as Record<string, unknown> | null) ??
       null;
     let captureEnvironment: ReportCaptureEnvironment | null = null;
+    let network: ReportNetworkSummary | null = null;
     if (ce) {
-      const browser = (ce.browserName as string | null) ?? null;
-      const os = (ce.osName as string | null) ?? null;
-      const browserOs =
-        browser && os ? `${browser} on ${os}` : browser ?? os ?? null;
       captureEnvironment = {
         uploadSource: (ce.uploadSource as string | null) ?? null,
         captureMethod: (ce.captureMethod as string | null) ?? null,
-        browserOs,
+        browserName: (ce.browserName as string | null) ?? null,
+        browserVersion: (ce.browserVersion as string | null) ?? null,
+        osName: (ce.osName as string | null) ?? null,
+        osVersion: (ce.osVersion as string | null) ?? null,
         deviceClass: (ce.deviceClass as string | null) ?? null,
+        engine: (ce.engine as string | null) ?? null,
+        platform: (ce.platform as string | null) ?? null,
         timezone: (ce.timezone as string | null) ?? null,
+        locale: (ce.locale as string | null) ?? null,
+      };
+      const nt = (ce.networkType as string | null) ?? null;
+      network = {
+        maskedIp: (ce.ipAddressMasked as string | null) ?? null,
+        country: (ce.country as string | null) ?? null,
+        region: (ce.region as string | null) ?? null,
+        networkType: nt && nt !== "UNKNOWN" ? nt : null,
       };
     }
 
     // Nothing meaningful → don't render the section.
     if (perPart.length === 0 && !captureEnvironment) return null;
+
+    const primaryMedia = primary
+      ? {
+          mediaKind: primary.mediaKind,
+          durationMs: primary.durationMs,
+          videoCodec: primary.videoCodec,
+          frameRate: primary.frameRate,
+          pageCount: primary.pageCount,
+        }
+      : null;
 
     return {
       mediaFilesAnalyzed: analyzed,
@@ -152,8 +210,10 @@ export async function buildReportTechnicalSummary(input: {
       metadataStatus: aggregateMetadataStatus(perPart),
       primaryMediaType: primaryMediaTypeLabel(perPart),
       resolutionSummary,
+      primaryMedia,
       exif,
       captureEnvironment,
+      network,
     };
   } catch (err) {
     logger.warn(

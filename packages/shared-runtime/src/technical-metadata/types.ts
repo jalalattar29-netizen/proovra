@@ -76,6 +76,15 @@ export type TechnicalMetadata = {
   gpsPresent?: boolean | null;
   softwareTag?: string | null;
   orientation?: number | null;
+  // Rich EXIF (camera/photographic). Present only when the source file
+  // carried them; bounded strings. GPS stays a presence flag only.
+  lensModel?: string | null;
+  iso?: number | null;
+  aperture?: string | null;
+  exposureTime?: string | null;
+  shutterSpeed?: string | null;
+  whiteBalance?: string | null;
+  compression?: string | null;
 
   // ---- Video / audio ----
   /** Container/format label, e.g. "mov,mp4,m4a,3gp" or "matroska,webm". */
@@ -105,10 +114,18 @@ export type ExifSummary = {
   exifPresent: boolean;
   cameraMake: string | null;
   cameraModel: string | null;
+  lensModel: string | null;
   originalCaptureTime: string | null;
+  iso: number | null;
+  aperture: string | null;
+  exposureTime: string | null;
+  shutterSpeed: string | null;
+  whiteBalance: string | null;
+  orientation: number | null;
   gpsPresent: boolean;
   resolution: string | null;
   softwareTag: string | null;
+  compression: string | null;
   metadataStatus: MetadataStatus;
 };
 
@@ -148,12 +165,25 @@ export type CaptureEnvironment = {
   osName: string | null;
   osVersion: string | null;
   deviceClass: DeviceClass;
+  /** Rendering engine parsed from the UA: Blink / WebKit / Gecko / null. */
+  engine: string | null;
+  /** Platform/arch parsed from the UA: "Windows x64" / "macOS" / "iOS" /
+   *  "Android" / "Linux" / null. */
+  platform: string | null;
   timezone: string | null;
   locale: string | null;
   /** SHA-256 of the raw UA, prefixed "sha256:". Never the raw UA. */
   userAgentHash: string | null;
   /** Masked IP, e.g. "203.0.x.x" / "2001:db8:…". Never the raw IP. */
   ipAddressMasked: string | null;
+  // Privacy-safe network summary. Country/region come from the existing
+  // geo service when available (never the raw IP). networkType defaults
+  // to "UNKNOWN". Full IP / ASN / ISP / VPN are NOT collected.
+  country: string | null;
+  region: string | null;
+  networkType: string | null;
+  /** Which request field the IP was read from (e.g. "req.ip"). */
+  ipSourceHeader: string | null;
   attestationAttempted: boolean;
   attestationResult: string | null;
 };

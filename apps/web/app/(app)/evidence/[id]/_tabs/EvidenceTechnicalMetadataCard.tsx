@@ -31,8 +31,16 @@ type VerifyTechnicalMetadata = {
   };
   exif: {
     applicable: boolean;
+    exifPresent: boolean;
     camera: string | null;
+    lensModel: string | null;
     originalCaptureTime: string | null;
+    iso: number | null;
+    aperture: string | null;
+    exposureTime: string | null;
+    shutterSpeed: string | null;
+    whiteBalance: string | null;
+    orientation: number | null;
     gpsPresent: boolean;
     resolution: string | null;
     softwareTag: string | null;
@@ -42,18 +50,39 @@ type VerifyTechnicalMetadata = {
     uploadSource: string | null;
     captureMethod: string | null;
     browserName: string | null;
+    browserVersion: string | null;
     osName: string | null;
+    osVersion: string | null;
     deviceClass: string | null;
+    engine: string | null;
+    platform: string | null;
     timezone: string | null;
+    locale: string | null;
     userAgentHash?: string | null;
     ipAddressMasked?: string | null;
-    locale?: string | null;
+  } | null;
+  network: {
+    country: string | null;
+    region?: string | null;
+    maskedIp?: string | null;
+    networkType?: string | null;
   } | null;
 };
 
 function na(v: string | null | undefined): string {
   const t = (v ?? "").trim();
   return t.length > 0 ? t : "Not available";
+}
+
+/** Drop rows whose value is empty / "Not available" so the internal card
+ *  never shows hollow rows. */
+function meaningfulRows(
+  items: Array<{ label: string; value: string }>,
+): Array<{ label: string; value: string }> {
+  return items.filter((r) => {
+    const t = (r.value ?? "").trim().toUpperCase();
+    return t !== "" && t !== "NOT AVAILABLE" && t !== "UNKNOWN";
+  });
 }
 
 export function EvidenceTechnicalMetadataCard({
@@ -127,12 +156,21 @@ export function EvidenceTechnicalMetadataCard({
                   EXIF (file-embedded metadata)
                 </h3>
                 <KeyValueGrid
-                  items={[
-                    { label: "EXIF present", value: "Yes" },
+                  items={meaningfulRows([
                     { label: "Camera", value: na(data.exif.camera) },
+                    { label: "Lens", value: na(data.exif.lensModel) },
                     {
                       label: "Original capture time (from file)",
                       value: na(data.exif.originalCaptureTime),
+                    },
+                    { label: "ISO", value: data.exif.iso != null ? String(data.exif.iso) : "Not available" },
+                    { label: "Aperture", value: na(data.exif.aperture) },
+                    { label: "Exposure", value: na(data.exif.exposureTime) },
+                    { label: "Shutter speed", value: na(data.exif.shutterSpeed) },
+                    { label: "White balance", value: na(data.exif.whiteBalance) },
+                    {
+                      label: "Orientation",
+                      value: data.exif.orientation != null ? String(data.exif.orientation) : "Not available",
                     },
                     {
                       label: "EXIF GPS",
@@ -142,8 +180,7 @@ export function EvidenceTechnicalMetadataCard({
                     },
                     { label: "Resolution", value: na(data.exif.resolution) },
                     { label: "Software / editor tag", value: na(data.exif.softwareTag) },
-                    { label: "Metadata status", value: na(data.exif.metadataStatus) },
-                  ]}
+                  ])}
                 />
               </div>
             ) : (
@@ -152,7 +189,10 @@ export function EvidenceTechnicalMetadataCard({
                   EXIF (file-embedded metadata)
                 </h3>
                 <p className="evidence-detail-muted">
-                  No EXIF metadata available for this record.
+                  No embedded camera metadata was present in the uploaded file.
+                  This is common for downloaded, exported, screenshotted,
+                  generated, or stripped files and does not affect the recorded
+                  integrity result.
                 </p>
               </div>
             )}
@@ -171,12 +211,28 @@ export function EvidenceTechnicalMetadataCard({
                   embedded metadata above and from the preservation state.
                 </p>
                 <KeyValueGrid
-                  items={[
+                  items={meaningfulRows([
+                    { label: "Submitted through", value: na(data.captureEnvironment.uploadSource) },
                     { label: "Capture method", value: na(data.captureEnvironment.captureMethod) },
-                    { label: "Upload source", value: na(data.captureEnvironment.uploadSource) },
-                    { label: "Browser", value: na(data.captureEnvironment.browserName) },
-                    { label: "Operating system", value: na(data.captureEnvironment.osName) },
+                    {
+                      label: "Browser",
+                      value: na(
+                        [data.captureEnvironment.browserName, data.captureEnvironment.browserVersion]
+                          .filter(Boolean)
+                          .join(" ") || null,
+                      ),
+                    },
+                    {
+                      label: "Operating system",
+                      value: na(
+                        [data.captureEnvironment.osName, data.captureEnvironment.osVersion]
+                          .filter(Boolean)
+                          .join(" ") || null,
+                      ),
+                    },
                     { label: "Device class", value: na(data.captureEnvironment.deviceClass) },
+                    { label: "Engine", value: na(data.captureEnvironment.engine) },
+                    { label: "Platform", value: na(data.captureEnvironment.platform) },
                     { label: "Timezone", value: na(data.captureEnvironment.timezone) },
                     { label: "Locale", value: na(data.captureEnvironment.locale) },
                     { label: "Masked IP", value: na(data.captureEnvironment.ipAddressMasked) },
@@ -184,7 +240,7 @@ export function EvidenceTechnicalMetadataCard({
                       label: "User-Agent hash",
                       value: na(data.captureEnvironment.userAgentHash),
                     },
-                  ]}
+                  ])}
                 />
               </div>
             ) : (
@@ -197,6 +253,29 @@ export function EvidenceTechnicalMetadataCard({
                 </p>
               </div>
             )}
+
+            {/* Network — internal: masked IP + country/region + type */}
+            {data.network &&
+            meaningfulRows([
+              { label: "Masked IP", value: na(data.network.maskedIp) },
+              { label: "Country", value: na(data.network.country) },
+              { label: "Region", value: na(data.network.region) },
+              { label: "Network type", value: na(data.network.networkType) },
+            ]).length > 0 ? (
+              <div data-testid="evidence-technical-network">
+                <h3 style={{ margin: "0 0 6px 0", fontSize: 13, fontWeight: 650 }}>
+                  Network
+                </h3>
+                <KeyValueGrid
+                  items={meaningfulRows([
+                    { label: "Masked IP", value: na(data.network.maskedIp) },
+                    { label: "Country", value: na(data.network.country) },
+                    { label: "Region", value: na(data.network.region) },
+                    { label: "Network type", value: na(data.network.networkType) },
+                  ])}
+                />
+              </div>
+            ) : null}
           </div>
         )}
       </div>

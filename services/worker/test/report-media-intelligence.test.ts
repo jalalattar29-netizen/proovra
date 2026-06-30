@@ -1,34 +1,23 @@
 /**
- * Phase 31.10 — Report-v2 Media Intelligence Observations section.
+ * Report-v2 — Media Intelligence Observations REMOVAL.
  *
- * The section is OPTIONAL — when no `mediaIntelligence` input is
- * supplied, the rendered HTML is BYTE-IDENTICAL to the legacy
- * Phase-31.9-or-earlier output. This file proves that invariant
- * AND the positive-path rendering.
+ * Product decision: the "Media Intelligence Observations" report section
+ * (advisory / workspace-correlation signals — duplicate/similar material
+ * without hashes or reviewer-actionable proof) was removed from the PDF
+ * report. It added no forensic value to public-facing output. This file
+ * pins the REMOVAL:
  *
- * Layers covered:
- *
- *   1. Byte-neutrality. With no intelligence input, the rendered
- *      HTML does not contain the section heading or the
- *      `media-intelligence-section` class. The DOM is unchanged.
- *   2. Positive-path render. With signals + thumbnails + OCR/
- *      transcript supplied, the section appears in the expected
- *      order, between the Reviewer Verification Workflow and the
- *      Legal Interpretation & Report Boundary.
- *   3. Safe wording. No forbidden vocabulary in the disclaimer or
- *      any signal projection. No authenticity / admissibility /
- *      proof claims.
- *   4. Bounded emission. Supplying 1000 signals renders at most
- *      200; 100 thumbnails renders at most 24; 1000 OCR/transcript
- *      entries render at most 200.
- *   5. Severity ordering. ATTENTION first, then REVIEW_RECOMMENDED,
- *      then INFO; within a severity the most recent first.
- *   6. Anti-leak source contract. No storage_key / storage_bucket /
- *      signedUrl / multipart_upload_id / raw_gps / private_note
- *      anywhere in the section module.
- *   7. Legal hierarchy preserved. The Forensic Integrity Statement
- *      and Legal Interpretation sections still emit and surround
- *      the new section.
+ *   1. The section never renders, even when a `mediaIntelligence`
+ *      projection is supplied to the view model.
+ *   2. The report HTML is byte-identical with and without the
+ *      `mediaIntelligence` input (it is ignored by the renderer).
+ *   3. The deterministic "Media Technical Summary" section (EXIF +
+ *      capture environment + media facts) — the forensic metadata that
+ *      remains — still renders independently.
+ *   4. render-html.ts no longer wires renderMediaIntelligenceSection.
+ *   5. The dormant media-intelligence section module is still anti-leak
+ *      safe (no storage internals / signed URLs / private notes / raw
+ *      GPS) — it is retained but unwired, so the contract still holds.
  */
 
 import { describe, expect, it } from "vitest";
@@ -212,18 +201,6 @@ const SAMPLE_INTELLIGENCE: MediaIntelligenceReportInput = {
       createdAtUtc: "2026-05-20T10:00:00.000Z",
     },
     {
-      id: "sig-2",
-      signalType: "DEVICE_METADATA_OBSERVATION",
-      materialId: "mat-1",
-      materialLabel: "photo.jpg",
-      severity: "INFO",
-      confidence: "MEDIUM",
-      safeSummary:
-        "Device metadata recorded: device make, image dimensions. Advisory only.",
-      status: "ACKNOWLEDGED",
-      createdAtUtc: "2026-05-20T09:00:00.000Z",
-    },
-    {
       id: "sig-3",
       signalType: "DUPLICATE_HASH_MATCH",
       materialId: "mat-2",
@@ -255,75 +232,113 @@ const SAMPLE_INTELLIGENCE: MediaIntelligenceReportInput = {
   ],
 };
 
+const TECH_SUMMARY = {
+  mediaFilesAnalyzed: 1,
+  mediaFilesTotal: 1,
+  metadataStatus: "Complete" as const,
+  primaryMediaType: "Image",
+  resolutionSummary: "4032×3024",
+  primaryMedia: {
+    mediaKind: "IMAGE",
+    durationMs: null,
+    videoCodec: null,
+    frameRate: null,
+    pageCount: null,
+  },
+  exif: {
+    exifPresent: true,
+    camera: "Apple iPhone 14 Pro",
+    lensModel: null,
+    originalCaptureTime: "2024-11-15T10:22:05Z",
+    iso: 80,
+    aperture: "f/1.8",
+    exposureTime: "1/120s",
+    shutterSpeed: null,
+    whiteBalance: null,
+    orientation: 1,
+    gpsPresent: true,
+    resolution: "4032×3024",
+    softwareTag: null,
+    metadataStatus: "PRESENT" as const,
+  },
+  captureEnvironment: {
+    uploadSource: "WEB_APP",
+    captureMethod: "SECURE_CAPTURE",
+    browserName: "Chrome",
+    browserVersion: "138",
+    osName: "Windows",
+    osVersion: "10/11",
+    deviceClass: "DESKTOP",
+    engine: "Blink",
+    platform: "Windows x64",
+    timezone: "Europe/London",
+    locale: "en-GB",
+  },
+  network: {
+    maskedIp: "203.0.x.x",
+    country: "GB",
+    region: null,
+    networkType: null,
+  },
+};
+
 // =============================================================================
-// PART 1 — Byte neutrality (no-intelligence path unchanged)
+// Removal — Media Intelligence Observations never renders
 // =============================================================================
 
-describe("Phase 31.10 — byte-neutrality: no intelligence input", () => {
-  it("legacy callers (no mediaIntelligence) get identical HTML", async () => {
-    const vmA = await buildReportViewModel(buildInput());
-    const vmB = await buildReportViewModel(
-      buildInput({ mediaIntelligence: null }),
+describe("Media Intelligence Observations — removed from the report", () => {
+  it("does NOT render the section even when a mediaIntelligence projection is supplied", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE }),
     );
-    const htmlA = renderReportHtml(vmA);
-    const htmlB = renderReportHtml(vmB);
-    expect(htmlA).toBe(htmlB);
-  });
-
-  it("no Media Intelligence section heading appears in legacy output", async () => {
-    const vm = await buildReportViewModel(buildInput());
     const html = renderReportHtml(vm);
     expect(html).not.toContain("Media Intelligence Observations");
     expect(html).not.toContain("media-intelligence-section");
+    // None of the low-value advisory/correlation content leaks in.
+    expect(html).not.toContain("Byte-identical material was observed");
+    expect(html).not.toContain("Recorded observations");
   });
 
-  it("explicitly empty intelligence input also renders byte-identical", async () => {
+  it("report HTML is byte-identical with and without the mediaIntelligence input", async () => {
     const vmA = await buildReportViewModel(buildInput());
     const vmB = await buildReportViewModel(
-      buildInput({
-        mediaIntelligence: {
-          signals: [],
-          derivedThumbnails: [],
-          ocrTranscript: [],
-        },
-      }),
+      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE }),
     );
-    const htmlA = renderReportHtml(vmA);
-    const htmlB = renderReportHtml(vmB);
-    expect(htmlA).toBe(htmlB);
+    const vmC = await buildReportViewModel(
+      buildInput({ mediaIntelligence: null }),
+    );
+    const a = renderReportHtml(vmA);
+    const b = renderReportHtml(vmB);
+    const c = renderReportHtml(vmC);
+    expect(a).toBe(b);
+    expect(a).toBe(c);
+  });
+
+  it("legacy output never contained the section heading either", async () => {
+    const vm = await buildReportViewModel(buildInput());
+    const html = renderReportHtml(vm);
+    expect(html).not.toContain("Media Intelligence Observations");
   });
 });
 
 // =============================================================================
-// Coexistence — advisory "Media Intelligence" vs deterministic
-// "Media Technical Summary" are independent, separately-gated sections.
+// The deterministic "Media Technical Summary" remains
 // =============================================================================
 
-describe("Media Intelligence vs Media Technical Summary coexistence", () => {
-  const TECH_SUMMARY = {
-    mediaFilesAnalyzed: 1,
-    mediaFilesTotal: 1,
-    metadataStatus: "Complete" as const,
-    primaryMediaType: "Image",
-    resolutionSummary: "4032×3024",
-    exif: {
-      camera: "Apple iPhone 14 Pro",
-      originalCaptureTime: "2024-11-15T10:22:05Z",
-      gpsPresent: true,
-      resolution: "4032×3024",
-      softwareTag: null,
-      metadataStatus: "PRESENT" as const,
-    },
-    captureEnvironment: {
-      uploadSource: "WEB_APP",
-      captureMethod: "SECURE_CAPTURE",
-      browserOs: "Chrome on Windows",
-      deviceClass: "DESKTOP",
-      timezone: "Europe/London",
-    },
-  };
+describe("Media Technical Summary still renders (forensic metadata remains)", () => {
+  it("renders the technical summary section independently", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({ technicalSummary: TECH_SUMMARY }),
+    );
+    const html = renderReportHtml(vm);
+    expect(html).toContain("Media &amp; Capture Metadata");
+    expect(html).toContain("technical-summary-section");
+    // EXIF GPS stays a presence flag — never coordinates.
+    expect(html).toContain("coordinates withheld");
+    expect(html).not.toMatch(/-?\d+\.\d{4,}/);
+  });
 
-  it("renders the advisory section AND the technical summary as distinct sections", async () => {
+  it("does not render the removed advisory section alongside it", async () => {
     const vm = await buildReportViewModel(
       buildInput({
         mediaIntelligence: SAMPLE_INTELLIGENCE,
@@ -331,242 +346,41 @@ describe("Media Intelligence vs Media Technical Summary coexistence", () => {
       }),
     );
     const html = renderReportHtml(vm);
-    // Both headings present, and the deterministic technical summary
-    // appears BEFORE the advisory observations.
-    const idxTech = html.indexOf("Media Technical Summary");
-    const idxAdvisory = html.indexOf("Media Intelligence Observations");
-    expect(idxTech).toBeGreaterThan(0);
-    expect(idxAdvisory).toBeGreaterThan(idxTech);
-    // Distinct section classes — no merged/duplicated block.
-    expect(html).toContain("technical-summary-section");
-    expect(html).toContain("media-intelligence-section");
-  });
-
-  it("renders the technical summary even when no advisory observations exist", async () => {
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: null, technicalSummary: TECH_SUMMARY }),
-    );
-    const html = renderReportHtml(vm);
-    expect(html).toContain("Media Technical Summary");
+    expect(html).toContain("Media &amp; Capture Metadata");
     expect(html).not.toContain("Media Intelligence Observations");
   });
+});
 
-  it("renders the advisory section even when no technical summary exists", async () => {
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE, technicalSummary: null }),
-    );
-    const html = renderReportHtml(vm);
-    expect(html).toContain("Media Intelligence Observations");
-    expect(html).not.toContain("Media Technical Summary");
+// =============================================================================
+// Source contract — render-html no longer wires the section
+// =============================================================================
+
+describe("render-html.ts no longer wires the Media Intelligence section", () => {
+  const renderSrc = readFileSync(
+    fileURLToPath(
+      new URL("../src/report-v2/render-html.ts", import.meta.url),
+    ),
+    "utf8",
+  );
+
+  it("does not call renderMediaIntelligenceSection", () => {
+    expect(renderSrc).not.toMatch(/renderMediaIntelligenceSection\(/);
+  });
+
+  it("does not import the media-intelligence section module", () => {
+    expect(renderSrc).not.toMatch(/sections\/media-intelligence/);
+  });
+
+  it("still wires the deterministic technical-summary section", () => {
+    expect(renderSrc).toMatch(/renderTechnicalSummarySection\(vm\)/);
   });
 });
 
 // =============================================================================
-// PART 2 — Positive path
+// The dormant section module remains anti-leak safe (retained, unwired)
 // =============================================================================
 
-describe("Phase 31.10 — with intelligence supplied", () => {
-  it("emits the section heading", async () => {
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE }),
-    );
-    const html = renderReportHtml(vm);
-    expect(html).toContain("Media Intelligence Observations");
-    expect(html).toContain("media-intelligence-section");
-  });
-
-  it("renders every supplied signal's safe summary", async () => {
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE }),
-    );
-    const html = renderReportHtml(vm);
-    expect(html).toContain("EXIF capture timestamp differs");
-    expect(html).toContain("Device metadata recorded");
-    expect(html).toContain("Byte-identical material was observed");
-  });
-
-  it("severity / confidence / status badges use the advisory labels (NOT 'WARNING'/'CRITICAL')", async () => {
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE }),
-    );
-    const html = renderReportHtml(vm);
-    expect(html).toContain("Observation");
-    expect(html).toContain("Review recommended");
-    expect(html).toContain("Needs attention");
-    expect(html).toContain("Low confidence");
-    expect(html).toContain("Medium confidence");
-    expect(html).toContain("High confidence");
-    expect(html).toContain("Open");
-    expect(html).toContain("Acknowledged");
-    expect(html).not.toMatch(/\bWARNING\b/);
-    expect(html).not.toMatch(/\bCRITICAL\b/);
-    expect(html).not.toMatch(/\bALERT\b/);
-  });
-
-  it("renders the material label when supplied", async () => {
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE }),
-    );
-    const html = renderReportHtml(vm);
-    expect(html).toContain("photo.jpg");
-    expect(html).toContain("receipt.pdf");
-  });
-
-  it("renders the derived thumbnail with bounded data URL", async () => {
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE }),
-    );
-    const html = renderReportHtml(vm);
-    expect(html).toContain("media-intelligence-thumbnail");
-    expect(html).toContain("Image preview");
-  });
-
-  it("renders OCR / transcript availability flags", async () => {
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE }),
-    );
-    const html = renderReportHtml(vm);
-    expect(html).toContain("OCR and transcript availability");
-    expect(html).toContain("mat-2");
-  });
-
-  it("severity ordering: ATTENTION row appears before REVIEW_RECOMMENDED before INFO", async () => {
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE }),
-    );
-    const html = renderReportHtml(vm);
-    const idxAttention = html.indexOf("Byte-identical material was observed");
-    const idxReview = html.indexOf("EXIF capture timestamp differs");
-    const idxInfo = html.indexOf("Device metadata recorded");
-    expect(idxAttention).toBeGreaterThan(0);
-    expect(idxReview).toBeGreaterThan(idxAttention);
-    expect(idxInfo).toBeGreaterThan(idxReview);
-  });
-});
-
-// =============================================================================
-// PART 3 — Legal hierarchy preserved
-// =============================================================================
-
-describe("Phase 31.10 — legal hierarchy preserved", () => {
-  it("section appears AFTER Reviewer Verification Workflow and BEFORE Legal Interpretation", async () => {
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE }),
-    );
-    const html = renderReportHtml(vm);
-    const idxWorkflow = html.indexOf("Reviewer Verification Workflow");
-    const idxMedia = html.indexOf("Media Intelligence Observations");
-    const idxLegal = html.indexOf("Legal Interpretation");
-    expect(idxWorkflow).toBeGreaterThan(0);
-    expect(idxMedia).toBeGreaterThan(idxWorkflow);
-    expect(idxLegal).toBeGreaterThan(idxMedia);
-  });
-
-  it("Integrity Control Checklist + Custody + Legal Interpretation + Technical Appendix still emit", async () => {
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE }),
-    );
-    const html = renderReportHtml(vm);
-    expect(html).toContain("Integrity Control Checklist");
-    expect(html).toContain("Chain of Custody");
-    expect(html).toContain("Legal Interpretation");
-    expect(html).toContain("Technical Appendix");
-  });
-});
-
-// =============================================================================
-// PART 4 — Safe wording
-// =============================================================================
-
-describe("Phase 31.10 — safe wording", () => {
-  const FORBIDDEN =
-    /\b(tamper(ed|ing)?|forged|fake|authentic(ity)?|admissible|proves?|confirms?|manipulated|doctored)\b/i;
-
-  it("section disclaimer contains no forbidden vocabulary", async () => {
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE }),
-    );
-    const html = renderReportHtml(vm);
-    const start = html.indexOf("Media Intelligence Observations");
-    const end = html.indexOf("Legal Interpretation", start);
-    expect(start).toBeGreaterThan(0);
-    expect(end).toBeGreaterThan(start);
-    const section = html.slice(start, end);
-    expect(section).not.toMatch(FORBIDDEN);
-  });
-
-  it("section uses the safer canonical-custody disclaimer phrasing", async () => {
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: SAMPLE_INTELLIGENCE }),
-    );
-    const html = renderReportHtml(vm);
-    expect(html).toContain("canonical custody record");
-    expect(html).toContain("do not classify the recorded material");
-  });
-});
-
-// =============================================================================
-// PART 5 — Bounded emission (DoS prevention)
-// =============================================================================
-
-describe("Phase 31.10 — bounded emission", () => {
-  it("caps signals at 200 even when 1000 are supplied", async () => {
-    const huge: MediaIntelligenceReportInput = {
-      signals: Array.from({ length: 1000 }, (_, i) => ({
-        id: `sig-${i}`,
-        signalType: "EXIF_MISSING",
-        materialId: "mat-1",
-        materialLabel: "x.jpg",
-        severity: "INFO" as const,
-        confidence: "MEDIUM" as const,
-        safeSummary: `signal-${i}-summary-token`,
-        status: "PENDING" as const,
-        createdAtUtc: "2026-05-20T00:00:00.000Z",
-      })),
-    };
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: huge }),
-    );
-    const html = renderReportHtml(vm);
-    // Count <tr> rows inside the signals table — should be 200 + 1 header.
-    const start = html.indexOf("Recorded observations");
-    const end = html.indexOf("</section>", start);
-    const block = html.slice(start, end);
-    const trCount = (block.match(/<tr>/g) ?? []).length;
-    // 1 header row + 200 data rows = 201
-    expect(trCount).toBe(201);
-    // Signal at index 200 must NOT be rendered.
-    expect(html).not.toContain("signal-200-summary-token");
-    // Signal at index 199 (the last allowed) MUST be rendered.
-    expect(html).toContain("signal-199-summary-token");
-  });
-
-  it("caps derived thumbnails at 24 even when 100 are supplied", async () => {
-    const huge: MediaIntelligenceReportInput = {
-      derivedThumbnails: Array.from({ length: 100 }, (_, i) => ({
-        materialId: `mat-${i}`,
-        dataUrl: `data:image/png;base64,token-${i}-AAA`,
-        assetKind: "image_thumbnail" as const,
-      })),
-    };
-    const vm = await buildReportViewModel(
-      buildInput({ mediaIntelligence: huge }),
-    );
-    const html = renderReportHtml(vm);
-    const thumbCount = (
-      html.match(/class="media-intelligence-thumbnail"/g) ?? []
-    ).length;
-    expect(thumbCount).toBe(24);
-    expect(html).not.toContain("token-24-AAA");
-    expect(html).toContain("token-23-AAA");
-  });
-});
-
-// =============================================================================
-// PART 6 — Anti-leak source contract
-// =============================================================================
-
-describe("Phase 31.10 — anti-leak source contract", () => {
+describe("dormant media-intelligence section module — anti-leak contract", () => {
   const src = readFileSync(
     fileURLToPath(
       new URL("../src/report-v2/sections/media-intelligence.ts", import.meta.url),
@@ -611,28 +425,5 @@ describe("Phase 31.10 — anti-leak source contract", () => {
         forbidden,
       );
     }
-  });
-
-  it("section is the ONLY new section wired into render-html.ts", () => {
-    const renderSrc = readFileSync(
-      fileURLToPath(
-        new URL("../src/report-v2/render-html.ts", import.meta.url),
-      ),
-      "utf8",
-    );
-    expect(renderSrc).toMatch(/renderMediaIntelligenceSection\(vm\)/);
-    // The position must remain AFTER the forensic statement and
-    // BEFORE the legal interpretation — protect that ordering at
-    // the source-contract level.
-    const idxForensic = renderSrc.indexOf(
-      "renderForensicIntegrityStatementSection(vm)",
-    );
-    const idxMedia = renderSrc.indexOf("renderMediaIntelligenceSection(vm)");
-    const idxLegal = renderSrc.indexOf(
-      "renderLegalInterpretationSection(vm)",
-    );
-    expect(idxForensic).toBeGreaterThan(0);
-    expect(idxMedia).toBeGreaterThan(idxForensic);
-    expect(idxLegal).toBeGreaterThan(idxMedia);
   });
 });

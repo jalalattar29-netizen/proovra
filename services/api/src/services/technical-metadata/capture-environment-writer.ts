@@ -52,6 +52,24 @@ export async function recordCaptureEnvironment(
       (typeof input.acceptLanguage === "string"
         ? input.acceptLanguage.split(",")[0]?.trim() ?? null
         : null);
+
+    // Privacy-safe country lookup from the existing geo service (country
+    // code only; HMAC-keyed; ≤100ms timeout; never throws; returns null
+    // when no provider is configured). Region is not available from this
+    // service, so it stays null — never faked.
+    let country: string | null = null;
+    if (input.rawIp) {
+      try {
+        const { lookupCountryCode } = await import(
+          "../access-control/geo-intelligence.service.js"
+        );
+        const geo = await lookupCountryCode({ ip: input.rawIp });
+        country = geo.countryCode ?? null;
+      } catch {
+        country = null;
+      }
+    }
+
     const captureEnv = buildCaptureEnvironment({
       rawUserAgent: input.rawUserAgent ?? null,
       rawIp: input.rawIp ?? null,
@@ -59,6 +77,10 @@ export async function recordCaptureEnvironment(
       locale,
       captureMethod: input.captureMethod ?? null,
       uploadSource: input.uploadSource ?? null,
+      country,
+      region: null,
+      networkType: null, // not detected → buildCaptureEnvironment defaults to "UNKNOWN"
+      ipSourceHeader: input.rawIp ? "req.ip" : null,
     });
     await prisma.evidence.update({
       where: { id: input.evidenceId },

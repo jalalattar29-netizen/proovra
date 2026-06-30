@@ -36,6 +36,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildIntelligencePackageManifests,
+  buildMediaIntelligenceManifest,
   type IntelligencePackageInput,
 } from "../src/verification-package-intelligence.js";
 
@@ -80,32 +81,12 @@ describe("Phase 31.9 — empty input", () => {
 // =============================================================================
 
 describe("Phase 31.9 — selective emission", () => {
-  it("emits ONLY media_intelligence.json when only media signals are present", () => {
-    const r = buildIntelligencePackageManifests({
-      mediaSignals: [
-        {
-          id: "sig-1",
-          signalType: "EXIF_MISSING",
-          materialId: null,
-          severity: "INFO",
-          confidence: "MEDIUM",
-          safeSummary: "No EXIF metadata was observed.",
-          status: "PENDING",
-          createdAtUtc: "2026-05-20T00:00:00.000Z",
-        },
-      ],
-    });
-    // Enterprise rename: media signals now emit the canonical
-    // advisory-signals.json PLUS a deprecated media_intelligence.json
-    // alias for backward compatibility.
-    expect(r).toHaveLength(2);
-    expect(r.map((m) => m.path).sort()).toEqual([
-      "intelligence/advisory-signals.json",
-      "intelligence/media_intelligence.json",
-    ]);
-  });
-
-  it("excludes restricted workspace/corpus-correlation signals from the package (advisory-signals.json + alias)", () => {
+  it("does NOT emit advisory-signals.json / media_intelligence.json for media signals (product removal)", () => {
+    // Product decision: the low-value advisory/workspace-correlation
+    // output is no longer emitted in the default verification package.
+    // ANY mediaSignals input — safe, restricted, or mixed — produces no
+    // advisory files. Deterministic technical metadata lives under
+    // technical-metadata/ (emitted by a separate builder).
     const r = buildIntelligencePackageManifests({
       mediaSignals: [
         {
@@ -128,55 +109,14 @@ describe("Phase 31.9 — selective emission", () => {
           status: "PENDING",
           createdAtUtc: "2026-05-20T00:00:00.000Z",
         },
-        {
-          id: "restricted-sim",
-          signalType: "SIMILAR_FILE_CANDIDATE",
-          materialId: "other-evidence-def",
-          severity: "REVIEW_RECOMMENDED",
-          confidence: "MEDIUM",
-          safeSummary: "Similar file candidate in workspace.",
-          status: "PENDING",
-          createdAtUtc: "2026-05-20T00:00:00.000Z",
-        },
-      ],
-    });
-    // Both the canonical file and the deprecated alias are built from the
-    // SAME filtered list, so neither can leak restricted signals.
-    for (const path of [
-      "intelligence/advisory-signals.json",
-      "intelligence/media_intelligence.json",
-    ]) {
-      const entry = r.find((m) => m.path === path);
-      expect(entry, `${path} should be present`).toBeDefined();
-      const serialized = JSON.stringify(entry!.json);
-      expect(serialized).toContain("EXIF_MISSING");
-      expect(serialized).not.toContain("DUPLICATE_HASH_MATCH");
-      expect(serialized).not.toContain("SIMILAR_FILE_CANDIDATE");
-      // No reference to the other-evidence corpus ids leaks through.
-      expect(serialized).not.toContain("other-evidence-abc");
-      expect(serialized).not.toContain("other-evidence-def");
-      const count = (entry!.json as { count?: number }).count;
-      expect(count).toBe(1); // only the safe EXIF_MISSING signal
-    }
-  });
-
-  it("emits NO advisory manifest when every signal is restricted", () => {
-    const r = buildIntelligencePackageManifests({
-      mediaSignals: [
-        {
-          id: "only-restricted",
-          signalType: "POSSIBLE_DERIVATIVE_FILE",
-          materialId: "other-evidence-xyz",
-          severity: "INFO",
-          confidence: "LOW",
-          safeSummary: "Possible derivative file.",
-          status: "PENDING",
-          createdAtUtc: "2026-05-20T00:00:00.000Z",
-        },
       ],
     });
     expect(r.find((m) => m.path === "intelligence/advisory-signals.json")).toBeUndefined();
     expect(r.find((m) => m.path === "intelligence/media_intelligence.json")).toBeUndefined();
+    // And no workspace-correlation content leaks into the package at all.
+    const serialized = JSON.stringify(r);
+    expect(serialized).not.toContain("DUPLICATE_HASH_MATCH");
+    expect(serialized).not.toContain("other-evidence-abc");
   });
 
   it("emits ONLY derived_assets_manifest.json when only derived assets are present", () => {
@@ -198,13 +138,13 @@ describe("Phase 31.9 — selective emission", () => {
     expect(r[0]!.path).toBe("intelligence/derived_assets_manifest.json");
   });
 
-  it("emits all 5 manifests when every input is supplied", () => {
+  it("emits the 4 non-advisory manifests when every input is supplied (advisory removed)", () => {
+    // advisory-signals.json + media_intelligence.json are no longer
+    // emitted; the remaining manifests are unaffected.
     const r = buildIntelligencePackageManifests(fullInput());
     expect(r.map((m) => m.path).sort()).toEqual([
-      "intelligence/advisory-signals.json",
       "intelligence/derived_assets_manifest.json",
       "intelligence/graph_relationships.json",
-      "intelligence/media_intelligence.json",
       "intelligence/ocr_transcript_manifest.json",
       "intelligence/timeline_manifest.json",
     ]);
@@ -278,8 +218,12 @@ describe("Phase 31.9 — bounded list sizes", () => {
       status: "PENDING" as const,
       createdAtUtc: "2026-05-20T00:00:00.000Z",
     }));
-    const r = buildIntelligencePackageManifests({ mediaSignals: signals });
-    const m = r[0]!.json as { count: number; items: unknown[] };
+    // Advisory output is no longer emitted in the package; assert the
+    // retained builder's bound directly.
+    const m = buildMediaIntelligenceManifest(signals) as {
+      count: number;
+      items: unknown[];
+    };
     expect(m.items).toHaveLength(200);
     expect(m.count).toBe(200);
   });
@@ -325,41 +269,35 @@ describe("Phase 31.9 — bounded list sizes", () => {
 describe("Phase 31.9 — bounded string lengths", () => {
   it("safeSummary is truncated to 240 chars", () => {
     const huge = "x".repeat(1000);
-    const r = buildIntelligencePackageManifests({
-      mediaSignals: [
-        {
-          id: "sig-1",
-          signalType: "EXIF_MISSING",
-          materialId: null,
-          severity: "INFO",
-          confidence: "MEDIUM",
-          safeSummary: huge,
-          status: "PENDING",
-          createdAtUtc: "2026-05-20T00:00:00.000Z",
-        },
-      ],
-    });
-    const m = r[0]!.json as { items: Array<{ safeSummary: string }> };
+    const m = buildMediaIntelligenceManifest([
+      {
+        id: "sig-1",
+        signalType: "EXIF_MISSING",
+        materialId: null,
+        severity: "INFO",
+        confidence: "MEDIUM",
+        safeSummary: huge,
+        status: "PENDING",
+        createdAtUtc: "2026-05-20T00:00:00.000Z",
+      },
+    ]) as { items: Array<{ safeSummary: string }> };
     expect(m.items[0]!.safeSummary.length).toBeLessThanOrEqual(240);
   });
 
   it("identifier fields truncated to 120 chars", () => {
     const huge = "x".repeat(5000);
-    const r = buildIntelligencePackageManifests({
-      mediaSignals: [
-        {
-          id: huge,
-          signalType: huge,
-          materialId: huge,
-          severity: "INFO",
-          confidence: "MEDIUM",
-          safeSummary: "x",
-          status: "PENDING",
-          createdAtUtc: "2026-05-20T00:00:00.000Z",
-        },
-      ],
-    });
-    const m = r[0]!.json as {
+    const m = buildMediaIntelligenceManifest([
+      {
+        id: huge,
+        signalType: huge,
+        materialId: huge,
+        severity: "INFO",
+        confidence: "MEDIUM",
+        safeSummary: "x",
+        status: "PENDING",
+        createdAtUtc: "2026-05-20T00:00:00.000Z",
+      },
+    ]) as {
       items: Array<{ id: string; signalType: string; materialId: string }>;
     };
     expect(m.items[0]!.id.length).toBeLessThanOrEqual(120);
@@ -374,22 +312,19 @@ describe("Phase 31.9 — bounded string lengths", () => {
 
 describe("Phase 31.9 — bounded enum values", () => {
   it("unknown severity folds to INFO (safest default)", () => {
-    const r = buildIntelligencePackageManifests({
-      mediaSignals: [
-        {
-          id: "sig-1",
-          signalType: "EXIF_MISSING",
-          materialId: null,
-          // @ts-expect-error — intentionally invalid value
-          severity: "BREACH",
-          confidence: "MEDIUM",
-          safeSummary: "x",
-          status: "PENDING",
-          createdAtUtc: "2026-05-20T00:00:00.000Z",
-        },
-      ],
-    });
-    const m = r[0]!.json as { items: Array<{ severity: string }> };
+    const m = buildMediaIntelligenceManifest([
+      {
+        id: "sig-1",
+        signalType: "EXIF_MISSING",
+        materialId: null,
+        // @ts-expect-error — intentionally invalid value
+        severity: "BREACH",
+        confidence: "MEDIUM",
+        safeSummary: "x",
+        status: "PENDING",
+        createdAtUtc: "2026-05-20T00:00:00.000Z",
+      },
+    ]) as { items: Array<{ severity: string }> };
     expect(m.items[0]!.severity).toBe("INFO");
   });
 
@@ -524,7 +459,9 @@ describe("Phase 31.9 — verification-package wiring", () => {
     const moduleSrc = readSource(
       "../src/verification-package-intelligence.ts",
     );
-    expect(moduleSrc).toMatch(/path:\s*"intelligence\/media_intelligence\.json"/);
+    // advisory-signals.json / media_intelligence.json paths were removed
+    // (product decision); the remaining manifests still live under
+    // intelligence/.
     expect(moduleSrc).toMatch(
       /path:\s*"intelligence\/derived_assets_manifest\.json"/,
     );
@@ -620,15 +557,22 @@ function build(kind:
   | "ocr_transcript"
   | "graph_relationships"
   | "timeline"): Record<string, unknown> {
+  // advisory-signals.json / media_intelligence.json are NO LONGER emitted
+  // in the default package (product decision). The bounded-output contract
+  // of the advisory manifest builder is still unit-tested by invoking the
+  // retained `buildMediaIntelligenceManifest` directly.
+  if (kind === "media_intelligence") {
+    return buildMediaIntelligenceManifest(
+      fullInput().mediaSignals!,
+    ) as Record<string, unknown>;
+  }
   const r = buildIntelligencePackageManifests(fullInput());
   const path = `intelligence/${kind}${
-    kind === "media_intelligence"
+    kind === "graph_relationships"
       ? ".json"
-      : kind === "graph_relationships"
-        ? ".json"
-        : kind === "timeline"
-          ? "_manifest.json"
-          : "_manifest.json"
+      : kind === "timeline"
+        ? "_manifest.json"
+        : "_manifest.json"
   }`;
   const entry = r.find((e) => e.path === path);
   if (!entry) throw new Error(`manifest ${path} not built`);

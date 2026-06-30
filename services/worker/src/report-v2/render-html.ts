@@ -8,7 +8,6 @@ import { renderCustodySection } from "./sections/custody.js";
 import { renderCustodyHashChainSection } from "./sections/custody-hash-chain.js";
 import { renderForensicIntegrityStatementSection } from "./sections/forensic-integrity-statement.js";
 import { renderTechnicalSummarySection } from "./sections/technical-summary.js";
-import { renderMediaIntelligenceSection } from "./sections/media-intelligence.js";
 import { renderIntelligenceSummarySection } from "./sections/intelligence-summary.js";
 import { renderLifecycleSummarySection } from "./sections/lifecycle-summary.js";
 import { renderLegalInterpretationSection } from "./sections/legal-interpretation.js";
@@ -30,16 +29,15 @@ export function renderReportHtml(vm: ReportViewModel): string {
     // Forensic Integrity Statement so technical file facts sit with the
     // integrity context and before the advisory/intelligence sections.
     renderTechnicalSummarySection(vm),
-    // Phase 31.10 — bounded "Media Intelligence Observations" (advisory
-    // signals + derived thumbnails + OCR/transcript availability).
-    // Returns "" when vm.mediaIntelligence is null or carries no signals
-    // / thumbnails / OCR entries, so legacy byte output is preserved.
-    // Positioned AFTER the Forensic Integrity Statement (which carries
-    // the "Reviewer Verification Workflow" heading) and the new compact
-    // "Media Technical Summary", and BEFORE the Legal Interpretation
-    // hierarchy. This is the ADVISORY layer — semantically distinct from
-    // the deterministic "Media Technical Summary" above it.
-    renderMediaIntelligenceSection(vm),
+    // Media Intelligence Observations REMOVED (product decision): the
+    // advisory/workspace-correlation section (duplicate/similar material
+    // observations without hashes or reviewer-actionable proof) added no
+    // forensic value to public-facing outputs and was unwired here. The
+    // deterministic "Media Technical Summary" above (EXIF + capture
+    // environment + media facts) is the forensic metadata that remains.
+    // The renderMediaIntelligenceSection module + the underlying signal
+    // pipeline are intentionally left in place (no destructive DB/job
+    // removal) — only the report wiring is removed.
     // Phase 4A Final Closure — bounded "Intelligence Summary" section.
     // Returns "" when vm.intelligenceSummary is null OR carries no
     // document/transcript/provider activity, so legacy byte output is

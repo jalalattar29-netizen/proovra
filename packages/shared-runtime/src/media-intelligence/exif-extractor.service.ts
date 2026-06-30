@@ -74,6 +74,18 @@ export type ExifSafeSummary = {
   orientation: number | null;
   /** Software/firmware string truncated to 64 chars or null. */
   software: string | null;
+  /** Photographic EXIF — present only when the file carried them.
+   *  Bounded strings / clamped numbers; PII-safe. */
+  lensModel: string | null;
+  iso: number | null;
+  /** Formatted aperture, e.g. "f/1.8". */
+  aperture: string | null;
+  /** Formatted exposure time, e.g. "1/200s". */
+  exposureTime: string | null;
+  /** Formatted shutter speed, e.g. "1/200s". */
+  shutterSpeed: string | null;
+  whiteBalance: string | null;
+  compression: string | null;
 };
 
 export type ExifExtractInput = {
@@ -157,6 +169,17 @@ export async function extractExifSafe(
         "Model",
         "Orientation",
         "Software",
+        // Photographic EXIF (bounded; numeric/short strings only — these
+        // are not free-form prose blocks, so they are PII-safe).
+        "LensModel",
+        "LensMake",
+        "ISO",
+        "FNumber",
+        "ApertureValue",
+        "ExposureTime",
+        "ShutterSpeedValue",
+        "WhiteBalance",
+        "Compression",
         "GPSLatitude",
         "GPSLongitude",
         "GPSLatitudeRef",
@@ -211,6 +234,15 @@ type ParsedExifRaw = {
   Model?: string | null;
   Orientation?: number | string | null;
   Software?: string | null;
+  LensModel?: string | null;
+  LensMake?: string | null;
+  ISO?: number | string | null;
+  FNumber?: number | string | null;
+  ApertureValue?: number | string | null;
+  ExposureTime?: number | string | null;
+  ShutterSpeedValue?: number | string | null;
+  WhiteBalance?: number | string | null;
+  Compression?: number | string | null;
   GPSLatitude?: number | null;
   GPSLongitude?: number | null;
   GPSLatitudeRef?: string | null;
@@ -230,6 +262,13 @@ function emptySummary(): ExifSafeSummary {
     hasGps: false,
     orientation: null,
     software: null,
+    lensModel: null,
+    iso: null,
+    aperture: null,
+    exposureTime: null,
+    shutterSpeed: null,
+    whiteBalance: null,
+    compression: null,
   };
 }
 
@@ -280,6 +319,45 @@ function projectSafeSummary(
     out.exifPresent = true;
   }
 
+  // Photographic EXIF — each only sets exifPresent when it parses cleanly.
+  const lens = sanitizeShortString(raw.LensModel ?? raw.LensMake);
+  if (lens) {
+    out.lensModel = lens;
+    out.exifPresent = true;
+  }
+  const iso = clampIso(raw.ISO);
+  if (iso !== null) {
+    out.iso = iso;
+    out.exifPresent = true;
+  }
+  const aperture = formatAperture(raw.FNumber ?? raw.ApertureValue);
+  if (aperture) {
+    out.aperture = aperture;
+    out.exifPresent = true;
+  }
+  const exposure = formatSeconds(raw.ExposureTime);
+  if (exposure) {
+    out.exposureTime = exposure;
+    out.exifPresent = true;
+  }
+  const shutter = formatSeconds(raw.ShutterSpeedValue) ?? exposure;
+  if (shutter) {
+    out.shutterSpeed = shutter;
+    out.exifPresent = true;
+  }
+  const wb = formatWhiteBalance(raw.WhiteBalance);
+  if (wb) {
+    out.whiteBalance = wb;
+    out.exifPresent = true;
+  }
+  const compression = sanitizeShortString(
+    typeof raw.Compression === "number" ? String(raw.Compression) : raw.Compression,
+  );
+  if (compression) {
+    out.compression = compression;
+    out.exifPresent = true;
+  }
+
   const lat = pickLatLon(raw.latitude ?? raw.GPSLatitude, "lat");
   const lon = pickLatLon(raw.longitude ?? raw.GPSLongitude, "lon");
   if (lat !== null && lon !== null) {
@@ -294,6 +372,42 @@ function projectSafeSummary(
   }
 
   return out;
+}
+
+function clampIso(v: number | string | null | undefined): number | null {
+  const n = typeof v === "string" ? Number(v) : v;
+  if (typeof n !== "number" || !Number.isFinite(n)) return null;
+  if (n < 1 || n > 4_000_000) return null;
+  return Math.round(n);
+}
+
+function formatAperture(v: number | string | null | undefined): string | null {
+  const n = typeof v === "string" ? Number(v) : v;
+  if (typeof n !== "number" || !Number.isFinite(n) || n <= 0 || n > 1000) {
+    return null;
+  }
+  return `f/${Math.round(n * 10) / 10}`;
+}
+
+/** Format an exposure/shutter value in seconds → "1/200s" or "2s". */
+function formatSeconds(v: number | string | null | undefined): string | null {
+  const n = typeof v === "string" ? Number(v) : v;
+  if (typeof n !== "number" || !Number.isFinite(n) || n <= 0 || n > 36_000) {
+    return null;
+  }
+  if (n >= 1) return `${Math.round(n * 10) / 10}s`;
+  return `1/${Math.round(1 / n)}s`;
+}
+
+function formatWhiteBalance(v: number | string | null | undefined): string | null {
+  if (v == null) return null;
+  // exifr returns 0 (Auto) / 1 (Manual) for WhiteBalance, or a string.
+  if (typeof v === "number") {
+    if (v === 0) return "Auto";
+    if (v === 1) return "Manual";
+    return null;
+  }
+  return sanitizeShortString(v);
 }
 
 function toUtcIso(v: Date | string | null | undefined): string | null {
