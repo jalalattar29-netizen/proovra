@@ -220,7 +220,16 @@ describe("report v2 pipeline", () => {
     // — is what this test protects.
     expect(html).toContain("Executive Summary");
     expect(html).toContain("executive-conclusion-card");
-    expect(html).toContain("Integrity Control Checklist");
+    // Redundant presentation removed (PDF cleanup): the Integrity Control
+    // Checklist page, the "What this report confirms" card, and the
+    // "Decision basis" card no longer render. Their underlying data remains
+    // in Trust Signal Analysis, the Technical Appendix, and Chain of Custody.
+    expect(html).not.toContain("Integrity Control Checklist");
+    expect(html).not.toContain("What this report confirms");
+    expect(html).not.toContain("Decision basis");
+    // Kept surfaces that carry the same information.
+    expect(html).toContain("Trust Signal Analysis");
+    expect(html).toContain("Important boundary");
     expect(html).toContain("Chain of Custody");
     expect(html).toContain("Legal Interpretation");
     expect(html).toContain("Technical Appendix");
@@ -245,7 +254,7 @@ describe("report v2 pipeline", () => {
     expectInOrder(html, [
       "Executive Summary",
       "executive-conclusion-card",
-      "Integrity Control Checklist",
+      "Trust Signal Analysis",
       "Chain of Custody",
       "Legal Interpretation",
       "Technical Appendix",
@@ -386,14 +395,13 @@ describe("report v2 pipeline", () => {
     // distinction now lives in callout text + per-item badges, not
     // the section heading).
     expect(html).toContain("Evidence Gallery");
-    // Phase 31.7 — the previous gallery-side disclaimer callout was
-    // removed; the reviewer-facing disclaimer now lives in the legal
-    // sections (suppressed in compact mode, expanded in heavy mode).
-    // The integrity-proof section always emits a stable
-    // "reviewer-facing checklist" disclaimer that documents the same
-    // intent — that the report's previews and checks are reviewer-
-    // facing aids, not substitutes for the preserved original.
-    expect(html).toContain("reviewer-facing checklist");
+    // The Integrity Control Checklist page (which carried the
+    // "reviewer-facing checklist" disclaimer) was removed as redundant
+    // presentation. The same reviewer-boundary intent — that the report's
+    // previews and checks are reviewer-facing aids, not substitutes for
+    // the preserved original — remains in the Important boundary / Legal
+    // Interpretation sections.
+    expect(html).toContain("Important boundary");
     expect(html).toContain("supporting.pdf");
     expect(html).toContain("note.txt");
     expect(html).toContain(FULL_HASH_A);

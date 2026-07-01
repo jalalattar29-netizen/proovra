@@ -1,7 +1,6 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
 import {
-  getTrustDecisionPresentationTone,
   getTrustDecisionConfidenceLabel,
   getTrustDecisionLabel,
 } from "@proovra/shared";
@@ -211,17 +210,6 @@ function renderCaptureContext(vm: ReportViewModel): string {
   `;
 }
 
-function renderExecutiveDecisionBasis(vm: ReportViewModel): string {
-  return `
-    <section class="executive-trust-reason">
-      <div class="executive-outcome-title">Decision basis</div>
-      <div class="executive-outcome-body">
-        ${escapeHtml(vm.trustDecision.primaryReason)}
-      </div>
-    </section>
-  `;
-}
-
 function renderExecutiveBoundary(vm: ReportViewModel): string {
   return `
     <section class="executive-outcome executive-outcome-warning executive-boundary-outcome">
@@ -389,25 +377,11 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
         : conclusion.tone === "danger"
           ? "tone-danger"
           : "tone-neutral";
-  const confirmationToneClass =
-    getTrustDecisionPresentationTone(vm.trustDecision) === "success"
-      ? "tone-success"
-      : "tone-warning";
 
   const executivePage = renderPageSection(
     "Executive Summary",
     `
       <div class="executive-summary-page executive-summary-page-enterprise">
-        <section class="executive-confirmation-card ${escapeHtml(confirmationToneClass)}">
-          <div class="executive-confirmation-kicker">What this report confirms</div>
-          <div class="executive-confirmation-title">
-            The evidence package has recorded preservation and integrity materials for review.
-          </div>
-          <div class="executive-confirmation-body">
-            Reviewers can use this report to inspect the evidence package, custody history, storage controls, timestamp status, trust decision, and technical materials through the appendix and verification page.
-          </div>
-        </section>
-
         <section class="executive-confirmation-card executive-conclusion-card ${escapeHtml(conclusionToneClass)}">
           <div class="executive-confirmation-kicker">${escapeHtml(conclusion.title)}</div>
           <div class="executive-confirmation-body">
@@ -422,7 +396,6 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
         ${renderUnifiedExecutiveGrid(buildCaptureDeviceRows(vm), executiveRows)}
 
         <div class="executive-bottom-outcomes">
-          ${renderExecutiveDecisionBasis(vm)}
           ${renderExecutiveBoundary(vm)}
         </div>
       </div>

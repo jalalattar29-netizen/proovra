@@ -3,7 +3,6 @@ import { renderReportShell } from "./templates/report-shell.js";
 import { renderCoverSection } from "./sections/cover.js";
 import { renderExecutiveSummarySection } from "./sections/executive-summary.js";
 import { renderGallerySection } from "./sections/gallery.js";
-import { renderIntegrityProofSection } from "./sections/integrity-proof.js";
 import { renderCustodySection } from "./sections/custody.js";
 import { renderCustodyHashChainSection } from "./sections/custody-hash-chain.js";
 import { renderForensicIntegrityStatementSection } from "./sections/forensic-integrity-statement.js";
@@ -18,7 +17,11 @@ export function renderReportHtml(vm: ReportViewModel): string {
     renderCoverSection(vm),
     renderExecutiveSummarySection(vm),
     renderGallerySection(vm),
-    renderIntegrityProofSection(vm),
+    // Integrity Control Checklist REMOVED from the PDF (product decision):
+    // it duplicated Trust Signal Analysis without adding hashes/signature
+    // detail. Signature, timestamp, anchoring/OTS, storage, and custody
+    // status remain in Trust Signal Analysis, the Technical Appendix, and
+    // the Chain of Custody. The section module is left in place (unwired).
     renderCustodySection(vm),
     renderCustodyHashChainSection(vm),
     renderForensicIntegrityStatementSection(vm),
