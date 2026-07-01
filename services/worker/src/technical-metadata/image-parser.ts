@@ -57,6 +57,13 @@ export async function parseImageMetadata(
       shutterSpeed: null,
       whiteBalance: null,
       compression: null,
+      flash: null,
+      meteringMode: null,
+      exposureMode: null,
+      colorSpace: null,
+      focalLength: null,
+      focalLength35mm: null,
+      imageUniqueId: null,
     };
   }
 

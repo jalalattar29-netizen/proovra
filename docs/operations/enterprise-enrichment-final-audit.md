@@ -78,3 +78,53 @@
 **Part 4 — Validation:** api/worker/web typecheck, worker + api test, web build.
 
 **Hard rules honored:** no new generic section; no Mixed/Partial/Network/IP/GPS duplicate; no full phone publicly or in default package; no raw firmware in PDF/Verify; no crypto/custody/OTS/timestamp/signature/anchoring change.
+
+---
+
+## PART 9 — WHAT CHANGED (2026-07-01, EXIF hardening final phase)
+
+### Capture time (forensic fix)
+`exif-extractor.service.ts`: added `OffsetTimeOriginal` / `OffsetTimeDigitized` to the exifr pick list. Replaced the buggy `toUtcIso` (which called `.toISOString()` and shifted the naive EXIF wall-clock by the server timezone → impossible timelines) with `deriveCaptureTime(value, offset)`:
+- With a valid offset → offset-aware timestamp, e.g. `2024-11-15T10:22:05+09:00`.
+- Without an offset → naive local wall-clock `2024-11-15T10:22:05`; **no timezone invented, never coerced to UTC.**
+Wall-clock recovered from the exifr Date via LOCAL getters (server-tz independent). Same value flows to PDF, Verify, Package, Internal (all read `deriveExifSummary`).
+
+### Orientation + never-null
+`verification-package-technical-metadata.ts` exif-details now omits absent fields entirely (previously spread `orientation: null` etc.). Orientation is preserved end-to-end (parser → TechnicalMetadata → deriveExifSummary → package `capture.orientation`).
+
+### Completed EXIF extraction
+Added to pick list + `ExifSafeSummary` + `TechnicalMetadata` + `ExifSummary` + `deriveExifSummary` + image-parser fallback: **Flash, MeteringMode, ExposureMode, ColorSpace, FocalLength, FocalLengthIn35mmFormat, ImageUniqueID** (plus existing lens/iso/aperture/exposure/shutter/WB/compression/orientation/software). Bounded sanitizers (`sanitizeEnumLabel`, `formatMillimetres`). HDR/firmware have no standard EXIF tag → not fabricated (limitation).
+
+### exif-details.json structure
+Reorganized per part into groups **camera / capture / exposure / image / software**, only-present fields, keeping `partId / source / extractedAt / metadataStatus / fieldsPresent / fieldsOmittedReason`. Per-part for every media item (multi-file preserved).
+
+### Multi-file transparency
+PDF Technical Summary adds "Representative EXIF shown (Primary Media Item). Per-file EXIF for all N items is in the verification package" when `mediaFilesTotal > 1`.
+
+### PDF layout
+`technical-summary.ts` renamed section **"Technical Summary"**; renders **multiple compact tables in a 2-column grid** (Capture Device / Camera / Exposure) instead of one tall near-empty page. No `pageBreakBefore`; rows are `break-inside: avoid`. White balance "Auto" and normal orientation hidden; "EXIF Original Capture Time" label.
+
+### Verify page (concise)
+Unchanged shape — Capture Device / OS / Device / EXIF Original Capture Time only. No firmware/metering/flash/WB/colour/focal/software.
+
+### Internal UI (richer)
+`verify-projection.service.ts` adds internal-only `exifExtended` (flash/metering/exposureMode/colorSpace/focal/focal35/imageUniqueId). `EvidenceTechnicalMetadataCard` renders them in the existing collapsible card. Never on the public projection.
+
+### Where each field now appears
+| Field | PDF | Verify | Package (exif-details) | Internal |
+|---|---|---|---|---|
+| Capture Device / Camera make+model | ✅ | ✅ | ✅ camera | ✅ |
+| Lens | ✅ | ✅ | ✅ camera | ✅ |
+| EXIF Original Capture Time (offset-aware) | ✅ | ✅ | ✅ capture | ✅ |
+| Orientation (non-normal only in PDF) | ✅* | ❌ | ✅ capture | ✅ |
+| ISO/Aperture/Shutter/Exposure | ✅ | ❌ | ✅ exposure | ✅ |
+| White balance (non-Auto only in PDF) | ✅* | ❌ | ✅ exposure | ✅ |
+| Flash/Metering/ExposureMode | ❌ | ❌ | ✅ exposure | ✅ |
+| ColorSpace/Focal/Focal35/UniqueID | ❌ | ❌ | ✅ image | ✅ |
+| Resolution | ❌ (gallery owns) | ❌ | ✅ image | ✅ |
+| Software/firmware tag (raw) | ❌ | ❌ | ✅ software | ✅ |
+| GPS presence flag | ❌ (Capture Context owns) | ❌ | ✅ capture (bool) | ✅ |
+
+**Validation:** worker 756/756, api 16798, web build, all 3 typechecks green. No duplicated GPS/Resolution/Capture-Context. No null/empty rows. Backwards compatible (old evidence still opens; legacy UTC strings still display).
+
+**Remaining limitations:** HDR and a distinct firmware tag are not standard EXIF → not extracted (no fabrication). Windows OS version stays coarse ("Windows"). `linkOpenedAtUtc` in intake context stays null (no reliable source). The legacy `evidence_part_exif_summaries` timestamptz columns still store a coerced instant, but they are not used by any display surface (the JSON `technicalMetadata` is the source of truth for report/package/verify).

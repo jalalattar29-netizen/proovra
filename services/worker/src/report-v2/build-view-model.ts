@@ -1789,6 +1789,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
 
     meta: {
       hasCoreCrypto: hasCoreCryptoMaterials(input.evidence),
+      acquisition: input.acquisition ?? null,
       captureContext,
       previewPolicy,
       anchorSummary,

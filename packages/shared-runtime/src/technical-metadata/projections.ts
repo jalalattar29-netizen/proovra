@@ -51,7 +51,7 @@ export function imageMetadataFromExif(
     parserVersion,
     widthPx: exif.dimensions?.width ?? null,
     heightPx: exif.dimensions?.height ?? null,
-    colorSpace: null,
+    colorSpace: exif.colorSpace ?? null,
     exifPresent,
     cameraMake: exif.cameraMake ?? null,
     cameraModel: exif.cameraModel ?? null,
@@ -66,6 +66,12 @@ export function imageMetadataFromExif(
     shutterSpeed: exif.shutterSpeed ?? null,
     whiteBalance: exif.whiteBalance ?? null,
     compression: exif.compression ?? null,
+    flash: exif.flash ?? null,
+    meteringMode: exif.meteringMode ?? null,
+    exposureMode: exif.exposureMode ?? null,
+    focalLength: exif.focalLength ?? null,
+    focalLength35mm: exif.focalLength35mm ?? null,
+    imageUniqueId: exif.imageUniqueId ?? null,
   };
 }
 
@@ -120,6 +126,13 @@ export function deriveExifSummary(
     resolution: null,
     softwareTag: null,
     compression: null,
+    flash: null,
+    meteringMode: null,
+    exposureMode: null,
+    colorSpace: null,
+    focalLength: null,
+    focalLength35mm: null,
+    imageUniqueId: null,
     metadataStatus: "UNKNOWN",
   };
   if (!tm) return notApplicable;
@@ -150,6 +163,13 @@ export function deriveExifSummary(
     resolution,
     softwareTag: tm.softwareTag ?? null,
     compression: tm.compression ?? null,
+    flash: tm.flash ?? null,
+    meteringMode: tm.meteringMode ?? null,
+    exposureMode: tm.exposureMode ?? null,
+    colorSpace: tm.colorSpace ?? null,
+    focalLength: tm.focalLength ?? null,
+    focalLength35mm: tm.focalLength35mm ?? null,
+    imageUniqueId: tm.imageUniqueId ?? null,
     metadataStatus: tm.metadataStatus,
   };
 }

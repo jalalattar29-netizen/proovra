@@ -407,6 +407,24 @@ export type ReportV2Input = {
    * When null/omitted, NO new HTML is emitted.
    */
   lifecycleSummary?: LifecycleSummaryData | null;
+  /**
+   * Evidence Acquisition context (how the evidence reached PROOVRA).
+   * PUBLIC-safe only — NO recipient values. When null/omitted the
+   * Executive Summary emits no acquisition table.
+   */
+  acquisition?: ReportAcquisitionInput | null;
+};
+
+/** Public Evidence Acquisition context for the PDF (no recipient). */
+export type ReportAcquisitionInput = {
+  method: string;
+  deliveryChannel: string | null;
+  submissionType: string;
+  submissionStatus: string[];
+  identityVerification: string;
+  consentAccepted: boolean | null;
+  consentVersion: string | null;
+  submittedAtUtc: string | null;
 };
 
 // ===========================================================================
@@ -714,6 +732,8 @@ export type ReportViewModel = {
 
   meta: {
     hasCoreCrypto: boolean;
+    /** Evidence Acquisition context (public-safe, no recipient). */
+    acquisition: ReportAcquisitionInput | null;
     captureContext: {
       statusLabel: string;
       description: string;

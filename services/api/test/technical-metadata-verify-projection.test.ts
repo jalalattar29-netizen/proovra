@@ -140,10 +140,13 @@ describe("technical-metadata verify projection — privacy boundary", () => {
         if (q.includes("communication_messages")) {
           return [
             {
+              intake_mode: "EXTERNAL_ONE_TIME",
               recipient_preview: "+49 ••• ••• 1234",
+              recipient_hash: "beef",
               channel: "SMS",
-              status: "DELIVERED",
+              delivery_status: "DELIVERED",
               sent_at_utc: "2026-06-30T10:00:00.000Z",
+              delivered_at_utc: "2026-06-30T10:00:05.000Z",
             },
           ];
         }
@@ -159,12 +162,17 @@ describe("technical-metadata verify projection — privacy boundary", () => {
       prisma: fakePrismaWithDelivery(),
       internal: true,
     });
-    expect(internalResult!.intakeDelivery).toBeTruthy();
-    expect(internalResult!.intakeDelivery!.maskedRecipient).toBe(
+    // Internal acquisition carries the MASKED recipient (never raw).
+    expect(internalResult!.acquisition).toBeTruthy();
+    expect(internalResult!.acquisition!.deliveryChannel).toBe("SMS");
+    expect(internalResult!.acquisition!.method).toBe("Intake Link");
+    expect(internalResult!.acquisition!.recipientMasked).toBe(
       "+49 ••• ••• 1234",
     );
-    expect(internalResult!.intakeDelivery!.channel).toBe("sms");
-    expect(internalResult!.intakeDelivery!.deliveryStatus).toBe("delivered");
+    expect(internalResult!.acquisition!.submissionStatus).toContain("Delivered");
+
+    // Richer photographic EXIF is internal-only, never on the public page.
+    expect(internalResult!.exifExtended ?? null).not.toBeNull();
 
     const publicResult = await projectVerifyTechnicalMetadata({
       teamId: "team-1",
@@ -172,7 +180,14 @@ describe("technical-metadata verify projection — privacy boundary", () => {
       prisma: fakePrismaWithDelivery(),
       internal: false,
     });
-    expect(publicResult!.intakeDelivery ?? null).toBeNull();
+    // Public acquisition is present (method/channel) but NEVER the recipient.
+    expect(publicResult!.acquisition).toBeTruthy();
+    expect(publicResult!.acquisition!.deliveryChannel).toBe("SMS");
+    expect(
+      (publicResult!.acquisition as { recipientMasked?: string }).recipientMasked ??
+        null,
+    ).toBeNull();
+    expect(publicResult!.exifExtended ?? null).toBeNull();
 
     // No full phone digit-run on either projection.
     expect(JSON.stringify(internalResult)).not.toMatch(/\d{7,}/);

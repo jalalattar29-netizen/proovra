@@ -85,6 +85,12 @@ export type TechnicalMetadata = {
   shutterSpeed?: string | null;
   whiteBalance?: string | null;
   compression?: string | null;
+  flash?: string | null;
+  meteringMode?: string | null;
+  exposureMode?: string | null;
+  focalLength?: string | null;
+  focalLength35mm?: string | null;
+  imageUniqueId?: string | null;
 
   // ---- Video / audio ----
   /** Container/format label, e.g. "mov,mp4,m4a,3gp" or "matroska,webm". */
@@ -126,6 +132,15 @@ export type ExifSummary = {
   resolution: string | null;
   softwareTag: string | null;
   compression: string | null;
+  // Extended photographic EXIF (package/internal only — never on public
+  // surfaces). Present only when the source file carried them.
+  flash: string | null;
+  meteringMode: string | null;
+  exposureMode: string | null;
+  colorSpace: string | null;
+  focalLength: string | null;
+  focalLength35mm: string | null;
+  imageUniqueId: string | null;
   metadataStatus: MetadataStatus;
 };
 

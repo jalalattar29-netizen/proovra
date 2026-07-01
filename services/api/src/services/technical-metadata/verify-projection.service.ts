@@ -20,7 +20,12 @@ import {
   humanizeUploadSource,
   primaryMediaTypeLabel,
   toPerPartMediaSummary,
+  buildEvidenceAcquisitionContext,
+  toPublicAcquisition,
+  toInternalAcquisition,
+  type EvidenceAcquisitionContext,
 } from "@proovra/shared-runtime/technical-metadata";
+import { maskEmail } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 
@@ -75,14 +80,36 @@ export type VerifyTechnicalMetadata = {
     maskedIp?: string | null;
     networkType?: string | null;
   } | null;
-  /** Internal-only. Masked intake-link delivery context (never the full
-   *  phone). Absent on the public projection and when not an intake
-   *  delivery. */
-  intakeDelivery?: {
-    channel: string;
-    maskedRecipient: string;
-    deliveryStatus: "delivered" | "sent" | "unknown";
-    sentAtUtc: string | null;
+  /** Internal-only. Richer photographic EXIF for authenticated reviewers —
+   *  never present on the public projection. */
+  exifExtended?: {
+    flash: string | null;
+    meteringMode: string | null;
+    exposureMode: string | null;
+    colorSpace: string | null;
+    focalLength: string | null;
+    focalLength35mm: string | null;
+    imageUniqueId: string | null;
+  } | null;
+  /** Evidence Acquisition context — how the evidence entered PROOVRA.
+   *  Present on BOTH public and internal projections, but the recipient
+   *  fields (recipientType/recipientMasked/consentAcceptedAtUtc) are
+   *  INTERNAL-ONLY. Never a full phone/email, never provider IDs. */
+  acquisition?: {
+    method: string;
+    deliveryChannel: string | null;
+    submissionType: string;
+    submissionStatus: string[];
+    identityVerification: string;
+    consentAccepted: boolean | null;
+    consentVersion: string | null;
+    submittedAtUtc: string | null;
+    /** Internal-only. */
+    recipientType?: "phone" | "email" | null;
+    /** Internal-only masked recipient (never raw). */
+    recipientMasked?: string | null;
+    /** Internal-only. */
+    consentAcceptedAtUtc?: string | null;
   } | null;
 };
 
@@ -155,6 +182,7 @@ export async function projectVerifyTechnicalMetadata(input: {
     }
 
     let exif: VerifyTechnicalMetadata["exif"] = null;
+    let exifExtended: VerifyTechnicalMetadata["exifExtended"] = null;
     for (const p of parts) {
       const e = deriveExifSummary(p.technical_metadata);
       if (e.applicable) {
@@ -175,6 +203,19 @@ export async function projectVerifyTechnicalMetadata(input: {
           softwareTag: e.softwareTag,
           metadataStatus: e.metadataStatus,
         };
+        // Richer photographic EXIF — INTERNAL ONLY (package-grade detail
+        // that never appears on the public verify page).
+        if (input.internal) {
+          exifExtended = {
+            flash: e.flash,
+            meteringMode: e.meteringMode,
+            exposureMode: e.exposureMode,
+            colorSpace: e.colorSpace,
+            focalLength: e.focalLength,
+            focalLength35mm: e.focalLength35mm,
+            imageUniqueId: e.imageUniqueId,
+          };
+        }
         break;
       }
     }
@@ -228,60 +269,23 @@ export async function projectVerifyTechnicalMetadata(input: {
           }
         : null;
 
-    // Internal-only: masked intake-link delivery context (never the full
-    // phone — uses the already-masked recipient_preview stored on
-    // communication_messages). Isolated so a failure cannot blank the rest.
-    let intakeDelivery: VerifyTechnicalMetadata["intakeDelivery"] = null;
-    if (input.internal) {
-      try {
-        const rows = (await prisma.$queryRawUnsafe(
-          `SELECT cm."recipient_preview", cm."channel", cm."status",
-                  cm."sent_at_utc"
-             FROM "communication_messages" cm
-             JOIN "workflow_intake_sessions" wis
-               ON wis."id" = cm."related_intake_session_id"
-            WHERE wis."evidence_id" = $1
-              AND cm."purpose" = 'INTAKE_LINK'
-              AND cm."channel" IN ('SMS', 'WHATSAPP')
-            ORDER BY cm."created_at" DESC
-            LIMIT 1`,
-          input.evidenceId,
-        )) as Array<{
-          recipient_preview: string | null;
-          channel: string | null;
-          status: string | null;
-          sent_at_utc: Date | string | null;
-        }>;
-        const d = rows[0];
-        if (d && d.recipient_preview) {
-          const status = (d.status ?? "").toUpperCase();
-          const deliveryStatus =
-            status === "DELIVERED"
-              ? "delivered"
-              : status === "SENT" || status === "QUEUED" || status === "RETRY_SCHEDULED"
-                ? "sent"
-                : "unknown";
-          let sentAtUtc: string | null = null;
-          try {
-            sentAtUtc =
-              d.sent_at_utc == null
-                ? null
-                : d.sent_at_utc instanceof Date
-                  ? d.sent_at_utc.toISOString()
-                  : new Date(d.sent_at_utc).toISOString();
-          } catch {
-            sentAtUtc = null;
-          }
-          intakeDelivery = {
-            channel: (d.channel ?? "").toLowerCase() || "unknown",
-            maskedRecipient: d.recipient_preview,
-            deliveryStatus,
-            sentAtUtc,
-          };
-        }
-      } catch {
-        intakeDelivery = null;
+    // Evidence Acquisition context. Public gets method/channel/type/status/
+    // consent (no recipient); internal additionally gets the MASKED
+    // recipient. Never a full phone/email, never provider IDs. Isolated so
+    // a failure cannot blank the rest of the projection.
+    let acquisition: VerifyTechnicalMetadata["acquisition"] = null;
+    try {
+      const ctx = await queryAcquisitionContext(prisma, {
+        teamId: input.teamId,
+        evidenceId: input.evidenceId,
+      });
+      if (ctx && ctx.isIntake) {
+        acquisition = input.internal
+          ? toInternalAcquisition(ctx)
+          : toPublicAcquisition(ctx);
       }
+    } catch {
+      acquisition = null;
     }
 
     return {
@@ -295,9 +299,102 @@ export async function projectVerifyTechnicalMetadata(input: {
       exif,
       captureEnvironment,
       network,
-      ...(intakeDelivery ? { intakeDelivery } : {}),
+      ...(exifExtended ? { exifExtended } : {}),
+      ...(acquisition ? { acquisition } : {}),
     };
   } catch {
     return null;
   }
+}
+
+/** Query + normalize the Evidence Acquisition context. Reads only the masked
+ *  recipient preview / hash (or a read-time maskEmail); never the raw
+ *  phone/email, never provider IDs. */
+async function queryAcquisitionContext(
+  prisma: typeof defaultPrisma,
+  input: { teamId: string | null; evidenceId: string },
+): Promise<EvidenceAcquisitionContext | null> {
+  const rows = (await prisma.$queryRawUnsafe(
+    `SELECT
+        e."capture_method"              AS capture_method,
+        e."capture_environment"         AS capture_environment,
+        e."identity_level_snapshot"     AS identity_level,
+        wis."opened_at_utc"             AS opened_at_utc,
+        wis."submitted_at_utc"          AS submitted_at_utc,
+        wis."consent_accepted_at_utc"   AS consent_accepted_at_utc,
+        wis."consent_snapshot_json"     AS consent_snapshot_json,
+        wis."submitter_email"           AS submitter_email,
+        wil."intake_mode"               AS intake_mode,
+        wil."consent_policy_version"    AS consent_policy_version,
+        wil."recipient_email"           AS recipient_email,
+        cm."recipient_preview"          AS recipient_preview,
+        cm."recipient_hash"             AS recipient_hash,
+        cm."channel"                    AS channel,
+        cm."status"                     AS delivery_status,
+        cm."sent_at_utc"                AS sent_at_utc,
+        cm."delivered_at_utc"           AS delivered_at_utc
+       FROM "evidence" e
+       LEFT JOIN "workflow_intake_sessions" wis ON wis."evidence_id" = e."id"
+       LEFT JOIN "workflow_intake_links" wil ON wil."id" = wis."intake_link_id"
+       LEFT JOIN LATERAL (
+         SELECT c."recipient_preview", c."recipient_hash", c."channel",
+                c."status", c."sent_at_utc", c."delivered_at_utc"
+           FROM "communication_messages" c
+          WHERE c."related_intake_session_id" = wis."id"
+            AND c."purpose" = 'INTAKE_LINK'
+            AND c."channel" IN ('SMS', 'WHATSAPP', 'EMAIL')
+          ORDER BY c."created_at" DESC
+          LIMIT 1
+       ) cm ON true
+      WHERE e."id" = $1
+        ${input.teamId ? `AND e."team_id" = $2` : ""}
+      LIMIT 1`,
+    ...(input.teamId ? [input.evidenceId, input.teamId] : [input.evidenceId]),
+  )) as Array<Record<string, unknown>>;
+
+  const r = rows[0];
+  if (!r) return null;
+  const iso = (v: unknown): string | null => {
+    if (v == null) return null;
+    try {
+      return v instanceof Date
+        ? v.toISOString()
+        : new Date(String(v)).toISOString();
+    } catch {
+      return null;
+    }
+  };
+  const channel = String(r.channel ?? "").toUpperCase();
+  const isEmail = channel === "EMAIL";
+  let recipientMasked = (r.recipient_preview as string | null) ?? null;
+  if (isEmail && !recipientMasked) {
+    recipientMasked = maskEmail(
+      (r.recipient_email as string | null) ??
+        (r.submitter_email as string | null),
+    );
+  }
+  const consentVersion =
+    (r.consent_snapshot_json as { policyVersion?: string } | null)
+      ?.policyVersion ??
+    (r.consent_policy_version as string | null) ??
+    null;
+  return buildEvidenceAcquisitionContext({
+    uploadSource:
+      (r.capture_environment as { uploadSource?: string } | null)
+        ?.uploadSource ?? null,
+    captureMethod: (r.capture_method as string | null) ?? null,
+    intakeMode: (r.intake_mode as string | null) ?? null,
+    identityLevel: (r.identity_level as string | null) ?? null,
+    deliveryChannelRaw: (r.channel as string | null) ?? null,
+    deliveryStatusRaw: (r.delivery_status as string | null) ?? null,
+    sentAtUtc: iso(r.sent_at_utc),
+    deliveredAtUtc: iso(r.delivered_at_utc),
+    openedAtUtc: iso(r.opened_at_utc),
+    submittedAtUtc: iso(r.submitted_at_utc),
+    consentAcceptedAtUtc: iso(r.consent_accepted_at_utc),
+    consentVersion,
+    recipientMasked,
+    recipientHash: (r.recipient_hash as string | null) ?? null,
+    recipientType: recipientMasked ? (isEmail ? "email" : "phone") : null,
+  });
 }

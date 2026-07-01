@@ -19,6 +19,42 @@ function findRowValue(
   return rows.find((row) => row.label === label)?.value ?? fallback;
 }
 
+/**
+ * Compact Evidence Acquisition table — how the evidence reached PROOVRA.
+ * Lives INSIDE the Executive Summary (near Capture Context), NOT a new page
+ * or section. Public-safe: NO recipient value, NO provider IDs. Only
+ * meaningful rows render; returns "" when there is nothing to show.
+ */
+function renderEvidenceAcquisition(vm: ReportViewModel): string {
+  const a = vm.meta.acquisition;
+  if (!a) return "";
+  const rows: Array<{ label: string; value: string }> = [];
+  const push = (label: string, value: string | null | undefined) => {
+    const v = (value ?? "").trim();
+    if (v && v.toUpperCase() !== "UNKNOWN") rows.push({ label, value: v });
+  };
+  push("Acquisition Method", a.method);
+  push("Delivery Channel", a.deliveryChannel);
+  push("Submission Type", a.submissionType);
+  push(
+    "Submission Status",
+    a.submissionStatus.length ? a.submissionStatus.join(" • ") : null,
+  );
+  push("Identity Verification", a.identityVerification);
+  if (a.consentAccepted === true) push("Consent", "Accepted");
+  push("Submission Time", a.submittedAtUtc);
+  if (rows.length === 0) return "";
+
+  return `
+    <section class="capture-context-panel evidence-acquisition-panel">
+      <div class="capture-context-header">
+        <div class="executive-confirmation-kicker">Evidence Acquisition</div>
+      </div>
+      ${renderExecutiveTable(rows)}
+    </section>
+  `;
+}
+
 function renderExecutiveTable(
   rows: Array<{ label: string; value: string }>
 ): string {
@@ -289,6 +325,8 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
             ${escapeHtml(conclusion.body)}
           </div>
         </section>
+
+        ${renderEvidenceAcquisition(vm)}
 
         ${renderCaptureContext(vm)}
 

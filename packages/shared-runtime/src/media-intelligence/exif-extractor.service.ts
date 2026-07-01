@@ -59,6 +59,12 @@ import exifr from "exifr";
 
 export type ExifSafeSummary = {
   exifPresent: boolean;
+  /** Original capture time. When the file carried a timezone offset
+   *  (OffsetTimeOriginal) the value is offset-aware, e.g.
+   *  "2024-11-15T10:22:05+09:00". When no offset was present it is the
+   *  naive local wall-clock, e.g. "2024-11-15T10:22:05" — NO timezone is
+   *  invented and it is NOT silently coerced to UTC. Field name kept for
+   *  backwards compatibility. */
   dateTimeOriginalUtc: string | null;
   createDateUtc: string | null;
   dimensions: { width: number; height: number } | null;
@@ -86,6 +92,17 @@ export type ExifSafeSummary = {
   shutterSpeed: string | null;
   whiteBalance: string | null;
   compression: string | null;
+  /** Additional bounded photographic EXIF (package/internal only). */
+  flash: string | null;
+  meteringMode: string | null;
+  exposureMode: string | null;
+  colorSpace: string | null;
+  /** Focal length in mm, e.g. "6.9mm". */
+  focalLength: string | null;
+  /** 35mm-equivalent focal length, e.g. "26mm". */
+  focalLength35mm: string | null;
+  /** EXIF ImageUniqueID — a device-written per-image identifier. */
+  imageUniqueId: string | null;
 };
 
 export type ExifExtractInput = {
@@ -160,6 +177,10 @@ export async function extractExifSafe(
       // blocks. Each list here is intentionally narrow.
       pick: [
         "DateTimeOriginal",
+        // Timezone offsets — required to convert the naive EXIF wall-clock
+        // to an unambiguous absolute time without inventing a timezone.
+        "OffsetTimeOriginal",
+        "OffsetTimeDigitized",
         "CreateDate",
         "ImageWidth",
         "ImageHeight",
@@ -179,6 +200,13 @@ export async function extractExifSafe(
         "ExposureTime",
         "ShutterSpeedValue",
         "WhiteBalance",
+        "Flash",
+        "MeteringMode",
+        "ExposureMode",
+        "ColorSpace",
+        "FocalLength",
+        "FocalLengthIn35mmFormat",
+        "ImageUniqueID",
         "Compression",
         "GPSLatitude",
         "GPSLongitude",
@@ -225,6 +253,8 @@ export async function extractExifSafe(
 
 type ParsedExifRaw = {
   DateTimeOriginal?: Date | string | null;
+  OffsetTimeOriginal?: string | null;
+  OffsetTimeDigitized?: string | null;
   CreateDate?: Date | string | null;
   ImageWidth?: number | null;
   ImageHeight?: number | null;
@@ -242,6 +272,13 @@ type ParsedExifRaw = {
   ExposureTime?: number | string | null;
   ShutterSpeedValue?: number | string | null;
   WhiteBalance?: number | string | null;
+  Flash?: number | string | null;
+  MeteringMode?: number | string | null;
+  ExposureMode?: number | string | null;
+  ColorSpace?: number | string | null;
+  FocalLength?: number | string | null;
+  FocalLengthIn35mmFormat?: number | string | null;
+  ImageUniqueID?: string | null;
   Compression?: number | string | null;
   GPSLatitude?: number | null;
   GPSLongitude?: number | null;
@@ -269,6 +306,13 @@ function emptySummary(): ExifSafeSummary {
     shutterSpeed: null,
     whiteBalance: null,
     compression: null,
+    flash: null,
+    meteringMode: null,
+    exposureMode: null,
+    colorSpace: null,
+    focalLength: null,
+    focalLength35mm: null,
+    imageUniqueId: null,
   };
 }
 
@@ -278,12 +322,12 @@ function projectSafeSummary(
 ): ExifSafeSummary {
   const out: ExifSafeSummary = emptySummary();
 
-  const dto = toUtcIso(raw.DateTimeOriginal);
+  const dto = deriveCaptureTime(raw.DateTimeOriginal, raw.OffsetTimeOriginal);
   if (dto) {
     out.dateTimeOriginalUtc = dto;
     out.exifPresent = true;
   }
-  const cd = toUtcIso(raw.CreateDate);
+  const cd = deriveCaptureTime(raw.CreateDate, raw.OffsetTimeDigitized);
   if (cd) {
     out.createDateUtc = cd;
     out.exifPresent = true;
@@ -358,6 +402,43 @@ function projectSafeSummary(
     out.exifPresent = true;
   }
 
+  // Additional bounded photographic EXIF (translated to labels by exifr).
+  const flash = sanitizeEnumLabel(raw.Flash);
+  if (flash) {
+    out.flash = flash;
+    out.exifPresent = true;
+  }
+  const metering = sanitizeEnumLabel(raw.MeteringMode);
+  if (metering) {
+    out.meteringMode = metering;
+    out.exifPresent = true;
+  }
+  const exposureMode = sanitizeEnumLabel(raw.ExposureMode);
+  if (exposureMode) {
+    out.exposureMode = exposureMode;
+    out.exifPresent = true;
+  }
+  const colorSpace = sanitizeEnumLabel(raw.ColorSpace);
+  if (colorSpace) {
+    out.colorSpace = colorSpace;
+    out.exifPresent = true;
+  }
+  const focal = formatMillimetres(raw.FocalLength);
+  if (focal) {
+    out.focalLength = focal;
+    out.exifPresent = true;
+  }
+  const focal35 = formatMillimetres(raw.FocalLengthIn35mmFormat);
+  if (focal35) {
+    out.focalLength35mm = focal35;
+    out.exifPresent = true;
+  }
+  const uniqueId = sanitizeShortString(raw.ImageUniqueID);
+  if (uniqueId) {
+    out.imageUniqueId = uniqueId;
+    out.exifPresent = true;
+  }
+
   const lat = pickLatLon(raw.latitude ?? raw.GPSLatitude, "lat");
   const lon = pickLatLon(raw.longitude ?? raw.GPSLongitude, "lon");
   if (lat !== null && lon !== null) {
@@ -410,19 +491,119 @@ function formatWhiteBalance(v: number | string | null | undefined): string | nul
   return sanitizeShortString(v);
 }
 
-function toUtcIso(v: Date | string | null | undefined): string | null {
+/**
+ * Derive the original capture time from the EXIF wall-clock plus its
+ * timezone offset (OffsetTimeOriginal / OffsetTimeDigitized).
+ *
+ * FORENSIC CORRECTNESS: EXIF DateTimeOriginal is a NAIVE local wall-clock
+ * with no timezone. Silently calling `.toISOString()` on the exifr-revived
+ * Date shifts it by the SERVER's timezone, producing a wrong absolute time
+ * (this caused impossible timelines where capture appeared after upload).
+ *
+ * Instead:
+ *   - If a valid offset is present, we keep the original wall-clock and
+ *     append the real offset → an unambiguous, offset-aware timestamp
+ *     (e.g. "2024-11-15T10:22:05+09:00").
+ *   - If no offset is present, we keep the NAIVE local wall-clock string
+ *     (e.g. "2024-11-15T10:22:05") and invent NO timezone. Never coerce to
+ *     UTC without an offset.
+ *
+ * The wall-clock is recovered from the exifr Date via LOCAL getters —
+ * exifr revives the naive EXIF time as a local Date, so local getters return
+ * the exact numbers the camera wrote, independent of the server timezone.
+ */
+export function deriveCaptureTime(
+  v: Date | string | null | undefined,
+  offset: string | null | undefined,
+): string | null {
+  const wall = extractWallClock(v);
+  if (!wall) return null;
+  const base =
+    `${pad(wall.year, 4)}-${pad(wall.month, 2)}-${pad(wall.day, 2)}` +
+    `T${pad(wall.hour, 2)}:${pad(wall.minute, 2)}:${pad(wall.second, 2)}`;
+  const off = normalizeOffset(offset);
+  return off ? `${base}${off}` : base;
+}
+
+type WallClock = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+function extractWallClock(v: Date | string | null | undefined): WallClock | null {
   if (v == null) return null;
-  try {
-    const d = v instanceof Date ? v : new Date(v);
-    if (Number.isNaN(d.getTime())) return null;
-    // EXIF DateTimeOriginal is naive local time — exifr already
-    // reviveValues:true returns a Date object. We surface ISO UTC
-    // so downstream consumers don't argue about timezone semantics.
-    // The naive-vs-tz ambiguity is documented in the safe wording.
-    return d.toISOString();
-  } catch {
+  if (v instanceof Date) {
+    if (Number.isNaN(v.getTime())) return null;
+    // Local getters recover the original wall-clock exifr parsed from the
+    // naive EXIF string (parsed as local), regardless of server timezone.
+    return {
+      year: v.getFullYear(),
+      month: v.getMonth() + 1,
+      day: v.getDate(),
+      hour: v.getHours(),
+      minute: v.getMinutes(),
+      second: v.getSeconds(),
+    };
+  }
+  // String form: EXIF "YYYY:MM:DD HH:MM:SS" or ISO "YYYY-MM-DDTHH:MM:SS".
+  const m = String(v).match(
+    /^(\d{4})[:-](\d{2})[:-](\d{2})[T ](\d{2}):(\d{2}):(\d{2})/,
+  );
+  if (!m) return null;
+  const [, y, mo, d, h, mi, s] = m;
+  return {
+    year: Number(y),
+    month: Number(mo),
+    day: Number(d),
+    hour: Number(h),
+    minute: Number(mi),
+    second: Number(s),
+  };
+}
+
+/** Normalize an EXIF offset ("+09:00", "+0900", "-05:30", "Z", "+00:00")
+ *  to a canonical "+HH:MM" / "-HH:MM" / "Z", or null when absent/invalid. */
+function normalizeOffset(offset: string | null | undefined): string | null {
+  if (offset == null) return null;
+  const s = String(offset).trim();
+  if (s.length === 0) return null;
+  if (s === "Z" || s === "+00:00" || s === "+0000") return "+00:00";
+  const m = s.match(/^([+-])(\d{2}):?(\d{2})$/);
+  if (!m) return null;
+  const [, sign, hh, mm] = m;
+  const h = Number(hh);
+  const mi = Number(mm);
+  if (h > 14 || mi > 59) return null;
+  return `${sign}${hh}:${mm}`;
+}
+
+function pad(n: number, width: number): string {
+  return String(Math.abs(n)).padStart(width, "0");
+}
+
+/** Format a focal length in millimetres, e.g. 6.86 → "6.9mm". */
+function formatMillimetres(v: number | string | null | undefined): string | null {
+  const n = typeof v === "string" ? Number(v) : v;
+  if (typeof n !== "number" || !Number.isFinite(n) || n <= 0 || n > 100_000) {
     return null;
   }
+  return `${Math.round(n * 10) / 10}mm`;
+}
+
+/** Bounded sanitizer for translated EXIF enum labels (Flash, MeteringMode,
+ *  ExposureMode, ColorSpace). Allows commas that these labels legitimately
+ *  contain (e.g. "Flash fired, auto mode"), strips anything else unsafe. */
+function sanitizeEnumLabel(v: number | string | null | undefined): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (s.length === 0) return null;
+  const cleaned = s.replace(/[^\w\s,\-./()]+/g, "").trim();
+  if (cleaned.length === 0) return null;
+  return cleaned.slice(0, STRING_FIELD_MAX);
 }
 
 function pickDimension(

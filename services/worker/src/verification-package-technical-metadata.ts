@@ -27,8 +27,11 @@ import {
   TECHNICAL_METADATA_SCHEMA_VERSION,
   deriveExifSummary,
   formatCameraLabel,
+  buildEvidenceAcquisitionContext,
+  type AcquisitionRawInput,
   type CaptureEnvironment,
 } from "@proovra/shared-runtime/technical-metadata";
+import { maskEmail } from "@proovra/shared";
 import { logger } from "./logger.js";
 
 export type TechnicalMetadataPackageEntry = {
@@ -52,29 +55,78 @@ type EvidenceRow = {
   capture_environment: unknown;
 };
 
-type IntakeDeliveryRow = {
+type AcquisitionRow = {
+  capture_method: string | null;
+  capture_environment: unknown;
+  identity_level: string | null;
+  opened_at_utc: Date | string | null;
+  submitted_at_utc: Date | string | null;
+  consent_accepted_at_utc: Date | string | null;
+  consent_snapshot_json: unknown;
+  submitter_email: string | null;
+  intake_mode: string | null;
+  consent_policy_version: string | null;
+  recipient_email: string | null;
   recipient_preview: string | null;
   recipient_hash: string | null;
   channel: string | null;
-  status: string | null;
+  delivery_status: string | null;
   sent_at_utc: Date | string | null;
   delivered_at_utc: Date | string | null;
 };
 
-/** Maps the internal communication status enum to the bounded, package-safe
- *  delivery status vocabulary. Never invents a status — unknown stays
- *  unknown. */
-function mapDeliveryStatus(status: string | null): "delivered" | "sent" | "unknown" {
-  switch ((status ?? "").toUpperCase()) {
-    case "DELIVERED":
-      return "delivered";
-    case "SENT":
-    case "QUEUED":
-    case "RETRY_SCHEDULED":
-      return "sent";
-    default:
-      return "unknown";
+/** Build the pure-mapper input from a raw acquisition row. Masks the email
+ *  recipient at read-time via the approved helper (raw email is never
+ *  exposed); provider IDs are never selected. */
+function rawAcquisitionInput(r: AcquisitionRow): AcquisitionRawInput {
+  const uploadSource =
+    (r.capture_environment as { uploadSource?: string } | null)?.uploadSource ??
+    null;
+  const channel = (r.channel ?? "").toUpperCase();
+  const isEmail = channel === "EMAIL";
+  const recipientType = isEmail ? "email" : channel ? "phone" : null;
+  const consentVersion =
+    (r.consent_snapshot_json as { policyVersion?: string } | null)
+      ?.policyVersion ??
+    r.consent_policy_version ??
+    null;
+  // Masked recipient: phone preview is already masked; email preview is not
+  // stored, so mask the email at read-time (never exposing the raw value).
+  let recipientMasked = r.recipient_preview ?? null;
+  if (isEmail && !recipientMasked) {
+    recipientMasked = maskEmail(r.recipient_email ?? r.submitter_email);
   }
+  return {
+    uploadSource,
+    captureMethod: r.capture_method,
+    intakeMode: r.intake_mode,
+    identityLevel: r.identity_level,
+    deliveryChannelRaw: r.channel,
+    deliveryStatusRaw: r.delivery_status,
+    sentAtUtc: toIsoOrNull(r.sent_at_utc),
+    deliveredAtUtc: toIsoOrNull(r.delivered_at_utc),
+    openedAtUtc: toIsoOrNull(r.opened_at_utc),
+    submittedAtUtc: toIsoOrNull(r.submitted_at_utc),
+    consentAcceptedAtUtc: toIsoOrNull(r.consent_accepted_at_utc),
+    consentVersion,
+    recipientMasked,
+    recipientHash: r.recipient_hash,
+    recipientType,
+  };
+}
+
+/** Drop null/undefined/empty-string keys so serialized JSON NEVER carries
+ *  hollow fields. Booleans (incl. false) and 0 are kept — they are
+ *  meaningful forensic values. */
+function compact(
+  obj: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined || v === "") continue;
+    out[k] = v;
+  }
+  return out;
 }
 
 function toIsoOrNull(v: Date | string | null): string | null {
@@ -135,26 +187,55 @@ export async function buildTechnicalMetadataPackageFiles(input: {
           advisory:
             "Deep metadata embedded in the file by the capturing device/software, for technical reviewers. GPS is reduced to a presence flag; raw coordinates are never included. Does not duplicate the manifest's mime/size/hash facts.",
           parts: exifParts.map(({ part, exif }) => {
-            const fields: Record<string, unknown> = {
-              camera: formatCameraLabel(exif.cameraMake, exif.cameraModel),
-              cameraMake: exif.cameraMake,
-              cameraModel: exif.cameraModel,
+            // Grouped, forensic-grade layout. Only fields the file actually
+            // carried are emitted — absent fields are OMITTED, never null.
+            const camera = compact({
+              make: exif.cameraMake,
+              model: exif.cameraModel,
+              label: formatCameraLabel(exif.cameraMake, exif.cameraModel),
               lensModel: exif.lensModel,
-              originalCaptureTime: exif.originalCaptureTime,
+            });
+            const capture = compact({
+              exifOriginalCaptureTime: exif.originalCaptureTime,
+              orientation: exif.orientation,
+              // gpsPresent is a definitive boolean, always meaningful.
+              gpsPresent: exif.gpsPresent,
+            });
+            const exposure = compact({
               iso: exif.iso,
               aperture: exif.aperture,
-              exposureTime: exif.exposureTime,
               shutterSpeed: exif.shutterSpeed,
+              exposureTime: exif.exposureTime,
               whiteBalance: exif.whiteBalance,
-              orientation: exif.orientation,
+              flash: exif.flash,
+              meteringMode: exif.meteringMode,
+              exposureMode: exif.exposureMode,
+            });
+            const image = compact({
               resolution: exif.resolution,
-              software: exif.softwareTag,
+              colorSpace: exif.colorSpace,
+              focalLength: exif.focalLength,
+              focalLength35mm: exif.focalLength35mm,
               compression: exif.compression,
-              gpsPresent: exif.gpsPresent,
-            };
-            const fieldsPresent = Object.entries(fields)
-              .filter(([, v]) => v !== null && v !== undefined && v !== "")
-              .map(([k]) => k);
+              imageUniqueId: exif.imageUniqueId,
+            });
+            const software = compact({
+              // Raw device firmware/software build tag — package-only.
+              softwareTag: exif.softwareTag,
+            });
+
+            const groups: Record<string, Record<string, unknown>> = {};
+            if (Object.keys(camera).length) groups.camera = camera;
+            // capture always has gpsPresent, so it is always present.
+            groups.capture = capture;
+            if (Object.keys(exposure).length) groups.exposure = exposure;
+            if (Object.keys(image).length) groups.image = image;
+            if (Object.keys(software).length) groups.software = software;
+
+            const fieldsPresent = Object.values(groups).flatMap((g) =>
+              Object.keys(g),
+            );
+
             return {
               partId: part.id,
               filename: part.original_file_name,
@@ -163,8 +244,8 @@ export async function buildTechnicalMetadataPackageFiles(input: {
               metadataStatus: exif.metadataStatus,
               fieldsPresent,
               fieldsOmittedReason:
-                "Fields not listed in fieldsPresent were absent from the file's embedded metadata (common for downloaded/exported/screenshotted/stripped files). Raw GPS coordinates are intentionally never included.",
-              ...fields,
+                "Fields not listed in fieldsPresent were absent from the file's embedded metadata (common for downloaded/exported/screenshotted/stripped files). Absent fields are omitted (never null). Raw GPS coordinates are intentionally never included.",
+              ...groups,
             };
           }),
         },
@@ -274,66 +355,112 @@ export async function buildTechnicalMetadataPackageFiles(input: {
       });
     }
 
-    // ---- intake-recipient-context.json (only for intake-link deliveries) ----
-    // Privacy-safe delivery context for evidence collected via an intake
-    // link sent to a phone. Uses ONLY the already-masked recipient preview +
-    // HMAC hash stored on communication_messages — the raw phone number is
-    // NEVER read, never present in the package. Isolated try/catch so a
-    // missing relation can never drop the other technical-metadata files.
+    // ---- intake-delivery.json (only for intake/delivery acquisitions) ----
+    // Privacy-safe Evidence Acquisition context: how the contributor was
+    // reached and how the evidence entered PROOVRA. Uses ONLY the masked
+    // recipient preview + HMAC hash (or a read-time maskEmail of an email);
+    // the raw phone/email is NEVER read, and provider IDs are NEVER queried.
+    // Isolated try/catch so a missing relation cannot drop other files.
     try {
-      const deliveryRows = (await input.prisma.$queryRawUnsafe(
-        `SELECT cm."recipient_preview", cm."recipient_hash", cm."channel",
-                cm."status", cm."sent_at_utc", cm."delivered_at_utc"
-           FROM "communication_messages" cm
-           JOIN "workflow_intake_sessions" wis
-             ON wis."id" = cm."related_intake_session_id"
-          WHERE wis."evidence_id" = $1
-            AND cm."purpose" = 'INTAKE_LINK'
-            AND cm."channel" IN ('SMS', 'WHATSAPP')
-            ${input.teamId ? `AND cm."team_id" = $2` : ""}
-          ORDER BY cm."created_at" DESC
+      const rows = (await input.prisma.$queryRawUnsafe(
+        `SELECT
+            e."capture_method"              AS capture_method,
+            e."capture_environment"         AS capture_environment,
+            e."identity_level_snapshot"     AS identity_level,
+            wis."opened_at_utc"             AS opened_at_utc,
+            wis."submitted_at_utc"          AS submitted_at_utc,
+            wis."consent_accepted_at_utc"   AS consent_accepted_at_utc,
+            wis."consent_snapshot_json"     AS consent_snapshot_json,
+            wis."submitter_email"           AS submitter_email,
+            wil."intake_mode"               AS intake_mode,
+            wil."consent_policy_version"    AS consent_policy_version,
+            wil."recipient_email"           AS recipient_email,
+            cm."recipient_preview"          AS recipient_preview,
+            cm."recipient_hash"             AS recipient_hash,
+            cm."channel"                    AS channel,
+            cm."status"                     AS delivery_status,
+            cm."sent_at_utc"                AS sent_at_utc,
+            cm."delivered_at_utc"           AS delivered_at_utc
+           FROM "evidence" e
+           LEFT JOIN "workflow_intake_sessions" wis ON wis."evidence_id" = e."id"
+           LEFT JOIN "workflow_intake_links" wil ON wil."id" = wis."intake_link_id"
+           LEFT JOIN LATERAL (
+             SELECT c."recipient_preview", c."recipient_hash", c."channel",
+                    c."status", c."sent_at_utc", c."delivered_at_utc"
+               FROM "communication_messages" c
+              WHERE c."related_intake_session_id" = wis."id"
+                AND c."purpose" = 'INTAKE_LINK'
+                AND c."channel" IN ('SMS', 'WHATSAPP', 'EMAIL')
+              ORDER BY c."created_at" DESC
+              LIMIT 1
+           ) cm ON true
+          WHERE e."id" = $1
+            ${input.teamId ? `AND e."team_id" = $2` : ""}
           LIMIT 1`,
         ...(input.teamId
           ? [input.evidenceId, input.teamId]
           : [input.evidenceId]),
-      )) as IntakeDeliveryRow[];
+      )) as AcquisitionRow[];
 
-      const delivery = deliveryRows[0];
-      // Only emit when an intake phone delivery with a masked recipient exists.
-      if (delivery && delivery.recipient_preview) {
-        out.push({
-          path: "technical-metadata/intake-recipient-context.json",
-          json: {
-            schemaVersion: TECHNICAL_METADATA_SCHEMA_VERSION,
-            schema: "PROOVRA_TECHNICAL_INTAKE_RECIPIENT_CONTEXT",
-            evidenceId: input.evidenceId,
-            generatedAtUtc,
-            source: "intake_link_delivery",
-            advisory:
-              "Privacy-safe delivery context for evidence collected via an intake link sent to a phone recipient. The recipient is masked; the full phone number is NEVER included in this package. Delivery status is reported as observed from the messaging provider, or 'unknown' when not reported.",
-            recipient: {
-              type: "phone",
-              masked: delivery.recipient_preview,
-              hash: delivery.recipient_hash
-                ? `hmac-sha256:${delivery.recipient_hash}`
-                : null,
-              fullValueIncluded: false,
+      const r = rows[0];
+      if (r) {
+        const ctx = buildEvidenceAcquisitionContext(
+          rawAcquisitionInput(r),
+        );
+        // Only emit for genuine intake/delivery acquisitions.
+        if (ctx && ctx.isIntake) {
+          const recipient =
+            ctx.recipientMasked != null
+              ? compact({
+                  type: ctx.recipientType,
+                  masked: ctx.recipientMasked,
+                  hash: ctx.recipientHash
+                    ? `sha256:${ctx.recipientHash}`
+                    : null,
+                  fullValueIncluded: false,
+                })
+              : null;
+          const consent = ctx.consentAccepted
+            ? compact({
+                accepted: true,
+                acceptedAtUtc: ctx.consentAcceptedAtUtc,
+                version: ctx.consentVersion,
+              })
+            : null;
+          out.push({
+            path: "technical-metadata/intake-delivery.json",
+            json: {
+              schemaVersion: TECHNICAL_METADATA_SCHEMA_VERSION,
+              schema: "PROOVRA_TECHNICAL_INTAKE_DELIVERY",
+              evidenceId: input.evidenceId,
+              generatedAtUtc,
+              source: "intake_link_delivery",
+              advisory:
+                "Privacy-safe Evidence Acquisition context: how the contributor was reached and how the evidence entered PROOVRA. The recipient is masked (full phone/email is NEVER included); provider/message IDs are never included. Delivery/consent are reported only as recorded — never invented.",
+              acquisition: {
+                method: ctx.method,
+                deliveryChannel: ctx.deliveryChannel,
+                submissionType: ctx.submissionType,
+                submissionStatus: ctx.submissionStatus,
+              },
+              ...(recipient ? { recipient } : {}),
+              delivery: compact({
+                sentAtUtc: ctx.sentAtUtc,
+                deliveredAtUtc: ctx.deliveredAtUtc,
+                openedAtUtc: ctx.openedAtUtc,
+                submittedAtUtc: ctx.submittedAtUtc,
+              }),
+              ...(consent ? { consent } : {}),
+              privacy: {
+                publicReport: "recipient_not_included",
+                publicVerify: "recipient_not_included",
+                package: "masked_and_hashed_only",
+                internal: "masked_or_permissioned",
+                fullValueIncluded: false,
+              },
             },
-            delivery: {
-              channel: (delivery.channel ?? "").toLowerCase() || "unknown",
-              sentAtUtc: toIsoOrNull(delivery.sent_at_utc),
-              deliveryStatus: mapDeliveryStatus(delivery.status),
-              linkOpenedAtUtc: null,
-              deliveredAtUtc: toIsoOrNull(delivery.delivered_at_utc),
-            },
-            privacy: {
-              publicReport: "not_included",
-              publicVerify: "not_included",
-              package: "masked_only",
-              internal: "masked_or_permissioned",
-            },
-          },
-        });
+          });
+        }
       }
     } catch (intakeErr) {
       logger.warn(
@@ -344,7 +471,7 @@ export async function buildTechnicalMetadataPackageFiles(input: {
               : "unknown",
           evidenceId: input.evidenceId,
         },
-        "verification_package.intake_recipient_context.build_failed",
+        "verification_package.intake_delivery.build_failed",
       );
     }
 

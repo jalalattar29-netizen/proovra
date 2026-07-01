@@ -84,7 +84,10 @@ import {
   buildReportPdfV2WithSignatureOutcome,
 } from "./report-v2/build-report-pdf.js";
 import { buildReportMediaIntelligence } from "./media-intelligence-report-bridge.js";
-import { buildReportTechnicalSummary } from "./report-technical-summary-bridge.js";
+import {
+  buildReportTechnicalSummary,
+  buildReportAcquisitionContext,
+} from "./report-technical-summary-bridge.js";
 import { buildVerificationPackageIntelligence } from "./verification-package-intelligence-bridge.js";
 import {
   enqueueEvidencePurgeJob,
@@ -306,6 +309,9 @@ type ReportBuildParams = {
   // Enterprise Technical Metadata layer — OPTIONAL compact technical
   // summary. NULL = no "Media Technical Summary" section.
   technicalSummary?: Parameters<typeof buildReportPdfV2>[0]["technicalSummary"];
+  // Evidence Acquisition context — OPTIONAL public-safe acquisition
+  // table in the Executive Summary. NULL = no acquisition table.
+  acquisition?: Parameters<typeof buildReportPdfV2>[0]["acquisition"];
 };
 
 type PreparedReportArtifacts = {
@@ -2721,6 +2727,13 @@ const trustDecision = buildTrustDecision({
     evidenceId,
   });
 
+  // Evidence Acquisition context (public-safe, no recipient) for the
+  // Executive Summary. Null → no acquisition table.
+  const reportAcquisition = await buildReportAcquisitionContext({
+    teamId: evidence.teamId ?? null,
+    evidenceId,
+  });
+
   const reportBuildParams: ReportBuildParams = {
     evidence: reportEvidencePayload,
     custodyEvents: custodyEventsForReport,
@@ -2732,6 +2745,7 @@ const trustDecision = buildTrustDecision({
     externalMode: false,
     mediaIntelligence: reportMediaIntelligence,
     technicalSummary: reportTechnicalSummary,
+    acquisition: reportAcquisition,
   };
 
 // Phase A2 — call the signature-aware variant so the Report row
@@ -3264,6 +3278,10 @@ const effectiveReportEvidencePayload = {
           teamId: evidence.teamId ?? null,
           evidenceId: prepared.evidenceId,
         });
+        const finalizedReportAcquisition = await buildReportAcquisitionContext({
+          teamId: evidence.teamId ?? null,
+          evidenceId: prepared.evidenceId,
+        });
 
         // Phase O1.5C — bounded report.render.pdf span.
         await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_RENDER_PDF, { "proovra.operation": "report_render_pdf", "proovra.evidence_id": prepared.evidenceId }, () => undefined);
@@ -3278,6 +3296,7 @@ const effectiveReportEvidencePayload = {
           externalMode: false,
           mediaIntelligence: finalizedReportMediaIntelligence,
           technicalSummary: finalizedReportTechnicalSummary,
+          acquisition: finalizedReportAcquisition,
         });
 
         await assertWorkspaceAllowsReportArtifact({

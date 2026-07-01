@@ -53,6 +53,17 @@ export type VerifyTechnicalMetadata = {
   network: {
     country: string | null;
   } | null;
+  /** Public Evidence Acquisition context — never any recipient value. */
+  acquisition?: {
+    method: string;
+    deliveryChannel: string | null;
+    submissionType: string;
+    submissionStatus: string[];
+    identityVerification: string;
+    consentAccepted: boolean | null;
+    consentVersion: string | null;
+    submittedAtUtc: string | null;
+  } | null;
 };
 
 function meaningful(v: unknown): boolean {
@@ -95,33 +106,75 @@ export function VerifyTechnicalMetadataSection({
   const deviceClass = ce?.deviceClass ?? null;
   const captureTime = exif && exif.exifPresent ? exif.originalCaptureTime : null;
 
-  const hasAny =
+  const hasDevice =
     meaningful(camera) ||
     meaningful(os) ||
     meaningful(deviceClass) ||
     meaningful(captureTime);
-  if (!hasAny) return null;
+
+  // Public Evidence Acquisition — high-level only. NEVER a recipient value
+  // (phone/email/masked/hash), never provider IDs.
+  const acq = technicalMetadata.acquisition ?? null;
+  const submittedThrough =
+    acq?.method === "Direct Upload"
+      ? "PROOVRA Web Application"
+      : acq?.method === "Intake Link" || acq?.method === "Public Secure Link"
+        ? "Secure Intake Link"
+        : (acq?.method ?? null);
+  const acqStatus = acq?.submissionStatus?.length
+    ? acq.submissionStatus.join(" • ")
+    : null;
+  const hasAcq =
+    acq != null &&
+    (meaningful(submittedThrough) ||
+      meaningful(acq.deliveryChannel) ||
+      meaningful(acq.submissionType) ||
+      acq.consentAccepted != null);
+
+  if (!hasDevice && !hasAcq) return null;
+
+  const border = "1px solid rgba(11,46,39,0.16)";
+  const cardStyle: CSSProperties = {
+    border,
+    borderRadius: 18,
+    padding: 18,
+    display: "grid",
+    gap: 6,
+  };
 
   return (
-    <div
-      data-testid="verify-technical-metadata"
-      style={{
-        border: "1px solid rgba(11,46,39,0.16)",
-        borderRadius: 18,
-        padding: 18,
-        display: "grid",
-        gap: 6,
-      }}
-    >
-      <div style={{ ...typo.kicker, fontSize: 10.5, color: brand.accent }}>
-        Capture device
-      </div>
-      <div data-testid="verify-technical-capture-device" style={{ display: "grid", gap: 4 }}>
-        <Row label="Capture Device" value={camera} />
-        <Row label="Operating system" value={os} />
-        <Row label="Device" value={deviceClass} />
-        <Row label="EXIF Original Capture Time" value={captureTime} />
-      </div>
+    <div style={{ display: "grid", gap: 12 }}>
+      {hasAcq ? (
+        <div data-testid="verify-evidence-acquisition" style={cardStyle}>
+          <div style={{ ...typo.kicker, fontSize: 10.5, color: brand.accent }}>
+            Evidence Acquisition
+          </div>
+          <div style={{ display: "grid", gap: 4 }}>
+            <Row label="Submitted through" value={submittedThrough} />
+            <Row label="Delivery Channel" value={acq!.deliveryChannel} />
+            <Row label="Submission" value={acq!.submissionType} />
+            <Row
+              label="Consent"
+              value={acq!.consentAccepted === true ? "Accepted" : null}
+            />
+            <Row label="Submission Status" value={acqStatus} />
+          </div>
+        </div>
+      ) : null}
+
+      {hasDevice ? (
+        <div data-testid="verify-technical-metadata" style={cardStyle}>
+          <div style={{ ...typo.kicker, fontSize: 10.5, color: brand.accent }}>
+            Capture device
+          </div>
+          <div data-testid="verify-technical-capture-device" style={{ display: "grid", gap: 4 }}>
+            <Row label="Capture Device" value={camera} />
+            <Row label="Operating system" value={os} />
+            <Row label="Device" value={deviceClass} />
+            <Row label="EXIF Original Capture Time" value={captureTime} />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

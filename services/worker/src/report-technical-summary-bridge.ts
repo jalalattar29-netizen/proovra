@@ -16,7 +16,10 @@ import {
   formatCameraLabel,
   primaryMediaTypeLabel,
   toPerPartMediaSummary,
+  buildEvidenceAcquisitionContext,
+  toPublicAcquisition,
   type ExifSummary,
+  type PublicAcquisition,
 } from "@proovra/shared-runtime/technical-metadata";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
@@ -226,6 +229,98 @@ export async function buildReportTechnicalSummary(input: {
         err: err instanceof Error ? err.message.slice(0, 160) : "unknown",
       },
       "report.technical_summary.build_failed",
+    );
+    return null;
+  }
+}
+
+/**
+ * Public Evidence Acquisition context for the PDF report — how the evidence
+ * reached PROOVRA. PUBLIC-safe: the recipient is never included (stripped by
+ * toPublicAcquisition). Never throws; null means the Executive Summary emits
+ * no acquisition table.
+ */
+export async function buildReportAcquisitionContext(input: {
+  teamId: string | null;
+  evidenceId: string;
+}): Promise<PublicAcquisition | null> {
+  try {
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT
+          e."capture_method"            AS capture_method,
+          e."capture_environment"       AS capture_environment,
+          e."identity_level_snapshot"   AS identity_level,
+          wis."opened_at_utc"           AS opened_at_utc,
+          wis."submitted_at_utc"        AS submitted_at_utc,
+          wis."consent_accepted_at_utc" AS consent_accepted_at_utc,
+          wis."consent_snapshot_json"   AS consent_snapshot_json,
+          wil."intake_mode"             AS intake_mode,
+          wil."consent_policy_version"  AS consent_policy_version,
+          cm."channel"                  AS channel,
+          cm."status"                   AS delivery_status,
+          cm."sent_at_utc"              AS sent_at_utc,
+          cm."delivered_at_utc"         AS delivered_at_utc
+         FROM "evidence" e
+         LEFT JOIN "workflow_intake_sessions" wis ON wis."evidence_id" = e."id"
+         LEFT JOIN "workflow_intake_links" wil ON wil."id" = wis."intake_link_id"
+         LEFT JOIN LATERAL (
+           SELECT c."channel", c."status", c."sent_at_utc", c."delivered_at_utc"
+             FROM "communication_messages" c
+            WHERE c."related_intake_session_id" = wis."id"
+              AND c."purpose" = 'INTAKE_LINK'
+              AND c."channel" IN ('SMS', 'WHATSAPP', 'EMAIL')
+            ORDER BY c."created_at" DESC
+            LIMIT 1
+         ) cm ON true
+        WHERE e."id" = $1
+          ${input.teamId ? `AND e."team_id" = $2` : ""}
+        LIMIT 1`,
+      ...(input.teamId ? [input.evidenceId, input.teamId] : [input.evidenceId]),
+    )) as Array<Record<string, unknown>>;
+
+    const r = rows[0];
+    if (!r) return null;
+    const iso = (v: unknown): string | null => {
+      if (v == null) return null;
+      try {
+        return v instanceof Date
+          ? v.toISOString()
+          : new Date(String(v)).toISOString();
+      } catch {
+        return null;
+      }
+    };
+    const consentVersion =
+      (r.consent_snapshot_json as { policyVersion?: string } | null)
+        ?.policyVersion ??
+      (r.consent_policy_version as string | null) ??
+      null;
+    const ctx = buildEvidenceAcquisitionContext({
+      uploadSource:
+        (r.capture_environment as { uploadSource?: string } | null)
+          ?.uploadSource ?? null,
+      captureMethod: (r.capture_method as string | null) ?? null,
+      intakeMode: (r.intake_mode as string | null) ?? null,
+      identityLevel: (r.identity_level as string | null) ?? null,
+      deliveryChannelRaw: (r.channel as string | null) ?? null,
+      deliveryStatusRaw: (r.delivery_status as string | null) ?? null,
+      sentAtUtc: iso(r.sent_at_utc),
+      deliveredAtUtc: iso(r.delivered_at_utc),
+      openedAtUtc: iso(r.opened_at_utc),
+      submittedAtUtc: iso(r.submitted_at_utc),
+      consentAcceptedAtUtc: iso(r.consent_accepted_at_utc),
+      consentVersion,
+    });
+    // Only surface for genuine intake/delivery acquisitions.
+    if (!ctx || !ctx.isIntake) return null;
+    return toPublicAcquisition(ctx);
+  } catch (err) {
+    logger.warn(
+      {
+        err: err instanceof Error ? err.message.slice(0, 160) : "unknown",
+        evidenceId: input.evidenceId,
+      },
+      "report.acquisition.build_failed",
     );
     return null;
   }

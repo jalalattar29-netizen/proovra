@@ -67,11 +67,27 @@ type VerifyTechnicalMetadata = {
     maskedIp?: string | null;
     networkType?: string | null;
   } | null;
-  intakeDelivery?: {
-    channel: string;
-    maskedRecipient: string;
-    deliveryStatus: "delivered" | "sent" | "unknown";
-    sentAtUtc: string | null;
+  exifExtended?: {
+    flash: string | null;
+    meteringMode: string | null;
+    exposureMode: string | null;
+    colorSpace: string | null;
+    focalLength: string | null;
+    focalLength35mm: string | null;
+    imageUniqueId: string | null;
+  } | null;
+  acquisition?: {
+    method: string;
+    deliveryChannel: string | null;
+    submissionType: string;
+    submissionStatus: string[];
+    identityVerification: string;
+    consentAccepted: boolean | null;
+    consentVersion: string | null;
+    submittedAtUtc: string | null;
+    recipientType?: "phone" | "email" | null;
+    recipientMasked?: string | null;
+    consentAcceptedAtUtc?: string | null;
   } | null;
 };
 
@@ -188,6 +204,30 @@ export function EvidenceTechnicalMetadataCard({
                     { label: "Software / editor tag", value: na(data.exif.softwareTag) },
                   ])}
                 />
+                {data.exifExtended &&
+                meaningfulRows([
+                  { label: "Flash", value: na(data.exifExtended.flash) },
+                  { label: "Metering mode", value: na(data.exifExtended.meteringMode) },
+                  { label: "Exposure mode", value: na(data.exifExtended.exposureMode) },
+                  { label: "Colour space", value: na(data.exifExtended.colorSpace) },
+                  { label: "Focal length", value: na(data.exifExtended.focalLength) },
+                  { label: "Focal length (35mm)", value: na(data.exifExtended.focalLength35mm) },
+                  { label: "Image unique ID", value: na(data.exifExtended.imageUniqueId) },
+                ]).length > 0 ? (
+                  <div data-testid="evidence-technical-exif-extended" style={{ marginTop: 8 }}>
+                    <KeyValueGrid
+                      items={meaningfulRows([
+                        { label: "Flash", value: na(data.exifExtended.flash) },
+                        { label: "Metering mode", value: na(data.exifExtended.meteringMode) },
+                        { label: "Exposure mode", value: na(data.exifExtended.exposureMode) },
+                        { label: "Colour space", value: na(data.exifExtended.colorSpace) },
+                        { label: "Focal length", value: na(data.exifExtended.focalLength) },
+                        { label: "Focal length (35mm)", value: na(data.exifExtended.focalLength35mm) },
+                        { label: "Image unique ID", value: na(data.exifExtended.imageUniqueId) },
+                      ])}
+                    />
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div data-testid="evidence-technical-exif">
@@ -283,40 +323,44 @@ export function EvidenceTechnicalMetadataCard({
               </div>
             ) : null}
 
-            {/* Intake delivery — masked recipient only (never full phone). */}
-            {data.intakeDelivery ? (
-              <div data-testid="evidence-technical-intake-delivery">
+            {/* Evidence Acquisition — masked recipient only (never full
+                phone/email; never provider IDs). */}
+            {data.acquisition ? (
+              <div data-testid="evidence-technical-acquisition">
                 <h3 style={{ margin: "0 0 2px 0", fontSize: 13, fontWeight: 650 }}>
-                  Intake delivery
+                  Evidence Acquisition
                 </h3>
                 <p className="evidence-detail-muted">
-                  How the intake link reached the contributor. The recipient is
-                  masked; the full phone number is never shown here.
+                  How the contributor was reached and how the evidence entered
+                  PROOVRA. The recipient is masked; the full phone/email is never
+                  shown here.
                 </p>
                 <KeyValueGrid
                   items={meaningfulRows([
-                    {
-                      label: "Channel",
-                      value: na(
-                        data.intakeDelivery.channel === "sms"
-                          ? "SMS"
-                          : data.intakeDelivery.channel === "whatsapp"
-                            ? "WhatsApp"
-                            : data.intakeDelivery.channel,
-                      ),
-                    },
+                    { label: "Method", value: na(data.acquisition.method) },
+                    { label: "Channel", value: na(data.acquisition.deliveryChannel) },
                     {
                       label: "Recipient",
-                      value: na(data.intakeDelivery.maskedRecipient),
+                      value: na(data.acquisition.recipientMasked ?? null),
                     },
                     {
                       label: "Status",
+                      value: na(
+                        data.acquisition.submissionStatus.length
+                          ? data.acquisition.submissionStatus.join(" • ")
+                          : null,
+                      ),
+                    },
+                    {
+                      label: "Consent",
                       value:
-                        data.intakeDelivery.deliveryStatus === "delivered"
-                          ? "Delivered"
-                          : data.intakeDelivery.deliveryStatus === "sent"
-                            ? "Sent"
-                            : "Unknown",
+                        data.acquisition.consentAccepted === true
+                          ? "Accepted"
+                          : "Not recorded",
+                    },
+                    {
+                      label: "Submitted",
+                      value: na(data.acquisition.submittedAtUtc),
                     },
                   ])}
                 />

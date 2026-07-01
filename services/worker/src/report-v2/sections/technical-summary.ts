@@ -98,13 +98,11 @@ export function renderTechnicalSummarySection(vm: ReportViewModel): string {
       ])
     : [];
 
-  const deviceBlock =
-    deviceRows.length > 0
-      ? `<h3 class="subsection-title">Capture Device</h3>${renderCompactKeyValueList(deviceRows)}`
-      : "";
+  const deviceBlock = renderGroup("Capture Device", deviceRows);
 
-  // ---- Camera Metadata (only when the file carried real EXIF) ----
+  // ---- Camera + Exposure (only when the file carried real EXIF) ----
   let cameraBlock = "";
+  let exposureBlock = "";
   if (hasExif) {
     // Split make/model ONLY when both are reliably available; otherwise the
     // combined "Camera" label is the single reliable device name.
@@ -118,36 +116,64 @@ export function renderTechnicalSummarySection(vm: ReportViewModel): string {
           ]
         : [{ label: "Camera", value: exif!.camera }];
 
-    const rows = metadataRows([
-      ...cameraRows,
-      { label: "Lens", value: exif!.lensModel },
-      { label: "EXIF Original Capture Time", value: exif!.originalCaptureTime },
-      { label: "ISO", value: exif!.iso },
-      { label: "Aperture", value: exif!.aperture },
-      { label: "Shutter / exposure", value: exif!.shutterSpeed ?? exif!.exposureTime },
-      { label: "White balance", value: meaningfulWhiteBalance(exif!.whiteBalance) },
-      { label: "Orientation", value: meaningfulOrientation(exif!.orientation) },
-    ]);
-    if (rows.length > 0) {
-      cameraBlock = `
-        <h3 class="subsection-title">Camera Metadata</h3>
-        <p class="muted-note">Embedded in the file by the capturing device. The EXIF Original Capture Time is read from the file itself and is distinct from PROOVRA's submission and preservation timestamps.</p>
-        ${renderCompactKeyValueList(rows)}
-      `;
-    }
+    cameraBlock = renderGroup(
+      "Camera",
+      metadataRows([
+        ...cameraRows,
+        { label: "Lens", value: exif!.lensModel },
+        { label: "EXIF Original Capture Time", value: exif!.originalCaptureTime },
+        { label: "Orientation", value: meaningfulOrientation(exif!.orientation) },
+      ]),
+    );
+
+    exposureBlock = renderGroup(
+      "Exposure",
+      metadataRows([
+        { label: "ISO", value: exif!.iso },
+        { label: "Aperture", value: exif!.aperture },
+        { label: "Shutter / exposure", value: exif!.shutterSpeed ?? exif!.exposureTime },
+        { label: "White balance", value: meaningfulWhiteBalance(exif!.whiteBalance) },
+      ]),
+    );
   }
 
-  const body = `${deviceBlock}${cameraBlock}`;
-  if (body.trim().length === 0) return "";
+  const groups = [deviceBlock, cameraBlock, exposureBlock].filter(Boolean);
+  if (groups.length === 0) return "";
+
+  // Multiple compact tables in a balanced 2-column grid — dense, single
+  // page, no wasted whitespace, no table split (rows are break-inside:avoid).
+  const grid = `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;margin-top:10px">${groups.join("")}</div>`;
+
+  // Multi-file transparency: the PDF shows one representative item's EXIF;
+  // every item's EXIF is in the verification package.
+  const representativeNote =
+    hasExif && (ts.mediaFilesTotal ?? 1) > 1
+      ? `<p class="muted-note">Representative EXIF shown (Primary Media Item). Per-file EXIF for all ${ts.mediaFilesTotal} media items is included in the verification package (technical-metadata/exif-details.json).</p>`
+      : "";
+
+  const captureTimeNote = hasExif
+    ? `<p class="muted-note">Camera metadata is embedded in the file by the capturing device. The EXIF Original Capture Time is read from the file itself and is distinct from PROOVRA's submission and preservation timestamps.</p>`
+    : "";
 
   return renderPageSection(
-    "Capture Device & Camera Metadata",
+    "Technical Summary",
     `
       <p class="section-intro">Device and camera context for the recorded material. Advisory enrichment for reviewers; it does not change the integrity verdict, and location (where recorded) is shown in the Capture Context above.</p>
-      ${body}
+      ${representativeNote}
+      ${captureTimeNote}
+      ${grid}
     `,
     { className: "technical-summary-section" },
   );
+}
+
+/** Render one titled compact table, or "" when it has no meaningful rows. */
+function renderGroup(
+  title: string,
+  rows: Array<{ label: string; value: string }>,
+): string {
+  if (rows.length === 0) return "";
+  return `<div class="technical-summary-group"><h3 class="subsection-title">${title}</h3>${renderCompactKeyValueList(rows)}</div>`;
 }
 
 function titleCase(s: string): string {

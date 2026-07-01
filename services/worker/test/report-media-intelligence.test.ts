@@ -333,7 +333,7 @@ describe("Capture Device & Camera Metadata still renders (device enrichment rema
       buildInput({ technicalSummary: TECH_SUMMARY }),
     );
     const html = renderReportHtml(vm);
-    expect(html).toContain("Capture Device &amp; Camera Metadata");
+    expect(html).toContain("Technical Summary");
     expect(html).toContain("technical-summary-section");
     // No EXIF GPS exposure — location lives in Capture Context only.
     expect(html).not.toContain("coordinates withheld");
@@ -348,8 +348,50 @@ describe("Capture Device & Camera Metadata still renders (device enrichment rema
       }),
     );
     const html = renderReportHtml(vm);
-    expect(html).toContain("Capture Device &amp; Camera Metadata");
+    expect(html).toContain("Technical Summary");
     expect(html).not.toContain("Media Intelligence Observations");
+  });
+});
+
+// =============================================================================
+// Evidence Acquisition — compact table inside the Executive Summary
+// =============================================================================
+
+describe("Evidence Acquisition table (Executive Summary only)", () => {
+  const SMS_ACQUISITION = {
+    method: "Intake Link",
+    deliveryChannel: "SMS",
+    submissionType: "Remote Contributor",
+    submissionStatus: ["Sent", "Delivered", "Opened", "Submitted"],
+    identityVerification: "Anonymous",
+    consentAccepted: true,
+    consentVersion: "v3",
+    submittedAtUtc: "2026-07-01T12:14:00.000Z",
+  };
+
+  it("renders a compact Evidence Acquisition table for an intake SMS", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({ acquisition: SMS_ACQUISITION }),
+    );
+    const html = renderReportHtml(vm);
+    expect(html).toContain("Evidence Acquisition");
+    expect(html).toContain("Acquisition Method");
+    expect(html).toContain("Intake Link");
+    expect(html).toContain("Delivery Channel");
+    expect(html).toContain("SMS");
+    expect(html).toContain("Remote Contributor");
+    expect(html).toContain("Accepted");
+    // NEVER a masked recipient, hash, or provider ID in the report.
+    expect(html).not.toContain("•••");
+    expect(html).not.toContain("sha256:");
+    expect(html).not.toContain("hmac-sha256:");
+    expect(html).not.toMatch(/\bSM[0-9a-f]{20,}/i);
+  });
+
+  it("omits the Evidence Acquisition table for a direct (non-intake) upload", async () => {
+    const vm = await buildReportViewModel(buildInput({ acquisition: null }));
+    const html = renderReportHtml(vm);
+    expect(html).not.toContain("Evidence Acquisition");
   });
 });
 

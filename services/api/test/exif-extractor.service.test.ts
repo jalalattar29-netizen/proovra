@@ -154,6 +154,13 @@ describe("EXIF extractor — output shape", () => {
       "shutterSpeed",
       "whiteBalance",
       "compression",
+      "flash",
+      "meteringMode",
+      "exposureMode",
+      "colorSpace",
+      "focalLength",
+      "focalLength35mm",
+      "imageUniqueId",
     ]);
     for (const k of Object.keys(r.summary)) {
       expect(allowed.has(k), `unexpected output key: ${k}`).toBe(true);

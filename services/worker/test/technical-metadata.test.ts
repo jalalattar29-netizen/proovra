@@ -30,6 +30,9 @@ import {
   isMeaningfulMetadataValue,
   metadataRows,
   metadataStatusLabel,
+  buildEvidenceAcquisitionContext,
+  toPublicAcquisition,
+  toInternalAcquisition,
   TECHNICAL_METADATA_SCHEMA_VERSION,
 } from "@proovra/shared-runtime/technical-metadata";
 
@@ -80,6 +83,120 @@ describe("UA engine + platform detection", () => {
     const ua = parseUserAgent(FIREFOX_ANDROID);
     expect(ua.osName).toBe("Android");
     expect(ua.osVersion).toBe("13");
+  });
+});
+
+describe("EXIF original capture time — offset-aware, no fabricated UTC", () => {
+  it("keeps the naive local wall-clock when no offset is present", async () => {
+    const { deriveCaptureTime } = await import(
+      "@proovra/shared-runtime/media-intelligence"
+    );
+    // exifr revives the naive EXIF time as a LOCAL Date. Local getters
+    // recover the exact wall-clock regardless of the server timezone.
+    const d = new Date(2024, 10, 15, 10, 22, 5); // 2024-11-15 10:22:05 local
+    expect(deriveCaptureTime(d, null)).toBe("2024-11-15T10:22:05");
+    // No timezone is invented and it is NOT coerced to UTC "Z".
+    expect(deriveCaptureTime(d, null)).not.toMatch(/Z$/);
+  });
+
+  it("preserves the real offset when OffsetTimeOriginal is present", async () => {
+    const { deriveCaptureTime } = await import(
+      "@proovra/shared-runtime/media-intelligence"
+    );
+    const d = new Date(2024, 10, 15, 10, 22, 5);
+    expect(deriveCaptureTime(d, "+09:00")).toBe("2024-11-15T10:22:05+09:00");
+    expect(deriveCaptureTime(d, "-0530")).toBe("2024-11-15T10:22:05-05:30");
+    expect(deriveCaptureTime(d, "Z")).toBe("2024-11-15T10:22:05+00:00");
+  });
+
+  it("parses EXIF/ISO string forms and rejects garbage", async () => {
+    const { deriveCaptureTime } = await import(
+      "@proovra/shared-runtime/media-intelligence"
+    );
+    expect(deriveCaptureTime("2024:11:15 10:22:05", "+02:00")).toBe(
+      "2024-11-15T10:22:05+02:00",
+    );
+    expect(deriveCaptureTime("2024-11-15T10:22:05", null)).toBe(
+      "2024-11-15T10:22:05",
+    );
+    expect(deriveCaptureTime("not a date", null)).toBeNull();
+    expect(deriveCaptureTime(null, "+09:00")).toBeNull();
+    // Invalid offset → naive local, never a bad suffix.
+    expect(deriveCaptureTime("2024-11-15T10:22:05", "banana")).toBe(
+      "2024-11-15T10:22:05",
+    );
+  });
+});
+
+describe("Evidence Acquisition mapper (channels + privacy)", () => {
+  it("maps SMS / WhatsApp / Email delivery channels to product labels", () => {
+    for (const [raw, label, type] of [
+      ["SMS", "SMS", "phone"],
+      ["WHATSAPP", "WhatsApp", "phone"],
+      ["EMAIL", "Email", "email"],
+    ] as const) {
+      const ctx = buildEvidenceAcquisitionContext({
+        intakeMode: "EXTERNAL_ONE_TIME",
+        deliveryChannelRaw: raw,
+        recipientMasked: type === "email" ? "j***@x.com" : "+49 ••• 1234",
+        recipientType: type,
+      })!;
+      expect(ctx.method).toBe("Intake Link");
+      expect(ctx.deliveryChannel).toBe(label);
+      expect(ctx.recipientType).toBe(type);
+    }
+  });
+
+  it("treats a reusable link with no messaging as a Public Secure Link (no recipient)", () => {
+    const ctx = buildEvidenceAcquisitionContext({
+      captureMethod: "EXTERNAL_INTAKE_UPLOAD",
+      intakeMode: "EXTERNAL_REUSABLE",
+    })!;
+    expect(ctx.method).toBe("Public Secure Link");
+    expect(ctx.deliveryChannel).toBe("Public Secure Link");
+    expect(ctx.recipientMasked).toBeNull();
+  });
+
+  it("maps mobile-app and API and web uploads (non-intake)", () => {
+    const mobile = buildEvidenceAcquisitionContext({ uploadSource: "MOBILE_APP" })!;
+    expect(mobile.method).toBe("Mobile Capture");
+    expect(mobile.deliveryChannel).toBe("PROOVRA Mobile");
+    expect(mobile.isIntake).toBe(false);
+    expect(buildEvidenceAcquisitionContext({ uploadSource: "API" })!.method).toBe(
+      "API Submission",
+    );
+    expect(
+      buildEvidenceAcquisitionContext({ uploadSource: "WEB_APP" })!.method,
+    ).toBe("Direct Upload");
+  });
+
+  it("returns null when there is no acquisition signal at all", () => {
+    expect(buildEvidenceAcquisitionContext({})).toBeNull();
+  });
+
+  it("public view NEVER carries a recipient; internal view carries the masked one", () => {
+    const ctx = buildEvidenceAcquisitionContext({
+      intakeMode: "EXTERNAL_ONE_TIME",
+      deliveryChannelRaw: "SMS",
+      deliveryStatusRaw: "DELIVERED",
+      sentAtUtc: "2026-07-01T00:00:00Z",
+      recipientMasked: "+49 ••• ••• 1234",
+      recipientType: "phone",
+      recipientHash: "abc",
+      consentAcceptedAtUtc: "2026-07-01T00:00:00Z",
+      consentVersion: "v3",
+    })!;
+    const pub = toPublicAcquisition(ctx) as Record<string, unknown>;
+    expect("recipientMasked" in pub).toBe(false);
+    expect("recipientType" in pub).toBe(false);
+    expect(pub.deliveryChannel).toBe("SMS");
+    expect(pub.consentAccepted).toBe(true);
+
+    const int = toInternalAcquisition(ctx);
+    expect(int.recipientMasked).toBe("+49 ••• ••• 1234");
+    expect(int.recipientType).toBe("phone");
+    // Even internal never carries a hash or the raw value.
+    expect(JSON.stringify(int)).not.toContain("abc");
   });
 });
 
@@ -212,6 +329,13 @@ describe("projections: media kind + EXIF derivation", () => {
         shutterSpeed: "1/120s",
         whiteBalance: "Auto",
         compression: null,
+        flash: "No flash",
+        meteringMode: "Pattern",
+        exposureMode: "Auto",
+        colorSpace: "sRGB",
+        focalLength: "6.9mm",
+        focalLength35mm: "26mm",
+        imageUniqueId: "ABC123DEF456",
       },
       "exifr-test",
     );
@@ -225,6 +349,13 @@ describe("projections: media kind + EXIF derivation", () => {
     expect(exif.exposureTime).toBe("1/120s");
     expect(exif.lensModel).toContain("iPhone 14 Pro");
     expect(exif.orientation).toBe(1);
+    // Extended photographic EXIF also flows through.
+    expect(exif.flash).toBe("No flash");
+    expect(exif.meteringMode).toBe("Pattern");
+    expect(exif.colorSpace).toBe("sRGB");
+    expect(exif.focalLength).toBe("6.9mm");
+    expect(exif.focalLength35mm).toBe("26mm");
+    expect(exif.imageUniqueId).toBe("ABC123DEF456");
     // GPS is a boolean only — no numeric coordinates anywhere.
     const serialized = JSON.stringify(exif);
     expect(serialized).not.toMatch(/-?\d+\.\d{4,}/);
@@ -369,16 +500,36 @@ describe("verification package technical-metadata files", () => {
 
     const exif = byPath.get("technical-metadata/exif-details.json") as {
       source: string;
-      parts: Array<Record<string, unknown>>;
+      parts: Array<{
+        partId: string;
+        source: string;
+        extractedAt: string;
+        fieldsPresent: string[];
+        camera?: Record<string, unknown>;
+        capture?: Record<string, unknown>;
+        exposure?: Record<string, unknown>;
+        image?: Record<string, unknown>;
+        software?: Record<string, unknown>;
+      }>;
     };
     expect(exif.source).toBe("exif");
-    expect(exif.parts[0]!.iso).toBe(80);
-    expect(exif.parts[0]!.aperture).toBe("f/1.8");
-    expect(exif.parts[0]!.orientation).toBe(1);
-    expect(exif.parts[0]!.source).toBe("exif");
-    expect(exif.parts[0]!.partId).toBe("part-1");
-    expect(typeof exif.parts[0]!.extractedAt).toBe("string");
-    expect(Array.isArray(exif.parts[0]!.fieldsPresent)).toBe(true);
+    const part0 = exif.parts[0]!;
+    expect(part0.source).toBe("exif");
+    expect(part0.partId).toBe("part-1");
+    expect(typeof part0.extractedAt).toBe("string");
+    expect(Array.isArray(part0.fieldsPresent)).toBe(true);
+    // Grouped, forensic layout.
+    expect(part0.camera!.make).toBe("Apple");
+    expect(part0.camera!.model).toBe("iPhone 14 Pro");
+    expect(part0.exposure!.iso).toBe(80);
+    expect(part0.exposure!.aperture).toBe("f/1.8");
+    // Orientation is preserved (was reportedly dropped to null) under capture.
+    expect(part0.capture!.orientation).toBe(1);
+    expect(part0.capture!.gpsPresent).toBe(true);
+    // NEVER emit null/empty fields anywhere in exif-details.
+    const exifSerialized = JSON.stringify(exif);
+    expect(exifSerialized).not.toContain(":null");
+    expect(exifSerialized).not.toContain('""');
 
     const device = byPath.get(
       "technical-metadata/device-enrichment.json",
@@ -429,10 +580,10 @@ describe("verification package technical-metadata files", () => {
     ).toBeDefined();
   });
 
-  // ---- intake-recipient-context.json (masked phone privacy) ----
-  function fakePrismaWithIntake(
-    delivery: Record<string, unknown> | null,
-  ) {
+  // ---- intake-delivery.json (Evidence Acquisition, masked recipient) ----
+  // `acq` is the single flattened acquisition row (evidence + session + link
+  // + latest comm message). null → no intake acquisition.
+  function fakePrismaWithAcquisition(acq: Record<string, unknown> | null) {
     return {
       $queryRawUnsafe: async (q: string) => {
         if (q.includes("evidence_parts")) {
@@ -446,64 +597,137 @@ describe("verification package technical-metadata files", () => {
             },
           ];
         }
+        // The acquisition query joins evidence + communication_messages.
         if (q.includes("communication_messages")) {
-          return delivery ? [delivery] : [];
+          return acq ? [acq] : [{ capture_method: "UPLOADED_FILE" }];
         }
         return [{ capture_environment: null }];
       },
     };
   }
 
-  it("emits a masked intake-recipient-context.json (never the full phone)", async () => {
+  function intakeDeliveryEntry(files: ReadonlyArray<{ path: string; json: unknown }>) {
+    return files.find(
+      (f) => f.path === "technical-metadata/intake-delivery.json",
+    );
+  }
+
+  it("emits a masked intake-delivery.json for SMS (never the full phone)", async () => {
     const { buildTechnicalMetadataPackageFiles } = await import(
       "../src/verification-package-technical-metadata.js"
     );
     const files = await buildTechnicalMetadataPackageFiles({
-      prisma: fakePrismaWithIntake({
+      prisma: fakePrismaWithAcquisition({
+        intake_mode: "EXTERNAL_ONE_TIME",
         recipient_preview: "+49 ••• ••• 1234",
         recipient_hash: "deadbeef",
         channel: "SMS",
-        status: "DELIVERED",
+        delivery_status: "DELIVERED",
         sent_at_utc: "2026-06-30T10:00:00.000Z",
         delivered_at_utc: "2026-06-30T10:00:05.000Z",
+        submitted_at_utc: "2026-06-30T10:05:00.000Z",
+        consent_accepted_at_utc: "2026-06-30T09:59:00.000Z",
+        consent_policy_version: "v3",
       }) as never,
       teamId: "team-1",
       evidenceId: "ev-1",
     });
-    const entry = files.find(
-      (f) => f.path === "technical-metadata/intake-recipient-context.json",
-    );
+    const entry = intakeDeliveryEntry(files);
     expect(entry).toBeDefined();
     const json = entry!.json as {
       source: string;
-      recipient: { masked: string; hash: string; fullValueIncluded: boolean };
-      delivery: { channel: string; deliveryStatus: string };
+      acquisition: { method: string; deliveryChannel: string; submissionStatus: string[] };
+      recipient: { type: string; masked: string; hash: string; fullValueIncluded: boolean };
+      consent: { accepted: boolean; version: string };
       privacy: Record<string, string>;
     };
     expect(json.source).toBe("intake_link_delivery");
+    expect(json.acquisition.method).toBe("Intake Link");
+    expect(json.acquisition.deliveryChannel).toBe("SMS");
+    expect(json.acquisition.submissionStatus).toContain("Submitted");
+    expect(json.recipient.type).toBe("phone");
     expect(json.recipient.masked).toBe("+49 ••• ••• 1234");
+    expect(json.recipient.hash).toBe("sha256:deadbeef");
     expect(json.recipient.fullValueIncluded).toBe(false);
-    expect(json.recipient.hash).toContain("hmac-sha256:");
-    expect(json.delivery.channel).toBe("sms");
-    expect(json.delivery.deliveryStatus).toBe("delivered");
-    expect(json.privacy.publicReport).toBe("not_included");
-    expect(json.privacy.publicVerify).toBe("not_included");
+    expect(json.consent.accepted).toBe(true);
+    expect(json.consent.version).toBe("v3");
+    expect(json.privacy.publicReport).toBe("recipient_not_included");
+    expect(json.privacy.package).toBe("masked_and_hashed_only");
 
-    // No full phone digit-run anywhere in the package payload.
+    // No full phone / provider IDs / raw payloads anywhere.
     const serialized = JSON.stringify(files);
     expect(serialized).not.toMatch(/\+49\d{6,}/);
     expect(serialized).not.toMatch(/\b\d{10,}\b/);
+    // No Twilio SID / provider message ID shape (SM… / MM…) leaks.
+    expect(serialized).not.toMatch(/\bSM[0-9a-f]{20,}/i);
+    expect(serialized).not.toMatch(/\bMM[0-9a-f]{20,}/i);
   });
 
-  it("does NOT emit intake-recipient-context.json when there is no phone delivery", async () => {
+  it("masks the email recipient for EMAIL delivery (never the raw email)", async () => {
     const { buildTechnicalMetadataPackageFiles } = await import(
       "../src/verification-package-technical-metadata.js"
     );
     const files = await buildTechnicalMetadataPackageFiles({
-      prisma: fakePrismaWithIntake(null) as never,
+      prisma: fakePrismaWithAcquisition({
+        intake_mode: "EXTERNAL_ONE_TIME",
+        recipient_preview: null,
+        recipient_hash: "beef",
+        recipient_email: "jalal@gmail.com",
+        channel: "EMAIL",
+        delivery_status: "SENT",
+        sent_at_utc: "2026-06-30T10:00:00.000Z",
+      }) as never,
       teamId: "team-1",
       evidenceId: "ev-1",
     });
+    const entry = intakeDeliveryEntry(files);
+    expect(entry).toBeDefined();
+    const json = entry!.json as {
+      acquisition: { deliveryChannel: string };
+      recipient: { type: string; masked: string };
+    };
+    expect(json.acquisition.deliveryChannel).toBe("Email");
+    expect(json.recipient.type).toBe("email");
+    expect(json.recipient.masked).toContain("@gmail.com");
+    expect(json.recipient.masked).toContain("*");
+    // Raw email never present anywhere in the package.
+    expect(JSON.stringify(files)).not.toContain("jalal@gmail.com");
+  });
+
+  it("omits the recipient for a Public Secure Link (reusable, no messaging)", async () => {
+    const { buildTechnicalMetadataPackageFiles } = await import(
+      "../src/verification-package-technical-metadata.js"
+    );
+    const files = await buildTechnicalMetadataPackageFiles({
+      prisma: fakePrismaWithAcquisition({
+        intake_mode: "EXTERNAL_REUSABLE",
+        capture_method: "EXTERNAL_INTAKE_UPLOAD",
+        channel: null,
+      }) as never,
+      teamId: "team-1",
+      evidenceId: "ev-1",
+    });
+    const entry = intakeDeliveryEntry(files);
+    expect(entry).toBeDefined();
+    const json = entry!.json as {
+      acquisition: { method: string; deliveryChannel: string | null };
+      recipient?: unknown;
+    };
+    expect(json.acquisition.method).toBe("Public Secure Link");
+    expect(json.recipient).toBeUndefined();
+  });
+
+  it("does NOT emit intake-delivery.json for a direct (non-intake) upload", async () => {
+    const { buildTechnicalMetadataPackageFiles } = await import(
+      "../src/verification-package-technical-metadata.js"
+    );
+    const files = await buildTechnicalMetadataPackageFiles({
+      prisma: fakePrismaWithAcquisition(null) as never,
+      teamId: "team-1",
+      evidenceId: "ev-1",
+    });
+    expect(intakeDeliveryEntry(files)).toBeUndefined();
+    // The old recipient-context filename must never reappear.
     expect(
       files.find(
         (f) => f.path === "technical-metadata/intake-recipient-context.json",
@@ -651,9 +875,12 @@ describe("PDF report: Capture Device & Camera Metadata section", () => {
         },
       },
     } as never);
-    // Reframed device/camera enrichment — not a generic media metadata block.
-    expect(html).toContain("Capture Device &amp; Camera Metadata");
-    expect(html).toContain("Camera Metadata");
+    // Integrated Technical Summary — grouped compact tables, not a
+    // standalone near-empty "Camera Metadata" page.
+    expect(html).toContain("Technical Summary");
+    expect(html).toContain("Capture Device");
+    expect(html).toContain("Camera");
+    expect(html).toContain("Exposure");
     // Humanized labels — never the raw enum.
     expect(html).toContain("PROOVRA Web Application");
     expect(html).toContain("Secure Browser Capture");
