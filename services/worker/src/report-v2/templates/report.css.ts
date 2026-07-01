@@ -4284,7 +4284,24 @@ body {
   break-inside: auto !important;
   page-break-inside: auto !important;
 }
-  
+
+/* Unified Executive Summary metadata grid (Capture Device + Evidence
+   Overview merged into one two-column field-card grid). Labels use the
+   secondary dark-green accent; cards and the block never split across a
+   page boundary. */
+.executive-unified-grid {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+  margin-top: 2mm !important;
+}
+.executive-unified-grid .kv-label {
+  color: ${c.accent} !important;
+}
+.executive-unified-grid .kv-item {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
 .capture-context-metadata {
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 1mm !important;

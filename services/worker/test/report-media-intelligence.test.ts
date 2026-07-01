@@ -471,10 +471,18 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
       buildInput({ technicalSummary: WEB_TECH_SUMMARY, acquisition: WEB_ACQUISITION }),
     );
     const html = renderReportHtml(vm);
-    // Compact device context appears (inside Executive Summary), humanized.
-    expect(html).toContain("Capture Device");
+    // ONE unified Executive Summary metadata grid (device + overview merged).
+    expect(html).toContain("executive-unified-grid");
+    // Device context appears (inside the unified grid), humanized.
     expect(html).toContain("PROOVRA Web Application");
     expect(html).toContain("Secure Browser Capture");
+    // Evidence Overview fields live in the SAME grid — merged, not a second
+    // key/value table.
+    const gridStart = html.indexOf('class="executive-unified-grid"');
+    expect(gridStart).toBeGreaterThan(-1);
+    const gridSlice = html.slice(gridStart, gridStart + 4000);
+    expect(gridSlice).toContain("Operating system"); // device field
+    expect(gridSlice).toContain("Evidence Type"); // overview field
     // No wasteful standalone "Technical Summary" page section.
     expect(html).not.toContain("technical-summary-section");
     // Never says "intake" for web capture.
@@ -482,6 +490,34 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     // No duplicated broad rows.
     expect(html).not.toMatch(/Files analysed/i);
     expect(html).not.toContain("Mixed");
+  });
+
+  it("intake evidence also uses the unified Executive Summary grid", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({ acquisition: SMS_ACQUISITION }),
+    );
+    const html = renderReportHtml(vm);
+    // Unified grid present; intake device rows suppressed (acquisition table
+    // covers submission context) but Evidence Overview still merged in.
+    expect(html).toContain("executive-unified-grid");
+    const gridStart = html.indexOf('class="executive-unified-grid"');
+    const gridSlice = html.slice(gridStart, gridStart + 4000);
+    expect(gridSlice).toContain("Evidence Type");
+  });
+
+  it("report CSS gives the unified grid accent labels + break protection", () => {
+    const css = readFileSync(
+      fileURLToPath(
+        new URL("../src/report-v2/templates/report.css.ts", import.meta.url),
+      ),
+      "utf8",
+    );
+    expect(css).toMatch(
+      /\.executive-unified-grid[\s\S]{0,120}break-inside:\s*avoid/,
+    );
+    expect(css).toMatch(
+      /\.executive-unified-grid \.kv-label[\s\S]{0,60}color:/,
+    );
   });
 });
 

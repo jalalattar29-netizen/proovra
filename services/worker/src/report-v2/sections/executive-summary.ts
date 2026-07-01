@@ -25,24 +25,21 @@ function captureTimestampLabel(vm: ReportViewModel): string {
 }
 
 /**
- * Compact "Capture Device" mini-table for the Executive Summary. Used for
- * normal desktop/browser capture where there is NO camera EXIF, so the
- * standalone Technical Summary page is suppressed and these few device rows
- * live inline instead. Renders only when it has ≥2 meaningful rows and no
- * EXIF camera exists. NEVER duplicates evidence type / GPS / hashes / gallery.
+ * Capture-device rows for the UNIFIED Executive Summary grid. Returned for
+ * normal desktop/browser capture where there is NO camera EXIF (mobile EXIF
+ * device/camera is shown on the Technical Summary page) and NOT an intake
+ * (intake submission context lives in the Evidence Acquisition table). These
+ * rows are merged with the Evidence Overview into a single field-card grid.
  */
-function renderCaptureDeviceMini(vm: ReportViewModel): string {
+function buildCaptureDeviceRows(
+  vm: ReportViewModel,
+): Array<{ label: string; value: string }> {
   const ts = vm.technicalSummary;
-  if (!ts) return "";
-  // For intake evidence the Evidence Acquisition table already covers the
-  // submission context — don't add a second device panel (keeps the page
-  // from overflowing).
-  if (vm.meta.acquisition?.isIntake) return "";
+  if (!ts) return [];
+  if (vm.meta.acquisition?.isIntake) return [];
   const ce = ts.captureEnvironment;
   const hasExif = Boolean(ts.exif && ts.exif.exifPresent);
-  // When EXIF exists, the Technical Summary page shows device+camera; don't
-  // duplicate here.
-  if (hasExif || !ce) return "";
+  if (hasExif || !ce) return [];
 
   const titleCaseWord = (s: string) =>
     s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
@@ -79,18 +76,26 @@ function renderCaptureDeviceMini(vm: ReportViewModel): string {
   push("Submitted through", humanUpload(ce.uploadSource));
   push("Capture method", humanMethod(ce.captureMethod));
   push("Timezone", ce.timezone);
+  return rows;
+}
 
-  // Fewer than 2 meaningful rows → not worth an inline table.
-  if (rows.length < 2) return "";
-
-  return `
-    <section class="capture-context-panel evidence-acquisition-panel">
-      <div class="capture-context-header">
-        <div class="executive-confirmation-kicker">Capture Device</div>
-      </div>
-      ${renderExecutiveTable(rows)}
-    </section>
-  `;
+/**
+ * Unified Executive Summary metadata grid — a single two-column field-card
+ * grid that merges the Capture Device rows and the Evidence Overview rows.
+ * Replaces the old separate one-column Capture Device table and two-column
+ * key/value Evidence table. Empty/"N/A" fields are omitted; cards never split
+ * across a page boundary.
+ */
+function renderUnifiedExecutiveGrid(
+  deviceRows: Array<{ label: string; value: string }>,
+  overviewRows: Array<{ label: string; value: string }>,
+): string {
+  const rows = [...deviceRows, ...overviewRows].filter((r) => {
+    const v = (r.value ?? "").trim();
+    return v !== "" && v.toUpperCase() !== "N/A";
+  });
+  if (rows.length === 0) return "";
+  return `<section class="executive-unified-grid">${renderKeyValueGrid(rows)}</section>`;
 }
 
 function findRowValue(
@@ -412,11 +417,9 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
 
         ${renderEvidenceAcquisition(vm)}
 
-        ${renderCaptureDeviceMini(vm)}
-
         ${renderCaptureContext(vm)}
 
-        ${renderExecutiveTable(executiveRows)}
+        ${renderUnifiedExecutiveGrid(buildCaptureDeviceRows(vm), executiveRows)}
 
         <div class="executive-bottom-outcomes">
           ${renderExecutiveDecisionBasis(vm)}
