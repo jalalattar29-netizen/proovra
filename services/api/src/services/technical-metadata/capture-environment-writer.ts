@@ -15,7 +15,37 @@
 
 import type { Prisma } from "@prisma/client";
 
+import { getTrustedClientIp } from "@proovra/shared-runtime/technical-metadata";
 import { prisma as defaultPrisma } from "../../db.js";
+
+/**
+ * Whether the API is deployed behind a trusted reverse proxy / Cloudflare.
+ * Only when this is true do we consult CF-Connecting-IP / X-Forwarded-For —
+ * otherwise arbitrary public-internet forwarded headers are NOT trusted and
+ * the direct socket IP (req.ip) is used. Default false (safe).
+ */
+function trustProxyEnabled(): boolean {
+  const v = (process.env.API_TRUST_PROXY ?? "").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
+/**
+ * Resolve the trusted client IP for capture-environment recording from a
+ * Fastify-like request. Prefers CF-Connecting-IP / first public
+ * X-Forwarded-For ONLY under a trusted-proxy deployment; otherwise req.ip.
+ * The result is masked (and private/Docker addresses suppressed) downstream
+ * by `maskIp`, so a Docker bridge IP never becomes network metadata.
+ */
+export function resolveCaptureClientIp(req: {
+  ip?: string | null;
+  headers?: Record<string, string | string[] | undefined> | null;
+}): string | null {
+  return getTrustedClientIp({
+    reqIp: req.ip ?? null,
+    headers: req.headers ?? null,
+    trustProxy: trustProxyEnabled(),
+  });
+}
 
 export type RecordCaptureEnvironmentInput = {
   evidenceId: string;

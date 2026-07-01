@@ -33,6 +33,9 @@ import {
   buildEvidenceAcquisitionContext,
   toPublicAcquisition,
   toInternalAcquisition,
+  getCaptureContextTimestampLabel,
+  isPrivateOrReservedIp,
+  getTrustedClientIp,
   TECHNICAL_METADATA_SCHEMA_VERSION,
 } from "@proovra/shared-runtime/technical-metadata";
 
@@ -124,6 +127,104 @@ describe("EXIF original capture time — offset-aware, no fabricated UTC", () =>
     // Invalid offset → naive local, never a bad suffix.
     expect(deriveCaptureTime("2024-11-15T10:22:05", "banana")).toBe(
       "2024-11-15T10:22:05",
+    );
+  });
+});
+
+describe("Client IP resolution + private/Docker suppression", () => {
+  it("flags Docker / private / reserved ranges as non-public", () => {
+    for (const ip of [
+      "172.18.0.1", // Docker bridge
+      "10.1.2.3",
+      "192.168.1.1",
+      "127.0.0.1",
+      "169.254.10.1",
+      "100.64.0.1",
+      "::1",
+      "fe80::1",
+      "fd00::1",
+    ]) {
+      expect(isPrivateOrReservedIp(ip)).toBe(true);
+    }
+    expect(isPrivateOrReservedIp("203.0.113.42")).toBe(false);
+    expect(isPrivateOrReservedIp("2001:db8::1")).toBe(false);
+  });
+
+  it("maskIp suppresses Docker/private IPs but masks public ones", () => {
+    expect(maskIp("172.18.0.1")).toBeNull();
+    expect(maskIp("10.0.0.5")).toBeNull();
+    expect(maskIp("192.168.1.9")).toBeNull();
+    expect(maskIp("127.0.0.1")).toBeNull();
+    expect(maskIp("203.0.113.42")).toBe("203.0.x.x");
+  });
+
+  it("getTrustedClientIp only trusts proxy headers when trustProxy is enabled", () => {
+    const headers = {
+      "cf-connecting-ip": "203.0.113.7",
+      "x-forwarded-for": "198.51.100.9, 172.18.0.1",
+    };
+    // Untrusted deployment → direct socket IP only.
+    expect(
+      getTrustedClientIp({ reqIp: "172.18.0.1", headers, trustProxy: false }),
+    ).toBe("172.18.0.1");
+    // Trusted proxy → CF-Connecting-IP public wins.
+    expect(
+      getTrustedClientIp({ reqIp: "172.18.0.1", headers, trustProxy: true }),
+    ).toBe("203.0.113.7");
+    // Trusted proxy, no CF header → first PUBLIC X-Forwarded-For.
+    expect(
+      getTrustedClientIp({
+        reqIp: "172.18.0.1",
+        headers: { "x-forwarded-for": "198.51.100.9, 172.18.0.1" },
+        trustProxy: true,
+      }),
+    ).toBe("198.51.100.9");
+  });
+
+  it("masked package/report output never contains a Docker IP", () => {
+    // The end-to-end guarantee: a Docker req.ip masks to null (never 172.18).
+    const masked = maskIp("172.18.0.1");
+    expect(masked).toBeNull();
+    expect(JSON.stringify({ ipAddressMasked: masked })).not.toContain("172.18");
+  });
+});
+
+describe("Capture Context timestamp label (never 'intake' for web/mobile)", () => {
+  it("uses submission wording for WEB_APP secure capture", () => {
+    expect(
+      getCaptureContextTimestampLabel({
+        uploadSource: "WEB_APP",
+        captureMethod: "SECURE_CAPTURE",
+        acquisitionMethod: "Direct Upload",
+        isIntake: false,
+      }),
+    ).toBe("Recorded at submission (server UTC)");
+  });
+  it("uses intake wording for intake-link evidence", () => {
+    expect(
+      getCaptureContextTimestampLabel({
+        uploadSource: "INTAKE_LINK",
+        acquisitionMethod: "Intake Link",
+        isIntake: true,
+      }),
+    ).toBe("Intake submitted at (server UTC)");
+  });
+  it("uses mobile wording for mobile-app capture", () => {
+    expect(
+      getCaptureContextTimestampLabel({
+        uploadSource: "MOBILE_APP",
+        acquisitionMethod: "Mobile Capture",
+        isIntake: false,
+      }),
+    ).toBe("Recorded at mobile capture (server UTC)");
+  });
+  it("falls back to safe generic submission wording when unknown", () => {
+    expect(getCaptureContextTimestampLabel({})).toBe(
+      "Recorded at submission (server UTC)",
+    );
+    // Never the word "intake" for a non-intake/unknown source.
+    expect(getCaptureContextTimestampLabel({}).toLowerCase()).not.toContain(
+      "intake",
     );
   });
 });
@@ -714,7 +815,60 @@ describe("verification package technical-metadata files", () => {
       recipient?: unknown;
     };
     expect(json.acquisition.method).toBe("Public Secure Link");
+    expect(json.acquisition.deliveryChannel).toBe("Public Secure Link");
     expect(json.recipient).toBeUndefined();
+    // Never deliveryChannel:null in the package.
+    expect(JSON.stringify(json)).not.toContain('"deliveryChannel":null');
+  });
+
+  it("package never emits deliveryChannel:null (unknown → 'Unknown' + reason)", async () => {
+    const { buildTechnicalMetadataPackageFiles } = await import(
+      "../src/verification-package-technical-metadata.js"
+    );
+    // Intake by capture_method, but no channel and not reusable → Unknown.
+    const files = await buildTechnicalMetadataPackageFiles({
+      prisma: fakePrismaWithAcquisition({
+        capture_method: "EXTERNAL_INTAKE_UPLOAD",
+        intake_mode: "EXTERNAL_ONE_TIME",
+        channel: null,
+      }) as never,
+      teamId: "team-1",
+      evidenceId: "ev-1",
+    });
+    const entry = intakeDeliveryEntry(files);
+    expect(entry).toBeDefined();
+    const json = entry!.json as {
+      acquisition: { deliveryChannel: string };
+    };
+    expect(json.acquisition.deliveryChannel).toBe("Unknown");
+    expect(JSON.stringify(json)).not.toContain('"deliveryChannel":null');
+  });
+
+  it("adds recipientUnavailableReason for a targeted channel with no masked record", async () => {
+    const { buildTechnicalMetadataPackageFiles } = await import(
+      "../src/verification-package-technical-metadata.js"
+    );
+    const files = await buildTechnicalMetadataPackageFiles({
+      prisma: fakePrismaWithAcquisition({
+        intake_mode: "EXTERNAL_ONE_TIME",
+        channel: "SMS",
+        recipient_preview: null,
+        recipient_hash: null,
+      }) as never,
+      teamId: "team-1",
+      evidenceId: "ev-1",
+    });
+    const entry = intakeDeliveryEntry(files);
+    const json = entry!.json as {
+      acquisition: { deliveryChannel: string };
+      recipient?: unknown;
+      recipientUnavailableReason?: string;
+    };
+    expect(json.acquisition.deliveryChannel).toBe("SMS");
+    expect(json.recipient).toBeUndefined();
+    expect(json.recipientUnavailableReason).toBe(
+      "No masked recipient record available",
+    );
   });
 
   it("does NOT emit intake-delivery.json for a direct (non-intake) upload", async () => {
@@ -812,6 +966,40 @@ describe("PDF report: Capture Device & Camera Metadata section", () => {
     expect(
       renderTechnicalSummarySection({ technicalSummary: null } as never),
     ).toBe("");
+  });
+
+  it("renders NO standalone page for desktop capture with no camera EXIF", async () => {
+    const { renderTechnicalSummarySection } = await import(
+      "../src/report-v2/sections/technical-summary.js"
+    );
+    // Desktop web capture: capture environment present, but no EXIF camera.
+    const html = renderTechnicalSummarySection({
+      technicalSummary: {
+        mediaFilesAnalyzed: 1,
+        mediaFilesTotal: 1,
+        metadataStatus: "Complete",
+        primaryMediaType: "Document",
+        resolutionSummary: null,
+        primaryMedia: null,
+        exif: null,
+        captureEnvironment: {
+          uploadSource: "WEB_APP",
+          captureMethod: "SECURE_CAPTURE",
+          browserName: "Chrome",
+          browserVersion: "138",
+          osName: "Windows",
+          osVersion: null,
+          deviceClass: "DESKTOP",
+          engine: "Blink",
+          platform: "Windows x64",
+          timezone: "Europe/London",
+          locale: "en-GB",
+        },
+        network: null,
+      },
+    } as never);
+    // No wasteful standalone Technical Summary page for a few device rows.
+    expect(html).toBe("");
   });
 
   it("renders without raw UA / IP / GPS coordinates", async () => {

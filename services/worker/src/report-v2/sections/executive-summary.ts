@@ -5,11 +5,93 @@ import {
   getTrustDecisionConfidenceLabel,
   getTrustDecisionLabel,
 } from "@proovra/shared";
+import { getCaptureContextTimestampLabel } from "@proovra/shared-runtime/technical-metadata";
 import {
   renderPageSection,
   renderTrustSignalGrid,
   renderKeyValueGrid,
 } from "../ui.js";
+
+/**
+ * Server-time label for the Capture Context — never says "intake" for
+ * non-intake (web/mobile) evidence. Uppercased to match the panel styling.
+ */
+function captureTimestampLabel(vm: ReportViewModel): string {
+  const a = vm.meta.acquisition;
+  return getCaptureContextTimestampLabel({
+    acquisitionMethod: a?.method ?? null,
+    isIntake: a?.isIntake ?? false,
+  });
+}
+
+/**
+ * Compact "Capture Device" mini-table for the Executive Summary. Used for
+ * normal desktop/browser capture where there is NO camera EXIF, so the
+ * standalone Technical Summary page is suppressed and these few device rows
+ * live inline instead. Renders only when it has ≥2 meaningful rows and no
+ * EXIF camera exists. NEVER duplicates evidence type / GPS / hashes / gallery.
+ */
+function renderCaptureDeviceMini(vm: ReportViewModel): string {
+  const ts = vm.technicalSummary;
+  if (!ts) return "";
+  // For intake evidence the Evidence Acquisition table already covers the
+  // submission context — don't add a second device panel (keeps the page
+  // from overflowing).
+  if (vm.meta.acquisition?.isIntake) return "";
+  const ce = ts.captureEnvironment;
+  const hasExif = Boolean(ts.exif && ts.exif.exifPresent);
+  // When EXIF exists, the Technical Summary page shows device+camera; don't
+  // duplicate here.
+  if (hasExif || !ce) return "";
+
+  const titleCaseWord = (s: string) =>
+    s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  const humanUpload = (v: string | null): string | null => {
+    if (!v) return null;
+    if (v === "WEB_APP") return "PROOVRA Web Application";
+    if (v === "MOBILE_APP") return "PROOVRA Mobile";
+    if (v === "INTAKE_LINK") return "Intake Link Submission";
+    if (v === "API") return "API Submission";
+    return null;
+  };
+  const humanMethod = (v: string | null): string | null => {
+    if (!v) return null;
+    if (v === "SECURE_CAPTURE") return "Secure Browser Capture";
+    if (v === "UPLOAD") return "Direct Upload";
+    if (v === "MOBILE") return "Mobile Capture";
+    return null;
+  };
+
+  const rows: Array<{ label: string; value: string }> = [];
+  const push = (label: string, value: string | null | undefined) => {
+    const v = (value ?? "").trim();
+    if (v && v.toUpperCase() !== "UNKNOWN") rows.push({ label, value: v });
+  };
+  push(
+    "Operating system",
+    [ce.osName, ce.osVersion].filter(Boolean).join(" ") || null,
+  );
+  push("Device", ce.deviceClass ? titleCaseWord(ce.deviceClass) : null);
+  push(
+    "Browser",
+    [ce.browserName, ce.browserVersion].filter(Boolean).join(" ") || null,
+  );
+  push("Submitted through", humanUpload(ce.uploadSource));
+  push("Capture method", humanMethod(ce.captureMethod));
+  push("Timezone", ce.timezone);
+
+  // Fewer than 2 meaningful rows → not worth an inline table.
+  if (rows.length < 2) return "";
+
+  return `
+    <section class="capture-context-panel evidence-acquisition-panel">
+      <div class="capture-context-header">
+        <div class="executive-confirmation-kicker">Capture Device</div>
+      </div>
+      ${renderExecutiveTable(rows)}
+    </section>
+  `;
+}
 
 function findRowValue(
   rows: Array<{ label: string; value: string }>,
@@ -27,12 +109,16 @@ function findRowValue(
  */
 function renderEvidenceAcquisition(vm: ReportViewModel): string {
   const a = vm.meta.acquisition;
-  if (!a) return "";
+  // Intake-only. Normal web / mobile capture never shows this table.
+  if (!a || !a.isIntake) return "";
   const rows: Array<{ label: string; value: string }> = [];
   const push = (label: string, value: string | null | undefined) => {
     const v = (value ?? "").trim();
     if (v && v.toUpperCase() !== "UNKNOWN") rows.push({ label, value: v });
   };
+  // MAX 5 rows in the PDF to keep the Executive Summary from overflowing.
+  // Identity Verification + Submission Time stay in the package/internal
+  // surfaces only (they are not dropped from the data model).
   push("Acquisition Method", a.method);
   push("Delivery Channel", a.deliveryChannel);
   push("Submission Type", a.submissionType);
@@ -40,9 +126,7 @@ function renderEvidenceAcquisition(vm: ReportViewModel): string {
     "Submission Status",
     a.submissionStatus.length ? a.submissionStatus.join(" • ") : null,
   );
-  push("Identity Verification", a.identityVerification);
   if (a.consentAccepted === true) push("Consent", "Accepted");
-  push("Submission Time", a.submittedAtUtc);
   if (rows.length === 0) return "";
 
   return `
@@ -100,7 +184,7 @@ function renderCaptureContext(vm: ReportViewModel): string {
             ["Latitude", vm.meta.captureContext.lat],
             ["Longitude", vm.meta.captureContext.lng],
             ["Accuracy radius", vm.meta.captureContext.accuracyRadius],
-            ["Recorded at intake (server UTC)", vm.meta.captureContext.capturedAtLabel],
+            [captureTimestampLabel(vm), vm.meta.captureContext.capturedAtLabel],
             ["Source", vm.meta.captureContext.sourceLabel],
           ]
             .map(
@@ -327,6 +411,8 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
         </section>
 
         ${renderEvidenceAcquisition(vm)}
+
+        ${renderCaptureDeviceMini(vm)}
 
         ${renderCaptureContext(vm)}
 

@@ -475,6 +475,14 @@ export async function buildServer() {
   initSentry();
 
   const app = Fastify({
+    // Trust the reverse proxy ONLY when explicitly deployed behind one
+    // (API_TRUST_PROXY). We never blindly trust arbitrary X-Forwarded-For
+    // from the public internet. Client-IP resolution is additionally scoped
+    // by resolveCaptureClientIp/getTrustedClientIp; the safe default is off.
+    trustProxy:
+      ["1", "true", "yes"].includes(
+        (process.env.API_TRUST_PROXY ?? "").trim().toLowerCase(),
+      ),
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
       base: { service: "api" },

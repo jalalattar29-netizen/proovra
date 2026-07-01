@@ -239,6 +239,9 @@ export type PublicAcquisition = {
   consentAccepted: boolean | null;
   consentVersion: string | null;
   submittedAtUtc: string | null;
+  /** True only for intake/delivery acquisitions — drives whether the
+   *  Evidence Acquisition table/card renders. */
+  isIntake: boolean;
 };
 
 export function toPublicAcquisition(
@@ -253,6 +256,7 @@ export function toPublicAcquisition(
     consentAccepted: ctx.consentAccepted,
     consentVersion: ctx.consentVersion,
     submittedAtUtc: ctx.submittedAtUtc,
+    isIntake: ctx.isIntake,
   };
 }
 
@@ -273,4 +277,38 @@ export function toInternalAcquisition(
     recipientType: ctx.recipientType,
     recipientMasked: ctx.recipientMasked,
   };
+}
+
+/**
+ * Choose the correct Capture Context timestamp label for the server-recorded
+ * time, so NON-intake evidence never reads "Recorded at intake".
+ *
+ *   - Intake flow  → "Intake submitted at (server UTC)"
+ *   - Mobile app   → "Recorded at mobile capture (server UTC)"
+ *   - Web capture  → "Recorded at submission (server UTC)"
+ *   - Unknown      → "Recorded at submission (server UTC)" (safe generic)
+ */
+export function getCaptureContextTimestampLabel(input: {
+  uploadSource?: string | null;
+  captureMethod?: string | null;
+  acquisitionMethod?: string | null;
+  isIntake?: boolean | null;
+}): string {
+  const method = (input.acquisitionMethod ?? "").toLowerCase();
+  const isIntake =
+    input.isIntake === true ||
+    up(input.uploadSource) === "INTAKE_LINK" ||
+    up(input.captureMethod) === "EXTERNAL_INTAKE_UPLOAD" ||
+    method.includes("intake") ||
+    method.includes("public secure link");
+  if (isIntake) return "Intake submitted at (server UTC)";
+
+  if (
+    up(input.uploadSource) === "MOBILE_APP" ||
+    method.includes("mobile") ||
+    up(input.captureMethod) === "SECURE_CAMERA"
+  ) {
+    return "Recorded at mobile capture (server UTC)";
+  }
+  return "Recorded at submission (server UTC)";
 }

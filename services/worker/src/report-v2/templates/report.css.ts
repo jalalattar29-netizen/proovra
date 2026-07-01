@@ -4254,9 +4254,12 @@ body {
 }
 
 .capture-context-map-shell {
-  height: 40mm !important;
-  min-height: 40mm !important;
-  max-height: 42mm !important;
+  /* Reduced from 40mm to keep the Executive Summary (confirmation cards +
+     optional acquisition + capture context + executive table + outcomes)
+     within one printed page and off the fixed footer. */
+  height: 30mm !important;
+  min-height: 30mm !important;
+  max-height: 32mm !important;
   background: rgba(243, 246, 244, 0.96) !important;
   box-shadow: none !important;
 }
@@ -4266,6 +4269,20 @@ body {
   height: 100% !important;
   object-fit: cover !important;
   image-rendering: auto !important;
+}
+
+/* Layout stability: never split a metadata panel across a page boundary,
+   but let the Executive Summary page itself flow to a second page cleanly
+   instead of clipping content under the fixed footer. */
+.capture-context-panel,
+.evidence-acquisition-panel {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+.executive-summary-page,
+.executive-summary-page-enterprise {
+  break-inside: auto !important;
+  page-break-inside: auto !important;
 }
   
 .capture-context-metadata {

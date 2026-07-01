@@ -245,13 +245,13 @@ export async function citizenCaptureRoutes(app: FastifyInstance) {
       // citizen payload is NOT modified; locale is derived from
       // Accept-Language, timezone left null (no client signal here).
       {
-        const { recordCaptureEnvironment } = await import(
+        const { recordCaptureEnvironment, resolveCaptureClientIp } = await import(
           "../services/technical-metadata/capture-environment-writer.js"
         );
         await recordCaptureEnvironment({
           evidenceId: result.evidenceId,
           rawUserAgent: req.headers["user-agent"] ?? null,
-          rawIp: req.ip ?? null,
+          rawIp: resolveCaptureClientIp(req),
           timezone: null,
           acceptLanguage:
             typeof req.headers["accept-language"] === "string"

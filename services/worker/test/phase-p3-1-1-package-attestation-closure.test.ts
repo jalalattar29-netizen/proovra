@@ -68,6 +68,41 @@ describe("Phase P3.1.1 — Module surface", () => {
       /export\s+async\s+function\s+collectVerificationPackageAttestations/,
     );
   });
+
+  it("separates forensic vs access custody counts (no silent combining)", () => {
+    // The count must distinguish forensic custody from access activity so
+    // it can match the PDF Chain of Custody forensic count.
+    expect(src).toContain("forensicCustodyEventsCount");
+    expect(src).toContain("accessActivityEventsCount");
+    expect(src).toContain("totalEventsCount");
+    // Classification uses the shared access-event helper.
+    expect(src).toContain("isAccessCustodyEventType");
+    // The query selects eventType so it can classify.
+    expect(src).toMatch(/select:\s*\{[^}]*eventType:\s*true/s);
+  });
+});
+
+// Runtime check of the forensic/access/total split via the pure helper the
+// builder uses — the same classification the PDF applies.
+describe("Phase P3.1.1 — custody count classification", () => {
+  it("forensic + access == total, and access events are excluded from forensic", async () => {
+    const { isAccessCustodyEventType } = await import("@proovra/shared");
+    const events = [
+      { eventType: "EVIDENCE_CREATED" },
+      { eventType: "STORAGE_LOCKED" },
+      { eventType: "REPORT_SIGNED" },
+      { eventType: "EVIDENCE_VIEWED" }, // access
+      { eventType: "EVIDENCE_DOWNLOADED" }, // access
+    ];
+    const total = events.length;
+    const access = events.filter((e) =>
+      isAccessCustodyEventType(String(e.eventType)),
+    ).length;
+    const forensic = total - access;
+    expect(access).toBe(2);
+    expect(forensic).toBe(3);
+    expect(forensic + access).toBe(total);
+  });
 });
 
 describe("Phase P3.1.1 — Builder integration (additive)", () => {

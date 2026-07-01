@@ -367,6 +367,18 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     consentAccepted: true,
     consentVersion: "v3",
     submittedAtUtc: "2026-07-01T12:14:00.000Z",
+    isIntake: true,
+  };
+  const WEB_ACQUISITION = {
+    method: "Direct Upload",
+    deliveryChannel: null,
+    submissionType: "Authenticated User",
+    submissionStatus: [],
+    identityVerification: "Verified",
+    consentAccepted: null,
+    consentVersion: null,
+    submittedAtUtc: null,
+    isIntake: false,
   };
 
   it("renders a compact Evidence Acquisition table for an intake SMS", async () => {
@@ -381,6 +393,12 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     expect(html).toContain("SMS");
     expect(html).toContain("Remote Contributor");
     expect(html).toContain("Accepted");
+    // Role modeling: the workspace owner is NOT shown as the submitter.
+    expect(html).toContain("Remote Contributor via Secure Intake Link");
+    // PDF acquisition table is capped at ≤5 rows — Identity Verification +
+    // Submission Time are package/internal only.
+    expect(html).not.toContain("Identity Verification");
+    expect(html).not.toContain("Submission Time");
     // NEVER a masked recipient, hash, or provider ID in the report.
     expect(html).not.toContain("•••");
     expect(html).not.toContain("sha256:");
@@ -392,6 +410,78 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     const vm = await buildReportViewModel(buildInput({ acquisition: null }));
     const html = renderReportHtml(vm);
     expect(html).not.toContain("Evidence Acquisition");
+  });
+
+  it("report CSS protects metadata panels from splitting across pages", () => {
+    const css = readFileSync(
+      fileURLToPath(
+        new URL("../src/report-v2/templates/report.css.ts", import.meta.url),
+      ),
+      "utf8",
+    );
+    // Acquisition/capture panels never split; the exec page may flow to a
+    // second page instead of clipping under the fixed footer.
+    expect(css).toContain(".evidence-acquisition-panel");
+    expect(css).toMatch(/\.capture-context-panel[\s\S]{0,120}break-inside:\s*avoid/);
+    expect(css).toMatch(
+      /\.executive-summary-page[\s\S]{0,160}page-break-inside:\s*auto/,
+    );
+    // The Executive Summary map was reduced to fit one page.
+    expect(css).toContain("height: 30mm");
+  });
+
+  it("does NOT render the acquisition table for a non-intake (web) context", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({ acquisition: WEB_ACQUISITION }),
+    );
+    const html = renderReportHtml(vm);
+    // The context is supplied (for the timestamp label) but the intake-only
+    // table must not render.
+    expect(html).not.toContain("Acquisition Method");
+    expect(html).not.toContain("Delivery Channel");
+    // Web capture keeps normal submitter modeling — not the intake role label.
+    expect(html).not.toContain("Remote Contributor via Secure Intake Link");
+  });
+
+  it("shows a compact Capture Device mini-table (Exec Summary) for desktop no-EXIF, and no standalone page", async () => {
+    const WEB_TECH_SUMMARY = {
+      mediaFilesAnalyzed: 1,
+      mediaFilesTotal: 1,
+      metadataStatus: "Complete" as const,
+      primaryMediaType: "Document",
+      resolutionSummary: null,
+      primaryMedia: null,
+      exif: null,
+      captureEnvironment: {
+        uploadSource: "WEB_APP",
+        captureMethod: "SECURE_CAPTURE",
+        browserName: "Chrome",
+        browserVersion: "138",
+        osName: "Windows",
+        osVersion: null,
+        deviceClass: "DESKTOP",
+        engine: "Blink",
+        platform: "Windows x64",
+        timezone: "Europe/London",
+        locale: "en-GB",
+      },
+      network: null,
+    };
+    const vm = await buildReportViewModel(
+      buildInput({ technicalSummary: WEB_TECH_SUMMARY, acquisition: WEB_ACQUISITION }),
+    );
+    const html = renderReportHtml(vm);
+    // Compact device context appears (inside Executive Summary), humanized.
+    expect(html).toContain("Capture Device");
+    expect(html).toContain("PROOVRA Web Application");
+    expect(html).toContain("Secure Browser Capture");
+    // No wasteful standalone "Technical Summary" page section.
+    expect(html).not.toContain("technical-summary-section");
+    // Never says "intake" for web capture.
+    expect(html.toLowerCase()).not.toContain("recorded at intake");
+    // No duplicated broad rows.
+    expect(html).not.toMatch(/Files analysed/i);
+    expect(html).not.toContain("Mixed");
   });
 });
 

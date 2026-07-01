@@ -185,14 +185,56 @@ export function hashUserAgent(ua: string | null | undefined): string | null {
 }
 
 /**
- * Mask an IP for reportable output. IPv4 → keep first two octets
- * ("203.0.x.x"). IPv6 → keep first two hextets ("2001:db8:…"). Never
- * returns the full address. Returns null for empty/unparseable input.
+ * True when an IP is private / reserved / loopback / link-local / unique-
+ * local, i.e. NOT a real public client address. Docker bridge networks
+ * (172.16.0.0/12), LAN ranges, localhost, and IPv6 ULA/link-local all match.
+ * Such addresses carry NO client-network context and must never be surfaced.
+ *
+ * Ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8,
+ * 169.254.0.0/16, 100.64.0.0/10 (CGNAT), 0.0.0.0/8, ::1, fc00::/7, fe80::/10.
+ */
+export function isPrivateOrReservedIp(ip: string | null | undefined): boolean {
+  if (!ip || typeof ip !== "string") return true;
+  const t = ip.trim().toLowerCase().replace(/^::ffff:/i, "");
+  if (t.length === 0) return true;
+
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(t)) {
+    const o = t.split(".").map((n) => Number(n));
+    if (o.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true;
+    const [a, b] = o as [number, number, number, number];
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 0) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true; // Docker default bridge
+    if (a === 192 && b === 168) return true;
+    if (a === 169 && b === 254) return true; // link-local
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+    if (a >= 224) return true; // multicast / reserved
+    return false;
+  }
+
+  // IPv6
+  if (t === "::1" || t === "::") return true;
+  if (t.startsWith("fe80")) return true; // link-local
+  if (t.startsWith("fc") || t.startsWith("fd")) return true; // unique-local fc00::/7
+  return false;
+}
+
+/**
+ * Mask a PUBLIC client IP for reportable output. IPv4 → keep first two
+ * octets ("203.0.x.x"). IPv6 → keep first two hextets ("2001:db8:…").
+ *
+ * SUPPRESSION: private / reserved / Docker / loopback / link-local addresses
+ * carry no client-network context and return NULL — they must never appear
+ * in a report, package, or internal card as "network metadata".
+ * Returns null for empty/unparseable input.
  */
 export function maskIp(ip: string | null | undefined): string | null {
   if (!ip || typeof ip !== "string") return null;
   const t = ip.trim();
   if (t.length === 0) return null;
+  // Never surface a non-public (Docker/LAN/loopback) address.
+  if (isPrivateOrReservedIp(t)) return null;
   // Strip any IPv6-mapped IPv4 prefix.
   const v4mapped = t.replace(/^::ffff:/i, "");
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(v4mapped)) {
@@ -205,6 +247,46 @@ export function maskIp(ip: string | null | undefined): string | null {
     return "…";
   }
   return null;
+}
+
+/**
+ * Resolve the trusted client IP from request-like headers.
+ *
+ * Only consults proxy headers when `trustProxy` is true (i.e. the API is
+ * deployed behind a known Cloudflare/reverse-proxy layer). Priority:
+ *   1. CF-Connecting-IP (Cloudflare, single value).
+ *   2. First PUBLIC address in X-Forwarded-For (left-most client).
+ *   3. reqIp fallback (direct socket).
+ * When trustProxy is false, arbitrary forwarded headers from the public
+ * internet are NOT trusted and reqIp is used. Returns null when nothing
+ * usable is present.
+ */
+export function getTrustedClientIp(input: {
+  reqIp?: string | null;
+  headers?: Record<string, string | string[] | undefined> | null;
+  trustProxy?: boolean;
+}): string | null {
+  const reqIp = (input.reqIp ?? "").trim() || null;
+  if (!input.trustProxy) return reqIp;
+
+  const headers = input.headers ?? {};
+  const header = (name: string): string | null => {
+    const v = headers[name] ?? headers[name.toLowerCase()];
+    if (Array.isArray(v)) return v[0] ?? null;
+    return typeof v === "string" ? v : null;
+  };
+
+  const cf = (header("cf-connecting-ip") ?? "").trim();
+  if (cf && !isPrivateOrReservedIp(cf)) return cf;
+
+  const xff = header("x-forwarded-for");
+  if (xff) {
+    for (const part of xff.split(",")) {
+      const candidate = part.trim();
+      if (candidate && !isPrivateOrReservedIp(candidate)) return candidate;
+    }
+  }
+  return reqIp;
 }
 
 export type BuildCaptureEnvironmentInput = {

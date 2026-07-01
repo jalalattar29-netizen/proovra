@@ -65,6 +65,12 @@ export function renderTechnicalSummarySection(vm: ReportViewModel): string {
   const hasExif = Boolean(exif && exif.exifPresent);
   const camera = hasExif ? exif!.camera : null;
 
+  // No camera EXIF → do NOT spend a whole standalone page on a few device
+  // rows. Those rows are shown as a compact "Capture Device" mini-table
+  // inside the Executive Summary instead (renderCaptureDeviceMini). This
+  // section is byte-neutral in the no-EXIF case.
+  if (!hasExif) return "";
+
   // Show Browser when there is no EXIF camera (desktop) OR the upload came
   // from a mobile device-class (mobile browser / intake link) where the
   // browser is genuinely informative even alongside a camera.

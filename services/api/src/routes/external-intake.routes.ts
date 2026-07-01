@@ -735,13 +735,13 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         // (UA hash + masked IP only; never raw). Best-effort +
         // non-blocking — never fails the upload.
         if (body.partIndex === 0 && session.evidenceId) {
-          const { recordCaptureEnvironment } = await import(
+          const { recordCaptureEnvironment, resolveCaptureClientIp } = await import(
             "../services/technical-metadata/capture-environment-writer.js"
           );
           await recordCaptureEnvironment({
             evidenceId: session.evidenceId,
             rawUserAgent: req.headers["user-agent"] ?? null,
-            rawIp: req.ip ?? null,
+            rawIp: resolveCaptureClientIp(req),
             timezone: body.captureTimezone ?? null,
             locale: body.captureLocale ?? null,
             acceptLanguage:

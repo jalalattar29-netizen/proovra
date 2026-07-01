@@ -39,6 +39,7 @@
  */
 
 import { trace, SpanStatusCode } from "@opentelemetry/api";
+import { isAccessCustodyEventType } from "@proovra/shared";
 
 import { prisma } from "./db.js";
 import { captureException } from "./sentry.js";
@@ -83,7 +84,17 @@ export type AttestationsFile = {
   generatedAtUtc: string;
   evidenceId: string;
   packageId: string | null;
+  /** DEPRECATED alias of totalEventsCount (all custody+access events).
+   *  Kept for backwards-compatibility; prefer the explicit counts below. */
   custodyEventsCount: number;
+  /** Forensic custody events only (excludes access/view/download activity).
+   *  This is the count shown in the PDF Chain of Custody. */
+  forensicCustodyEventsCount: number;
+  /** Access/activity events (views, downloads) — NOT forensic custody. */
+  accessActivityEventsCount: number;
+  /** All custody events recorded for this evidence (forensic + access) —
+   *  equals the length of custody.json. */
+  totalEventsCount: number;
   attestationsCount: number;
   attestations: ReadonlyArray<AttestationEntry>;
   missingAttestations: ReadonlyArray<{
@@ -226,13 +237,17 @@ async function buildAttestationsJson(input: {
 }): Promise<AttestationsFile> {
   const generatedAtUtc = new Date().toISOString();
   // Custody events for this evidence — deterministic order by sequence.
-  let custodyEvents: Array<{ id: string; sequence: number }>;
+  let custodyEvents: Array<{
+    id: string;
+    sequence: number;
+    eventType?: string | null;
+  }>;
   try {
     custodyEvents = await prisma.custodyEvent.findMany({
       where: { evidenceId: input.evidenceId },
       orderBy: { sequence: "asc" },
       take: 5000,
-      select: { id: true, sequence: true },
+      select: { id: true, sequence: true, eventType: true },
     });
   } catch {
     return baseAttestationsFile(input, generatedAtUtc, {
@@ -421,19 +436,27 @@ function baseAttestationsFile(
   input: { evidenceId: string; packageId?: string | null },
   generatedAtUtc: string,
   payload: {
-    custodyEvents: Array<{ id: string; sequence: number }>;
+    custodyEvents: Array<{ id: string; sequence: number; eventType?: string | null }>;
     attestations: ReadonlyArray<AttestationEntry>;
     missingAttestations: AttestationsFile["missingAttestations"];
     degradedReason: BoundedDegradedReason | null;
   },
 ): AttestationsFile {
+  const total = payload.custodyEvents.length;
+  const accessActivityEventsCount = payload.custodyEvents.filter((e) =>
+    isAccessCustodyEventType(String(e.eventType ?? "")),
+  ).length;
+  const forensicCustodyEventsCount = total - accessActivityEventsCount;
   return {
     schemaVersion: 1,
     schema: "PROOVRA_CUSTODY_ATTESTATIONS",
     generatedAtUtc,
     evidenceId: input.evidenceId,
     packageId: input.packageId ?? null,
-    custodyEventsCount: payload.custodyEvents.length,
+    custodyEventsCount: total,
+    forensicCustodyEventsCount,
+    accessActivityEventsCount,
+    totalEventsCount: total,
     attestationsCount: payload.attestations.length,
     attestations: payload.attestations,
     missingAttestations: payload.missingAttestations,

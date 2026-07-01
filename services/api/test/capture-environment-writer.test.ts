@@ -11,7 +11,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { recordCaptureEnvironment } from "../src/services/technical-metadata/capture-environment-writer.js";
+import {
+  recordCaptureEnvironment,
+  resolveCaptureClientIp,
+} from "../src/services/technical-metadata/capture-environment-writer.js";
 
 const RAW_IP = "203.0.113.42";
 const RAW_UA =
@@ -59,6 +62,31 @@ describe("recordCaptureEnvironment — privacy + persistence", () => {
     const serialized = JSON.stringify(captured.data);
     expect(serialized).not.toContain(RAW_IP);
     expect(serialized).not.toContain(RAW_UA);
+  });
+
+  it("does NOT store a Docker/private req.ip as network metadata", async () => {
+    const { prisma, captured } = capturePrisma();
+    await recordCaptureEnvironment({
+      evidenceId: "ev-docker",
+      rawUserAgent: RAW_UA,
+      rawIp: "172.18.0.1", // Docker bridge network
+      uploadSource: "WEB_APP",
+      captureMethod: "SECURE_CAPTURE",
+      prisma,
+    });
+    const ce = captured.data!.captureEnvironment as Record<string, unknown>;
+    // Docker/private address → suppressed to null, never surfaced.
+    expect(ce.ipAddressMasked).toBeNull();
+    expect(JSON.stringify(captured.data)).not.toContain("172.18");
+  });
+
+  it("resolveCaptureClientIp uses req.ip when proxy is not trusted (default)", () => {
+    // Default deployment (API_TRUST_PROXY unset) → never trust forwarded headers.
+    const resolved = resolveCaptureClientIp({
+      ip: "203.0.113.9",
+      headers: { "x-forwarded-for": "1.2.3.4" },
+    });
+    expect(resolved).toBe("203.0.113.9");
   });
 
   it("derives locale from Accept-Language when not supplied (mobile)", async () => {

@@ -388,9 +388,14 @@ export async function buildTechnicalMetadataPackageFiles(input: {
              SELECT c."recipient_preview", c."recipient_hash", c."channel",
                     c."status", c."sent_at_utc", c."delivered_at_utc"
                FROM "communication_messages" c
-              WHERE c."related_intake_session_id" = wis."id"
-                AND c."purpose" = 'INTAKE_LINK'
+              WHERE c."purpose" = 'INTAKE_LINK'
                 AND c."channel" IN ('SMS', 'WHATSAPP', 'EMAIL')
+                AND (
+                  c."related_intake_session_id" = wis."id"
+                  -- The delivery message is created at link SEND time, before
+                  -- the session exists, so it is linked by intake_link_id.
+                  OR c."related_intake_link_id" = wis."intake_link_id"
+                )
               ORDER BY c."created_at" DESC
               LIMIT 1
            ) cm ON true
@@ -420,6 +425,16 @@ export async function buildTechnicalMetadataPackageFiles(input: {
                   fullValueIncluded: false,
                 })
               : null;
+          // A targeted channel (SMS/WhatsApp/Email) with no masked record →
+          // explain the absence rather than silently omitting.
+          const targetedChannel =
+            ctx.deliveryChannel === "SMS" ||
+            ctx.deliveryChannel === "WhatsApp" ||
+            ctx.deliveryChannel === "Email";
+          const recipientUnavailableReason =
+            !recipient && targetedChannel
+              ? "No masked recipient record available"
+              : null;
           const consent = ctx.consentAccepted
             ? compact({
                 accepted: true,
@@ -439,11 +454,15 @@ export async function buildTechnicalMetadataPackageFiles(input: {
                 "Privacy-safe Evidence Acquisition context: how the contributor was reached and how the evidence entered PROOVRA. The recipient is masked (full phone/email is NEVER included); provider/message IDs are never included. Delivery/consent are reported only as recorded — never invented.",
               acquisition: {
                 method: ctx.method,
-                deliveryChannel: ctx.deliveryChannel,
+                // Package JSON must NEVER carry deliveryChannel:null.
+                deliveryChannel: ctx.deliveryChannel ?? "Unknown",
                 submissionType: ctx.submissionType,
                 submissionStatus: ctx.submissionStatus,
               },
               ...(recipient ? { recipient } : {}),
+              ...(recipientUnavailableReason
+                ? { recipientUnavailableReason }
+                : {}),
               delivery: compact({
                 sentAtUtc: ctx.sentAtUtc,
                 deliveredAtUtc: ctx.deliveredAtUtc,

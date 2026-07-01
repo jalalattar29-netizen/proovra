@@ -4761,13 +4761,13 @@ intakePlanJson:
       // file's embedded EXIF metadata and from the preservation
       // (OTS/RFC3161) state.
       {
-        const { recordCaptureEnvironment } = await import(
+        const { recordCaptureEnvironment, resolveCaptureClientIp } = await import(
           "../services/technical-metadata/capture-environment-writer.js"
         );
         await recordCaptureEnvironment({
           evidenceId: result.id,
           rawUserAgent: req.headers["user-agent"] ?? null,
-          rawIp: req.ip ?? null,
+          rawIp: resolveCaptureClientIp(req),
           timezone: body.captureTimezone ?? null,
           locale: body.captureLocale ?? null,
           acceptLanguage:

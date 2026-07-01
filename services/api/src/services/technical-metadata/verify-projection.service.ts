@@ -340,9 +340,12 @@ async function queryAcquisitionContext(
          SELECT c."recipient_preview", c."recipient_hash", c."channel",
                 c."status", c."sent_at_utc", c."delivered_at_utc"
            FROM "communication_messages" c
-          WHERE c."related_intake_session_id" = wis."id"
-            AND c."purpose" = 'INTAKE_LINK'
+          WHERE c."purpose" = 'INTAKE_LINK'
             AND c."channel" IN ('SMS', 'WHATSAPP', 'EMAIL')
+            AND (
+              c."related_intake_session_id" = wis."id"
+              OR c."related_intake_link_id" = wis."intake_link_id"
+            )
           ORDER BY c."created_at" DESC
           LIMIT 1
        ) cm ON true

@@ -266,9 +266,12 @@ export async function buildReportAcquisitionContext(input: {
          LEFT JOIN LATERAL (
            SELECT c."channel", c."status", c."sent_at_utc", c."delivered_at_utc"
              FROM "communication_messages" c
-            WHERE c."related_intake_session_id" = wis."id"
-              AND c."purpose" = 'INTAKE_LINK'
+            WHERE c."purpose" = 'INTAKE_LINK'
               AND c."channel" IN ('SMS', 'WHATSAPP', 'EMAIL')
+              AND (
+                c."related_intake_session_id" = wis."id"
+                OR c."related_intake_link_id" = wis."intake_link_id"
+              )
             ORDER BY c."created_at" DESC
             LIMIT 1
          ) cm ON true
@@ -311,8 +314,10 @@ export async function buildReportAcquisitionContext(input: {
       consentAcceptedAtUtc: iso(r.consent_accepted_at_utc),
       consentVersion,
     });
-    // Only surface for genuine intake/delivery acquisitions.
-    if (!ctx || !ctx.isIntake) return null;
+    // Return the context for ALL recognizable flows (web/mobile/API/intake)
+    // so the Capture Context timestamp label can read the source. The
+    // Evidence Acquisition table itself renders only when ctx.isIntake.
+    if (!ctx) return null;
     return toPublicAcquisition(ctx);
   } catch (err) {
     logger.warn(

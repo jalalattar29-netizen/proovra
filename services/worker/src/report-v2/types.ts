@@ -425,6 +425,10 @@ export type ReportAcquisitionInput = {
   consentAccepted: boolean | null;
   consentVersion: string | null;
   submittedAtUtc: string | null;
+  /** True only for intake/delivery acquisitions. Non-intake (web/mobile/API)
+   *  contexts are still supplied so the Capture Context timestamp label can
+   *  read the source, but the Evidence Acquisition table stays intake-only. */
+  isIntake: boolean;
 };
 
 // ===========================================================================

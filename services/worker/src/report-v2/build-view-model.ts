@@ -38,6 +38,7 @@ import type {
   ReportV2Input,
   ReportViewModel,
   ReportVariant,
+  ReportAcquisitionInput,
 } from "./types.js";
 import {
   buildPublicEvidenceReference,
@@ -278,7 +279,8 @@ function buildExecutiveRows(
   structureLabel: string,
   contentSummary: ReportEvidenceContentSummary,
   primaryContentItem: ReportEvidenceAsset | null,
-  externalMode: boolean
+  externalMode: boolean,
+  acquisition: ReportAcquisitionInput | null
 ): KeyValueRow[] {
   const explicitPrimaryItems =
     evidence.contentItems?.filter(
@@ -324,14 +326,27 @@ function buildExecutiveRows(
   add("Total Content Size", safe(contentSummary.totalSizeDisplay));
   // Issue #6: be precise about timestamp provenance. capturedAtUtc / signedAtUtc
   // are SERVER clocks recorded at intake / signing — not device-witnessed times.
+  // NOTE: this row KEY is an internal lookup key (the executive summary renders
+  // it under the visible "Captured & Signed" label); the reviewer-facing
+  // "intake vs submission" wording is on the Capture Context panel, which uses
+  // getCaptureContextTimestampLabel. Keep this key stable for the lookup.
+  const isIntake = acquisition?.isIntake === true;
   add("Recorded at intake (server UTC)", safe(evidence.capturedAtUtc));
   add("Signed (server UTC)", safe(evidence.signedAtUtc));
-  add(
-    "Submitted By",
-    externalMode
-      ? maskEmail(evidence.submittedByEmail)
-      : safe(evidence.submittedByEmail)
-  );
+  // Role modeling: for remote intake, the authenticated workspace account is
+  // the requester/link-creator — NOT the person who captured the evidence.
+  // Never imply the workspace owner submitted it; show a contributor role.
+  if (isIntake) {
+    add("Submitted By", "Remote Contributor via Secure Intake Link");
+    add("Contributor Identity", acquisition?.identityVerification ?? null);
+  } else {
+    add(
+      "Submitted By",
+      externalMode
+        ? maskEmail(evidence.submittedByEmail)
+        : safe(evidence.submittedByEmail),
+    );
+  }
   add("Organization / Workspace", buildOrganizationDisplay(evidence));
   add(
     "Integrity Verified At (UTC)",
@@ -1663,7 +1678,8 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       structureLabel,
       contentSummary,
       primaryContentItem,
-      externalMode
+      externalMode,
+      input.acquisition ?? null
     ),
     verificationSummaryRows: buildVerificationSummaryRows(
       canonicalMaterials,
