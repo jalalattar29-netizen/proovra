@@ -734,6 +734,28 @@ letter-spacing: -0.005em;
       line-height: 1.42;
     }
 
+    /* Unified field-card grid (renderFieldGrid). The grid itself flows across
+       a page break; individual .kv-item cards never split (see .kv-grid /
+       .kv-item rules above). Titles use the report accent (dark green). */
+    .field-grid-section {
+      break-inside: auto;
+      page-break-inside: auto;
+    }
+
+    .field-grid-title {
+      margin: 0 0 6px;
+      font-size: 10.5px;
+      font-weight: 850;
+      letter-spacing: 0.02em;
+      color: ${c.accent};
+    }
+
+    .technical-summary-groups {
+      display: grid;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
     .compact-kv-list {
       border: 1px solid ${c.softLine};
       border-radius: 9px;

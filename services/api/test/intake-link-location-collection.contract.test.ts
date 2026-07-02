@@ -162,7 +162,24 @@ describe("Intake Links — location collection contract", () => {
     assert.match(
       orch,
       /client\.evidence\.update\(/,
-      "post-completion update must occur",
+      "location update must occur",
+    );
+    // Ordering pin (the geolocation fix): the location write MUST happen
+    // BEFORE completeEvidence(). completeEvidence enqueues the report-v2 +
+    // verification-package jobs, and the worker reads lat/lng FRESH from the
+    // Evidence row at generation time. Writing the location AFTER the enqueue
+    // raced against generation and produced artifacts with no location even
+    // though it was durably stored. This aligns intake with web/mobile
+    // capture (which persist location before completion).
+    const locationWriteIdx = orch.indexOf(
+      'locationSource: "INTAKE_LINK_GEOLOCATION"',
+    );
+    const completeIdx = orch.indexOf("await completeEvidence(");
+    assert.ok(locationWriteIdx > 0, "location write must be present");
+    assert.ok(completeIdx > 0, "completeEvidence call must be present");
+    assert.ok(
+      locationWriteIdx < completeIdx,
+      "intake location must be persisted BEFORE completeEvidence enqueues the report/package jobs",
     );
     assert.match(
       orch,

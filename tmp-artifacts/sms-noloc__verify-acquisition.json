@@ -1,9 +1,10 @@
 {
   "method": "Intake Link",
-  "deliveryChannel": "Email",
+  "deliveryChannel": "SMS",
   "submissionType": "Remote Contributor",
   "submissionStatus": [
     "Sent",
+    "Delivered",
     "Submitted"
   ],
   "identityVerification": "Unknown",

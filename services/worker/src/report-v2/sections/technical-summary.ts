@@ -22,7 +22,7 @@
  */
 
 import { ReportViewModel } from "../types.js";
-import { renderCompactKeyValueList, renderPageSection } from "../ui.js";
+import { renderFieldGrid, renderPageSection } from "../ui.js";
 import {
   captureMethodDisplayLabel,
   humanizeUploadSource,
@@ -152,9 +152,11 @@ export function renderTechnicalSummarySection(vm: ReportViewModel): string {
   const groups = [deviceBlock, cameraBlock, exposureBlock].filter(Boolean);
   if (groups.length === 0) return "";
 
-  // Multiple compact tables in a balanced 2-column grid — dense, single
-  // page, no wasted whitespace, no table split (rows are break-inside:avoid).
-  const grid = `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;margin-top:10px">${groups.join("")}</div>`;
+  // Stacked titled field-card grids (each group is itself a two-column
+  // field-card grid — same enterprise style as the Executive Summary). Cards
+  // are break-inside:avoid and the grids flow cleanly across a page break,
+  // so there is no clipped row, no half-split table, and no footer overlap.
+  const grid = `<div class="technical-summary-groups">${groups.join("")}</div>`;
 
   // Multi-file transparency: the PDF shows one representative item's EXIF;
   // every item's EXIF is in the verification package.
@@ -179,13 +181,13 @@ export function renderTechnicalSummarySection(vm: ReportViewModel): string {
   );
 }
 
-/** Render one titled compact table, or "" when it has no meaningful rows. */
+/** Render one titled two-column field-card grid, or "" when it has no
+ *  meaningful rows (renderFieldGrid drops null/empty/N/A/UNKNOWN values). */
 function renderGroup(
   title: string,
   rows: Array<{ label: string; value: string }>,
 ): string {
-  if (rows.length === 0) return "";
-  return `<div class="technical-summary-group"><h3 class="subsection-title">${title}</h3>${renderCompactKeyValueList(rows)}</div>`;
+  return renderFieldGrid(rows, { title, className: "technical-summary-group" });
 }
 
 function titleCase(s: string): string {

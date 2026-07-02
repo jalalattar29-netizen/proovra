@@ -12,6 +12,7 @@ import {
   renderPageSection,
   renderTrustSignalGrid,
   renderKeyValueGrid,
+  renderFieldGrid,
 } from "../ui.js";
 
 /**
@@ -118,52 +119,39 @@ function findRowValue(
  */
 function renderEvidenceAcquisition(vm: ReportViewModel): string {
   const a = vm.meta.acquisition;
-  // Intake-only. Normal web / mobile capture never shows this table.
+  // Intake-only. Normal web / mobile capture never shows this section.
   if (!a || !a.isIntake) return "";
-  const rows: Array<{ label: string; value: string }> = [];
-  const push = (label: string, value: string | null | undefined) => {
-    const v = (value ?? "").trim();
-    if (v && v.toUpperCase() !== "UNKNOWN") rows.push({ label, value: v });
-  };
-  // MAX 5 rows in the PDF to keep the Executive Summary from overflowing.
-  // Identity Verification + Submission Time stay in the package/internal
-  // surfaces only (they are not dropped from the data model).
-  push("Acquisition Method", a.method);
-  push("Delivery Channel", a.deliveryChannel);
-  push("Submission Type", a.submissionType);
-  push(
-    "Submission Status",
-    a.submissionStatus.length ? a.submissionStatus.join(" • ") : null,
+
+  // Two-column field-card grid — same enterprise style as the Web Capture
+  // Executive Summary metadata grid (label above value). MAX 5 fields to keep
+  // the Executive Summary from overflowing. NEVER any recipient value (phone/
+  // email/masked/hash) or provider ID — those are not in this list and live
+  // only in the package/internal surfaces. Location is NOT here — it belongs
+  // to Capture Context.
+  const grid = renderFieldGrid(
+    [
+      { label: "Acquisition Method", value: a.method },
+      { label: "Delivery Channel", value: a.deliveryChannel },
+      { label: "Submission Type", value: a.submissionType },
+      {
+        label: "Submission Status",
+        value: a.submissionStatus.length
+          ? a.submissionStatus.join(" • ")
+          : null,
+      },
+      { label: "Consent", value: a.consentAccepted === true ? "Accepted" : null },
+    ],
+    { className: "evidence-acquisition-grid" },
   );
-  if (a.consentAccepted === true) push("Consent", "Accepted");
-  if (rows.length === 0) return "";
+  if (!grid) return "";
 
   return `
     <section class="capture-context-panel evidence-acquisition-panel">
       <div class="capture-context-header">
         <div class="executive-confirmation-kicker">Evidence Acquisition</div>
       </div>
-      ${renderExecutiveTable(rows)}
+      ${grid}
     </section>
-  `;
-}
-
-function renderExecutiveTable(
-  rows: Array<{ label: string; value: string }>
-): string {
-  return `
-    <div class="executive-summary-table">
-      ${rows
-        .map(
-          (row) => `
-            <div class="executive-summary-row">
-              <div class="executive-summary-label">${escapeHtml(row.label)}</div>
-              <div class="executive-summary-value">${escapeHtml(row.value)}</div>
-            </div>
-          `
-        )
-        .join("")}
-    </div>
   `;
 }
 

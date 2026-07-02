@@ -1,15 +1,18 @@
 /**
- * TEMPORARY generation harness (Intake channel scope + verify role label).
- * Drives the REAL production functions for 4 scenarios and writes artifacts to
- * tmp-artifacts/ for manual inspection:
- *   - Web Capture   (non-intake baseline — must be unchanged)
- *   - Intake SMS
- *   - Intake Email
- *   - Public Secure Link (reusable, no messaging)
+ * TEMPORARY validation harness — Intake geolocation + unified grid layout.
+ * Drives the REAL production builders and writes artifacts to tmp-artifacts/.
  *
- * Uses the REAL acquisition mapper (buildEvidenceAcquisitionContext) so the
- * PDF/package reflect the actual Public-Secure-Link / no-QR / never-Unknown
- * behaviour. NOT a unit test — produces the actual artifacts to inspect.
+ * Scenarios:
+ *   web       — Web Capture, WITH location + EXIF (baseline; must be unchanged)
+ *   sms-loc   — Intake SMS, WITH location + EXIF (location must appear everywhere)
+ *   sms-exif  — Intake SMS, EXIF, NO location (Technical Summary grid, no fake loc)
+ *   sms-noloc — Intake SMS, NO location, NO EXIF (no fake loc, no empty page)
+ *
+ * Real builders exercised:
+ *   buildReportViewModel → renderReportHtml → renderPdfFromHtml   (PDF + captureContext)
+ *   buildTechnicalMetadataPackageFiles                            (intake-delivery.json — NO location)
+ *   buildCaptureContext                                           (capture-context.json — WITH location)
+ *   buildEvidenceAcquisitionContext → toPublicAcquisition         (verify-page acquisition data)
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -21,6 +24,7 @@ import {
   type ReportV2Input,
 } from "../src/report-v2/index.js";
 import { buildTechnicalMetadataPackageFiles } from "../src/verification-package-technical-metadata.js";
+import { buildCaptureContext } from "../src/verification-package.js";
 import {
   buildEvidenceAcquisitionContext,
   toPublicAcquisition,
@@ -37,15 +41,15 @@ const FULL_HASH_B = "b".repeat(64);
 const TM_IMAGE = {
   schemaVersion: 1, mediaKind: "IMAGE", mimeType: "image/jpeg", parseResult: "OK",
   metadataStatus: "PRESENT", parserName: "exifr", parserVersion: "7.1.3",
-  widthPx: 4032, heightPx: 3024, exifPresent: true, cameraMake: "Apple",
-  cameraModel: "iPhone 14 Pro", originalCaptureTime: "2026-06-30T09:58:11Z",
-  iso: 80, aperture: "f/1.8", exposureTime: "1/120s", orientation: 1, gpsPresent: true,
+  widthPx: 4032, heightPx: 3024, exifPresent: true, cameraMake: "samsung",
+  cameraModel: "Galaxy S25 FE", originalCaptureTime: "2026-06-30T09:58:11Z",
+  iso: 50, aperture: "f/1.8", exposureTime: "1/100s", orientation: 1, gpsPresent: true,
 };
 
 const INTAKE_CAPTURE_ENV = {
   uploadSource: "INTAKE_LINK", captureMethod: "EXTERNAL_INTAKE_UPLOAD",
-  browserName: "Safari", browserVersion: "17.5", osName: "iOS", osVersion: "17.5",
-  deviceClass: "MOBILE", engine: "WebKit", platform: "iPhone", timezone: "Europe/Berlin",
+  browserName: "Samsung Internet", browserVersion: "25", osName: "Android", osVersion: "15",
+  deviceClass: "MOBILE", engine: "Blink", platform: "Android", timezone: "Europe/Berlin",
   locale: "de-DE", userAgentHash: "sha256:deadbeefcafe", ipAddressMasked: "203.0.113.x",
   country: "DE", region: null, networkType: null, attestationAttempted: false, attestationResult: null,
 };
@@ -55,22 +59,27 @@ const WEB_CAPTURE_ENV = {
   engine: "Blink", platform: "Windows x64", timezone: "Europe/London", locale: "en-GB",
 };
 
-const TECH_SUMMARY = {
-  mediaFilesAnalyzed: 1, mediaFilesTotal: 1, metadataStatus: "Complete" as const,
-  primaryMediaType: "Image", resolutionSummary: "4032×3024",
-  primaryMedia: { mediaKind: "IMAGE", durationMs: null, videoCodec: null, frameRate: null, pageCount: null },
-  exif: {
-    exifPresent: true, camera: "Apple iPhone 14 Pro", cameraMake: "Apple", cameraModel: "iPhone 14 Pro",
-    lensModel: null, originalCaptureTime: "2026-06-30T09:58:11Z", iso: 80, aperture: "f/1.8",
-    exposureTime: "1/120s", shutterSpeed: null, whiteBalance: null, orientation: 1, gpsPresent: true,
-    resolution: "4032×3024", softwareTag: null, metadataStatus: "PRESENT" as const,
-  },
-  network: { maskedIp: "203.0.113.x", country: "DE", region: null, networkType: null },
-};
+function techSummary(captureEnv: Record<string, unknown>) {
+  return {
+    mediaFilesAnalyzed: 1, mediaFilesTotal: 1, metadataStatus: "Complete" as const,
+    primaryMediaType: "Image", resolutionSummary: "4032×3024",
+    primaryMedia: { mediaKind: "IMAGE", durationMs: null, videoCodec: null, frameRate: null, pageCount: null },
+    exif: {
+      exifPresent: true, camera: "samsung Galaxy S25 FE", cameraMake: "samsung", cameraModel: "Galaxy S25 FE",
+      lensModel: null, originalCaptureTime: "2026-06-30T09:58:11Z", iso: 50, aperture: "f/1.8",
+      exposureTime: "1/100s", shutterSpeed: null, whiteBalance: null, orientation: 1, gpsPresent: true,
+      resolution: "4032×3024", softwareTag: null, metadataStatus: "PRESENT" as const,
+    },
+    network: { maskedIp: "203.0.113.x", country: "DE", region: null, networkType: null },
+    captureEnvironment: captureEnv,
+  };
+}
 
 type Scenario = {
   key: string;
   isIntake: boolean;
+  hasLocation: boolean;
+  hasExif: boolean;
   contributorEmail: string;
   raw: AcquisitionRawInput;
   acqRow: Record<string, unknown>;
@@ -78,16 +87,20 @@ type Scenario = {
   evidenceCaptureMethod: string;
 };
 
+const LOC = { lat: 52.520008, lng: 13.404954, accuracyMeters: 12 };
+
 const SCENARIOS: Scenario[] = [
   {
-    key: "web", isIntake: false, contributorEmail: "owner@acme-legal.example",
-    evidenceCaptureMethod: "SECURE_CAMERA", captureEnv: WEB_CAPTURE_ENV,
+    key: "web", isIntake: false, hasLocation: true, hasExif: true,
+    contributorEmail: "owner@acme-legal.example", evidenceCaptureMethod: "SECURE_CAMERA",
+    captureEnv: WEB_CAPTURE_ENV,
     raw: { uploadSource: "WEB_APP", captureMethod: "SECURE_CAPTURE", identityLevel: "VERIFIED_EMAIL" },
     acqRow: { capture_method: "UPLOADED_FILE" },
   },
   {
-    key: "sms", isIntake: true, contributorEmail: "jane.contributor@gmail.com",
-    evidenceCaptureMethod: "EXTERNAL_INTAKE_UPLOAD", captureEnv: INTAKE_CAPTURE_ENV,
+    key: "sms-loc", isIntake: true, hasLocation: true, hasExif: true,
+    contributorEmail: "jane.contributor@gmail.com", evidenceCaptureMethod: "EXTERNAL_INTAKE_UPLOAD",
+    captureEnv: INTAKE_CAPTURE_ENV,
     raw: {
       uploadSource: "INTAKE_LINK", captureMethod: "EXTERNAL_INTAKE_UPLOAD", intakeMode: "EXTERNAL_ONE_TIME",
       identityLevel: "BASIC_ACCOUNT", deliveryChannelRaw: "SMS", deliveryStatusRaw: "DELIVERED",
@@ -107,43 +120,48 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
-    key: "email", isIntake: true, contributorEmail: "witness@protonmail.com",
-    evidenceCaptureMethod: "EXTERNAL_INTAKE_UPLOAD", captureEnv: INTAKE_CAPTURE_ENV,
+    key: "sms-exif", isIntake: true, hasLocation: false, hasExif: true,
+    contributorEmail: "tipster@proton.me", evidenceCaptureMethod: "EXTERNAL_INTAKE_UPLOAD",
+    captureEnv: INTAKE_CAPTURE_ENV,
     raw: {
       uploadSource: "INTAKE_LINK", captureMethod: "EXTERNAL_INTAKE_UPLOAD", intakeMode: "EXTERNAL_ONE_TIME",
-      identityLevel: "BASIC_ACCOUNT", deliveryChannelRaw: "EMAIL", deliveryStatusRaw: "SENT",
+      identityLevel: "BASIC_ACCOUNT", deliveryChannelRaw: "SMS", deliveryStatusRaw: "DELIVERED",
       sentAtUtc: "2026-06-30T10:00:00.000Z", submittedAtUtc: "2026-06-30T10:04:00.000Z",
       consentAcceptedAtUtc: "2026-06-30T10:02:30.000Z", consentVersion: "v3",
-      recipientMasked: "wi***@protonmail.com", recipientHash: "aa11bb22", recipientType: "email",
+      recipientMasked: "+49 ••• ••• 9999", recipientHash: "beefbeef", recipientType: "phone",
     },
     acqRow: {
       capture_method: "EXTERNAL_INTAKE_UPLOAD", identity_level: "BASIC_ACCOUNT",
       submitted_at_utc: "2026-06-30T10:04:00.000Z", consent_accepted_at_utc: "2026-06-30T10:02:30.000Z",
-      consent_snapshot_json: { policyVersion: "v3" }, submitter_email: "witness@protonmail.com",
-      intake_mode: "EXTERNAL_ONE_TIME", consent_policy_version: "v3",
-      recipient_email: "witness@protonmail.com", recipient_preview: null, recipient_hash: "aa11bb22",
-      channel: "EMAIL", delivery_status: "SENT", sent_at_utc: "2026-06-30T10:00:00.000Z",
+      consent_snapshot_json: { policyVersion: "v3" }, submitter_email: "tipster@proton.me",
+      intake_mode: "EXTERNAL_ONE_TIME", consent_policy_version: "v3", recipient_email: null,
+      recipient_preview: "+49 ••• ••• 9999", recipient_hash: "beefbeef", channel: "SMS",
+      delivery_status: "DELIVERED", sent_at_utc: "2026-06-30T10:00:00.000Z",
     },
   },
   {
-    key: "psl", isIntake: true, contributorEmail: "anon.tipster@gmail.com",
-    evidenceCaptureMethod: "EXTERNAL_INTAKE_UPLOAD", captureEnv: INTAKE_CAPTURE_ENV,
+    key: "sms-noloc", isIntake: true, hasLocation: false, hasExif: false,
+    contributorEmail: "anon.tipster@gmail.com", evidenceCaptureMethod: "EXTERNAL_INTAKE_UPLOAD",
+    captureEnv: INTAKE_CAPTURE_ENV,
     raw: {
-      uploadSource: "INTAKE_LINK", captureMethod: "EXTERNAL_INTAKE_UPLOAD", intakeMode: "EXTERNAL_REUSABLE",
-      identityLevel: "BASIC_ACCOUNT", submittedAtUtc: "2026-06-30T10:04:00.000Z",
+      uploadSource: "INTAKE_LINK", captureMethod: "EXTERNAL_INTAKE_UPLOAD", intakeMode: "EXTERNAL_ONE_TIME",
+      identityLevel: "BASIC_ACCOUNT", deliveryChannelRaw: "SMS", deliveryStatusRaw: "DELIVERED",
+      sentAtUtc: "2026-06-30T10:00:00.000Z", submittedAtUtc: "2026-06-30T10:04:00.000Z",
       consentAcceptedAtUtc: "2026-06-30T10:02:30.000Z", consentVersion: "v3",
     },
     acqRow: {
       capture_method: "EXTERNAL_INTAKE_UPLOAD", identity_level: "BASIC_ACCOUNT",
       submitted_at_utc: "2026-06-30T10:04:00.000Z", consent_accepted_at_utc: "2026-06-30T10:02:30.000Z",
       consent_snapshot_json: { policyVersion: "v3" }, submitter_email: null,
-      intake_mode: "EXTERNAL_REUSABLE", consent_policy_version: "v3", recipient_email: null,
-      recipient_preview: null, recipient_hash: null, channel: null, delivery_status: null,
+      intake_mode: "EXTERNAL_ONE_TIME", consent_policy_version: "v3", recipient_email: null,
+      recipient_preview: null, recipient_hash: null, channel: "SMS", delivery_status: "DELIVERED",
+      sent_at_utc: "2026-06-30T10:00:00.000Z",
     },
   },
 ];
 
 function baseEvidence(s: Scenario) {
+  const locSource = s.isIntake ? "INTAKE_LINK_GEOLOCATION" : "CAPTURE_BROWSER_GEOLOCATION";
   return {
     tsaProvider: "freetsa.org", tsaUrl: "https://freetsa.org/tsr", tsaSerialNumber: "0x1A2B",
     tsaGenTimeUtc: "2026-06-30T10:05:03.000Z", tsaTokenBase64: "dGVzdA==", tsaMessageImprint: FULL_HASH_A,
@@ -153,9 +171,12 @@ function baseEvidence(s: Scenario) {
     uploadedAtUtc: "2026-06-30T10:04:00.000Z", signedAtUtc: "2026-06-30T10:05:02.000Z",
     reportGeneratedAtUtc: "2026-06-30T10:06:00.000Z", mimeType: "image/jpeg", sizeBytes: "2508112",
     durationSec: null, storageBucket: "proovra-audit-bucket", storageKey: "evidence/x/original",
-    publicUrl: null, gps: { lat: null, lng: null, accuracyMeters: null }, fileSha256: FULL_HASH_A,
-    fingerprintCanonicalJson: '{"a":1}', fingerprintHash: FULL_HASH_B, signatureBase64: "sig",
-    signingKeyId: "proovra_ed25519", signingKeyVersion: 1,
+    publicUrl: null,
+    gps: s.hasLocation
+      ? { lat: String(LOC.lat), lng: String(LOC.lng), accuracyMeters: String(LOC.accuracyMeters), locationSource: locSource }
+      : { lat: null, lng: null, accuracyMeters: null, locationSource: null },
+    fileSha256: FULL_HASH_A, fingerprintCanonicalJson: '{"a":1}', fingerprintHash: FULL_HASH_B,
+    signatureBase64: "sig", signingKeyId: "proovra_ed25519", signingKeyVersion: 1,
     publicKeyPem: "-----BEGIN PUBLIC KEY-----\nTEST\n-----END PUBLIC KEY-----\n",
     submittedByEmail: s.contributorEmail, submittedByAuthProvider: "google",
     submittedByUserId: "contrib-user-99887766", createdByUserId: "owner-user-11223344",
@@ -195,7 +216,9 @@ function fakePrisma(s: Scenario) {
   return {
     $queryRawUnsafe: async (q: string) => {
       if (q.includes("evidence_parts")) {
-        return [{ id: "part-1", original_file_name: "IMG_4821.jpg", mime_type: "image/jpeg", sha256: FULL_HASH_A, technical_metadata: TM_IMAGE }];
+        return s.hasExif
+          ? [{ id: "part-1", original_file_name: "IMG_4821.jpg", mime_type: "image/jpeg", sha256: FULL_HASH_A, technical_metadata: TM_IMAGE }]
+          : [{ id: "part-1", original_file_name: "note.txt", mime_type: "text/plain", sha256: FULL_HASH_A, technical_metadata: null }];
       }
       if (q.includes("communication_messages")) return [{ ...s.acqRow, capture_environment: s.captureEnv }];
       return [{ capture_environment: s.captureEnv }];
@@ -213,11 +236,10 @@ async function generate(s: Scenario) {
     evidence: ev as never,
     custodyEvents: [
       { sequence: 1, atUtc: "2026-06-30T10:04:00.000Z", eventType: "EVIDENCE_CREATED", payloadSummary: '{"type":"PHOTO"}' },
-      { sequence: 2, atUtc: "2026-06-30T10:04:30.000Z", eventType: "IDENTITY_SNAPSHOT_RECORDED", payloadSummary: "Mode: initial intake authorization for evidence" },
     ] as never,
     version: 2, generatedAtUtc: "2026-06-30T10:06:00.000Z", buildInfo: "audit-harness",
     acquisition: acquisition as never,
-    technicalSummary: { ...TECH_SUMMARY, captureEnvironment: s.captureEnv as never } as never,
+    technicalSummary: s.hasExif ? (techSummary(s.captureEnv) as never) : null,
   };
 
   const vm = await buildReportViewModel(input);
@@ -226,14 +248,35 @@ async function generate(s: Scenario) {
   const pdf = await renderPdfFromHtml(html);
   writeFileSync(path.join(OUT, `report-${s.key}.pdf`), pdf);
 
+  // Verification package — technical-metadata files (intake-delivery.json etc).
   const files = await buildTechnicalMetadataPackageFiles({ prisma: fakePrisma(s) as never, teamId: "team-1", evidenceId: ev.id });
   for (const f of files) {
     writeFileSync(path.join(OUT, `${s.key}__${f.path.replace(/[\/]/g, "__")}`), JSON.stringify(f.json, null, 2), "utf8");
   }
-  // The public acquisition object is exactly what the verify page consumes
-  // (technicalMetadata.acquisition) — write it as the verify-page data artifact.
+
+  // Verification package — capture-context.json (real builder). Emits only
+  // when capture-location metadata is present (same gate as the live package).
+  const captureCtx = buildCaptureContext(
+    {
+      capturedAtUtc: ev.capturedAtUtc,
+      deviceTimeIso: null,
+      captureLocation: s.hasLocation
+        ? { lat: LOC.lat, lng: LOC.lng, accuracyMeters: LOC.accuracyMeters, locationSource: ev.gps.locationSource }
+        : null,
+    } as never,
+    ev.id,
+  );
+  writeFileSync(
+    path.join(OUT, `${s.key}__technical-metadata__capture-context.json`),
+    captureCtx ? JSON.stringify(captureCtx, null, 2) : "null (no capture-context.json emitted — no location)",
+    "utf8",
+  );
+
+  // Verify-page acquisition data (technicalMetadata.acquisition).
   writeFileSync(path.join(OUT, `${s.key}__verify-acquisition.json`), JSON.stringify(acquisition, null, 2), "utf8");
-  console.log(`[${s.key}] pdf=${pdf.length}B channel=${acquisition?.deliveryChannel ?? "(none)"} method=${acquisition?.method ?? "(none)"} pkg=[${files.map((f) => f.path.split("/").pop()).join(",")}]`);
+
+  const cc = vm.meta.captureContext;
+  console.log(`[${s.key}] pdf=${pdf.length}B reportCaptureContext=${cc ? `${cc.lat},${cc.lng} (${cc.sourceLabel})` : "NONE"} pkgCaptureContext=${captureCtx ? "EMITTED" : "none"} channel=${acquisition?.deliveryChannel ?? "-"}`);
 }
 
 for (const s of SCENARIOS) await generate(s);

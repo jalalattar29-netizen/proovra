@@ -731,23 +731,23 @@ export async function submitExternalIntake(
   // Readiness against the workflow template snapshot.
   assertSubmissionReady(input.link, parts);
 
-  // Hand off to the EXISTING canonical completion pipeline. From this point
-  // forward the evidence is treated identically to authenticated capture:
-  // headObject verification, sha256 streaming, fingerprint, signature,
-  // EVIDENCE_COMPLETED custody event, report-v2 enqueue, OTS/TSA pipeline,
-  // anchor publishing.
-  await completeEvidence({
-    evidenceId: evidence.id,
-    ownerUserId: evidence.ownerUserId,
-  });
-
-  // Persist contributor-provided location onto the Evidence row, AFTER
-  // completion. completeEvidence does NOT touch lat/lng/accuracyMeters/
-  // locationSource — it only writes integrity fields (sha256, signature,
-  // signingKeyId, status). Writing the location here keeps the policy
-  // owner colocated and means hashes / signatures / file metadata are
-  // never disturbed by the location feature. Missing location is NEVER
-  // an integrity failure: the gate above already accepted the submit.
+  // Persist contributor-provided location onto the Evidence row BEFORE
+  // completion. completeEvidence enqueues the report-v2 + verification-
+  // package jobs, and the worker reads lat/lng/accuracyMeters/locationSource
+  // FRESH from the Evidence row at generation time. Writing the location
+  // first therefore guarantees the report (PDF Capture Context), the public
+  // verify projection, and the package's capture-context.json all observe
+  // it — the previous ordering wrote it AFTER the enqueue, so the generation
+  // jobs raced (and often lost) against this write and produced artifacts
+  // with no location even though it was durably stored.
+  //
+  // completeEvidence does NOT touch lat/lng/accuracyMeters/locationSource —
+  // it only writes integrity fields (sha256, signature, signingKeyId,
+  // status) — so ordering the location write first never disturbs hashes /
+  // signatures / file metadata. Missing location is NEVER an integrity
+  // failure: the gate above already accepted the submit. This aligns intake
+  // with web/mobile capture, which already persist location at Evidence-
+  // creation time (before completion).
   if (shouldPersistLocation && coords) {
     await client.evidence.update({
       where: { id: evidence.id },
@@ -759,6 +759,16 @@ export async function submitExternalIntake(
       },
     });
   }
+
+  // Hand off to the EXISTING canonical completion pipeline. From this point
+  // forward the evidence is treated identically to authenticated capture:
+  // headObject verification, sha256 streaming, fingerprint, signature,
+  // EVIDENCE_COMPLETED custody event, report-v2 enqueue, OTS/TSA pipeline,
+  // anchor publishing.
+  await completeEvidence({
+    evidenceId: evidence.id,
+    ownerUserId: evidence.ownerUserId,
+  });
 
   // Device-time context. Sanitised through the shared helpers — the
   // ISO string must be parseable + within sensible clock-skew, the

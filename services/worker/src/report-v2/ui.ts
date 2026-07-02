@@ -110,6 +110,43 @@ export function renderKeyValueGrid(rows: KeyValueRow[]): string {
   `;
 }
 
+/**
+ * Unified enterprise field-card grid. Renders an optional accent title above
+ * the SAME two-column field-card grid used by the Web Capture Executive
+ * Summary (`renderKeyValueGrid` → `.kv-grid`/`.kv-item`/`.kv-label`/
+ * `.kv-value`). This is the single helper for label-above-value metadata
+ * grids (Evidence Acquisition, Camera/EXIF, etc.) so every surface matches.
+ *
+ * Contract:
+ *   - null / empty / "N/A" / "UNKNOWN" values are dropped (no empty cards).
+ *   - returns "" when nothing meaningful remains (never an empty section).
+ *   - each card is break-inside:avoid; the grid itself may flow across pages
+ *     (both inherited from `.kv-grid` CSS) — no clipped rows, no footer
+ *     overlap, no half-split cards.
+ */
+export function renderFieldGrid(
+  fields: ReadonlyArray<{ label: string; value: string | null | undefined }>,
+  opts?: { title?: string; className?: string },
+): string {
+  const rows: KeyValueRow[] = [];
+  for (const f of fields) {
+    const value = (f.value ?? "").toString().trim();
+    if (!value) continue;
+    const upper = value.toUpperCase();
+    if (upper === "N/A" || upper === "UNKNOWN") continue;
+    rows.push({ label: f.label, value });
+  }
+  if (rows.length === 0) return "";
+
+  const titleHtml = opts?.title
+    ? `<h3 class="field-grid-title subsection-title">${escapeHtml(opts.title)}</h3>`
+    : "";
+  const extraClass = opts?.className
+    ? ` ${escapeHtml(sanitizeClassName(opts.className))}`
+    : "";
+  return `<section class="field-grid-section${extraClass}">${titleHtml}${renderKeyValueGrid(rows)}</section>`;
+}
+
 export function renderCompactKeyValueList(rows: KeyValueRow[]): string {
   if (rows.length === 0) return "";
 

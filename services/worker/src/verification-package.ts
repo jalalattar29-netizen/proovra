@@ -1098,7 +1098,10 @@ function buildAuditAccessReport(params: {
   };
 }
 
-function buildCaptureContext(
+// Exported for focused tests / artifact harnesses that verify the emitted
+// capture-context.json shape without spinning up the full package pipeline
+// (S3 + PDF + canonical materials). Pure function — no behavior change.
+export function buildCaptureContext(
   metadata: VerificationPackageMetadata,
   evidenceId?: string | null
 ) {

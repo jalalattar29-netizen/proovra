@@ -1,8 +1,8 @@
 {
   "schemaVersion": "1.0",
   "schema": "PROOVRA_TECHNICAL_EXIF_DETAILS",
-  "evidenceId": "ev-sms-001",
-  "generatedAtUtc": "2026-07-02T01:42:19.410Z",
+  "evidenceId": "ev-sms-exif-001",
+  "generatedAtUtc": "2026-07-02T02:47:06.716Z",
   "source": "exif",
   "advisory": "Deep metadata embedded in the file by the capturing device/software, for technical reviewers. GPS is reduced to a presence flag; raw coordinates are never included. Does not duplicate the manifest's mime/size/hash facts.",
   "parts": [
@@ -10,7 +10,7 @@
       "partId": "part-1",
       "filename": "IMG_4821.jpg",
       "source": "exif",
-      "extractedAt": "2026-07-02T01:42:19.410Z",
+      "extractedAt": "2026-07-02T02:47:06.716Z",
       "metadataStatus": "PRESENT",
       "fieldsPresent": [
         "make",
@@ -26,9 +26,9 @@
       ],
       "fieldsOmittedReason": "Fields not listed in fieldsPresent were absent from the file's embedded metadata (common for downloaded/exported/screenshotted/stripped files). Absent fields are omitted (never null). Raw GPS coordinates are intentionally never included.",
       "camera": {
-        "make": "Apple",
-        "model": "iPhone 14 Pro",
-        "label": "Apple iPhone 14 Pro"
+        "make": "samsung",
+        "model": "Galaxy S25 FE",
+        "label": "samsung Galaxy S25 FE"
       },
       "capture": {
         "exifOriginalCaptureTime": "2026-06-30T09:58:11Z",
@@ -36,9 +36,9 @@
         "gpsPresent": true
       },
       "exposure": {
-        "iso": 80,
+        "iso": 50,
         "aperture": "f/1.8",
-        "exposureTime": "1/120s"
+        "exposureTime": "1/100s"
       },
       "image": {
         "resolution": "4032x3024"

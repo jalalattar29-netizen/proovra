@@ -2,26 +2,26 @@
   "schemaVersion": "1.0",
   "schema": "PROOVRA_TECHNICAL_DEVICE_ENRICHMENT",
   "evidenceId": "ev-web-001",
-  "generatedAtUtc": "2026-07-02T01:42:17.368Z",
+  "generatedAtUtc": "2026-07-02T02:47:01.748Z",
   "advisory": "Concise device/OS/camera enrichment for reviewers. Camera/make/model/capture-time come from the file's embedded EXIF; OS/device/browser come from the parsed capture environment. Each field carries its own value, source, and confidence.",
   "fields": {
     "captureDevice": {
-      "value": "Apple iPhone 14 Pro",
+      "value": "samsung Galaxy S25 FE",
       "source": "exif",
       "confidence": "high"
     },
     "cameraMake": {
-      "value": "Apple",
+      "value": "samsung",
       "source": "exif",
       "confidence": "high"
     },
     "cameraModel": {
-      "value": "iPhone 14 Pro",
+      "value": "Galaxy S25 FE",
       "source": "exif",
       "confidence": "high"
     },
     "operatingSystem": {
-      "value": "Windows 17.5",
+      "value": "Windows 15",
       "source": "capture_environment",
       "confidence": "medium"
     },

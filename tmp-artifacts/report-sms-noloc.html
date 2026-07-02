@@ -732,6 +732,28 @@ letter-spacing: -0.005em;
       line-height: 1.42;
     }
 
+    /* Unified field-card grid (renderFieldGrid). The grid itself flows across
+       a page break; individual .kv-item cards never split (see .kv-grid /
+       .kv-item rules above). Titles use the report accent (dark green). */
+    .field-grid-section {
+      break-inside: auto;
+      page-break-inside: auto;
+    }
+
+    .field-grid-title {
+      margin: 0 0 6px;
+      font-size: 10.5px;
+      font-weight: 850;
+      letter-spacing: 0.02em;
+      color: #17363C;
+    }
+
+    .technical-summary-groups {
+      display: grid;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
     .compact-kv-list {
       border: 1px solid #E8EEEE;
       border-radius: 9px;
@@ -4989,7 +5011,7 @@ body {
     <div class="cover-verify-qr-wrap">
       
     <div class="qr-inline-block">
-      <img src="data:image/png;base64,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" alt="Open verification page" />
+      <img src="data:image/png;base64,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" alt="Open verification page" />
       <div class="qr-inline-label">Open verification page</div>
     </div>
   
@@ -4999,10 +5021,10 @@ body {
       <div class="cover-verify-hint">Scan QR code or open verification page</div>
       <a
         class="cover-verify-url"
-        href="https://app.proovra.com/verify/ev-email-001"
+        href="https://app.proovra.com/verify/ev-sms-noloc-001"
         target="_blank"
         rel="noopener noreferrer"
-      >https://app.proovra.com/verify/ev-email-001</a>
+      >https://app.proovra.com/verify/ev-sms-noloc-001</a>
     </div>
   
             </div>
@@ -5011,7 +5033,7 @@ body {
           <div class="cover-meta-grid">
             <div class="cover-meta-card">
               <div class="cover-meta-label">Evidence Reference</div>
-              <div class="cover-meta-value">ev-email-001</div>
+              <div class="cover-meta-value">ev-sms-noloc-001</div>
             </div>
 
             <div class="cover-meta-card">
@@ -5090,36 +5112,36 @@ body {
       <div class="capture-context-header">
         <div class="executive-confirmation-kicker">Evidence Acquisition</div>
       </div>
+      <section class="field-grid-section evidence-acquisition-grid">
+    <div class="kv-grid">
       
-    <div class="executive-summary-table">
-      
-            <div class="executive-summary-row">
-              <div class="executive-summary-label">Acquisition Method</div>
-              <div class="executive-summary-value">Intake Link</div>
+            <div class="kv-item">
+              <div class="kv-label">Acquisition Method</div>
+              <div class="kv-value">Intake Link</div>
             </div>
           
-            <div class="executive-summary-row">
-              <div class="executive-summary-label">Delivery Channel</div>
-              <div class="executive-summary-value">Email</div>
+            <div class="kv-item">
+              <div class="kv-label">Delivery Channel</div>
+              <div class="kv-value">SMS</div>
             </div>
           
-            <div class="executive-summary-row">
-              <div class="executive-summary-label">Submission Type</div>
-              <div class="executive-summary-value">Remote Contributor</div>
+            <div class="kv-item">
+              <div class="kv-label">Submission Type</div>
+              <div class="kv-value">Remote Contributor</div>
             </div>
           
-            <div class="executive-summary-row">
-              <div class="executive-summary-label">Submission Status</div>
-              <div class="executive-summary-value">Sent • Submitted</div>
+            <div class="kv-item">
+              <div class="kv-label">Submission Status</div>
+              <div class="kv-value">Sent • Delivered • Submitted</div>
             </div>
           
-            <div class="executive-summary-row">
-              <div class="executive-summary-label">Consent</div>
-              <div class="executive-summary-value">Accepted</div>
+            <div class="kv-item">
+              <div class="kv-label">Consent</div>
+              <div class="kv-value">Accepted</div>
             </div>
           
     </div>
-  
+  </section>
     </section>
   
 
@@ -5299,7 +5321,7 @@ body {
                   <div class="trust-signal-label">Custody chain</div>
                   <div class="trust-signal-score">Recorded</div>
                 </div>
-                <div class="trust-signal-summary">2 forensic events recorded</div>
+                <div class="trust-signal-summary">1 forensic events recorded</div>
                 <div class="trust-signal-detail">Forensic custody events are recorded, but the custody-chain material is limited or incomplete.</div>
               </div>
             </article>
@@ -5334,7 +5356,7 @@ body {
         <section class="trust-signal-analysis-footer">
           <div class="executive-outcome-title">Reviewer interpretation</div>
           <div class="executive-outcome-body">
-            Passed signals: Core integrity, Digital signature, Trusted timestamp, Verification package. Degraded signals: OpenTimestamps proof present; public anchoring pending; Storage not reported; 2 forensic events recorded; Submitter identity recorded.
+            Passed signals: Core integrity, Digital signature, Trusted timestamp, Verification package. Degraded signals: OpenTimestamps proof present; public anchoring pending; Storage not reported; 1 forensic events recorded; Submitter identity recorded.
           </div>
           <div class="executive-reviewer-action">
             Recorded integrity is verified, but independent public anchoring is not finalized yet. Use the technical integrity result with a conditional publication posture and recheck publication later if independent public anchoring is required.
@@ -5376,7 +5398,7 @@ body {
       
             <div class="kv-item">
               <div class="kv-label">Evidence Record</div>
-              <div class="kv-value">ev-email-001</div>
+              <div class="kv-value">ev-sms-noloc-001</div>
             </div>
           
             <div class="kv-item">
@@ -5451,7 +5473,7 @@ body {
           
             <div class="kv-item">
               <div class="kv-label">Forensic Custody Events</div>
-              <div class="kv-value">2</div>
+              <div class="kv-value">1</div>
             </div>
           
             <div class="kv-item">
@@ -5606,7 +5628,7 @@ body {
     <div class="custody-stats-grid">
       <div class="custody-stat-card">
         <div class="custody-stat-label">Forensic Events (Report Snapshot)</div>
-<div class="custody-stat-value">2 forensic events</div>
+<div class="custody-stat-value">1 forensic events</div>
       </div>
       <div class="custody-stat-card">
         <div class="custody-stat-label">Hash Chain</div>
@@ -5647,18 +5669,6 @@ body {
                   <div class="timeline-time">2026-06-30T10:04:00.000Z</div>
                 </div>
                 <div class="timeline-summary">{&quot;type&quot;:&quot;PHOTO&quot;}</div>
-                
-              </div>
-            </article>
-          
-            <article class="timeline-card custody-forensic-event">
-              <div class="timeline-seq">2</div>
-              <div class="timeline-content">
-                <div class="timeline-top">
-                  <div class="timeline-event">Identity snapshot recorded at intake</div>
-                  <div class="timeline-time">2026-06-30T10:04:30.000Z</div>
-                </div>
-                <div class="timeline-summary">Mode: initial intake authorization for evidence</div>
                 
               </div>
             </article>
@@ -5810,105 +5820,6 @@ body {
   
         </div>
       </div>
-    
-          </div>
-        </div>
-      </div>
-    </section>
-  
-    <section class="report-section technical-summary-section">
-      <div class="report-page">
-        <div class="section-sheet">
-          <header class="section-heading">
-            <div class="section-kicker">
-              <span>PROOVRA Verification Report</span>
-            </div>
-            <h2 class="section-title">Technical Summary</h2>
-          </header>
-
-          <div class="section-body">
-            
-      <p class="section-intro">Device and camera context for the recorded material. Advisory enrichment for reviewers; it does not change the integrity verdict, and location (where recorded) is shown in the Capture Context above.</p>
-      
-      <p class="muted-note">Camera metadata is embedded in the file by the capturing device. The EXIF Original Capture Time is read from the file itself and is distinct from PROOVRA's submission and preservation timestamps.</p>
-      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;margin-top:10px"><div class="technical-summary-group"><h3 class="subsection-title">Capture Device</h3>
-    <div class="compact-kv-list">
-      
-            <div class="compact-kv-row">
-              <div class="compact-kv-label">Capture Device</div>
-              <div class="compact-kv-value">Apple iPhone 14 Pro</div>
-            </div>
-          
-            <div class="compact-kv-row">
-              <div class="compact-kv-label">Operating system</div>
-              <div class="compact-kv-value">iOS 17.5</div>
-            </div>
-          
-            <div class="compact-kv-row">
-              <div class="compact-kv-label">Device</div>
-              <div class="compact-kv-value">Mobile</div>
-            </div>
-          
-            <div class="compact-kv-row">
-              <div class="compact-kv-label">Submitted through</div>
-              <div class="compact-kv-value">Intake Link Submission</div>
-            </div>
-          
-            <div class="compact-kv-row">
-              <div class="compact-kv-label">Capture method</div>
-              <div class="compact-kv-value">Secure Intake Link</div>
-            </div>
-          
-            <div class="compact-kv-row">
-              <div class="compact-kv-label">Browser</div>
-              <div class="compact-kv-value">Safari 17.5</div>
-            </div>
-          
-            <div class="compact-kv-row">
-              <div class="compact-kv-label">Timezone</div>
-              <div class="compact-kv-value">Europe/Berlin</div>
-            </div>
-          
-    </div>
-  </div><div class="technical-summary-group"><h3 class="subsection-title">Camera</h3>
-    <div class="compact-kv-list">
-      
-            <div class="compact-kv-row">
-              <div class="compact-kv-label">Camera Make</div>
-              <div class="compact-kv-value">Apple</div>
-            </div>
-          
-            <div class="compact-kv-row">
-              <div class="compact-kv-label">Camera Model</div>
-              <div class="compact-kv-value">iPhone 14 Pro</div>
-            </div>
-          
-            <div class="compact-kv-row">
-              <div class="compact-kv-label">EXIF Original Capture Time</div>
-              <div class="compact-kv-value">2026-06-30T09:58:11Z</div>
-            </div>
-          
-    </div>
-  </div><div class="technical-summary-group"><h3 class="subsection-title">Exposure</h3>
-    <div class="compact-kv-list">
-      
-            <div class="compact-kv-row">
-              <div class="compact-kv-label">ISO</div>
-              <div class="compact-kv-value">80</div>
-            </div>
-          
-            <div class="compact-kv-row">
-              <div class="compact-kv-label">Aperture</div>
-              <div class="compact-kv-value">f/1.8</div>
-            </div>
-          
-            <div class="compact-kv-row">
-              <div class="compact-kv-label">Shutter / exposure</div>
-              <div class="compact-kv-value">1/120s</div>
-            </div>
-          
-    </div>
-  </div></div>
     
           </div>
         </div>

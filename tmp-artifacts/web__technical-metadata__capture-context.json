@@ -1,0 +1,23 @@
+{
+  "schema": "PROOVRA_CAPTURE_CONTEXT",
+  "version": 1,
+  "evidenceId": "ev-web-001",
+  "capturedAtUtc": "2026-06-30T10:05:00.000Z",
+  "deviceTimeIso": null,
+  "source": "PROOVRA secure capture",
+  "title": "Capture Context",
+  "statusLabel": "Location metadata included",
+  "subtitle": "Device/browser-reported location preserved with this evidence record.",
+  "integrityContext": "Device/browser-reported capture-location metadata was included in the signed integrity state for this evidence record.",
+  "custodyReference": {
+    "initialEventType": "EVIDENCE_CREATED",
+    "note": "The initial evidence-creation custody event records whether capture-location metadata was present at session creation time."
+  },
+  "location": {
+    "lat": 52.520008,
+    "lng": 13.404954,
+    "accuracyMeters": 12
+  },
+  "externalMapUrl": "https://www.openstreetmap.org/?mlat=52.520008&mlon=13.404954#map=15/52.520008/13.404954",
+  "legalBoundary": "Location metadata is device/browser-reported and user-permission-based. It may support context, but it does not independently prove physical presence, authorship, truth, or admissibility."
+}

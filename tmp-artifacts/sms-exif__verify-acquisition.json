@@ -1,8 +1,10 @@
 {
-  "method": "Public Secure Link",
-  "deliveryChannel": "Public Secure Link",
+  "method": "Intake Link",
+  "deliveryChannel": "SMS",
   "submissionType": "Remote Contributor",
   "submissionStatus": [
+    "Sent",
+    "Delivered",
     "Submitted"
   ],
   "identityVerification": "Unknown",
