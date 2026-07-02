@@ -2552,6 +2552,11 @@ captureMethod: deriveReportCaptureMethod({
     id: evidence.id,
     type: evidence.type,
 createdAtUtc: evidence.createdAt.toISOString(),
+    // Client/browser-reported device capture time (NOT a trusted timestamp,
+    // NOT the server submission time, NOT EXIF). Carried through so the
+    // verification package files (capture-context/case-metadata/
+    // original-linkage) match fingerprint.json instead of showing null.
+    deviceTimeIso: evidence.deviceTimeIso ?? null,
     title: resolveEvidenceTitle(evidence.title),
     status: evidence.status,
     verificationStatus:

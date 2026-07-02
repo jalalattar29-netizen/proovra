@@ -12,8 +12,7 @@
 | SMS | `CommunicationMessage.channel = SMS` (provider TWILIO) | `communication.service.ts` send; link `POST /v1/workflow/intake-links` |
 | WhatsApp | `CommunicationMessage.channel = WHATSAPP` | same |
 | Email | `CommunicationMessage.channel = EMAIL` (provider RESEND) | same |
-| QR Code | **GAP** — no server flag; operator renders the intake URL as QR client-side | — |
-| Public secure link | `WorkflowIntakeLink.intakeMode = EXTERNAL_REUSABLE` (reusable, untargeted) | intake-link create |
+| Public secure link | any intake link with no SMS/WhatsApp/Email/mobile record (reusable, anonymous, pseudonymous, or a one-time link shared manually) | intake-link create |
 | Mobile app | `captureEnvironment.uploadSource = MOBILE_APP` | citizen-capture route |
 | Direct upload | `captureEnvironment.uploadSource = WEB_APP` / `Evidence.captureMethod = UPLOADED_FILE` | `POST /v1/evidence` |
 | API | `captureEnvironment.uploadSource = API` | API submission |
@@ -42,7 +41,12 @@
 `Evidence` ↔ `workflow_intake_sessions.evidence_id` (unique) → `.intake_link_id` → `workflow_intake_links`; delivery via `communication_messages.related_intake_session_id` (purpose `INTAKE_LINK`, channel SMS/WHATSAPP/EMAIL). Present and reliable. Gaps → show Unknown / omit, never fabricate.
 
 ## 5. Gaps (documented, not faked)
-- **QR delivery** not persisted → treated as Public Secure Link when intake is reusable and no messaging record exists; otherwise omitted.
+- **No QR intake delivery channel.** PROOVRA does not persist a QR delivery
+  method; a QR is only a visual encoding of an intake link's URL. Any intake
+  link delivered without SMS/WhatsApp/Email/mobile (including a QR-scanned link)
+  is a **Public Secure Link** (never null, never "Unknown", never "QR Code").
+  The QR code inside the PDF report is the unrelated *Verify* QR (it opens the
+  verify page).
 - **Email masked preview** not stored → computed at read-time via `maskEmail`.
 - **Mobile app "recipient"** — no recipient concept → recipient omitted, channel "PROOVRA Mobile".
 

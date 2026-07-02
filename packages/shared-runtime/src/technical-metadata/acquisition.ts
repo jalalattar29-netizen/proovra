@@ -55,10 +55,11 @@ export type AcquisitionRawInput = {
 
 export type EvidenceAcquisitionContext = {
   /** Product label: Intake Link / Direct Upload / Mobile Capture /
-   *  API Submission / Public Secure Link / QR Code Intake / Unknown. */
+   *  API Submission / Public Secure Link / Unknown. */
   method: string;
-  /** SMS / WhatsApp / Email / QR Code / Public Secure Link / PROOVRA Mobile /
-   *  Not applicable, or null when unknown. */
+  /** The ONLY valid intake delivery channels: SMS / WhatsApp / Email /
+   *  Public Secure Link / PROOVRA Mobile. `null` only for non-intake
+   *  acquisitions. */
   deliveryChannel: string | null;
   /** Remote Contributor / Authenticated User / Organization User /
    *  Anonymous Contributor / Unknown. */
@@ -96,6 +97,8 @@ function isIntakeAcquisition(raw: AcquisitionRawInput): boolean {
 }
 
 function mapDeliveryChannel(raw: AcquisitionRawInput): string | null {
+  // The ONLY valid intake delivery channels are SMS / WhatsApp / Email /
+  // Public Secure Link / PROOVRA Mobile. Intake never resolves to null/Unknown.
   switch (up(raw.deliveryChannelRaw)) {
     case "SMS":
       return "SMS";
@@ -109,20 +112,29 @@ function mapDeliveryChannel(raw: AcquisitionRawInput): string | null {
     default:
       break;
   }
-  // No messaging record. Distinguish public/reusable links vs mobile/API.
+  // No messaging record. Mobile-app submissions are PROOVRA Mobile.
   if (up(raw.uploadSource) === "MOBILE_APP") return "PROOVRA Mobile";
-  if (isIntakeAcquisition(raw)) {
-    const mode = up(raw.intakeMode);
-    if (mode.includes("REUSABLE") || mode.includes("ANONYMOUS")) {
-      return "Public Secure Link";
-    }
-  }
+  // Any intake link with no SMS/WhatsApp/Email/mobile record was delivered via
+  // the secure link itself (reusable, anonymous, pseudonymous, or a one-time
+  // link shared manually). This is always a Public Secure Link — never null,
+  // never "Unknown".
+  if (isIntakeAcquisition(raw)) return "Public Secure Link";
   return null;
 }
 
 function mapMethod(raw: AcquisitionRawInput, deliveryChannel: string | null): string {
+  void deliveryChannel;
   if (isIntakeAcquisition(raw)) {
-    if (deliveryChannel === "Public Secure Link") return "Public Secure Link";
+    // Reusable / anonymous / pseudonymous links are public secure links; a
+    // one-time link is a (non-public) secure intake link.
+    const mode = up(raw.intakeMode);
+    if (
+      mode.includes("REUSABLE") ||
+      mode.includes("ANONYMOUS") ||
+      mode.includes("PSEUDONYMOUS")
+    ) {
+      return "Public Secure Link";
+    }
     return "Intake Link";
   }
   switch (up(raw.uploadSource)) {

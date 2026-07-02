@@ -16,7 +16,7 @@ import {
   aggregateMetadataStatus,
   deriveExifSummary,
   formatCameraLabel,
-  humanizeCaptureMethod,
+  captureMethodDisplayLabel,
   humanizeUploadSource,
   primaryMediaTypeLabel,
   toPerPartMediaSummary,
@@ -226,9 +226,12 @@ export async function projectVerifyTechnicalMetadata(input: {
           uploadSource: humanizeUploadSource(
             (ceRaw.uploadSource as string | null) ?? null,
           ),
-          captureMethod: humanizeCaptureMethod(
-            (ceRaw.captureMethod as string | null) ?? null,
-          ),
+          // Precise, flow-aware label — web upload reads "PROOVRA Web Upload",
+          // not "Secure Browser Capture".
+          captureMethod: captureMethodDisplayLabel({
+            captureMethod: (ceRaw.captureMethod as string | null) ?? null,
+            uploadSource: (ceRaw.uploadSource as string | null) ?? null,
+          }),
           browserName: (ceRaw.browserName as string | null) ?? null,
           browserVersion: (ceRaw.browserVersion as string | null) ?? null,
           osName: (ceRaw.osName as string | null) ?? null,

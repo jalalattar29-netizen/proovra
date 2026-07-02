@@ -62,6 +62,7 @@ import {
   mapCustodyEventLabel,
   mapVerificationSourceLabel,
   mapVerificationStatusLabel,
+  applyFlowAwareCustodyWording,
 } from "./normalizers.js";
 import {
   buildFingerprintNarrative,
@@ -581,7 +582,11 @@ function buildReviewReadinessRows(
   canonicalMaterials: CanonicalEvidenceMaterials,
   evidence: ReportEvidence,
   custody: ReturnType<typeof splitCustodyEvents>,
-  externalMode: boolean
+  externalMode: boolean,
+  // Intake role modeling (see buildTechnicalIdentityRows / executiveRows). For
+  // intake evidence "Submitted By" is a role, never the contributor email.
+  // Web/mobile capture is unchanged (isIntake defaults false).
+  isIntake = false
 ): KeyValueRow[] {
   return [
     {
@@ -640,9 +645,11 @@ function buildReviewReadinessRows(
     },
     {
       label: "Submitted By",
-      value: externalMode
-        ? maskEmail(evidence.submittedByEmail)
-        : safe(evidence.submittedByEmail),
+      value: isIntake
+        ? "Remote Contributor via Secure Intake Link"
+        : externalMode
+          ? maskEmail(evidence.submittedByEmail)
+          : safe(evidence.submittedByEmail),
     },
     {
       label: "Identity Level",
@@ -876,7 +883,10 @@ function buildStorageRows(
   return rows;
 }
 
-function buildCustodyHashRows(events: ReportCustodyEvent[]): CustodyHashRow[] {
+function buildCustodyHashRows(
+  events: ReportCustodyEvent[],
+  isIntake = false,
+): CustodyHashRow[] {
   return events
     .filter((event) => safe(event.eventHash, "") || safe(event.prevEventHash, ""))
     .map((event, index) => {
@@ -888,7 +898,11 @@ function buildCustodyHashRows(events: ReportCustodyEvent[]): CustodyHashRow[] {
       return {
         sequence,
         atUtc: safe(event.atUtc),
-        eventLabel: mapCustodyEventLabel(event.eventType),
+        // Flow-aware display label only — event hashes / chain are untouched.
+        eventLabel: applyFlowAwareCustodyWording(
+          mapCustodyEventLabel(event.eventType),
+          isIntake,
+        ),
         prevEventHash: safe(event.prevEventHash),
         eventHash: safe(event.eventHash),
       };
@@ -1694,7 +1708,8 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       canonicalMaterials,
       input.evidence,
       custody,
-      externalMode
+      externalMode,
+      input.acquisition?.isIntake === true
     ),
     contentSummaryRows: buildEvidenceContentSummaryRows(
       contentSummary,
@@ -1762,14 +1777,27 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       buildOtsCallout(canonicalMaterials, otsEvidence.otsFailureReason),
     ],
 
-    forensicRows: buildTimelineRows(custody.forensic),
-    accessRows: buildTimelineRows(custody.access),
-    custodyHashRows: buildCustodyHashRows(custody.forensic),
+    forensicRows: buildTimelineRows(
+      custody.forensic,
+      input.acquisition?.isIntake === true,
+    ),
+    accessRows: buildTimelineRows(
+      custody.access,
+      input.acquisition?.isIntake === true,
+    ),
+    custodyHashRows: buildCustodyHashRows(
+      custody.forensic,
+      input.acquisition?.isIntake === true,
+    ),
     custodyCounts: buildCustodyCounts(custody),
 
     technicalIdentityRows: buildTechnicalIdentityRows(
       input.evidence,
-      externalMode
+      externalMode,
+      input.acquisition?.isIntake === true,
+      input.acquisition?.isIntake === true
+        ? (input.acquisition?.identityVerification ?? null)
+        : null
     ),
     technicalFingerprintNarrative: buildFingerprintNarrative(
       parsedFingerprintSummary,
@@ -1818,7 +1846,8 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
         canonicalMaterials,
         input.evidence,
         custody,
-        externalMode
+        externalMode,
+        input.acquisition?.isIntake === true
       ),
       timestampRows: buildTimestampRows(canonicalMaterials.timestampState, contentSummary),
       otsRows: buildOtsRows(canonicalMaterials.otsState),
@@ -1829,9 +1858,15 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       ),
       fileSizeLabel: formatBytesHuman(input.evidence.sizeBytes),
       primaryHash: primaryContentItem?.sha256 ?? "N/A",
-      submittedByLabel: externalMode
-        ? maskEmail(input.evidence.submittedByEmail)
-        : safe(input.evidence.submittedByEmail),
+      // Intake: role label, never the contributor/workspace email (role model
+      // consistent with the Executive Summary + Technical Appendix). Web/mobile
+      // capture keeps the authenticated uploader email exactly as before.
+      submittedByLabel:
+        input.acquisition?.isIntake === true
+          ? "Remote Contributor via Secure Intake Link"
+          : externalMode
+            ? maskEmail(input.evidence.submittedByEmail)
+            : safe(input.evidence.submittedByEmail),
       verificationPackageVersionLabel: input.evidence.verificationPackageVersion
         ? String(input.evidence.verificationPackageVersion)
         : "N/A",

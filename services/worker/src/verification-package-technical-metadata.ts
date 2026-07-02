@@ -454,10 +454,21 @@ export async function buildTechnicalMetadataPackageFiles(input: {
                 "Privacy-safe Evidence Acquisition context: how the contributor was reached and how the evidence entered PROOVRA. The recipient is masked (full phone/email is NEVER included); provider/message IDs are never included. Delivery/consent are reported only as recorded — never invented.",
               acquisition: {
                 method: ctx.method,
-                // Package JSON must NEVER carry deliveryChannel:null.
-                deliveryChannel: ctx.deliveryChannel ?? "Unknown",
+                // The ONLY valid intake delivery channels are SMS / WhatsApp /
+                // Email / Public Secure Link / PROOVRA Mobile. ctx.deliveryChannel
+                // is already one of these for intake; the fallback is a secure
+                // link (never null, never "Unknown").
+                deliveryChannel: ctx.deliveryChannel ?? "Public Secure Link",
                 submissionType: ctx.submissionType,
                 submissionStatus: ctx.submissionStatus,
+              },
+              // Descriptive role model ONLY — never any email / phone / raw
+              // recipient / provider identifier. The authenticated workspace
+              // account is the link creator; the person who captured/submitted
+              // the evidence is a remote contributor. These are distinct actors.
+              role: {
+                linkCreator: "Workspace Owner",
+                contributor: "Remote Contributor",
               },
               ...(recipient ? { recipient } : {}),
               ...(recipientUnavailableReason

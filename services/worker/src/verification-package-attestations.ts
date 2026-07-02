@@ -93,8 +93,18 @@ export type AttestationsFile = {
   /** Access/activity events (views, downloads) — NOT forensic custody. */
   accessActivityEventsCount: number;
   /** All custody events recorded for this evidence (forensic + access) —
-   *  equals the length of custody.json. */
+   *  equals the length of custody.json when both are taken from the same
+   *  snapshot. See countsBasis / snapshotGeneratedAtUtc. */
   totalEventsCount: number;
+  /** When the custody events used for THESE counts were queried. custody.json
+   *  is written from the report-time custody snapshot; these counts come from
+   *  a live query at package-generation time. If an event is recorded between
+   *  those two moments the totals can differ by that event — this field makes
+   *  the basis explicit rather than hiding it under an ambiguous count. */
+  snapshotGeneratedAtUtc: string;
+  /** "live_custody_query" — the counts above are a live read, not the
+   *  custody.json snapshot. */
+  countsBasis: "live_custody_query";
   attestationsCount: number;
   attestations: ReadonlyArray<AttestationEntry>;
   missingAttestations: ReadonlyArray<{
@@ -457,6 +467,8 @@ function baseAttestationsFile(
     forensicCustodyEventsCount,
     accessActivityEventsCount,
     totalEventsCount: total,
+    snapshotGeneratedAtUtc: generatedAtUtc,
+    countsBasis: "live_custody_query",
     attestationsCount: payload.attestations.length,
     attestations: payload.attestations,
     missingAttestations: payload.missingAttestations,

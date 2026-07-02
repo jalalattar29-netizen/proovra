@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "1.0",
+  "schema": "PROOVRA_TECHNICAL_DEVICE_ENRICHMENT",
+  "evidenceId": "ev-psl-001",
+  "generatedAtUtc": "2026-07-02T01:42:23.336Z",
+  "advisory": "Concise device/OS/camera enrichment for reviewers. Camera/make/model/capture-time come from the file's embedded EXIF; OS/device/browser come from the parsed capture environment. Each field carries its own value, source, and confidence.",
+  "fields": {
+    "captureDevice": {
+      "value": "Apple iPhone 14 Pro",
+      "source": "exif",
+      "confidence": "high"
+    },
+    "cameraMake": {
+      "value": "Apple",
+      "source": "exif",
+      "confidence": "high"
+    },
+    "cameraModel": {
+      "value": "iPhone 14 Pro",
+      "source": "exif",
+      "confidence": "high"
+    },
+    "operatingSystem": {
+      "value": "iOS 17.5",
+      "source": "capture_environment",
+      "confidence": "medium"
+    },
+    "deviceClass": {
+      "value": "MOBILE",
+      "source": "capture_environment",
+      "confidence": "medium"
+    },
+    "browser": {
+      "value": "Safari 17.5",
+      "source": "capture_environment",
+      "confidence": "medium"
+    },
+    "originalCaptureTime": {
+      "value": "2026-06-30T09:58:11Z",
+      "source": "exif",
+      "confidence": "high"
+    }
+  }
+}

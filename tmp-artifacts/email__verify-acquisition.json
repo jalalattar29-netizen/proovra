@@ -1,0 +1,14 @@
+{
+  "method": "Intake Link",
+  "deliveryChannel": "Email",
+  "submissionType": "Remote Contributor",
+  "submissionStatus": [
+    "Sent",
+    "Submitted"
+  ],
+  "identityVerification": "Unknown",
+  "consentAccepted": true,
+  "consentVersion": "v3",
+  "submittedAtUtc": "2026-06-30T10:04:00.000Z",
+  "isIntake": true
+}

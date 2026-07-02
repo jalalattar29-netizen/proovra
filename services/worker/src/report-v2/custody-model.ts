@@ -6,7 +6,11 @@ import {
   ReportEvidence,
 } from "./types.js";
 import { normalizeTimestampFailureReason, safe } from "./formatters.js";
-import { mapCustodyEventLabel, normalizeReviewerText } from "./normalizers.js";
+import {
+  mapCustodyEventLabel,
+  normalizeReviewerText,
+  applyFlowAwareCustodyWording,
+} from "./normalizers.js";
 
 const UNICODE_ELLIPSIS = String.fromCharCode(8230);
 const TRUNCATED_MARKER_PATTERN = new RegExp(
@@ -60,13 +64,24 @@ function sanitizeReviewerSummary(value: string | null | undefined): string {
   return normalizeReviewerText(cleaned);
 }
 
-export function buildTimelineRows(events: ClassifiedCustodyEvent[]): TimelineRow[] {
+export function buildTimelineRows(
+  events: ClassifiedCustodyEvent[],
+  isIntake = false,
+): TimelineRow[] {
   return events.map((ev) => {
     return {
       sequence: String(ev.sequence),
       atUtc: safe(ev.atUtc),
-      eventLabel: mapCustodyEventLabel(ev.eventType),
-      summary: sanitizeReviewerSummary(ev.payloadSummary),
+      // Flow-aware wording: non-intake evidence must not read "at intake" /
+      // "intake authorization" (event types + hashes are unchanged).
+      eventLabel: applyFlowAwareCustodyWording(
+        mapCustodyEventLabel(ev.eventType),
+        isIntake,
+      ),
+      summary: applyFlowAwareCustodyWording(
+        sanitizeReviewerSummary(ev.payloadSummary),
+        isIntake,
+      ),
     };
   });
 }

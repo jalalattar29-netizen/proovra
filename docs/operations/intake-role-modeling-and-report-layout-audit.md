@@ -36,3 +36,125 @@ The Executive Summary page stacks, in order: (1) "What this confirms" card, (2) 
 3. **Role modeling**: intake "Submitted By" → "Remote Contributor via Secure Intake Link"; package intake-delivery gains `contributor` role block.
 4. **Layout**: acquisition ≤5 rows; suppress Capture Device mini for intake; smaller Exec-Summary map; page-break-inside auto on the exec page.
 5. Tests for all flows.
+
+---
+
+## Part 2 — Enterprise Intake artifact audit + targeted fix (2026-07-02)
+
+Verified against **real generated artifacts** (SMS intake + a Web-Capture control):
+`report-{intake,web}.pdf/html`, and the `technical-metadata/*.json` package files,
+produced by driving the actual production builders (`buildReportViewModel` →
+`renderReportHtml` → `renderPdfFromHtml`, and `buildTechnicalMetadataPackageFiles`)
+with realistic SMS-intake DB rows. (A live Twilio→worker→S3 round-trip is not
+runnable in this environment — local Postgres/Redis/S3 are down — so the real
+builders were driven with realistic intake data instead of a live submission.)
+
+### Findings + fixes (intake-only; Web Capture confirmed unchanged)
+
+1. **Submitted By (Req 1) — FIXED.** The PDF **Technical Appendix → Identity &
+   Provenance** rendered `Submitted By Email` = the contributor's (masked) email
+   for intake, via `buildTechnicalIdentityRows`. It now shows a role label
+   (`Submitted By = Remote Contributor via Secure Intake Link`, + `Contributor
+   Identity`) for intake, and keeps `Submitted By Email` + the uploader email for
+   Web Capture. Same guard applied to the (currently unrendered) `meta.submittedByLabel`
+   and `buildReviewReadinessRows` for defense-in-depth. Executive Summary already
+   did the right thing (prior pass). **Verified in report-intake.pdf p2 + p10:
+   zero occurrences of the contributor email.**
+
+2. **Identity / custody wording (Req 2/6) — already correct, re-verified.**
+   `applyFlowAwareCustodyWording` rewrites intake wording → submission/upload for
+   non-intake; intake preserves "recorded at intake" / "intake authorization".
+   Roles are distinct in the Appendix: `Submitted By User Ref` (contributor) vs
+   `Created/Uploaded By User Ref` (link creator / workspace owner), all redacted.
+   No surface implies the workspace owner captured/submitted the evidence.
+
+3. **Technical Summary layout (Req 3) — OK.** With EXIF it renders a dense 3-block
+   2-column grid on a single page (report-intake.pdf p8). With NO EXIF the whole
+   section is byte-neutral (`renderTechnicalSummarySection` returns `""`), so there
+   is **no empty standalone page** — device rows are absorbed into the Executive
+   Summary for non-intake, and into the Evidence Acquisition table for intake.
+
+4. **capture-environment.json (Req 4) — PRESENT, not removed.** Emitted by
+   `verification-package-technical-metadata.ts` whenever `evidence.capture_environment`
+   is recorded (it is, for the browser-based intake submission). Privacy-safe:
+   masked IP + UA hash + country only, never the full IP / raw UA. It intentionally
+   carries the **raw** `captureMethod`/`uploadSource` enums (source-of-truth layer);
+   the PDF/verify humanize them ("Secure Intake Link") — representation difference,
+   not a contradiction.
+
+5. **intake-delivery.json (Req 5) — OK.** `deliveryChannel` = `SMS` for SMS.
+   Recipient is masked preview + `sha256:` hash only, `fullValueIncluded:false`;
+   no phone/email/provider IDs (Twilio SID / message ID) anywhere. See **Part 3**
+   for the channel-scope cleanup (no QR; reusable/one-time → Public Secure Link).
+
+6. **Role separation (Req 6) — OK.** Workspace Owner / Link Creator (Created/
+   Uploaded By refs) vs Remote Contributor (Submitted By role + Contributor
+   Identity) are never merged or mislabeled on any generated surface.
+
+7. **Verify page (Req 7) — verified safe (data contract), live render not run.**
+   The public verify endpoint hard-sets `submittedByEmail: null`; the page hides
+   the row (no contributor email, no owner confusion). The public acquisition
+   projection (`toPublicAcquisition`) carries NO recipient; network is internal-only.
+   So the hard privacy constraints already hold. Showing the explicit PDF role
+   label on the verify page would require plumbing `acquisition.isIntake` into the
+   public verify payload/types — a separate change that could not be render-verified
+   in this environment, so it is left as a documented optional enhancement.
+
+8. **Package consistency (Req 8) — cross-checked.** One inconsistency found + fixed:
+   the Technical Appendix `Capture Method` mapped `EXTERNAL_INTAKE_UPLOAD` →
+   "Capture method not recorded" while the Technical Summary showed "Secure Intake
+   Link". `mapCaptureMethodLabel` now maps the intake-only enum to "Secure Intake
+   Link". All JSONs, the PDF, and the verify projection are otherwise consistent.
+
+### Files changed (all in services/worker; Web Capture path untouched)
+- `report-v2/technical-model.ts` — `buildTechnicalIdentityRows` intake role model.
+- `report-v2/build-view-model.ts` — thread `isIntake` into identity/review-readiness/
+  submittedByLabel.
+- `report-v2/normalizers.ts` — `mapCaptureMethodLabel` maps `EXTERNAL_INTAKE_UPLOAD`.
+- `test/report-media-intelligence.test.ts` — intake-role + web-baseline regression tests.
+
+---
+
+## Part 3 — Intake channel scope cleanup + Verify role label (2026-07-02)
+
+Verified against **real artifacts** for four scenarios (Web Capture, Intake SMS,
+Intake Email, Public Secure Link): the PDF (`report-{web,sms,email,psl}.pdf`), the
+package `technical-metadata/*.json`, and the **rendered** public verify card
+(`VerifyTechnicalMetadataSection` via react-dom/server → `verify-card-*.html`).
+
+### Part 1 — QR intake removed; Public Secure Link always
+- **There is NO QR intake delivery channel** and never was one in code — only two
+  stale doc-comments in `acquisition.ts` referenced "QR Code". Removed. The QR in
+  the PDF is the **Verify QR** ("Scan QR code or open verification page", cover) —
+  it opens the verify page and is unrelated to intake delivery. Kept.
+- `mapDeliveryChannel` (`packages/shared-runtime/.../acquisition.ts`): the only
+  valid channels are **SMS / WhatsApp / Email / Public Secure Link / PROOVRA
+  Mobile**. Any intake link with no messaging/mobile record → **Public Secure
+  Link** (reusable, anonymous, pseudonymous, or one-time manual/QR-scanned). Never
+  `null`, never `"Unknown"`, never `"QR Code"`. `mapMethod` derives Public Secure
+  Link vs Intake Link from the intake mode.
+- `intake-delivery.json`: `deliveryChannel` fallback changed `"Unknown"` →
+  `"Public Secure Link"`. **Verified per scenario:** sms→SMS, email→Email,
+  psl→Public Secure Link; web emits no `intake-delivery.json`. No `"QR"` string in
+  any PDF Delivery Channel / verify card / intake JSON.
+
+### Part 2 — Verify role label (was already implemented; extended package)
+- The public verify page (`VerifyTechnicalMetadataSection`, wired at
+  `verify/[token]/page.tsx`) already renders, **for intake only** (projection sets
+  `acquisition` only when `isIntake`): `Submitted through: Secure Intake Link ·
+  Delivery Channel · Submission: Remote Contributor · Consent · Submission Status`.
+  No email, no owner, no recipient, no provider IDs. **Web Capture renders no
+  acquisition card** (unchanged). Confirmed in the rendered `verify-card-*.html`.
+- `intake-delivery.json` now also carries a descriptive **`role`** section:
+  `{ linkCreator: "Workspace Owner", contributor: "Remote Contributor" }` — no
+  emails / phone / raw recipient / provider IDs.
+- **Internal Evidence unchanged:** `toInternalAcquisition` still returns the masked
+  recipient for the internal card; no change to that path.
+
+### Files changed
+- `packages/shared-runtime/src/technical-metadata/acquisition.ts` — remove QR
+  comments; Public-Secure-Link-always mapping (dist rebuilt).
+- `services/worker/src/verification-package-technical-metadata.ts` — `role` section
+  + Public Secure Link fallback.
+- `services/worker/test/technical-metadata.test.ts` — channel-scope + role tests.
+- Docs: this file + `evidence-acquisition-context-audit.md` (QR references removed).

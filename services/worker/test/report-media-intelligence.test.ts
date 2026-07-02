@@ -26,6 +26,8 @@ import type {
   MediaIntelligenceReportInput,
   ReportV2Input,
 } from "../src/report-v2";
+import { applyFlowAwareCustodyWording } from "../src/report-v2/normalizers";
+import { buildTimelineRows } from "../src/report-v2/custody-model";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -473,9 +475,11 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     const html = renderReportHtml(vm);
     // ONE unified Executive Summary metadata grid (device + overview merged).
     expect(html).toContain("executive-unified-grid");
-    // Device context appears (inside the unified grid), humanized.
+    // Device context appears (inside the unified grid), humanized. Web ingest
+    // reads "PROOVRA Web Upload", not the misleading "Secure Browser Capture".
     expect(html).toContain("PROOVRA Web Application");
-    expect(html).toContain("Secure Browser Capture");
+    expect(html).toContain("PROOVRA Web Upload");
+    expect(html).not.toContain("Secure Browser Capture");
     // Evidence Overview fields live in the SAME grid — merged, not a second
     // key/value table.
     const gridStart = html.indexOf('class="executive-unified-grid"');
@@ -492,6 +496,40 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     expect(html).not.toContain("Mixed");
   });
 
+  it("custody wording is flow-aware (Web Capture never says 'at intake')", () => {
+    // Pure helper: non-intake rewrites intake wording; intake preserves it.
+    expect(
+      applyFlowAwareCustodyWording("Identity snapshot recorded at intake", false),
+    ).toBe("Identity snapshot recorded at submission");
+    expect(
+      applyFlowAwareCustodyWording(
+        "Mode: initial intake authorization for multipart evidence",
+        false,
+      ),
+    ).toBe("Mode: initial upload authorization for multipart evidence");
+    // Real intake keeps the correct intake wording.
+    expect(
+      applyFlowAwareCustodyWording("Identity snapshot recorded at intake", true),
+    ).toBe("Identity snapshot recorded at intake");
+
+    // buildTimelineRows applies it per flow (event types unchanged).
+    const events = [
+      {
+        sequence: 1,
+        atUtc: "2026-07-01T00:00:00Z",
+        eventType: "IDENTITY_SNAPSHOT_RECORDED",
+        payloadSummary: "Mode: initial intake authorization for multipart evidence",
+        category: "forensic" as const,
+      },
+    ];
+    const web = buildTimelineRows(events as never, false);
+    expect(web[0]!.eventLabel).toBe("Identity snapshot recorded at submission");
+    expect(web[0]!.summary).toContain("initial upload authorization");
+    expect(web[0]!.summary).not.toContain("intake");
+    const intake = buildTimelineRows(events as never, true);
+    expect(intake[0]!.eventLabel).toBe("Identity snapshot recorded at intake");
+  });
+
   it("intake evidence also uses the unified Executive Summary grid", async () => {
     const vm = await buildReportViewModel(
       buildInput({ acquisition: SMS_ACQUISITION }),
@@ -503,6 +541,52 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     const gridStart = html.indexOf('class="executive-unified-grid"');
     const gridSlice = html.slice(gridStart, gridStart + 4000);
     expect(gridSlice).toContain("Evidence Type");
+  });
+
+  it("intake report NEVER exposes the contributor email; Technical Appendix shows a role (Req 1/6)", async () => {
+    const CONTRIB_EMAIL = "jane.contributor@example.com";
+    const vm = await buildReportViewModel(
+      buildInput({
+        acquisition: SMS_ACQUISITION,
+        evidence: {
+          ...buildInput().evidence,
+          submittedByEmail: CONTRIB_EMAIL,
+          captureMethod: "EXTERNAL_INTAKE_UPLOAD",
+        },
+      }),
+    );
+    const html = renderReportHtml(vm);
+    // The contributor email appears NOWHERE in the intake report.
+    expect(html).not.toContain(CONTRIB_EMAIL);
+    // Technical Appendix no longer uses the "Submitted By Email" label and
+    // shows the role instead (Executive Summary + Appendix are consistent).
+    expect(html).not.toContain("Submitted By Email");
+    expect(html).toContain("Remote Contributor via Secure Intake Link");
+    expect(html).toContain("Contributor Identity");
+    // Capture Method is consistent everywhere (never "not recorded" for intake).
+    expect(html).toContain("Secure Intake Link");
+    expect(html).not.toContain("Capture method not recorded");
+  });
+
+  it("Web Capture STILL shows the authenticated uploader email (baseline unchanged)", async () => {
+    const OWNER_EMAIL = "owner@acme-legal.example";
+    const vm = await buildReportViewModel(
+      buildInput({
+        acquisition: WEB_ACQUISITION,
+        evidence: {
+          ...buildInput().evidence,
+          submittedByEmail: OWNER_EMAIL,
+          captureMethod: "SECURE_CAMERA",
+        },
+      }),
+    );
+    const html = renderReportHtml(vm);
+    // Non-intake keeps the "Submitted By Email" label + the uploader email.
+    expect(html).toContain("Submitted By Email");
+    expect(html).toContain(OWNER_EMAIL);
+    // Intake role wording never leaks into a Web Capture report.
+    expect(html).not.toContain("Remote Contributor via Secure Intake Link");
+    expect(html).not.toContain("Secure Intake Link");
   });
 
   it("report CSS gives the unified grid accent labels + break protection", () => {

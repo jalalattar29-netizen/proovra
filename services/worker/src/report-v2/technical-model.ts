@@ -140,17 +140,40 @@ export function buildOrganizationStatus(evidence: ReportEvidence): string {
   return "Not recorded";
 }
 
+/** Role label shown for intake evidence instead of the contributor's email.
+ *  Kept identical to the Executive Summary "Submitted By" wording so the PDF
+ *  is internally consistent across surfaces. */
+export const INTAKE_SUBMITTED_BY_ROLE_LABEL =
+  "Remote Contributor via Secure Intake Link";
+
 export function buildTechnicalIdentityRows(
   evidence: ReportEvidence,
-  externalMode: boolean
+  externalMode: boolean,
+  // Intake-only role modeling. For remote intake the authenticated workspace
+  // account is the link creator / requester — NOT the person who captured the
+  // evidence. The Technical Appendix must never expose the contributor's (or
+  // workspace's) email as "Submitted By Email"; it shows a role label instead.
+  // Web/mobile capture is UNCHANGED (isIntake defaults to false).
+  isIntake = false,
+  contributorIdentity: string | null = null
 ): KeyValueRow[] {
   return [
-    {
-      label: "Submitted By Email",
-      value: externalMode
-        ? maskEmail(evidence.submittedByEmail)
-        : safe(evidence.submittedByEmail),
-    },
+    // Intake: role label, never an email. Non-intake: authenticated uploader
+    // email exactly as before.
+    isIntake
+      ? {
+          label: "Submitted By",
+          value: INTAKE_SUBMITTED_BY_ROLE_LABEL,
+        }
+      : {
+          label: "Submitted By Email",
+          value: externalMode
+            ? maskEmail(evidence.submittedByEmail)
+            : safe(evidence.submittedByEmail),
+        },
+    ...(isIntake && contributorIdentity
+      ? [{ label: "Contributor Identity", value: contributorIdentity }]
+      : []),
     {
       label: "Submitted By Provider",
       value: mapAuthProviderLabel(evidence.submittedByAuthProvider),

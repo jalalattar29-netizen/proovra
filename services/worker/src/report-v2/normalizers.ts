@@ -62,6 +62,13 @@ export function mapCaptureMethodLabel(value: string | null | undefined): string 
       return "Imported document";
     case "MULTIPART_PACKAGE":
       return "Multipart package";
+    case "EXTERNAL_INTAKE_UPLOAD":
+      // Intake-only value. Keeps the Technical Appendix "Capture Method"
+      // consistent with the Technical Summary + Evidence Acquisition, which
+      // both read "Secure Intake Link" for intake evidence (never the
+      // misleading "Capture method not recorded"). Non-intake capture
+      // methods are unaffected.
+      return "Secure Intake Link";
     default:
       return "Capture method not recorded";
   }
@@ -115,6 +122,24 @@ export function mapVerificationSourceLabel(
     default:
       return "Verification source not recorded";
   }
+}
+
+/**
+ * Rewrite intake-specific custody wording to submission/upload wording for
+ * NON-intake (normal Web Capture / Web Upload / mobile) evidence. Presentation
+ * only — event types, hashes, ordering, and the raw custody.json are
+ * unchanged. For real intake evidence (isIntake === true) the intake wording
+ * is correct and preserved.
+ */
+export function applyFlowAwareCustodyWording(
+  text: string,
+  isIntake: boolean,
+): string {
+  if (isIntake || !text) return text;
+  return text
+    .replace(/recorded at intake/gi, "recorded at submission")
+    .replace(/initial intake authorization/gi, "initial upload authorization")
+    .replace(/intake authorization/gi, "upload authorization");
 }
 
 export function mapCustodyEventLabel(eventType: string | null | undefined): string {

@@ -4,7 +4,10 @@ import {
   getTrustDecisionConfidenceLabel,
   getTrustDecisionLabel,
 } from "@proovra/shared";
-import { getCaptureContextTimestampLabel } from "@proovra/shared-runtime/technical-metadata";
+import {
+  getCaptureContextTimestampLabel,
+  captureMethodDisplayLabel,
+} from "@proovra/shared-runtime/technical-metadata";
 import {
   renderPageSection,
   renderTrustSignalGrid,
@@ -52,10 +55,12 @@ function buildCaptureDeviceRows(
   };
   const humanMethod = (v: string | null): string | null => {
     if (!v) return null;
-    if (v === "SECURE_CAPTURE") return "Secure Browser Capture";
-    if (v === "UPLOAD") return "Direct Upload";
-    if (v === "MOBILE") return "Mobile Capture";
-    return null;
+    // Precise flow-aware label — web upload reads "PROOVRA Web Upload", not
+    // "Secure Browser Capture".
+    return captureMethodDisplayLabel({
+      captureMethod: v,
+      uploadSource: ce.uploadSource,
+    });
   };
 
   const rows: Array<{ label: string; value: string }> = [];

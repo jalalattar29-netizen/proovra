@@ -46,6 +46,67 @@ export function humanizeCaptureMethod(value: string | null | undefined): string 
   }
 }
 
+/**
+ * Precise, flow-aware Capture Method display label for reviewer surfaces.
+ *
+ * Normal PROOVRA web upload / multipart / bulk import must read
+ * "PROOVRA Web Upload" — NOT "Secure Browser Capture", which could be
+ * misread as device/camera-attested capture (PROOVRA web has no capture-side
+ * device attestation). The precise flow is derived from uploadSource /
+ * acquisition first, then the raw capture-method enum as a fallback. Internal
+ * enum values are never shown.
+ */
+export function captureMethodDisplayLabel(input: {
+  captureMethod?: string | null;
+  uploadSource?: string | null;
+  acquisitionMethod?: string | null;
+  isIntake?: boolean | null;
+}): string {
+  const method = (input.acquisitionMethod ?? "").toLowerCase();
+  if (
+    input.isIntake === true ||
+    method.includes("intake") ||
+    method.includes("public secure link")
+  ) {
+    return "Secure Intake Link";
+  }
+
+  switch ((input.uploadSource ?? "").toUpperCase()) {
+    case "MOBILE_APP":
+      return "PROOVRA Mobile Capture";
+    case "API":
+      return "API Submission";
+    case "INTAKE_LINK":
+      return "Secure Intake Link";
+    case "WEB_APP":
+      // All PROOVRA web ingest (including "secure browser capture" sessions
+      // and multipart uploads) is a browser upload, not device-attested.
+      return "PROOVRA Web Upload";
+    default:
+      break;
+  }
+
+  switch ((input.captureMethod ?? "").toUpperCase()) {
+    case "MULTIPART_PACKAGE":
+    case "BULK_IMPORT":
+    case "IMPORTED_DOCUMENT":
+    case "UPLOADED_FILE":
+    case "UPLOAD":
+    case "SECURE_CAPTURE":
+      return "PROOVRA Web Upload";
+    case "SECURE_CAMERA":
+    case "MOBILE":
+      return "PROOVRA Mobile Capture";
+    case "EXTERNAL_INTAKE_UPLOAD":
+    case "INTAKE_LINK":
+      return "Secure Intake Link";
+    case "API":
+      return "API Submission";
+    default:
+      return "PROOVRA Web Upload";
+  }
+}
+
 /** Plain-English label for the parse/metadata status enums. */
 export function metadataStatusLabel(
   status: MetadataStatus | ParseResult | string | null | undefined,

@@ -79,6 +79,9 @@ describe("Phase P3.1.1 — Module surface", () => {
     expect(src).toContain("isAccessCustodyEventType");
     // The query selects eventType so it can classify.
     expect(src).toMatch(/select:\s*\{[^}]*eventType:\s*true/s);
+    // The live-vs-snapshot basis is explicit, not hidden.
+    expect(src).toContain("snapshotGeneratedAtUtc");
+    expect(src).toContain('"live_custody_query"');
   });
 });
 

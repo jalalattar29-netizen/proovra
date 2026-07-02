@@ -24,7 +24,7 @@
 import { ReportViewModel } from "../types.js";
 import { renderCompactKeyValueList, renderPageSection } from "../ui.js";
 import {
-  humanizeCaptureMethod,
+  captureMethodDisplayLabel,
   humanizeUploadSource,
   metadataRows,
 } from "@proovra/shared-runtime/technical-metadata";
@@ -90,7 +90,13 @@ export function renderTechnicalSummarySection(vm: ReportViewModel): string {
         },
         { label: "Device", value: ce.deviceClass, display: ce.deviceClass ? titleCase(ce.deviceClass) : undefined },
         { label: "Submitted through", value: humanizeUploadSource(ce.uploadSource) },
-        { label: "Capture method", value: humanizeCaptureMethod(ce.captureMethod) },
+        {
+          label: "Capture method",
+          value: captureMethodDisplayLabel({
+            captureMethod: ce.captureMethod,
+            uploadSource: ce.uploadSource,
+          }),
+        },
         ...(showBrowser
           ? [
               {

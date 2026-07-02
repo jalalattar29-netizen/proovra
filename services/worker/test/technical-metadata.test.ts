@@ -27,6 +27,7 @@ import {
   unparsedMetadata,
   humanizeUploadSource,
   humanizeCaptureMethod,
+  captureMethodDisplayLabel,
   isMeaningfulMetadataValue,
   metadataRows,
   metadataStatusLabel,
@@ -314,6 +315,30 @@ describe("humanization + smart rows", () => {
     expect(humanizeCaptureMethod("SECURE_CAPTURE")).toBe("Secure Browser Capture");
     expect(humanizeCaptureMethod("UPLOAD")).toBe("Direct Upload");
     expect(humanizeCaptureMethod("MOBILE")).toBe("Mobile Capture");
+  });
+  it("captureMethodDisplayLabel is flow-aware (web upload never 'Secure Browser Capture')", () => {
+    // Web ingest — even a 'secure capture' browser session — reads as an upload.
+    expect(
+      captureMethodDisplayLabel({ captureMethod: "SECURE_CAPTURE", uploadSource: "WEB_APP" }),
+    ).toBe("PROOVRA Web Upload");
+    expect(
+      captureMethodDisplayLabel({ captureMethod: "MULTIPART_PACKAGE", uploadSource: "WEB_APP" }),
+    ).toBe("PROOVRA Web Upload");
+    expect(
+      captureMethodDisplayLabel({ captureMethod: "BULK_IMPORT", uploadSource: null }),
+    ).toBe("PROOVRA Web Upload");
+    // Other flows keep their precise labels.
+    expect(
+      captureMethodDisplayLabel({ uploadSource: "MOBILE_APP" }),
+    ).toBe("PROOVRA Mobile Capture");
+    expect(captureMethodDisplayLabel({ uploadSource: "API" })).toBe("API Submission");
+    expect(
+      captureMethodDisplayLabel({ isIntake: true, acquisitionMethod: "Intake Link" }),
+    ).toBe("Secure Intake Link");
+    // Never the misleading device-attested label for web.
+    expect(
+      captureMethodDisplayLabel({ captureMethod: "SECURE_CAPTURE", uploadSource: "WEB_APP" }),
+    ).not.toBe("Secure Browser Capture");
   });
   it("metadataStatusLabel reads as plain English", () => {
     expect(metadataStatusLabel("MISSING")).toBe("No embedded metadata detected");
@@ -821,11 +846,12 @@ describe("verification package technical-metadata files", () => {
     expect(JSON.stringify(json)).not.toContain('"deliveryChannel":null');
   });
 
-  it("package never emits deliveryChannel:null (unknown → 'Unknown' + reason)", async () => {
+  it("one-time intake link with no messaging → Public Secure Link (never null/Unknown/QR)", async () => {
     const { buildTechnicalMetadataPackageFiles } = await import(
       "../src/verification-package-technical-metadata.js"
     );
-    // Intake by capture_method, but no channel and not reusable → Unknown.
+    // Intake by capture_method, one-time link, no messaging record. The secure
+    // link itself was the delivery mechanism → Public Secure Link.
     const files = await buildTechnicalMetadataPackageFiles({
       prisma: fakePrismaWithAcquisition({
         capture_method: "EXTERNAL_INTAKE_UPLOAD",
@@ -839,9 +865,51 @@ describe("verification package technical-metadata files", () => {
     expect(entry).toBeDefined();
     const json = entry!.json as {
       acquisition: { deliveryChannel: string };
+      role?: { linkCreator: string; contributor: string };
     };
-    expect(json.acquisition.deliveryChannel).toBe("Unknown");
-    expect(JSON.stringify(json)).not.toContain('"deliveryChannel":null');
+    expect(json.acquisition.deliveryChannel).toBe("Public Secure Link");
+    // The ONLY valid channels — never null, "Unknown", or "QR Code".
+    const serialized = JSON.stringify(json);
+    expect(serialized).not.toContain('"deliveryChannel":null');
+    expect(serialized).not.toContain("Unknown");
+    expect(serialized).not.toContain("QR");
+    // Descriptive role section, no PII.
+    expect(json.role?.linkCreator).toBe("Workspace Owner");
+    expect(json.role?.contributor).toBe("Remote Contributor");
+  });
+
+  it("intake-delivery.json only ever uses the five supported channels + role, never QR", async () => {
+    const { buildTechnicalMetadataPackageFiles } = await import(
+      "../src/verification-package-technical-metadata.js"
+    );
+    const channels = [
+      { channel: "SMS", expected: "SMS" },
+      { channel: "WHATSAPP", expected: "WhatsApp" },
+      { channel: "EMAIL", expected: "Email" },
+      { channel: null, intake_mode: "EXTERNAL_REUSABLE", expected: "Public Secure Link" },
+    ];
+    const ALLOWED = new Set(["SMS", "WhatsApp", "Email", "Public Secure Link", "PROOVRA Mobile"]);
+    for (const c of channels) {
+      const files = await buildTechnicalMetadataPackageFiles({
+        prisma: fakePrismaWithAcquisition({
+          capture_method: "EXTERNAL_INTAKE_UPLOAD",
+          intake_mode: (c as { intake_mode?: string }).intake_mode ?? "EXTERNAL_ONE_TIME",
+          channel: c.channel,
+          recipient_preview: c.channel ? "masked" : null,
+          recipient_hash: c.channel ? "abc" : null,
+        }) as never,
+        teamId: "team-1",
+        evidenceId: "ev-1",
+      });
+      const json = intakeDeliveryEntry(files)!.json as {
+        acquisition: { deliveryChannel: string };
+        role: { linkCreator: string; contributor: string };
+      };
+      expect(json.acquisition.deliveryChannel).toBe(c.expected);
+      expect(ALLOWED.has(json.acquisition.deliveryChannel)).toBe(true);
+      expect(JSON.stringify(json)).not.toContain("QR");
+      expect(json.role.contributor).toBe("Remote Contributor");
+    }
   });
 
   it("adds recipientUnavailableReason for a targeted channel with no masked record", async () => {
@@ -1069,9 +1137,11 @@ describe("PDF report: Capture Device & Camera Metadata section", () => {
     expect(html).toContain("Capture Device");
     expect(html).toContain("Camera");
     expect(html).toContain("Exposure");
-    // Humanized labels — never the raw enum.
+    // Humanized labels — never the raw enum. Web ingest reads as an upload,
+    // NOT the misleading "Secure Browser Capture" device-attested wording.
     expect(html).toContain("PROOVRA Web Application");
-    expect(html).toContain("Secure Browser Capture");
+    expect(html).toContain("PROOVRA Web Upload");
+    expect(html).not.toContain("Secure Browser Capture");
     expect(html).not.toContain("WEB_APP");
     expect(html).not.toContain("SECURE_CAPTURE");
     // Camera make/model are split when both are reliably available.
