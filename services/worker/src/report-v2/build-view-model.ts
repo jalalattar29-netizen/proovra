@@ -63,6 +63,7 @@ import {
   mapVerificationSourceLabel,
   mapVerificationStatusLabel,
   applyFlowAwareCustodyWording,
+  intakeCustodyEventLabel,
 } from "./normalizers.js";
 import {
   buildFingerprintNarrative,
@@ -899,10 +900,14 @@ function buildCustodyHashRows(
         sequence,
         atUtc: safe(event.atUtc),
         // Flow-aware display label only — event hashes / chain are untouched.
-        eventLabel: applyFlowAwareCustodyWording(
-          mapCustodyEventLabel(event.eventType),
-          isIntake,
-        ),
+        // Intake identity-snapshot is relabeled to the link creator (owner),
+        // never implying the remote contributor.
+        eventLabel:
+          intakeCustodyEventLabel(event.eventType, isIntake) ??
+          applyFlowAwareCustodyWording(
+            mapCustodyEventLabel(event.eventType),
+            isIntake,
+          ),
         prevEventHash: safe(event.prevEventHash),
         eventHash: safe(event.eventHash),
       };

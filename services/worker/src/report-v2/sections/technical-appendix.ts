@@ -15,6 +15,7 @@ import {
   renderMonoBlock,
   renderPageSection,
 } from "../ui.js";
+import { renderTechnicalSummaryAppendixInner } from "./technical-summary.js";
 import { escapeHtml } from "../formatters.js";
 
 /**
@@ -314,6 +315,22 @@ shouldRenderSignature
           renderKeyValueGrid(filteredIdentityRows),
           { className: "technical-appendix-identity-block" }
         )}
+
+        ${(() => {
+          // Camera/EXIF that did NOT warrant a standalone Technical Summary
+          // page (no capture-environment device context — e.g. intake) is
+          // shown here as a compact appendix subsection, so there is never a
+          // mostly-empty standalone page.
+          const cameraInner = renderTechnicalSummaryAppendixInner(vm);
+          return cameraInner
+            ? renderAppendixSection(
+                "Capture Device & Camera Metadata",
+                "Device and camera context embedded in the file by the capturing device. Advisory enrichment for reviewers; it does not change the integrity verdict.",
+                cameraInner,
+                { className: "technical-appendix-camera-block" }
+              )
+            : "";
+        })()}
 
         ${renderAppendixSection(
           "Cryptographic Fingerprint",

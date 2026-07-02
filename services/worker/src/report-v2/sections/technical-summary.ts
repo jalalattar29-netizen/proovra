@@ -56,20 +56,38 @@ function isMobileClass(deviceClass: string | null | undefined): boolean {
   );
 }
 
-export function renderTechnicalSummarySection(vm: ReportViewModel): string {
+type TechnicalSummaryBlocks = {
+  /** Stacked titled field-card grids, or "" when there is no content. */
+  groupsHtml: string;
+  /** True only when a real capture-environment device group is present. */
+  hasDeviceRows: boolean;
+  /** True when any group (device/camera/exposure) rendered. */
+  hasContent: boolean;
+  /** Reviewer notes (representative-EXIF + capture-time provenance). */
+  notesHtml: string;
+};
+
+/** Build the Technical Summary field-card grids once, so BOTH the standalone
+ *  page and the compact Technical-Appendix fallback share identical content
+ *  and there is no duplicate markup. */
+function buildTechnicalSummaryBlocks(vm: ReportViewModel): TechnicalSummaryBlocks {
+  const empty: TechnicalSummaryBlocks = {
+    groupsHtml: "",
+    hasDeviceRows: false,
+    hasContent: false,
+    notesHtml: "",
+  };
   const ts = vm.technicalSummary;
-  if (!ts) return "";
+  if (!ts) return empty;
 
   const ce = ts.captureEnvironment;
   const exif = ts.exif;
   const hasExif = Boolean(exif && exif.exifPresent);
   const camera = hasExif ? exif!.camera : null;
 
-  // No camera EXIF → do NOT spend a whole standalone page on a few device
-  // rows. Those rows are shown as a compact "Capture Device" mini-table
-  // inside the Executive Summary instead (renderCaptureDeviceMini). This
-  // section is byte-neutral in the no-EXIF case.
-  if (!hasExif) return "";
+  // No camera EXIF → byte-neutral (device-only context lives as a compact
+  // Capture Device mini in the Executive Summary for non-intake).
+  if (!hasExif) return empty;
 
   // Show Browser when there is no EXIF camera (desktop) OR the upload came
   // from a mobile device-class (mobile browser / intake link) where the
@@ -150,7 +168,7 @@ export function renderTechnicalSummarySection(vm: ReportViewModel): string {
   }
 
   const groups = [deviceBlock, cameraBlock, exposureBlock].filter(Boolean);
-  if (groups.length === 0) return "";
+  if (groups.length === 0) return empty;
 
   // Stacked titled field-card grids (each group is itself a two-column
   // field-card grid — same enterprise style as the Executive Summary). Cards
@@ -161,24 +179,51 @@ export function renderTechnicalSummarySection(vm: ReportViewModel): string {
   // Multi-file transparency: the PDF shows one representative item's EXIF;
   // every item's EXIF is in the verification package.
   const representativeNote =
-    hasExif && (ts.mediaFilesTotal ?? 1) > 1
+    (ts.mediaFilesTotal ?? 1) > 1
       ? `<p class="muted-note">Representative EXIF shown (Primary Media Item). Per-file EXIF for all ${ts.mediaFilesTotal} media items is included in the verification package (technical-metadata/exif-details.json).</p>`
       : "";
 
-  const captureTimeNote = hasExif
-    ? `<p class="muted-note">Camera metadata is embedded in the file by the capturing device. The EXIF Original Capture Time is read from the file itself and is distinct from PROOVRA's submission and preservation timestamps.</p>`
-    : "";
+  const captureTimeNote = `<p class="muted-note">Camera metadata is embedded in the file by the capturing device. The EXIF Original Capture Time is read from the file itself and is distinct from PROOVRA's submission and preservation timestamps.</p>`;
 
+  return {
+    groupsHtml: grid,
+    hasDeviceRows: deviceRows.length > 0,
+    hasContent: true,
+    notesHtml: `${representativeNote}${captureTimeNote}`,
+  };
+}
+
+/**
+ * Standalone Technical Summary page — rendered ONLY when there is genuine
+ * capture-environment device context (web / mobile capture). Camera-only
+ * content (e.g. intake with EXIF but no recorded capture environment) would be
+ * a mostly-empty page, so it is deferred to a compact subsection inside the
+ * Technical Appendix (renderTechnicalSummaryAppendixInner) instead — no
+ * standalone whitespace page.
+ */
+export function renderTechnicalSummarySection(vm: ReportViewModel): string {
+  const b = buildTechnicalSummaryBlocks(vm);
+  if (!b.hasContent || !b.hasDeviceRows) return "";
   return renderPageSection(
     "Technical Summary",
     `
       <p class="section-intro">Device and camera context for the recorded material. Advisory enrichment for reviewers; it does not change the integrity verdict, and location (where recorded) is shown in the Capture Context above.</p>
-      ${representativeNote}
-      ${captureTimeNote}
-      ${grid}
+      ${b.notesHtml}
+      ${b.groupsHtml}
     `,
     { className: "technical-summary-section" },
   );
+}
+
+/**
+ * Compact camera/EXIF block for the Technical Appendix — returns "" unless
+ * there is camera content that did NOT justify a standalone page (no device
+ * context). Returns just the inner HTML; the appendix wraps it in a section.
+ */
+export function renderTechnicalSummaryAppendixInner(vm: ReportViewModel): string {
+  const b = buildTechnicalSummaryBlocks(vm);
+  if (!b.hasContent || b.hasDeviceRows) return "";
+  return `${b.notesHtml}${b.groupsHtml}`;
 }
 
 /** Render one titled two-column field-card grid, or "" when it has no

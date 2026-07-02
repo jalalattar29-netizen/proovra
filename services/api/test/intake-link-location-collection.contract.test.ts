@@ -181,6 +181,16 @@ describe("Intake Links — location collection contract", () => {
       locationWriteIdx < completeIdx,
       "intake location must be persisted BEFORE completeEvidence enqueues the report/package jobs",
     );
+    // deviceTimeIso has the SAME ordering requirement: the canonical
+    // fingerprint (built inside completeEvidence) reads evidence.deviceTimeIso,
+    // so writing it after completion left fingerprint.json deviceTimeIso:null
+    // while the metadata files carried the value. It must be written first.
+    const deviceTimeWriteIdx = orch.indexOf("data: { deviceTimeIso: cleanDeviceTimeIso }");
+    assert.ok(deviceTimeWriteIdx > 0, "deviceTimeIso write must be present");
+    assert.ok(
+      deviceTimeWriteIdx < completeIdx,
+      "intake deviceTimeIso must be persisted BEFORE completeEvidence so the signed fingerprint captures it (consistent with capture-context/case-metadata/original-linkage)",
+    );
     assert.match(
       orch,
       /external_intake\.location\.attached/,

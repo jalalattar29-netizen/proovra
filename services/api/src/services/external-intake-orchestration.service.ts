@@ -760,31 +760,22 @@ export async function submitExternalIntake(
     });
   }
 
-  // Hand off to the EXISTING canonical completion pipeline. From this point
-  // forward the evidence is treated identically to authenticated capture:
-  // headObject verification, sha256 streaming, fingerprint, signature,
-  // EVIDENCE_COMPLETED custody event, report-v2 enqueue, OTS/TSA pipeline,
-  // anchor publishing.
-  await completeEvidence({
-    evidenceId: evidence.id,
-    ownerUserId: evidence.ownerUserId,
-  });
-
-  // Device-time context. Sanitised through the shared helpers — the
-  // ISO string must be parseable + within sensible clock-skew, the
-  // timezone identifier must match the IANA character set. We only
-  // write deviceTimeIso onto Evidence (matching the column Capture
-  // already uses, so the Evidence Detail tab renders identically
-  // for either origin); timezone/offset are accepted for forward
-  // compatibility but not persisted because the column doesn't
-  // exist today and we promised "no schema changes" for this
-  // feature. Failure to sanitise => no write, no card, no error.
+  // Device-time context — persisted BEFORE completeEvidence for the SAME
+  // reason as location above. The canonical fingerprint is built INSIDE
+  // completeEvidence (buildFingerprint reads evidence.deviceTimeIso), and the
+  // verification-package metadata files (capture-context / case-metadata /
+  // original-linkage) read evidence.deviceTimeIso too. Writing it AFTER
+  // completion left the SIGNED fingerprint.json with deviceTimeIso:null while
+  // those metadata files carried the value — an inconsistency. Ordering the
+  // write first makes them consistent; it does not change the fingerprint/
+  // signature LOGIC, only ensures the input exists before it is computed.
+  // Sanitised through the shared helpers (ISO parseable + within clock-skew);
+  // failure to sanitise => no write, no card, no error. timezone/offset are
+  // accepted for forward-compat but not persisted (no column yet; no schema
+  // change).
   const cleanDeviceTimeIso = sanitizeClientDeviceTimeIso(
     input.deviceTime?.deviceTimeIso ?? null,
   );
-  // Reserved for future schema column. Sanitised so a malicious
-  // value can't slip through even if we one day add a `clientTimezone`
-  // field; eslint-disable kept narrow.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const cleanTimezone = sanitizeClientTimezone(
     input.deviceTime?.timezone ?? null,
@@ -799,6 +790,16 @@ export async function submitExternalIntake(
       data: { deviceTimeIso: cleanDeviceTimeIso },
     });
   }
+
+  // Hand off to the EXISTING canonical completion pipeline. From this point
+  // forward the evidence is treated identically to authenticated capture:
+  // headObject verification, sha256 streaming, fingerprint, signature,
+  // EVIDENCE_COMPLETED custody event, report-v2 enqueue, OTS/TSA pipeline,
+  // anchor publishing.
+  await completeEvidence({
+    evidenceId: evidence.id,
+    ownerUserId: evidence.ownerUserId,
+  });
 
   // Audit the contributor's location decision. Coordinates are NEVER
   // logged here — only the consent state and an accuracy band. The

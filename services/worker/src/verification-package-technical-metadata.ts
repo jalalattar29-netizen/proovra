@@ -341,6 +341,28 @@ export async function buildTechnicalMetadataPackageFiles(input: {
     );
 
     if (Object.keys(fields).length > 0) {
+      // Keep the file's description HONEST about what it actually contains:
+      // EXIF-only (no capture environment recorded) must NOT claim OS/device/
+      // browser enrichment. Sources reflect the fields actually present.
+      const hasExifFields = Boolean(
+        cameraLabel ||
+          cameraExif?.cameraMake ||
+          cameraExif?.cameraModel ||
+          cameraExif?.originalCaptureTime,
+      );
+      const hasEnvFields = Boolean(
+        osLabel || captureEnv?.deviceClass || browserLabel,
+      );
+      const sources = [
+        hasExifFields ? "exif" : null,
+        hasEnvFields ? "capture_environment" : null,
+      ].filter(Boolean) as string[];
+      const advisory =
+        hasExifFields && hasEnvFields
+          ? "Concise device/OS/camera enrichment for reviewers. Camera make/model/capture-time come from the file's embedded EXIF; OS/device/browser come from the parsed capture environment. Each field carries its own value, source, and confidence."
+          : hasEnvFields
+            ? "Concise device/OS/browser enrichment for reviewers, derived from the parsed capture environment. Each field carries its own value, source, and confidence."
+            : "Concise CAMERA enrichment for reviewers, derived solely from the file's embedded EXIF (camera make/model and original capture time). No capture environment (OS/device/browser) was recorded for this evidence, so no such fields are present. Each field carries its own value, source, and confidence.";
       out.push({
         path: "technical-metadata/device-enrichment.json",
         json: {
@@ -348,8 +370,8 @@ export async function buildTechnicalMetadataPackageFiles(input: {
           schema: "PROOVRA_TECHNICAL_DEVICE_ENRICHMENT",
           evidenceId: input.evidenceId,
           generatedAtUtc,
-          advisory:
-            "Concise device/OS/camera enrichment for reviewers. Camera/make/model/capture-time come from the file's embedded EXIF; OS/device/browser come from the parsed capture environment. Each field carries its own value, source, and confidence.",
+          advisory,
+          sources,
           fields,
         },
       });

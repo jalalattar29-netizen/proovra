@@ -157,23 +157,54 @@ export function buildTechnicalIdentityRows(
   isIntake = false,
   contributorIdentity: string | null = null
 ): KeyValueRow[] {
+  const lastAccessedRows: KeyValueRow[] = [
+    {
+      label: "Last Accessed By User Ref",
+      value: redactIdentifier(evidence.lastAccessedByUserId),
+    },
+    { label: "Last Accessed At (UTC)", value: safe(evidence.lastAccessedAtUtc) },
+  ];
+  const orgRows: KeyValueRow[] = [
+    { label: "Organization / Workspace", value: buildOrganizationDisplay(evidence) },
+    { label: "Organization Status", value: buildOrganizationStatus(evidence) },
+  ];
+
+  if (isIntake) {
+    // Remote-contributor role model. The authenticated workspace account is the
+    // LINK CREATOR / requester — NOT the person who captured the evidence — so
+    // owner-scoped identity fields (auth provider, submitter/uploader user refs)
+    // are NOT shown as if they belonged to the contributor. `createdByUserId`
+    // is the link creator, shown under a role-accurate label. Capture Method
+    // reads the flow label ("Secure Intake Link"), never the raw upload enum
+    // (which is MULTIPART_PACKAGE / UPLOADED_FILE after completion). Identity
+    // Level is the REQUESTER's snapshot, labeled as such.
+    return [
+      { label: "Submitted By", value: INTAKE_SUBMITTED_BY_ROLE_LABEL },
+      ...(contributorIdentity
+        ? [{ label: "Contributor Identity", value: contributorIdentity }]
+        : []),
+      {
+        label: "Link Creator User Ref",
+        value: redactIdentifier(evidence.createdByUserId),
+      },
+      ...lastAccessedRows,
+      { label: "Capture Method", value: "Secure Intake Link" },
+      {
+        label: "Requester Identity",
+        value: mapIdentityLevelLabel(evidence.identityLevelSnapshot),
+      },
+      ...orgRows,
+    ];
+  }
+
+  // Non-intake (web / mobile capture) — UNCHANGED authenticated-uploader model.
   return [
-    // Intake: role label, never an email. Non-intake: authenticated uploader
-    // email exactly as before.
-    isIntake
-      ? {
-          label: "Submitted By",
-          value: INTAKE_SUBMITTED_BY_ROLE_LABEL,
-        }
-      : {
-          label: "Submitted By Email",
-          value: externalMode
-            ? maskEmail(evidence.submittedByEmail)
-            : safe(evidence.submittedByEmail),
-        },
-    ...(isIntake && contributorIdentity
-      ? [{ label: "Contributor Identity", value: contributorIdentity }]
-      : []),
+    {
+      label: "Submitted By Email",
+      value: externalMode
+        ? maskEmail(evidence.submittedByEmail)
+        : safe(evidence.submittedByEmail),
+    },
     {
       label: "Submitted By Provider",
       value: mapAuthProviderLabel(evidence.submittedByAuthProvider),
@@ -182,38 +213,18 @@ export function buildTechnicalIdentityRows(
       label: "Submitted By User Ref",
       value: redactIdentifier(evidence.submittedByUserId),
     },
-    {
-      label: "Created By User Ref",
-      value: redactIdentifier(evidence.createdByUserId),
-    },
+    { label: "Created By User Ref", value: redactIdentifier(evidence.createdByUserId) },
     {
       label: "Uploaded By User Ref",
       value: redactIdentifier(evidence.uploadedByUserId),
     },
-    {
-      label: "Last Accessed By User Ref",
-      value: redactIdentifier(evidence.lastAccessedByUserId),
-    },
-    {
-      label: "Last Accessed At (UTC)",
-      value: safe(evidence.lastAccessedAtUtc),
-    },
-    {
-      label: "Capture Method",
-      value: mapCaptureMethodLabel(evidence.captureMethod),
-    },
+    ...lastAccessedRows,
+    { label: "Capture Method", value: mapCaptureMethodLabel(evidence.captureMethod) },
     {
       label: "Identity Level",
       value: mapIdentityLevelLabel(evidence.identityLevelSnapshot),
     },
-    {
-      label: "Organization / Workspace",
-      value: buildOrganizationDisplay(evidence),
-    },
-    {
-      label: "Organization Status",
-      value: buildOrganizationStatus(evidence),
-    },
+    ...orgRows,
   ];
 }
 

@@ -526,8 +526,12 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     expect(web[0]!.eventLabel).toBe("Identity snapshot recorded at submission");
     expect(web[0]!.summary).toContain("initial upload authorization");
     expect(web[0]!.summary).not.toContain("intake");
+    // Intake identity-snapshot belongs to the link creator (owner), not the
+    // contributor: it is relabeled and its owner-scoped summary is replaced
+    // with role-safe text (presentation only; raw event/hash chain untouched).
     const intake = buildTimelineRows(events as never, true);
-    expect(intake[0]!.eventLabel).toBe("Identity snapshot recorded at intake");
+    expect(intake[0]!.eventLabel).toBe("Link creator identity recorded");
+    expect(intake[0]!.summary).toContain("not independently verified");
   });
 
   it("intake evidence also uses the unified Executive Summary grid", async () => {
@@ -587,6 +591,79 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     // Intake role wording never leaks into a Web Capture report.
     expect(html).not.toContain("Remote Contributor via Secure Intake Link");
     expect(html).not.toContain("Secure Intake Link");
+  });
+
+  it("Intake with REAL data shapes: role-safe custody + appendix + no standalone Technical Summary (issues #1/#2/#3)", async () => {
+    // Reproduce the ground-truth intake shapes the previous harness missed:
+    // captureMethod overwritten to MULTIPART_PACKAGE, a custody identity
+    // snapshot carrying the OWNER email/provider, owner user refs, EXIF present
+    // but NO capture environment recorded.
+    const OWNER = "jalal.attar@proovra.com";
+    const vm = await buildReportViewModel(
+      buildInput({
+        acquisition: SMS_ACQUISITION,
+        evidence: {
+          ...buildInput().evidence,
+          submittedByEmail: OWNER,
+          submittedByAuthProvider: "google",
+          submittedByUserId: null,
+          createdByUserId: "owner-user-11223344",
+          uploadedByUserId: "owner-user-11223344",
+          captureMethod: "MULTIPART_PACKAGE",
+          identityLevelSnapshot: "BASIC_ACCOUNT",
+        },
+        custodyEvents: [
+          { sequence: 1, atUtc: "2026-07-01T00:00:00Z", eventType: "EVIDENCE_CREATED", payloadSummary: "Evidence record created." },
+          {
+            sequence: 2,
+            atUtc: "2026-07-01T00:00:05Z",
+            eventType: "IDENTITY_SNAPSHOT_RECORDED",
+            payloadSummary: `Identity snapshot recorded • Identity: Basic account • Email: ${OWNER} • Provider: Google`,
+          },
+        ],
+        technicalSummary: {
+          ...TECH_SUMMARY,
+          captureEnvironment: null, // no capture environment → camera-only
+        },
+      }),
+    );
+    const html = renderReportHtml(vm);
+
+    // #1 Custody: owner email gone; not "at intake"; role-safe wording.
+    expect(html).not.toContain(OWNER);
+    expect(html).not.toContain("Identity snapshot recorded at intake");
+    expect(html).toContain("Link creator identity recorded");
+    expect(html).toContain("not independently verified");
+
+    // #2 Appendix: capture method is the flow label, never the raw multipart
+    // enum; owner-scoped provider/submitter refs are not shown as contributor.
+    expect(html).toContain("Secure Intake Link");
+    expect(html).not.toContain("Multipart package");
+    expect(html).not.toContain("Submitted By Provider");
+    expect(html).toContain("Link Creator User Ref");
+    expect(html).toContain("Requester Identity");
+
+    // #3 No standalone Technical Summary page (camera-only) — it moves to the
+    // Technical Appendix as a compact block.
+    expect(html).not.toContain("technical-summary-section");
+    expect(html).toContain("Capture Device &amp; Camera Metadata");
+  });
+
+  it("Web Capture keeps the standalone Technical Summary page + multipart capture label (baseline)", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({
+        acquisition: WEB_ACQUISITION,
+        evidence: { ...buildInput().evidence, captureMethod: "MULTIPART_PACKAGE" },
+        technicalSummary: TECH_SUMMARY, // WEB_APP capture environment → device rows
+      }),
+    );
+    const html = renderReportHtml(vm);
+    // Rich (has device context) → standalone Technical Summary page remains.
+    expect(html).toContain("technical-summary-section");
+    // Non-intake keeps the raw multipart capture label; no intake relabel.
+    expect(html).toContain("Multipart package");
+    expect(html).not.toContain("Secure Intake Link");
+    expect(html).not.toContain("Link creator identity recorded");
   });
 
   it("report CSS gives the unified grid accent labels + break protection", () => {

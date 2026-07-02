@@ -142,6 +142,36 @@ export function applyFlowAwareCustodyWording(
     .replace(/intake authorization/gi, "upload authorization");
 }
 
+/**
+ * For INTAKE evidence, the IDENTITY_SNAPSHOT_RECORDED custody event captures
+ * the LINK CREATOR / workspace-owner's identity at link authorization — NOT
+ * the remote contributor. The generated report must therefore NOT label it
+ * "Identity snapshot recorded at intake" (which implies the contributor
+ * captured the evidence). This returns the role-safe DISPLAY label for that
+ * event, or null to fall through to the normal label. The raw custody event
+ * type + hash chain + raw custody.json payloads are untouched — this is
+ * presentation only.
+ */
+export function intakeCustodyEventLabel(
+  eventType: string | null | undefined,
+  isIntake: boolean,
+): string | null {
+  if (!isIntake) return null;
+  return safe(eventType, "").toUpperCase() === "IDENTITY_SNAPSHOT_RECORDED"
+    ? "Link creator identity recorded"
+    : null;
+}
+
+/**
+ * Role-safe DISPLAY summary for the intake IDENTITY_SNAPSHOT_RECORDED event.
+ * Replaces the payload-derived summary (which embeds the workspace owner's
+ * email/provider) so the public report never shows the owner's contact
+ * details nor implies the owner is the remote contributor. Raw custody data
+ * is unchanged.
+ */
+export const INTAKE_IDENTITY_SNAPSHOT_SUMMARY =
+  "Identity of the intake link creator (workspace account) was recorded when the secure link was authorized. The remote contributor's identity is not independently verified.";
+
 export function mapCustodyEventLabel(eventType: string | null | undefined): string {
   switch (safe(eventType, "").toUpperCase()) {
     case "EVIDENCE_CREATED":

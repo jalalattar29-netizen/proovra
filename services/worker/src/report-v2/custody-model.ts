@@ -10,6 +10,8 @@ import {
   mapCustodyEventLabel,
   normalizeReviewerText,
   applyFlowAwareCustodyWording,
+  intakeCustodyEventLabel,
+  INTAKE_IDENTITY_SNAPSHOT_SUMMARY,
 } from "./normalizers.js";
 
 const UNICODE_ELLIPSIS = String.fromCharCode(8230);
@@ -69,19 +71,28 @@ export function buildTimelineRows(
   isIntake = false,
 ): TimelineRow[] {
   return events.map((ev) => {
+    // Intake identity-snapshot belongs to the link creator (workspace owner),
+    // not the remote contributor — relabel it and replace its owner-email
+    // summary with a role-safe line. Presentation only; raw event/hash chain
+    // untouched.
+    const intakeLabel = intakeCustodyEventLabel(ev.eventType, isIntake);
+    const isIntakeIdentitySnapshot =
+      isIntake &&
+      safe(ev.eventType, "").toUpperCase() === "IDENTITY_SNAPSHOT_RECORDED";
     return {
       sequence: String(ev.sequence),
       atUtc: safe(ev.atUtc),
       // Flow-aware wording: non-intake evidence must not read "at intake" /
       // "intake authorization" (event types + hashes are unchanged).
-      eventLabel: applyFlowAwareCustodyWording(
-        mapCustodyEventLabel(ev.eventType),
-        isIntake,
-      ),
-      summary: applyFlowAwareCustodyWording(
-        sanitizeReviewerSummary(ev.payloadSummary),
-        isIntake,
-      ),
+      eventLabel:
+        intakeLabel ??
+        applyFlowAwareCustodyWording(mapCustodyEventLabel(ev.eventType), isIntake),
+      summary: isIntakeIdentitySnapshot
+        ? INTAKE_IDENTITY_SNAPSHOT_SUMMARY
+        : applyFlowAwareCustodyWording(
+            sanitizeReviewerSummary(ev.payloadSummary),
+            isIntake,
+          ),
     };
   });
 }
