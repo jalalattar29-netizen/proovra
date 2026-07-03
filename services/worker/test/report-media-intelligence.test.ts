@@ -639,6 +639,8 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     // enum; owner-scoped provider/submitter refs are not shown as contributor.
     expect(html).toContain("Secure Intake Link");
     expect(html).not.toContain("Multipart package");
+    // Web Capture's acquisition label must never leak into an intake report.
+    expect(html).not.toContain("PROOVRA Web Upload");
     expect(html).not.toContain("Submitted By Provider");
     expect(html).toContain("Link Creator User Ref");
     expect(html).toContain("Requester Identity");
@@ -649,19 +651,29 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     expect(html).toContain("Capture Device &amp; Camera Metadata");
   });
 
-  it("Web Capture keeps the standalone Technical Summary page + multipart capture label (baseline)", async () => {
+  it("Web Capture: Capture Method reads 'PROOVRA Web Upload' in Exec Summary AND Technical Appendix; structure label unchanged", async () => {
     const vm = await buildReportViewModel(
       buildInput({
         acquisition: WEB_ACQUISITION,
+        // Multi-file web upload — the persisted capture method is the STRUCTURE
+        // enum MULTIPART_PACKAGE, which must NOT surface as the acquisition
+        // "Capture Method" label.
         evidence: { ...buildInput().evidence, captureMethod: "MULTIPART_PACKAGE" },
         technicalSummary: TECH_SUMMARY, // WEB_APP capture environment → device rows
       }),
     );
     const html = renderReportHtml(vm);
-    // Rich (has device context) → standalone Technical Summary page remains.
+    const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    // Rich device context → standalone Technical Summary page remains.
     expect(html).toContain("technical-summary-section");
-    // Non-intake keeps the raw multipart capture label; no intake relabel.
-    expect(html).toContain("Multipart package");
+    // Capture Method is the acquisition label EVERYWHERE it appears — never the
+    // structure enum "Multipart package" (proven distinct in the generated
+    // package/PDF: the structure label "Multipart evidence package" is retained
+    // there while the capture method reads "PROOVRA Web Upload").
+    expect(text).toMatch(/Capture method\s+PROOVRA Web Upload/i); // Technical Summary
+    expect(text).toMatch(/Capture Method\s+PROOVRA Web Upload/); // Technical Appendix
+    expect(text).not.toMatch(/Capture Method\s+Multipart package/i);
+    // Intake labels never leak into a Web Capture report.
     expect(html).not.toContain("Secure Intake Link");
     expect(html).not.toContain("Link creator identity recorded");
   });

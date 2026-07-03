@@ -63,8 +63,8 @@ type TechnicalSummaryBlocks = {
   hasDeviceRows: boolean;
   /** True when any group (device/camera/exposure) rendered. */
   hasContent: boolean;
-  /** Reviewer notes (representative-EXIF + capture-time provenance). */
-  notesHtml: string;
+  /** Total media items analysed — drives the "representative EXIF" note. */
+  mediaFilesTotal: number;
 };
 
 /** Build the Technical Summary field-card grids once, so BOTH the standalone
@@ -75,7 +75,7 @@ function buildTechnicalSummaryBlocks(vm: ReportViewModel): TechnicalSummaryBlock
     groupsHtml: "",
     hasDeviceRows: false,
     hasContent: false,
-    notesHtml: "",
+    mediaFilesTotal: 1,
   };
   const ts = vm.technicalSummary;
   if (!ts) return empty;
@@ -176,20 +176,11 @@ function buildTechnicalSummaryBlocks(vm: ReportViewModel): TechnicalSummaryBlock
   // so there is no clipped row, no half-split table, and no footer overlap.
   const grid = `<div class="technical-summary-groups">${groups.join("")}</div>`;
 
-  // Multi-file transparency: the PDF shows one representative item's EXIF;
-  // every item's EXIF is in the verification package.
-  const representativeNote =
-    (ts.mediaFilesTotal ?? 1) > 1
-      ? `<p class="muted-note">Representative EXIF shown (Primary Media Item). Per-file EXIF for all ${ts.mediaFilesTotal} media items is included in the verification package (technical-metadata/exif-details.json).</p>`
-      : "";
-
-  const captureTimeNote = `<p class="muted-note">Camera metadata is embedded in the file by the capturing device. The EXIF Original Capture Time is read from the file itself and is distinct from PROOVRA's submission and preservation timestamps.</p>`;
-
   return {
     groupsHtml: grid,
     hasDeviceRows: deviceRows.length > 0,
     hasContent: true,
-    notesHtml: `${representativeNote}${captureTimeNote}`,
+    mediaFilesTotal: ts.mediaFilesTotal ?? 1,
   };
 }
 
@@ -201,14 +192,42 @@ function buildTechnicalSummaryBlocks(vm: ReportViewModel): TechnicalSummaryBlock
  * Technical Appendix (renderTechnicalSummaryAppendixInner) instead — no
  * standalone whitespace page.
  */
+/**
+ * EXIF reviewer notes. INTAKE reports use the SHORTENED, enterprise-safe lines
+ * rendered as a single compact note; Web/Mobile capture keep the original
+ * (longer) muted paragraphs UNCHANGED. Meaning is preserved in both: the
+ * "representative EXIF" transparency (multi-file only) + the submission/
+ * preservation timestamp separation.
+ */
+function buildExifNotesHtml(mediaFilesTotal: number, isIntake: boolean): string {
+  if (isIntake) {
+    const lines = [
+      mediaFilesTotal > 1
+        ? "Representative EXIF shown. Full per-file EXIF is available in the Verification Package."
+        : "",
+      "EXIF timestamps originate from the media file and are independent of PROOVRA submission and preservation timestamps.",
+    ].filter(Boolean);
+    return `<div class="technical-summary-exif-note">${lines
+      .map((l) => `<span>${l}</span>`)
+      .join("")}</div>`;
+  }
+  const representativeNote =
+    mediaFilesTotal > 1
+      ? `<p class="muted-note">Representative EXIF shown (Primary Media Item). Per-file EXIF for all ${mediaFilesTotal} media items is included in the verification package (technical-metadata/exif-details.json).</p>`
+      : "";
+  const captureTimeNote = `<p class="muted-note">Camera metadata is embedded in the file by the capturing device. The EXIF Original Capture Time is read from the file itself and is distinct from PROOVRA's submission and preservation timestamps.</p>`;
+  return `${representativeNote}${captureTimeNote}`;
+}
+
 export function renderTechnicalSummarySection(vm: ReportViewModel): string {
   const b = buildTechnicalSummaryBlocks(vm);
   if (!b.hasContent || !b.hasDeviceRows) return "";
+  const isIntake = vm.meta?.acquisition?.isIntake === true;
   return renderPageSection(
     "Technical Summary",
     `
       <p class="section-intro">Device and camera context for the recorded material. Advisory enrichment for reviewers; it does not change the integrity verdict, and location (where recorded) is shown in the Capture Context above.</p>
-      ${b.notesHtml}
+      ${buildExifNotesHtml(b.mediaFilesTotal, isIntake)}
       ${b.groupsHtml}
     `,
     { className: "technical-summary-section" },
@@ -218,12 +237,15 @@ export function renderTechnicalSummarySection(vm: ReportViewModel): string {
 /**
  * Compact camera/EXIF block for the Technical Appendix — returns "" unless
  * there is camera content that did NOT justify a standalone page (no device
- * context). Returns just the inner HTML; the appendix wraps it in a section.
+ * context; the intake camera-only case). The EXIF note sits directly above the
+ * Camera/Exposure cards (kept close, visually subtle). Returns just the inner
+ * HTML; the appendix wraps it in a section.
  */
 export function renderTechnicalSummaryAppendixInner(vm: ReportViewModel): string {
   const b = buildTechnicalSummaryBlocks(vm);
   if (!b.hasContent || b.hasDeviceRows) return "";
-  return `${b.notesHtml}${b.groupsHtml}`;
+  const isIntake = vm.meta?.acquisition?.isIntake === true;
+  return `${buildExifNotesHtml(b.mediaFilesTotal, isIntake)}${b.groupsHtml}`;
 }
 
 /** Render one titled two-column field-card grid, or "" when it has no

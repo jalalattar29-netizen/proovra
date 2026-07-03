@@ -1,8 +1,8 @@
 {
   "schemaVersion": "1.0",
   "schema": "PROOVRA_TECHNICAL_INTAKE_DELIVERY",
-  "evidenceId": "ev-intake-001",
-  "generatedAtUtc": "2026-07-03T00:01:01.744Z",
+  "evidenceId": "ev-intake-noenv-001",
+  "generatedAtUtc": "2026-07-03T00:01:04.738Z",
   "source": "intake_link_delivery",
   "advisory": "Privacy-safe Evidence Acquisition context: how the contributor was reached and how the evidence entered PROOVRA. The recipient is masked (full phone/email is NEVER included); provider/message IDs are never included. Delivery/consent are reported only as recorded — never invented.",
   "acquisition": {
@@ -12,7 +12,6 @@
     "submissionStatus": [
       "Sent",
       "Delivered",
-      "Opened",
       "Submitted"
     ]
   },
@@ -27,14 +26,12 @@
   },
   "recipient": {
     "type": "phone",
-    "masked": "+49 ••• ••• 1234",
-    "hash": "sha256:9f2c1e77deadbeef",
+    "masked": "+49 ••• ••• 9999",
+    "hash": "sha256:beefbeef",
     "fullValueIncluded": false
   },
   "delivery": {
     "sentAtUtc": "2026-06-30T10:00:00.000Z",
-    "deliveredAtUtc": "2026-06-30T10:00:05.000Z",
-    "openedAtUtc": "2026-06-30T10:03:00.000Z",
     "submittedAtUtc": "2026-06-30T10:04:00.000Z"
   },
   "consent": {

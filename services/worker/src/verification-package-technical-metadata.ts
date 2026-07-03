@@ -336,6 +336,10 @@ export async function buildTechnicalMetadataPackageFiles(input: {
     );
     add("browser", field(browserLabel, "capture_environment", "medium"));
     add(
+      "timezone",
+      field(captureEnv?.timezone ?? null, "capture_environment", "medium"),
+    );
+    add(
       "originalCaptureTime",
       field(cameraExif?.originalCaptureTime ?? null, "exif", "high"),
     );
@@ -351,7 +355,7 @@ export async function buildTechnicalMetadataPackageFiles(input: {
           cameraExif?.originalCaptureTime,
       );
       const hasEnvFields = Boolean(
-        osLabel || captureEnv?.deviceClass || browserLabel,
+        osLabel || captureEnv?.deviceClass || browserLabel || captureEnv?.timezone,
       );
       const sources = [
         hasExifFields ? "exif" : null,
@@ -491,6 +495,14 @@ export async function buildTechnicalMetadataPackageFiles(input: {
               role: {
                 linkCreator: "Workspace Owner",
                 contributor: "Remote Contributor",
+              },
+              // Invitation / source context — how the secure intake link
+              // reached the contributor. Descriptive only; carries NO email,
+              // phone, provider/message ID, or raw payload.
+              invitation: {
+                method: "Secure Intake Link",
+                sentFrom: "PROOVRA Intake",
+                senderRole: "Workspace Owner / Link Creator",
               },
               ...(recipient ? { recipient } : {}),
               ...(recipientUnavailableReason

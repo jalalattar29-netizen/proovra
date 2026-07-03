@@ -53,9 +53,19 @@ const WEB_CAPTURE_ENV = {
   country: "GB", region: null, networkType: null, attestationAttempted: false, attestationResult: null,
 };
 
+// Intake capture environment (contributor's mobile browser), as recorded by
+// recordCaptureEnvironment on the intake path.
+const INTAKE_CAPTURE_ENV = {
+  uploadSource: "INTAKE_LINK", captureMethod: "INTAKE_LINK",
+  browserName: "Samsung Internet", browserVersion: "25", osName: "Android", osVersion: "15",
+  deviceClass: "MOBILE", engine: "Blink", platform: "Android", timezone: "Europe/Berlin",
+  locale: "de-DE", userAgentHash: "sha256:cafef00dbaad", ipAddressMasked: "203.0.113.x",
+  country: "DE", region: null, networkType: null, attestationAttempted: false, attestationResult: null,
+};
+
 function techSummary(captureEnv: Record<string, unknown> | null) {
   return {
-    mediaFilesAnalyzed: 1, mediaFilesTotal: 1, metadataStatus: "Complete" as const,
+    mediaFilesAnalyzed: 2, mediaFilesTotal: 2, metadataStatus: "Complete" as const,
     primaryMediaType: "Image", resolutionSummary: "4032×3024",
     primaryMedia: { mediaKind: "IMAGE", durationMs: null, videoCodec: null, frameRate: null, pageCount: null },
     exif: {
@@ -74,7 +84,7 @@ function techSummary(captureEnv: Record<string, unknown> | null) {
 type Scenario = {
   key: string;
   isIntake: boolean;
-  hasCaptureEnv: boolean;
+  env: Record<string, unknown> | null;
   contributorOrOwnerEmail: string;
   raw: AcquisitionRawInput;
   acqRow: Record<string, unknown>;
@@ -84,7 +94,7 @@ const LOC = { lat: 52.520008, lng: 13.404954, accuracyMeters: 12 };
 
 const SCENARIOS: Scenario[] = [
   {
-    key: "intake", isIntake: true, hasCaptureEnv: false,
+    key: "intake", isIntake: true, env: INTAKE_CAPTURE_ENV,
     contributorOrOwnerEmail: OWNER_EMAIL, // owner email lands in custody payload
     raw: {
       uploadSource: "INTAKE_LINK", captureMethod: "EXTERNAL_INTAKE_UPLOAD", intakeMode: "EXTERNAL_ONE_TIME",
@@ -105,7 +115,28 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
-    key: "web", isIntake: false, hasCaptureEnv: true,
+    // Intake WITHOUT any recorded capture environment — proves honest
+    // camera-only device-enrichment.json + no capture-environment.json.
+    key: "intake-noenv", isIntake: true, env: null,
+    contributorOrOwnerEmail: OWNER_EMAIL,
+    raw: {
+      uploadSource: "INTAKE_LINK", captureMethod: "EXTERNAL_INTAKE_UPLOAD", intakeMode: "EXTERNAL_ONE_TIME",
+      identityLevel: "BASIC_ACCOUNT", deliveryChannelRaw: "SMS", deliveryStatusRaw: "DELIVERED",
+      sentAtUtc: "2026-06-30T10:00:00.000Z", submittedAtUtc: "2026-06-30T10:04:00.000Z",
+      consentAcceptedAtUtc: "2026-06-30T10:02:30.000Z", consentVersion: "v3",
+      recipientMasked: "+49 ••• ••• 9999", recipientHash: "beefbeef", recipientType: "phone",
+    },
+    acqRow: {
+      capture_method: "EXTERNAL_INTAKE_UPLOAD", identity_level: "BASIC_ACCOUNT",
+      submitted_at_utc: "2026-06-30T10:04:00.000Z", consent_accepted_at_utc: "2026-06-30T10:02:30.000Z",
+      consent_snapshot_json: { policyVersion: "v3" }, submitter_email: OWNER_EMAIL,
+      intake_mode: "EXTERNAL_ONE_TIME", consent_policy_version: "v3", recipient_email: null,
+      recipient_preview: "+49 ••• ••• 9999", recipient_hash: "beefbeef", channel: "SMS",
+      delivery_status: "DELIVERED", sent_at_utc: "2026-06-30T10:00:00.000Z",
+    },
+  },
+  {
+    key: "web", isIntake: false, env: WEB_CAPTURE_ENV,
     contributorOrOwnerEmail: "owner@acme-legal.example",
     raw: { uploadSource: "WEB_APP", captureMethod: "SECURE_CAPTURE", identityLevel: "VERIFIED_EMAIL" },
     acqRow: { capture_method: "UPLOADED_FILE" },
@@ -180,7 +211,7 @@ function custodyEvents(s: Scenario) {
 }
 
 function fakePrisma(s: Scenario) {
-  const captureEnv = s.hasCaptureEnv ? WEB_CAPTURE_ENV : null;
+  const captureEnv = s.env;
   return {
     $queryRawUnsafe: async (q: string) => {
       if (q.includes("evidence_parts")) {
@@ -197,7 +228,7 @@ async function generate(s: Scenario) {
   ev.primaryContentItem = ev.contentItems[0];
   const ctx = buildEvidenceAcquisitionContext(s.raw);
   const acquisition = ctx ? toPublicAcquisition(ctx) : null;
-  const captureEnv = s.hasCaptureEnv ? WEB_CAPTURE_ENV : null;
+  const captureEnv = s.env;
 
   const input: ReportV2Input = {
     evidence: ev as never,

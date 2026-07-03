@@ -1802,7 +1802,8 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       input.acquisition?.isIntake === true,
       input.acquisition?.isIntake === true
         ? (input.acquisition?.identityVerification ?? null)
-        : null
+        : null,
+      input.technicalSummary?.captureEnvironment?.uploadSource ?? null
     ),
     technicalFingerprintNarrative: buildFingerprintNarrative(
       parsedFingerprintSummary,

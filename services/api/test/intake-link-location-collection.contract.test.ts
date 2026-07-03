@@ -203,6 +203,21 @@ describe("Intake Links — location collection contract", () => {
     );
   });
 
+  it("submit route records capture environment as a fallback BEFORE submitExternalIntake", () => {
+    const route = read("services/api/src/routes/external-intake.routes.ts");
+    // The submit handler records capture environment when the first-part write
+    // was missed, so capture-environment.json is reliably in the package. It
+    // must run BEFORE submitExternalIntake (which enqueues the package job).
+    assert.match(route, /ev\.captureEnvironment == null/);
+    const submitIdx = route.indexOf("const result = await submitExternalIntake({");
+    const fallbackIdx = route.indexOf("ev.captureEnvironment == null");
+    assert.ok(submitIdx > 0 && fallbackIdx > 0, "both markers present");
+    assert.ok(
+      fallbackIdx < submitIdx,
+      "capture-environment fallback must run before submitExternalIntake enqueues the package job",
+    );
+  });
+
   it("public submit response maps location_required → 412 LOCATION_REQUIRED", () => {
     const route = read("services/api/src/routes/external-intake.routes.ts");
     assert.match(route, /case "location_required":/);

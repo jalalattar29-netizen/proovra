@@ -893,6 +893,48 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
                 parsedBody.deviceTime.timezoneOffsetMinutes ?? null,
             }
           : null;
+        // Capture-environment reliability fallback. The privacy-safe capture
+        // environment is normally recorded on the FIRST part upload
+        // (partIndex === 0). That best-effort write can be missed (a resumed
+        // session whose first part landed earlier, or a transient failure of
+        // the first-part write), which left technical-metadata/
+        // capture-environment.json absent from the package even though the
+        // contributor did submit through a browser. Record it here from the
+        // submit request context IF it is still missing — BEFORE
+        // submitExternalIntake runs completeEvidence (which enqueues the
+        // report/package jobs that read evidence.capture_environment). UA hash
+        // + masked IP only; never raw UA/IP; never overwrites an existing
+        // value; never blocks the submit.
+        if (session.evidenceId) {
+          try {
+            const ev = await prisma.evidence.findUnique({
+              where: { id: session.evidenceId },
+              select: { captureEnvironment: true },
+            });
+            if (ev && ev.captureEnvironment == null) {
+              const { recordCaptureEnvironment, resolveCaptureClientIp } =
+                await import(
+                  "../services/technical-metadata/capture-environment-writer.js"
+                );
+              await recordCaptureEnvironment({
+                evidenceId: session.evidenceId,
+                rawUserAgent: req.headers["user-agent"] ?? null,
+                rawIp: resolveCaptureClientIp(req),
+                timezone: deviceTime?.timezone ?? null,
+                locale: null,
+                acceptLanguage:
+                  typeof req.headers["accept-language"] === "string"
+                    ? req.headers["accept-language"]
+                    : null,
+                captureMethod: "INTAKE_LINK",
+                uploadSource: "INTAKE_LINK",
+              });
+            }
+          } catch {
+            // Advisory only — never block the submit on capture-environment.
+          }
+        }
+
         const result = await submitExternalIntake({
           link,
           session,

@@ -27,6 +27,7 @@ import {
   mapTimestampStatusPublicLabel,
 } from "./normalizers.js";
 import { deriveAnchorSemantics } from "@proovra/shared";
+import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
 export function getTimestampDigestValueLabel(params: {
   structure?: string | null;
@@ -155,7 +156,12 @@ export function buildTechnicalIdentityRows(
   // workspace's) email as "Submitted By Email"; it shows a role label instead.
   // Web/mobile capture is UNCHANGED (isIntake defaults to false).
   isIntake = false,
-  contributorIdentity: string | null = null
+  contributorIdentity: string | null = null,
+  // Capture-environment uploadSource (e.g. WEB_APP). Used ONLY to give Web
+  // Capture / Browser Upload the same acquisition label the Executive Summary
+  // shows ("PROOVRA Web Upload") instead of the structure enum
+  // ("Multipart package"). Mobile / API / unknown are untouched.
+  uploadSource: string | null = null
 ): KeyValueRow[] {
   const lastAccessedRows: KeyValueRow[] = [
     {
@@ -219,7 +225,20 @@ export function buildTechnicalIdentityRows(
       value: redactIdentifier(evidence.uploadedByUserId),
     },
     ...lastAccessedRows,
-    { label: "Capture Method", value: mapCaptureMethodLabel(evidence.captureMethod) },
+    {
+      label: "Capture Method",
+      // Web Capture / Browser Upload: use the SAME flow-aware acquisition
+      // mapper as the Executive Summary so both read "PROOVRA Web Upload", not
+      // the structure enum "Multipart package". Gated on WEB_APP so Mobile /
+      // API / unknown keep their existing label (this task is Web-only).
+      value:
+        (uploadSource ?? "").toUpperCase() === "WEB_APP"
+          ? captureMethodDisplayLabel({
+              captureMethod: evidence.captureMethod,
+              uploadSource,
+            })
+          : mapCaptureMethodLabel(evidence.captureMethod),
+    },
     {
       label: "Identity Level",
       value: mapIdentityLevelLabel(evidence.identityLevelSnapshot),

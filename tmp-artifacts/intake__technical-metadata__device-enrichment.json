@@ -2,10 +2,11 @@
   "schemaVersion": "1.0",
   "schema": "PROOVRA_TECHNICAL_DEVICE_ENRICHMENT",
   "evidenceId": "ev-intake-001",
-  "generatedAtUtc": "2026-07-02T03:44:56.144Z",
-  "advisory": "Concise CAMERA enrichment for reviewers, derived solely from the file's embedded EXIF (camera make/model and original capture time). No capture environment (OS/device/browser) was recorded for this evidence, so no such fields are present. Each field carries its own value, source, and confidence.",
+  "generatedAtUtc": "2026-07-03T00:01:01.744Z",
+  "advisory": "Concise device/OS/camera enrichment for reviewers. Camera make/model/capture-time come from the file's embedded EXIF; OS/device/browser come from the parsed capture environment. Each field carries its own value, source, and confidence.",
   "sources": [
-    "exif"
+    "exif",
+    "capture_environment"
   ],
   "fields": {
     "captureDevice": {
@@ -22,6 +23,26 @@
       "value": "Galaxy S25 FE",
       "source": "exif",
       "confidence": "high"
+    },
+    "operatingSystem": {
+      "value": "Android 15",
+      "source": "capture_environment",
+      "confidence": "medium"
+    },
+    "deviceClass": {
+      "value": "MOBILE",
+      "source": "capture_environment",
+      "confidence": "medium"
+    },
+    "browser": {
+      "value": "Samsung Internet 25",
+      "source": "capture_environment",
+      "confidence": "medium"
+    },
+    "timezone": {
+      "value": "Europe/Berlin",
+      "source": "capture_environment",
+      "confidence": "medium"
     },
     "originalCaptureTime": {
       "value": "2026-06-30T09:58:11Z",

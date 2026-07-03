@@ -299,11 +299,35 @@ const shouldRenderSignature = hasSignatureRows;
     ? String(vm.technicalAppendix.otsDetail)
     : "";
 
+  // The Digital Signature block is built once and placed on ONE page only.
+  // For INTAKE reports it moves off the Identity/Camera/Fingerprint page onto
+  // the final Timestamp & Anchoring page (ordered Signature → Timestamp →
+  // Anchoring). Web/mobile capture keep it on the first appendix page exactly
+  // as before. Values are unchanged — placement only.
+  const isIntake = vm.meta.acquisition?.isIntake === true;
+  const signatureBlock = shouldRenderSignature
+    ? renderAppendixSection(
+        "Digital Signature",
+        "Signature and signing-key references used for independent verification of the recorded evidence state.",
+        `
+          ${renderKeyValueGrid(vm.technicalAppendix.signatureRows)}
+          ${renderCallout({
+            title: "Signature material handling",
+            body: vm.technicalAppendix.signatureReferenceNote,
+            tone: "neutral",
+          })}
+        `,
+        { className: "technical-appendix-signature-block" }
+      )
+    : "";
+  const signatureOnPage1 = signatureBlock && !isIntake;
+  const signatureOnPage2 = signatureBlock && isIntake;
+
   const pages: string[] = [];
 
 pages.push(
   renderPageSection(
-shouldRenderSignature
+signatureOnPage1
   ? "Technical Appendix — Identity, Provenance, Fingerprint & Signature"
   : "Technical Appendix — Identity, Provenance & Fingerprint"
 ,
@@ -355,23 +379,7 @@ shouldRenderSignature
           { className: "technical-appendix-fingerprint-block" }
         )}
 
-${
-  shouldRenderSignature
-    ? renderAppendixSection(
-        "Digital Signature",
-        "Signature and signing-key references used for independent verification of the recorded evidence state.",
-        `
-          ${renderKeyValueGrid(vm.technicalAppendix.signatureRows)}
-          ${renderCallout({
-            title: "Signature material handling",
-            body: vm.technicalAppendix.signatureReferenceNote,
-            tone: "neutral",
-          })}
-        `,
-        { className: "technical-appendix-signature-block" }
-      )
-    : ""
-}
+${signatureOnPage1 ? signatureBlock : ""}
       </div>
     `,
     { pageBreakBefore: true, className: "technical-appendix-section" }
@@ -380,9 +388,13 @@ ${
 
   pages.push(
     renderPageSection(
-      "Technical Appendix — Timestamp & Anchoring",
+      signatureOnPage2
+        ? "Technical Appendix — Signature, Timestamp & Anchoring"
+        : "Technical Appendix — Timestamp & Anchoring",
       `
         <div class="technical-appendix-page technical-appendix-timestamp-anchor-page">
+          ${signatureOnPage2 ? signatureBlock : ""}
+
           ${renderAppendixSection(
             "Trusted Timestamp",
 timestampDigestLabel.includes("Canonical Package Digest")

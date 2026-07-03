@@ -912,6 +912,131 @@ describe("verification package technical-metadata files", () => {
     }
   });
 
+  it("intake-delivery.json carries invitation/source context + masked recipient only", async () => {
+    const { buildTechnicalMetadataPackageFiles } = await import(
+      "../src/verification-package-technical-metadata.js"
+    );
+    const files = await buildTechnicalMetadataPackageFiles({
+      prisma: fakePrismaWithAcquisition({
+        intake_mode: "EXTERNAL_ONE_TIME",
+        channel: "SMS",
+        recipient_preview: "+49 ••• ••• 1234",
+        recipient_hash: "deadbeef",
+        delivery_status: "DELIVERED",
+        sent_at_utc: "2026-06-30T10:00:00.000Z",
+      }) as never,
+      teamId: "team-1",
+      evidenceId: "ev-1",
+    });
+    const json = intakeDeliveryEntry(files)!.json as {
+      invitation: { method: string; sentFrom: string; senderRole: string };
+      acquisition: { deliveryChannel: string };
+      recipient: { masked: string; hash: string; fullValueIncluded: boolean };
+    };
+    expect(json.invitation).toEqual({
+      method: "Secure Intake Link",
+      sentFrom: "PROOVRA Intake",
+      senderRole: "Workspace Owner / Link Creator",
+    });
+    expect(json.acquisition.deliveryChannel).toBe("SMS");
+    expect(json.recipient.masked).toBe("+49 ••• ••• 1234");
+    expect(json.recipient.hash).toBe("sha256:deadbeef");
+    expect(json.recipient.fullValueIncluded).toBe(false);
+    // Never a full phone / provider IDs / raw payload.
+    const s = JSON.stringify(files);
+    expect(s).not.toMatch(/\+49\d{6,}/);
+    expect(s).not.toMatch(/\b\d{10,}\b/);
+    expect(s).not.toMatch(/twilio/i);
+    expect(s).not.toMatch(/\bSM[0-9a-f]{20,}/i);
+  });
+
+  // Prisma stub that returns an evidence capture_environment for the package
+  // builder (fakePrismaWithAcquisition always returns null there).
+  const INTAKE_ENV = {
+    uploadSource: "INTAKE_LINK", captureMethod: "INTAKE_LINK",
+    browserName: "Samsung Internet", browserVersion: "25",
+    osName: "Android", osVersion: "15", deviceClass: "MOBILE",
+    engine: "Blink", platform: "Android", timezone: "Europe/Berlin",
+    locale: "de-DE", userAgentHash: "sha256:cafef00d", ipAddressMasked: null,
+    country: "DE", region: null, networkType: null,
+    attestationAttempted: false, attestationResult: null,
+  };
+  function prismaWithEnv(env: Record<string, unknown> | null) {
+    return {
+      $queryRawUnsafe: async (q: string) => {
+        if (q.includes("evidence_parts")) {
+          return [
+            { id: "p1", original_file_name: "photo.jpg", mime_type: "image/jpeg", sha256: "a".repeat(64), technical_metadata: TM_IMAGE },
+          ];
+        }
+        if (q.includes("communication_messages")) {
+          return [
+            { intake_mode: "EXTERNAL_ONE_TIME", channel: "SMS", recipient_preview: "+49 ••• ••• 1234", recipient_hash: "beef", capture_environment: env },
+          ];
+        }
+        return [{ capture_environment: env }];
+      },
+    };
+  }
+
+  it("emits capture-environment.json + OS/browser/deviceClass/timezone device-enrichment when capture env exists", async () => {
+    const { buildTechnicalMetadataPackageFiles } = await import(
+      "../src/verification-package-technical-metadata.js"
+    );
+    const files = await buildTechnicalMetadataPackageFiles({
+      prisma: prismaWithEnv(INTAKE_ENV) as never,
+      teamId: "team-1",
+      evidenceId: "ev-1",
+    });
+    const ce = files.find((f) => f.path === "technical-metadata/capture-environment.json");
+    expect(ce).toBeDefined();
+    const cej = ce!.json as Record<string, unknown>;
+    expect(cej.browserName).toBe("Samsung Internet");
+    expect(cej.osName).toBe("Android");
+    expect(cej.deviceClass).toBe("MOBILE");
+    expect(cej.timezone).toBe("Europe/Berlin");
+    // Privacy-safe: never a raw User-Agent value or full IP.
+    expect(JSON.stringify(cej)).not.toMatch(/Mozilla/);
+
+    const de = files.find((f) => f.path === "technical-metadata/device-enrichment.json")!
+      .json as {
+      sources: string[];
+      advisory: string;
+      fields: Record<string, { value: string; source: string; confidence: string }>;
+    };
+    expect(de.sources).toContain("capture_environment");
+    expect(de.fields.operatingSystem?.value).toBe("Android 15");
+    expect(de.fields.browser?.value).toBe("Samsung Internet 25");
+    expect(de.fields.deviceClass?.value).toBe("MOBILE");
+    // timezone mirrors capture-environment.json, sourced from capture_environment.
+    expect(de.fields.timezone).toEqual({
+      value: "Europe/Berlin",
+      source: "capture_environment",
+      confidence: "medium",
+    });
+    expect(de.advisory).not.toMatch(/^Concise CAMERA/);
+  });
+
+  it("device-enrichment stays honest (camera-only) + no capture-environment.json when capture env absent", async () => {
+    const { buildTechnicalMetadataPackageFiles } = await import(
+      "../src/verification-package-technical-metadata.js"
+    );
+    const files = await buildTechnicalMetadataPackageFiles({
+      prisma: prismaWithEnv(null) as never,
+      teamId: "team-1",
+      evidenceId: "ev-1",
+    });
+    expect(
+      files.find((f) => f.path === "technical-metadata/capture-environment.json"),
+    ).toBeUndefined();
+    const de = files.find((f) => f.path === "technical-metadata/device-enrichment.json")!
+      .json as { sources: string[]; advisory: string; fields: Record<string, unknown> };
+    expect(de.sources).toEqual(["exif"]);
+    expect(de.advisory).toMatch(/^Concise CAMERA/);
+    expect(de.fields.operatingSystem).toBeUndefined();
+    expect(de.fields.browser).toBeUndefined();
+  });
+
   it("adds recipientUnavailableReason for a targeted channel with no masked record", async () => {
     const { buildTechnicalMetadataPackageFiles } = await import(
       "../src/verification-package-technical-metadata.js"

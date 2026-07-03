@@ -756,6 +756,20 @@ letter-spacing: -0.005em;
       margin-top: 10px;
     }
 
+    /* Compact, subtle EXIF note in the intake Technical Appendix camera block.
+       Sits directly above the Camera/Exposure cards (small margin) so they
+       stay close; never a pair of loose paragraphs. */
+    .technical-summary-exif-note {
+      display: grid;
+      gap: 2px;
+      margin: 0 0 8px;
+      font-size: 8.4px;
+      line-height: 1.35;
+      color: ${c.subtle};
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
     .compact-kv-list {
       border: 1px solid ${c.softLine};
       border-radius: 9px;
