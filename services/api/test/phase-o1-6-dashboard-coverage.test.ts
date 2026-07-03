@@ -1,7 +1,7 @@
 /**
  * Phase O1.6 — Final dashboards + alerts closure contract test.
  *
- * Asserts that the 11 dashboards and the extended alert YAML reference
+ * Asserts that the 10 dashboards and the extended alert YAML reference
  * ONLY real emitted spans (from `PROOVRA_SPAN_NAMES`) and real
  * counters (from `COUNTER_NAMES`). NO phantom span names. NO orphan
  * counters. Every alert has a runbook URL pointing at a real heading
@@ -69,7 +69,6 @@ const O1_6_DASHBOARD_FILES = [
   "infra/grafana/dashboards/proovra-verification-package.json",
   "infra/grafana/dashboards/proovra-reviewer-ops.json",
   "infra/grafana/dashboards/proovra-graph.json",
-  "infra/grafana/dashboards/proovra-c2pa.json",
   "infra/grafana/dashboards/proovra-siu.json",
   "infra/grafana/dashboards/proovra-ai.json",
   "infra/grafana/dashboards/proovra-communications.json",
@@ -90,7 +89,7 @@ type Dashboard = {
   panels?: Panel[];
 };
 
-describe("O1.6 — Grafana dashboards (11 required)", () => {
+describe("O1.6 — Grafana dashboards (10 required)", () => {
   for (const path of O1_6_DASHBOARD_FILES) {
     it(`${path} exists + parses + bounded fields`, () => {
       const json = JSON.parse(read(path)) as Dashboard;
@@ -215,7 +214,6 @@ const NEW_O1_6_ALERT_UIDS = [
   "proovra-custody-chain-verify-failure",
   "proovra-tsa-failure-spike",
   "proovra-ots-failure-spike",
-  "proovra-c2pa-validate-failure",
   "proovra-report-generate-failure",
   "proovra-report-upload-failure",
   "proovra-package-upload-failure",
@@ -324,7 +322,6 @@ describe("O1.6 — runbook anchors for new alerts", () => {
     "## custody-chain-verify-failure",
     "## tsa-failure-spike",
     "## ots-failure-spike",
-    "## c2pa-validate-failure",
     "## report-generate-failure",
     "## report-upload-failure",
     "## package-upload-failure",
@@ -408,11 +405,11 @@ describe("O1.6 — dashboard family coverage", () => {
     }
   });
 
-  it("repository ships exactly the documented 15 dashboards", () => {
-    // 4 O1.2 + 11 O1.6 = 15. Guards against a stale file landing in
+  it("repository ships exactly the documented 14 dashboards", () => {
+    // 4 O1.2 + 10 O1.6 = 14. Guards against a stale file landing in
     // the provisioning dir.
     const dir = REPO_ROOT + "infra/grafana/dashboards";
     const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
-    expect(files.length).toBe(15);
+    expect(files.length).toBe(14);
   });
 });

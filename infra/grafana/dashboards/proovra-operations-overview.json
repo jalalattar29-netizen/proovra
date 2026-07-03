@@ -87,16 +87,6 @@
       ]
     },
     {
-      "id": 7,
-      "type": "timeseries",
-      "title": "C2PA backfill run failures",
-      "description": "Bumps once per failed backfill run (see c2pa_backfill_run_failure_total). Started / processed counts live in operator UI run history; not emitted as bounded counters.",
-      "datasource": "prometheus",
-      "targets": [
-        { "expr": "sum(rate(c2pa_backfill_run_failure_total[15m]))", "legendFormat": "failed runs" }
-      ]
-    },
-    {
       "id": 8,
       "type": "stat",
       "title": "SIU exports (last 1h)",

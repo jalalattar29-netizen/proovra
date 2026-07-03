@@ -6,8 +6,6 @@ import {
 
 export type AnchorSemanticsInput = {
   transactionId?: string | null;
-  receiptId?: string | null;
-  publicUrl?: string | null;
   anchoredAtUtc?: string | null;
   otsStatus?: string | null;
   otsProofPresent?: boolean | null;
@@ -17,19 +15,11 @@ export type AnchorSemanticsInput = {
 
 export type AnchorSemantics = {
   transactionId: string | null;
-  receiptId: string | null;
-  publicUrl: string | null;
   hasTransactionId: boolean;
   hasAnchoredAt: boolean;
-  hasPublicUrl: boolean;
-  externalPublicationUrl: string | null;
-  externalPublicationPresent: boolean;
-  externalPublicationAttached: boolean;
   anchoredAtUtc: string | null;
   bitcoinTxid: string | null;
   publicAnchoringVerified: boolean;
-  published: boolean;
-  anchorPublished: boolean;
   anchoringStatus: "verified" | "pending" | "failed" | "unavailable";
   anchoringLabel: string;
   anchorMode: "anchored" | "pending_public_anchor" | "failed" | "not_configured";
@@ -67,22 +57,14 @@ export function deriveAnchorSemantics(
   input: AnchorSemanticsInput
 ): AnchorSemantics {
   const transactionId = normalizeString(input.transactionId);
-  const receiptId = normalizeString(input.receiptId);
-  const publicUrl = normalizeUrl(input.publicUrl);
   const anchoredAtUtc = normalizeString(input.anchoredAtUtc);
   const bitcoinTxid = isValidOtsBitcoinTxid(transactionId) ? transactionId : null;
-  const externalPublicationUrl = publicUrl;
   const hasTransactionId = Boolean(transactionId);
   const hasAnchoredAt = Boolean(anchoredAtUtc);
-  const hasPublicUrl = Boolean(externalPublicationUrl);
-  const externalPublicationAttached = hasPublicUrl;
-  const hasAnchorMaterial = Boolean(
-    transactionId ||
-      receiptId ||
-      externalPublicationUrl ||
-      anchoredAtUtc
-  );
-  const externalPublicationPresent = hasAnchorMaterial;
+  // OpenTimestamps → Bitcoin anchoring material. This is the ONLY
+  // anchoring concept PROOVRA models; there is no separate public
+  // publication / receipt layer.
+  const hasAnchorMaterial = Boolean(transactionId || anchoredAtUtc);
   const publicAnchoringVerified = Boolean(bitcoinTxid || anchoredAtUtc);
   const normalizedOtsStatus = normalizeOtsStatusValue(input.otsStatus);
   const effectiveOtsStatus = resolveEffectiveOtsStatus({
@@ -90,7 +72,6 @@ export function deriveAnchorSemantics(
     bitcoinTxid,
     anchoredAtUtc,
   });
-  const published = hasAnchorMaterial;
   const anchorMode: AnchorSemantics["anchorMode"] =
     normalizedOtsStatus === "FAILED"
       ? "failed"
@@ -123,7 +104,7 @@ export function deriveAnchorSemantics(
   // worker's `mapOtsStatusTechnicalDetail` helper, not here.
   const anchoringLabel =
     anchoringStatus === "verified"
-      ? "Bitcoin anchoring verified"
+      ? "OpenTimestamps Bitcoin anchoring verified"
       : anchoringStatus === "pending"
         ? "OpenTimestamps proof present; public anchoring pending"
         : anchoringStatus === "failed"
@@ -132,19 +113,11 @@ export function deriveAnchorSemantics(
 
   return {
     transactionId,
-    receiptId,
-    publicUrl,
     hasTransactionId,
     hasAnchoredAt,
-    hasPublicUrl,
-    externalPublicationUrl,
-    externalPublicationPresent,
-    externalPublicationAttached,
     anchoredAtUtc,
     bitcoinTxid,
     publicAnchoringVerified,
-    published,
-    anchorPublished: published,
     anchoringStatus,
     anchoringLabel,
     anchorMode,

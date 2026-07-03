@@ -115,10 +115,7 @@ type AnchorPayload = {
   generatedAtUtc: string;
   status?: AnchorMode;
   statusLabel?: string;
-  published?: boolean;
-  receiptId?: string | null;
   transactionId?: string | null;
-  publicUrl?: string | null;
   anchoredAtUtc?: string | null;
 };
 
@@ -151,9 +148,7 @@ type PackageManifest = {
   anchorStatusLabel?: string | null;
   anchorProvider: string | null;
   anchorPublicBaseUrl: string | null;
-  externalPublicationAttached: boolean;
   publicAnchoringVerified: boolean;
-  externalPublicationUrl: string | null;
   transactionId: string | null;
   verificationProfile: "FORENSIC_INTEGRITY";
   contents: {
@@ -557,7 +552,7 @@ function getAnchorStatusLabel(
   switch (mode) {
     case "anchored":
       return hasTxid
-        ? "Bitcoin anchoring verified"
+        ? "OpenTimestamps Bitcoin anchoring verified"
         : "OpenTimestamps proof present; public anchoring pending";
     case "failed":
       return "OpenTimestamps anchoring failed";
@@ -579,10 +574,7 @@ function derivePackageAnchorMode(params: {
     (signal) => signal.key === "public_anchoring"
   );
   const hasPublicAnchorMaterial = Boolean(
-    params.anchor?.receiptId ||
-      params.anchor?.transactionId ||
-      params.anchor?.publicUrl ||
-      params.anchor?.anchoredAtUtc
+    params.anchor?.transactionId || params.anchor?.anchoredAtUtc
   );
 
   if (anchoringSignal?.status === "failed") {
@@ -1535,7 +1527,6 @@ function buildAnchorReadmeSection(params: {
   anchorMode: AnchorMode;
   anchorStatusLabel: string;
   hasAnchorPayload: boolean;
-  anchorPublished: boolean;
   otsStatus?: string | null;
   anchorProvider?: string | null;
   anchorPublicBaseUrl?: string | null;
@@ -1580,7 +1571,7 @@ ${publicBaseLine}`;
       return `ANCHOR STATUS
 
 anchor.json is included in this package.
-Bitcoin anchoring verified (transaction reference recorded).
+OpenTimestamps Bitcoin anchoring verified (transaction reference recorded).
 This anchoring layer is independent from RFC 3161 timestamping.
 ${providerLine}
 ${publicBaseLine}`;
@@ -1893,18 +1884,12 @@ function buildPackageManifest(params: {
     anchorStatusLabel: params.anchorStatusLabel,
     anchorProvider: params.anchorProvider ?? null,
     anchorPublicBaseUrl: params.anchorPublicBaseUrl ?? null,
-    // External publication is a SEPARATE concept from OTS / Bitcoin
-    // anchoring. The flag is true ONLY when a real public publication
-    // URL exists. txid and anchoredAtUtc are OTS / public-anchoring
-    // signals, not publication signals — they MUST NOT promote
-    // externalPublicationAttached here. anchor.json uses the canonical
-    // helper (deriveAnchorSemantics) and resolves to the same rule;
-    // this manifest emitter mirrors that rule so the two files agree.
-    externalPublicationAttached: Boolean(params.anchor?.publicUrl),
+    // PROOVRA models a single anchoring concept: OpenTimestamps → Bitcoin.
+    // publicAnchoringVerified is true when a Bitcoin transaction reference
+    // or an anchored timestamp is recorded for the OTS proof.
     publicAnchoringVerified: Boolean(
       params.anchor?.transactionId || params.anchor?.anchoredAtUtc
     ),
-    externalPublicationUrl: params.anchor?.publicUrl ?? null,
     transactionId: params.anchor?.transactionId ?? null,
     verificationProfile: "FORENSIC_INTEGRITY",
     contents: {
@@ -1966,7 +1951,6 @@ function buildReadme(params: {
   anchorMode: AnchorMode;
   anchorStatusLabel: string;
   anchorIncluded: boolean;
-  anchorPublished: boolean;
   anchorProvider?: string | null;
   anchorPublicBaseUrl?: string | null;
   evidenceId?: string;
@@ -2147,7 +2131,6 @@ ${buildAnchorReadmeSection({
   anchorMode: params.anchorMode,
   anchorStatusLabel: params.anchorStatusLabel,
   hasAnchorPayload: params.anchorIncluded,
-  anchorPublished: params.anchorPublished,
   otsStatus: params.otsStatus,
   anchorProvider: params.anchorProvider,
   anchorPublicBaseUrl: params.anchorPublicBaseUrl,
@@ -2235,12 +2218,6 @@ function buildCourtReadinessChecklist(params: {
       verificationInstructionsIncluded: true,
       reportArtifactIncluded: true,
       certificationTemplateIncluded: true,
-      actualCustodianCertificationIncluded: Boolean(
-        params.certifications?.custodian
-      ),
-      actualQualifiedPersonCertificationIncluded: Boolean(
-        params.certifications?.qualifiedPerson
-      ),
       systemProcessDeclarationIncluded: true,
       originalLinkageIncluded: true,
       caseMetadataIncluded: true,
@@ -2407,7 +2384,7 @@ function buildVerifyHtml(params: {
 
     if (status === "ANCHORED") {
       return hasBitcoinTxid
-        ? "Bitcoin anchoring verified (transaction reference recorded)."
+        ? "OpenTimestamps Bitcoin anchoring verified (transaction reference recorded)."
         : "OpenTimestamps proof present; public anchoring pending. A Bitcoin transaction reference has not yet been attached to the OpenTimestamps proof.";
     }
 
@@ -2715,31 +2692,6 @@ export async function createVerificationPackage(data: {
    * only the bounded projection (hashes + fingerprints + bounded labels).
    */
   provenanceChain?: import("@proovra/shared").ProvenanceChain | null;
-  /**
-   * Phase M2 — optional C2PA evidence summary. When supplied, the
-   * builder bundles `provenance/c2pa-summary.json` directly from this
-   * projection. When omitted, the builder emits an honest bounded
-   * default (`disabled` or `not_present`) based on the worker's
-   * configured C2PA provider mode.
-   *
-   * NEVER carries raw manifest bytes — only the bounded summary.
-   */
-  c2paSummary?: import("@proovra/shared").C2paEvidenceSummary | null;
-  /**
-   * Phase M2.1 — optional bounded raw C2PA manifest bundles. When
-   * supplied, the builder writes each entry to its
-   * `packageRelativePath` (which MUST start with
-   * `provenance/c2pa-manifests/`). Each bundle's bytes are typically
-   * a verbatim C2PA manifest sidecar.
-   *
-   * Caller is responsible for honoring the operator-configured cap
-   * (`C2PA_RAW_MANIFEST_MAX_BYTES`) — the package builder enforces
-   * only the path-prefix safety check, not the size cap.
-   */
-  c2paRawManifestBundles?: ReadonlyArray<{
-    packageRelativePath: string;
-    bytes: Buffer;
-  }> | null;
 }): Promise<{ buffer: Buffer; artifactPresence: VerificationPackageArtifactPresence }> {
   await _emitPackagePipelineSpans(data.evidenceId ?? "");
   // -------------------------------------------------------------------------
@@ -2910,8 +2862,6 @@ export async function createVerificationPackage(data: {
     const anchorSemantics = data.anchor
       ? deriveAnchorSemantics({
           transactionId: data.anchor.transactionId ?? null,
-          receiptId: data.anchor.receiptId ?? null,
-          publicUrl: data.anchor.publicUrl ?? null,
           anchoredAtUtc: data.anchor.anchoredAtUtc ?? null,
           otsStatus: null,
           otsProofPresent: null,
@@ -2926,8 +2876,6 @@ export async function createVerificationPackage(data: {
     const custodyArray = Array.isArray(data.custody)
       ? (data.custody as CustodyEventRecord[])
       : [];
-
-    const anchorPublished = anchorSemantics?.published ?? false;
 
     if (evidenceFilesWithFinalName.length === 1) {
       const file = evidenceFilesWithFinalName[0];
@@ -3058,13 +3006,10 @@ export async function createVerificationPackage(data: {
           ...data.anchor,
           status: anchorMode,
           statusLabel: anchorStatusLabel,
-          externalPublicationAttached:
-            anchorSemantics?.externalPublicationAttached ??
-            Boolean(data.anchor.publicUrl),
           publicAnchoringVerified:
             anchorSemantics?.publicAnchoringVerified ?? false,
-          externalPublicationUrl: anchorSemantics?.externalPublicationUrl ?? null,
           transactionId: data.anchor.transactionId ?? null,
+          anchoredAtUtc: data.anchor.anchoredAtUtc ?? null,
         }),
         "application/json"
       );
@@ -3398,7 +3343,6 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           anchorMode,
           anchorStatusLabel,
           anchorIncluded,
-          anchorPublished,
           anchorProvider: data.anchorProvider,
           anchorPublicBaseUrl: data.anchorPublicBaseUrl,
           evidenceId: data.evidenceId,
@@ -3700,73 +3644,6 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         jsonBuffer(historicalFile),
         "application/json"
       );
-    }
-
-    // Phase M2 — bundle the bounded C2PA provenance summary. ALWAYS
-    // emitted (additive, deterministic) so the offline verifier can
-    // mechanically distinguish "C2PA was checked and is absent" from
-    // "C2PA was never evaluated for this package". When no prior
-    // summary exists (no extraction has run for this evidence), the
-    // builder emits an honest `disabled` / `not_present` aggregate.
-    //
-    // Phase M2.1 — optionally bundle raw C2PA manifests under
-    // `provenance/c2pa-manifests/<item>.c2pa` when the operator has
-    // opted into raw-manifest export AND the per-file manifest is
-    // under the configured byte cap.
-    //
-    // Hard rules:
-    //   * Original evidence bytes are NOT re-read here.
-    //   * No external tooling is invoked here.
-    //   * Failure is fully soft — a thrown error is caught and we
-    //     omit only the C2PA files. The package generation does NOT
-    //     fail. Old packages remain compatible.
-    try {
-      const { buildC2paPackageSummary, buildC2paPackageReadme } =
-        await import("./c2pa/package-summary.js");
-      const existing = data.c2paSummary ?? null;
-      const c2paSummary = buildC2paPackageSummary({
-        evidenceId: (data.evidenceId as string) ?? "",
-        existingSummary: existing,
-      });
-      appendPackageEntry(
-        archive,
-        packageEntries,
-        "provenance/c2pa-summary.json",
-        jsonBuffer(c2paSummary),
-        "application/json"
-      );
-      appendPackageEntry(
-        archive,
-        packageEntries,
-        "provenance/c2pa-verification.md",
-        Buffer.from(buildC2paPackageReadme(), "utf8"),
-        "text/markdown"
-      );
-      // Phase M2.1 — additive raw-manifest bundling. The summary
-      // carries the bounded references; the bytes (when present and
-      // bundled) are written here under `provenance/c2pa-manifests/`.
-      // Bytes are sourced ONLY from the optional `c2paRawManifestBundles`
-      // input. No tooling is invoked.
-      if (data.c2paRawManifestBundles) {
-        for (const bundle of data.c2paRawManifestBundles) {
-          if (!bundle?.packageRelativePath || !bundle.bytes) continue;
-          // Defense in depth: refuse anything outside the canonical
-          // `provenance/c2pa-manifests/` prefix.
-          if (!bundle.packageRelativePath.startsWith("provenance/c2pa-manifests/")) {
-            continue;
-          }
-          appendPackageEntry(
-            archive,
-            packageEntries,
-            bundle.packageRelativePath,
-            bundle.bytes,
-            "application/octet-stream"
-          );
-        }
-      }
-    } catch {
-      // Soft-fail: omit the C2PA section rather than break the
-      // package. Offline verifier handles missing files gracefully.
     }
 
     // Phase M1 — bundle the offline verification quickstart.

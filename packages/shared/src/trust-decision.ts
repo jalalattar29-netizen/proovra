@@ -383,12 +383,9 @@ export type TrustDecisionEvidenceInput = {
   verificationPackageGeneratedAtUtc?: string | null;
   anchor?: {
     configured?: boolean | null;
-    published?: boolean | null;
     provider?: string | null;
-    publicUrl?: string | null;
     anchoredAtUtc?: string | null;
     transactionId?: string | null;
-    receiptId?: string | null;
   } | null;
 };
 
@@ -598,13 +595,11 @@ export function evaluateRecordedIntegrityPromotion(
   };
 }
 
-function hasPublishedAnchorMaterial(
+function hasAnchorMaterial(
   anchor: TrustDecisionEvidenceInput["anchor"]
 ): boolean {
   return Boolean(
-    hasMeaningfulValue(anchor?.receiptId) ||
-      hasMeaningfulValue(anchor?.transactionId) ||
-      hasValidHttpUrl(anchor?.publicUrl) ||
+    hasMeaningfulValue(anchor?.transactionId) ||
       hasMeaningfulValue(anchor?.anchoredAtUtc)
   );
 }
@@ -613,18 +608,6 @@ function isValidOtsBitcoinTxid(
   value: string | null | undefined
 ): boolean {
   return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value.trim());
-}
-
-function hasValidHttpUrl(value: string | null | undefined): boolean {
-  const text = safe(value);
-  if (!text) return false;
-
-  try {
-    const parsed = new URL(text);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
 }
 
 function hasMalformedOtsBitcoinTxid(
@@ -638,7 +621,7 @@ function hasDefensibleOtsAnchorMaterial(
 ): boolean {
   return Boolean(
     isValidOtsBitcoinTxid(evidence.otsBitcoinTxid) ||
-      hasPublishedAnchorMaterial(evidence.anchor)
+      hasAnchorMaterial(evidence.anchor)
   );
 }
 
@@ -823,7 +806,7 @@ function buildAnchoringSignal(
   const defensibleAnchorMaterial = hasDefensibleOtsAnchorMaterial(evidence);
   const malformedTxidWithoutOtherProof =
     hasMalformedOtsBitcoinTxid(evidence.otsBitcoinTxid) &&
-    !hasPublishedAnchorMaterial(evidence.anchor);
+    !hasAnchorMaterial(evidence.anchor);
 
   if (otsHashMismatch) {
     return makeSignal({
@@ -858,9 +841,9 @@ function buildAnchoringSignal(
       status: "passed",
       points: 10,
       maxPoints: 10,
-      summary: "Bitcoin anchoring verified",
+      summary: "OpenTimestamps Bitcoin anchoring verified",
       detail:
-        "Public anchoring metadata includes defensible public evidence such as a valid Bitcoin transaction id, receipt, public URL, or anchored publication metadata.",
+        "OpenTimestamps anchoring metadata includes defensible public evidence such as a valid Bitcoin transaction id or an anchored timestamp.",
     });
   }
 

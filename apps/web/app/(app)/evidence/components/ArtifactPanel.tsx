@@ -2,7 +2,7 @@ import { Button } from "../../../../components/ui";
 import { GovernedExportAction } from "../../../../components/governance/GovernedExportAction";
 import type { DetailWorkspaceState, EvidenceListItem } from "../lib/evidence-library-types";
 import { buildReportAvailability, buildVerificationPackageAvailability, hasPublicVerification } from "../lib/evidence-library-helpers";
-import { formatUtcDateTime, safeText } from "../lib/evidence-library-formatters";
+import { formatUtcDateTime } from "../lib/evidence-library-formatters";
 
 export function ArtifactPanel({
   item,
@@ -110,7 +110,7 @@ export function ArtifactPanel({
           <strong>{canCopyLink ? "Enabled" : "Not configured"}</strong>
           <p>
             {canCopyLink
-              ? safeText(detail.evidence?.anchor?.publicUrl, "Verification link can be copied.")
+              ? "Verification link can be copied."
               : "Public verification is not configured for this record in the current workspace view."}
           </p>
         </div>

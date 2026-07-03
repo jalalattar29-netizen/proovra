@@ -32,11 +32,11 @@ describe("OTS labels (Phase B #9 / Phase C #4)", () => {
     }
   });
 
-  it("only returns 'Bitcoin anchoring verified' when both ANCHORED + valid txid", () => {
+  it("only returns 'OpenTimestamps Bitcoin anchoring verified' when both ANCHORED + valid txid", () => {
     const validTxid = "f".repeat(64);
     expect(
       mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: validTxid })
-    ).toBe("Bitcoin anchoring verified");
+    ).toBe("OpenTimestamps Bitcoin anchoring verified");
     expect(
       mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: null })
     ).toContain("public anchoring pending");

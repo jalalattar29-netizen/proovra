@@ -17,12 +17,10 @@
  *   1. Verification methodology — link to the public methodology
  *      disclosure + the offline verifier (CLI + browser).
  *   2. Signer health — link to /operations/signers when entitled.
- *   3. C2PA generation readiness — link to /operations/c2pa when
- *      entitled.
- *   4. Reproducible exports — link to /operations/exports.
- *   5. Object-lock posture — link to /operations/recovery.
- *   6. Public verify entry point — link to /verify.
- *   7. Legal disclosures (subprocessors, retention, privacy, terms).
+ *   3. Reproducible exports — link to /operations/exports.
+ *   4. Object-lock posture — link to /operations/recovery.
+ *   5. Public verify entry point — link to /verify.
+ *   6. Legal disclosures (subprocessors, retention, privacy, terms).
  *
  * Hard rules:
  *

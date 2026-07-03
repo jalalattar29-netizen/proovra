@@ -8,7 +8,7 @@
 
 ## 0. Honest scope statement
 
-The O1.4 spec lists ~70 business spans across 16 subsystems (CAPTURE, EVIDENCE, INTEGRITY, CUSTODY, REPORT PIPELINE, VERIFICATION PACKAGE, TSA, OTS, STORAGE, REVIEWER OPS, GRAPH, C2PA, SIU, AI, COMMUNICATIONS, RECOVERY) plus cross-service trace propagation for 13 BullMQ queues. A reasonable single-message instrumentation pass cannot wire all 70 spans without risking subtle behavioural regressions. The user explicitly chose the path "Maximum honest pass + report": make the highest-leverage tractable instrumentation pass and document precisely what is + isn't wired.
+The O1.4 spec lists ~70 business spans across 15 subsystems (CAPTURE, EVIDENCE, INTEGRITY, CUSTODY, REPORT PIPELINE, VERIFICATION PACKAGE, TSA, OTS, STORAGE, REVIEWER OPS, GRAPH, SIU, AI, COMMUNICATIONS, RECOVERY) plus cross-service trace propagation for 13 BullMQ queues. A reasonable single-message instrumentation pass cannot wire all 70 spans without risking subtle behavioural regressions. The user explicitly chose the path "Maximum honest pass + report": make the highest-leverage tractable instrumentation pass and document precisely what is + isn't wired.
 
 This document IS that honest report. It does **not** claim "O1.4 closed" — it claims "O1.4 partially closed; here is the bounded set that landed."
 
@@ -29,7 +29,7 @@ This document IS that honest report. It does **not** claim "O1.4 closed" — it 
 - `services/worker/src/queue.ts` — every `queue.add(…)` call site now preceded by `injectOtelContextIntoJobData(payload)`. The shared `genericIdempotentEnqueue` helper covers 7 queues in one move (graph-domain-sync, graph-timeline-sync, graph-search-projection, mi-ocr, mi-transcript, mi-search-index, graph-reconcile). `enqueueReportJob`, `enqueueOtsUpgradeJob`, `enqueueEvidencePurgeJob`, `enqueueMediaIntelligenceJob`, `enqueueExifJob`, `enqueueSearchIndexingJob` each got an inline `injectOtelContextIntoJobData(…)` patch.
 
 ### Modified — bounded enum trim (O1.4 hard rule: no enum-only entries)
-- `services/api/src/observability/otel.ts` + `services/worker/src/otel.ts` — `PROOVRA_SPAN_NAMES` reduced from 25 entries to **20 emitted entries**. The 13+ pre-O1.4 enum-only entries (`REPORT_GENERATE`, `PACKAGE_GENERATE`, `EXPORT_MANIFEST_CREATE`, `EXPORT_REPRODUCIBILITY_VERIFY`, `TSA_TIMESTAMP`, `OTS_ANCHOR`, `SIGNER_ROTATION_PREVIEW`, `SIGNER_ROTATION_PROMOTE`, `PACKAGE_ATTESTATIONS_COLLECT`, `PACKAGE_SIGNER_SNAPSHOT_GENERATE`, `C2PA_VALIDATE`, `SIU_FOLLOWUP_REQUEST`, `SIU_TIMELINE_BUILD`) were REMOVED. They drifted in during O1.1 / O1.2 / O1.3 docs but had no runtime emission. They will be re-added one at a time when the corresponding `withProovraSpan(…)` call lands — see §6.
+- `services/api/src/observability/otel.ts` + `services/worker/src/otel.ts` — `PROOVRA_SPAN_NAMES` reduced from 25 entries to **20 emitted entries**. The 13+ pre-O1.4 enum-only entries (`REPORT_GENERATE`, `PACKAGE_GENERATE`, `EXPORT_MANIFEST_CREATE`, `EXPORT_REPRODUCIBILITY_VERIFY`, `TSA_TIMESTAMP`, `OTS_ANCHOR`, `SIGNER_ROTATION_PREVIEW`, `SIGNER_ROTATION_PROMOTE`, `PACKAGE_ATTESTATIONS_COLLECT`, `PACKAGE_SIGNER_SNAPSHOT_GENERATE`, `SIU_FOLLOWUP_REQUEST`, `SIU_TIMELINE_BUILD`) were REMOVED. They drifted in during O1.1 / O1.2 / O1.3 docs but had no runtime emission. They will be re-added one at a time when the corresponding `withProovraSpan(…)` call lands — see §6.
 - `services/api/test/phase-p2-0b-observability-wiring.test.ts` — required-subset list updated to reflect the trim (was 10 names, now 4 — the surviving spans with real emission: `queue.job.replay`, `queue.job.retry`, `recovery.backup.validate`, `recovery.restore.validate`).
 - `services/worker/test/phase-o1-3-otel-final-closure.test.ts` — required-list updated similarly.
 
@@ -46,8 +46,6 @@ This document IS that honest report. It does **not** claim "O1.4 closed" — it 
 | **Custody attestation** | `proovra.custody.attestation.verify` | same file | ✅ |
 | **Custody attestation** | `proovra.custody.attestation.backfill` | same file | ✅ |
 | **Custody chain** | `proovra.custody.event.append` | `services/worker/src/custody-events.ts` (O1.4) | ✅ |
-| **C2PA** | `proovra.c2pa.detect` | `services/worker/src/c2pa/provider.ts` | ✅ |
-| **C2PA** | `proovra.c2pa.package_summary` | `services/worker/src/c2pa/package-summary.ts` | ✅ |
 | **SIU** | `proovra.siu.export.preflight` | `services/api/src/services/siu/siu-preflight.service.ts` | ✅ |
 | **SIU** | `proovra.siu.export.generate` | `services/api/src/services/siu/siu-export-bundle.service.ts` | ✅ |
 | **Worker (queue propagation)** | `proovra.worker.report.generate` | `services/worker/src/index.ts` wrap | ✅ |
@@ -166,9 +164,6 @@ Per O1.4's hard rule "no enum-only", these bounded span names were REMOVED from 
 - `proovra.graph.domain.sync`
 - `proovra.graph.search.projection`
 - (Note: `proovra.worker.graph.reconcile` covers the parent queue span; the inner sub-spans are deferred.)
-
-### C2PA (validate REMOVED)
-- `proovra.c2pa.validate` (REMOVED — was enum-only since M2; `c2pa.detect` + `c2pa.package_summary` ARE emitted)
 
 ### SIU (followup + timeline REMOVED)
 - `proovra.siu.followup.request` (REMOVED — was enum-only since M3)

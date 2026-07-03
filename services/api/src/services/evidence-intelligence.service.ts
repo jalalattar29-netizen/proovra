@@ -22,12 +22,9 @@ type EvidenceIntelligenceAnchorInput = {
   provider: string | null;
   mode: string | null;
   configured: boolean;
-  published: boolean;
   anchorHash: string | null;
   publicBaseUrl: string | null;
-  publicUrl: string | null;
   anchoredAtUtc: Date | string | null;
-  receiptId: string | null;
   transactionId: string | null;
 } | null;
 
@@ -233,7 +230,7 @@ function buildEvidenceReviewDecision(params: {
   chainMode: string;
   reportReady: boolean;
   verificationPackageReady: boolean;
-  anchorPublished: boolean;
+  anchorVerified: boolean;
 }): EvidenceIntelligence["reviewerDecision"] {
   const issues: string[] = [];
   const nextActions: string[] = [];
@@ -249,9 +246,9 @@ function buildEvidenceReviewDecision(params: {
     nextActions.push("Generate the PDF report before external review.");
   }
 
-  if (!params.anchorPublished && !params.verificationPackageReady) {
+  if (!params.anchorVerified && !params.verificationPackageReady) {
     issues.push("Public verification and verification package are not fully available.");
-    nextActions.push("Publish verification proof or generate a package for independent review.");
+    nextActions.push("Confirm OpenTimestamps Bitcoin anchoring or generate a package for independent review.");
   }
 
   if (params.evidence.deletedAt) {
@@ -273,8 +270,8 @@ function buildEvidenceReviewDecision(params: {
       reasons: [
         `Custody chain is ${params.chainMode}.`,
         "Evidence report is generated.",
-        params.anchorPublished
-          ? "Public verification is active."
+        params.anchorVerified
+          ? "OpenTimestamps Bitcoin anchoring verified."
           : "Verification package is available.",
       ],
       nextActions: [
@@ -517,7 +514,10 @@ function buildReviewerAlerts(params: {
     });
   }
 
-  if (!params.anchor?.published && !params.anchor?.configured) {
+  const anchorVerified = Boolean(
+    params.anchor?.transactionId || params.anchor?.anchoredAtUtc
+  );
+  if (!anchorVerified && !params.anchor?.configured) {
     alerts.push({
       severity: "warning",
       label: "Public verification not configured",
@@ -585,13 +585,13 @@ function buildLibrarySummary(params: {
   chainValid: boolean;
   reportReady: boolean;
   verificationPackageReady: boolean;
-  anchorPublished: boolean;
+  anchorVerified: boolean;
 }): EvidenceIntelligence["librarySummary"] {
   const signals = [
     params.chainValid ? 1 : 0,
     params.reportReady ? 1 : 0,
     params.verificationPackageReady ? 1 : 0,
-    params.anchorPublished ? 1 : 0,
+    params.anchorVerified ? 1 : 0,
   ];
   const score = Math.round((signals.reduce((sum, value) => sum + value, 0) / signals.length) * 100);
 
@@ -666,7 +666,9 @@ export async function buildEvidenceIntelligence(
       retentionUntilUtc: formatNullableDate(params.evidence.retentionUntilUtc),
       storageProtection: params.storage,
       publicVerificationEnabled: Boolean(params.anchor?.configured),
-      publicVerificationActive: Boolean(params.anchor?.published),
+      publicVerificationActive: Boolean(
+        params.anchor?.transactionId || params.anchor?.anchoredAtUtc
+      ),
     },
     provenance: {
       captureMethod: params.evidence.captureMethod ?? null,
@@ -712,9 +714,7 @@ export async function buildEvidenceIntelligence(
       provider: params.anchor?.provider ?? null,
       mode: params.anchor?.mode ?? "off",
       configured: Boolean(params.anchor?.configured),
-      published: Boolean(params.anchor?.published),
       anchorHash: params.anchor?.anchorHash ?? null,
-      publicUrl: params.anchor?.publicUrl ?? null,
       anchoredAtUtc: formatNullableDate(params.anchor?.anchoredAtUtc),
     },
     reviewerDecision: buildEvidenceReviewDecision({
@@ -723,7 +723,9 @@ export async function buildEvidenceIntelligence(
       chainMode: chain.mode,
       reportReady,
       verificationPackageReady,
-      anchorPublished: Boolean(params.anchor?.published),
+      anchorVerified: Boolean(
+        params.anchor?.transactionId || params.anchor?.anchoredAtUtc
+      ),
     }),
     verificationProof: buildVerificationProof(params.evidence),
     artifacts: buildArtifactSummaries({ evidence: params.evidence }),
@@ -742,7 +744,9 @@ export async function buildEvidenceIntelligence(
       chainValid: chain.valid,
       reportReady,
       verificationPackageReady,
-      anchorPublished: Boolean(params.anchor?.published),
+      anchorVerified: Boolean(
+        params.anchor?.transactionId || params.anchor?.anchoredAtUtc
+      ),
     }),
   };
 }

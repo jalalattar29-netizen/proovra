@@ -54,8 +54,6 @@ The current Phase M3 bundle bundles the bounded JSON projections only; per-evide
     "SIU_BUNDLE_DOES_NOT_PROVE_CONTENT_TRUTH",
     "SIU_BUNDLE_DOES_NOT_PROVE_LEGAL_ADMISSIBILITY",
     "REVIEW_INDICATORS_ARE_OPERATIONAL_SIGNALS_NOT_FINDINGS",
-    "MISSING_C2PA_DOES_NOT_REDUCE_PROOVRA_INTEGRITY",
-    "INVALID_C2PA_DOES_NOT_OVERRIDE_PROOVRA_HASH_DECISION",
     "PROOVRA_DOES_NOT_REPLACE_INSURER_CORE_SYSTEMS"
   ],
   "note": "Bounded operator-readable note (≤240 chars).",
@@ -105,7 +103,7 @@ History + status of every follow-up evidence request. Bounded fields: `id`, `che
 
 ## 8. `integrity-provenance-summary.json`
 
-Bounded inventory of the evidence rows included in the bundle. The per-evidence integrity / custody / TSA / OTS / C2PA verdicts live inside each evidence's Verification Package — this file only lists which evidence ids are present.
+Bounded inventory of the evidence rows included in the bundle. The per-evidence integrity / custody / TSA / OTS verdicts live inside each evidence's Verification Package — this file only lists which evidence ids are present.
 
 ## 9. `custody-audit-summary.json`
 
@@ -128,7 +126,7 @@ Bounded file inventory:
   "caseId": "...",
   "teamId": "...",
   "files": [{ "path": "...", "sizeBytes": 0 }],
-  "limitations": [/* the seven standing codes */],
+  "limitations": [/* the five standing codes */],
   "note": "Bounded operator-readable note (≤240 chars)."
 }
 ```
@@ -142,7 +140,6 @@ Before producing a bundle, the bounded preflight evaluates:
 - required checklist coverage
 - per-evidence integrity (hash / legal-hold / lifecycle)
 - presence of Report PDF + Verification Package
-- C2PA aggregate status per evidence
 - open follow-ups
 - review indicator severities
 

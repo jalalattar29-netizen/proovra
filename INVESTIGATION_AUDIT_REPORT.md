@@ -297,7 +297,6 @@ Backend features that exist in production code but are not surfaced to the Inves
 | **`OperationalCausalityLink` / `OperationalCausalityChain`** | Phase-causal-link projection | No UI |
 | **`SavedQueueView`** | `saved-queue-views.service.ts` | Not surfaced on `/investigation/graph`, `/duplicates`, `/timeline` |
 | **`ReviewerOpsReminder`** | `reminder-engine.service.ts` | Not surfaced on `/investigation/reviewers` |
-| **C2PA provenance / readiness** | `c2pa-evidence-panel.service.ts`, `c2pa-generation-readiness.service.ts` | Not on Investigation hub |
 | **`compute_perceptual_hashes` MI job kind** | `media-intelligence.processor.ts` | UI surfaces "perceptually similar" tile but does not surface job status |
 | **`graph-search-projection` queue** | `processGraphSearchProjectionJob` | Not exposed as worker liveness on Investigation |
 
@@ -356,7 +355,7 @@ Maturity baseline: Truepic (provenance/capture trust), Cellebrite (forensic grap
 | 4 | Timeline (custody + activity + state) | `OperationalTimelineEvent` real; reusable panel unused by the actual page; no actor/family filters; no virtualization; no export | Cellebrite/Everlaw: filterable by actor/role/event-family, custody+communication overlay, virtualized 100k+ events, export-to-report | **Medium** |
 | 5 | Exact duplicate detection | `EvidenceSimilarity[HASH_DUPLICATE]` + `SAME_HASH_AS`; pairwise edge listing | Auto-grouping into duplicate sets with primary + N copies | **Low** |
 | 6 | Near-duplicate / perceptual similarity | Phase 13 text-shingle Jaccard works; **no image perceptual-hash writer exists; "not yet available" copy hardcoded** | Relativity textual near-dup + email threading; Cellebrite perceptual image/video similarity with playback | **High** |
-| 7 | Derivative detection | `POSSIBLE_DERIVATIVE_OF` edge type exists in raw SQL CHECK; **no writer anywhere** | Truepic C2PA provenance chain + Cellebrite "derived from" relationships | **High** |
+| 7 | Derivative detection | `POSSIBLE_DERIVATIVE_OF` edge type exists in raw SQL CHECK; **no writer anywhere** | Truepic provenance chain + Cellebrite "derived from" relationships | **High** |
 | 8 | Review queues | `EvidenceReviewWorkflow` with SLA dims; three competing consoles (`/review`, `/reviewer-ops`, `/investigation/reviewers`) | Persistent saved views, batch checkout, predictive prioritization | **Medium** |
 | 9 | Reviewer assignment & reassignment | `assignReviewerToWorkflow`, `suggestReviewers`, `ReviewerRoutingRecommendation` — exist; not surfaced on Investigation | Auto-assignment with skill matching + load balancing + reassign-with-reason audit | **Low** |
 | 10 | Escalation handling | `ReviewEscalation` model with OPEN/ACK/REASSIGNED/RESOLVED/SUPPRESSED states (bounded VARCHAR not enum) | L1/L2/L3 escalation ladder with policy-driven SLA triggers | **Low** |
@@ -728,7 +727,7 @@ When those are done, customers experience meaningful new capability. When Option
 | # | Fix | ETA |
 |---|---|---|
 | 3.1 | Ship perceptual-hash similarity producer (image perceptual + Hamming distance → `SIMILAR_TO` edge promotion) | 1 week |
-| 3.2 | Ship `POSSIBLE_DERIVATIVE_OF` worker (correlate C2PA ingredients + perceptual hash + capture-trust) | 1 week |
+| 3.2 | Ship `POSSIBLE_DERIVATIVE_OF` worker (correlate perceptual hash + capture-trust) | 1 week |
 | 3.3 | Wire real OCR provider (AWS Textract / Tesseract / ABBYY) — replace `processOcrJob` stub | 1 week |
 | 3.4 | Wire real ASR provider (Whisper / AWS Transcribe / AssemblyAI) — replace `processTranscriptJob` stub | 1 week |
 | 3.5 | Cursor pagination on `/v1/graph/{timeline,duplicates,seeds}` + server-side filter pushdown | 1 week |
@@ -798,7 +797,7 @@ Each item is one bullet with a suggested test file path (Vitest + Playwright con
 - `services/worker/src/__tests__/processOrgHealthRefreshJob-real-counts.test.ts` — replaces hardcoded zeros with real counts from `OperationalIncident`, `EvidenceReviewWorkflow.slaStatus=BREACHED`, governance models, `VerificationView` 24h window.
 - `services/worker/src/__tests__/processOcrJob-real-provider.test.ts` — submits an evidence image to the configured provider; writes `EvidenceExtractedText` row.
 - `services/worker/src/__tests__/perceptual-similarity-edge-promotion.test.ts` — two evidence with Hamming distance ≤ 8 produce a `SIMILAR_TO` edge with `confidence=MEDIUM`.
-- `services/worker/src/__tests__/derivative-detector.test.ts` — C2PA ingredient + perceptual match produces directional `POSSIBLE_DERIVATIVE_OF` edge.
+- `services/worker/src/__tests__/derivative-detector.test.ts` — perceptual match produces directional `POSSIBLE_DERIVATIVE_OF` edge.
 
 ### Playwright E2E tests
 

@@ -330,7 +330,6 @@ export type ReviewWorkspaceResponse = {
     configured: boolean;
     published: boolean;
     sharePath: string | null;
-    publicUrl: string | null;
     routeAccessible: boolean;
     publicViewCount: number;
     authenticatedViewCount: number;

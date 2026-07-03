@@ -202,11 +202,10 @@ describe("Phase 1B — services", () => {
         expect(SERVICE_TRUST_EVENT).toMatch(/captureTrustEventRecord/);
         expect(SERVICE_TRUST_EVENT).toMatch(/buildTrustEventHash/);
     });
-    it("provenance projection assembles capture + server + time + c2pa + derivations", () => {
+    it("provenance projection assembles capture + server + time + derivations", () => {
         expect(SERVICE_PROVENANCE_PROJECTION).toMatch(/capture:/);
         expect(SERVICE_PROVENANCE_PROJECTION).toMatch(/server:/);
         expect(SERVICE_PROVENANCE_PROJECTION).toMatch(/time:/);
-        expect(SERVICE_PROVENANCE_PROJECTION).toMatch(/c2pa:/);
         expect(SERVICE_PROVENANCE_PROJECTION).toMatch(/derivations/);
         expect(SERVICE_PROVENANCE_PROJECTION).toMatch(/STANDING_PROVENANCE_LIMITATIONS/);
     });

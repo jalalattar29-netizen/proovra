@@ -42,7 +42,7 @@ Twelve competitors compared across twelve capability axes. Rating scale: Best-in
 | # | Capability | PROOVRA | Relativity | Everlaw | Logikcull | Reveal | Exterro | Magnet Axiom | Cellebrite | Axon | NICE | OpenText | Veritone |
 |---|-----------|---------|-----------|---------|-----------|--------|---------|--------------|-----------|------|------|----------|----------|
 | 1 | Evidence capture + integrity | Strong | Stub | Partial | Stub | Partial | Partial | Partial | Partial | Competitive | Stub | Stub | Stub |
-| 2 | C2PA + provenance chain | **Best-in-class** | Missing | Missing | Missing | Missing | Missing | Missing | Missing | Partial | Missing | Missing | Missing |
+| 2 | Provenance chain | **Best-in-class** | Missing | Missing | Missing | Missing | Missing | Missing | Missing | Partial | Missing | Missing | Missing |
 | 3 | Evidence classification + search | Competitive | Strong | Competitive | Strong | Competitive | Competitive | Partial | Competitive | Partial | Competitive | Strong | Partial |
 | 4 | Cases + matter grouping | Competitive | Strong | Competitive | Competitive | Strong | Competitive | Partial | Partial | Partial | Competitive | Strong | Stub |
 | 5 | Media analysis + redaction | Competitive | Competitive | Competitive | Stub | Partial | Competitive | Partial | Partial | Partial | Partial | Partial | Missing |
@@ -55,7 +55,7 @@ Twelve competitors compared across twelve capability axes. Rating scale: Best-in
 | 12 | Disagreement resolution + hotkeys | **Best-in-class** | Stub | Stub | Stub | Stub | Stub | Stub | Stub | Stub | Stub | Stub | Stub |
 
 **Top 3 strengths (no competitor has these):**
-1. C2PA provenance chain — capture-time cryptographic signing baked into the integrity pipeline.
+1. Provenance chain — capture-time cryptographic signing baked into the integrity pipeline.
 2. QC disagreement resolution with hotkey-driven adjudication UI.
 3. The collaboration trio — department-delegated admin + cross-org review grants + team role assignment.
 

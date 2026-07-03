@@ -10,8 +10,7 @@ PROOVRA helps your insurer's investigations team organise the evidence you submi
 
 - the bytes of each file you upload (and a cryptographic hash so any later change is detectable),
 - when and where it was captured (when your device shares that data),
-- who handled it inside the insurer's team (a custody chain),
-- any provenance signals embedded in the files themselves (C2PA when present).
+- who handled it inside the insurer's team (a custody chain).
 
 ## 2. What PROOVRA does NOT do
 

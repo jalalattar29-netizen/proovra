@@ -442,11 +442,9 @@ describe("(20) Canonical /trust page exposes the enterprise card grid", () => {
         expect(TRUST_PAGE).toMatch(/title:\s*"AI transparency"/);
         expect(TRUST_PAGE).toMatch(/title:\s*"Security documentation"/);
         expect(TRUST_PAGE).toMatch(/title:\s*"Subprocessors"/);
-        expect(TRUST_PAGE).toMatch(/title:\s*"C2PA readiness and limitations"/);
         expect(TRUST_PAGE).toMatch(/title:\s*"Recovery validation"/);
         expect(TRUST_PAGE).toMatch(/href:\s*"\/trust-center\/ai-disclosure"/);
         expect(TRUST_PAGE).toMatch(/href:\s*"\/trust-center\/security"/);
-        expect(TRUST_PAGE).toMatch(/href:\s*"\/operations\/c2pa"/);
     });
 });
 // ===========================================================================

@@ -4,7 +4,6 @@ import {
   Anchor,
   KeyRound,
   Lock,
-  Image as ImageIcon,
   Link2,
 } from "lucide-react";
 
@@ -14,7 +13,6 @@ const STANDARDS = [
   { label: "OpenTimestamps", sub: "Bitcoin anchoring", Icon: Anchor },
   { label: "ED25519", sub: "Digital signatures", Icon: KeyRound },
   { label: "S3 Object Lock", sub: "Immutable storage", Icon: Lock },
-  { label: "C2PA Detection", sub: "Content provenance", Icon: ImageIcon },
   { label: "Custody Chain", sub: "Linked hash log", Icon: Link2 },
 ];
 
@@ -33,7 +31,7 @@ export function TrustedStandards() {
           <span className="h-px w-10 bg-[#CBD5E1]" />
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 lg:gap-3">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-3">
           {STANDARDS.map(({ label, sub, Icon }) => (
             <div
               key={label}

@@ -114,7 +114,7 @@ export function buildVerificationPackageAvailability(detail?: DetailWorkspaceSta
 export function hasPublicVerification(detail?: DetailWorkspaceState | null): boolean {
   return Boolean(
     detail?.capabilities.publicVerifyIncluded &&
-      (detail.evidence?.anchor?.configured || detail.evidence?.anchor?.published)
+      detail.evidence?.anchor?.configured
   );
 }
 

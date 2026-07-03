@@ -111,7 +111,7 @@ The Phase R11 source-contract test (`services/api/test/phase-r11-domain-stabiliz
 
 | Item | Location | Classification | Notes |
 |---|---|---|---|
-| `requireOpsActor` / `requireReviewerActor` / `requireReadinessActor` (read `req.query.teamId`) | `services/api/src/routes/ops.routes.ts:74`, `operations-c2pa.routes.ts:37`, `operations-queues.routes.ts:52`, `operations-recovery.routes.ts:27`, `operations-signers.routes.ts:51`, `runtime-readiness.routes.ts:34`, `reviewer-ops.routes.ts:108` | **PHASE-3** | Unify behind the canonical `authorizeOrFail` flow. |
+| `requireOpsActor` / `requireReviewerActor` / `requireReadinessActor` (read `req.query.teamId`) | `services/api/src/routes/ops.routes.ts:74`, `operations-queues.routes.ts:52`, `operations-recovery.routes.ts:27`, `operations-signers.routes.ts:51`, `runtime-readiness.routes.ts:34`, `reviewer-ops.routes.ts:108` | **PHASE-3** | Unify behind the canonical `authorizeOrFail` flow. |
 | `requireDelegatedTier` (reads `user.currentWorkspaceId`) | `services/api/src/middleware/require-delegated-tier.ts:44-49` | **PHASE-3** | Different strategy than the actor gates. Consolidate. |
 | `evaluateMemberAccess` consumers pass `teamId` | 9 files | **PHASE-3** | Rename to `workspaceId` after Team is renamed. |
 | 87 raw `prisma.teamMember.findUnique({ teamId_userId })` calls | 51 files | **PHASE-3** | Rename to `workspaceMember.findUnique` after model rename. |

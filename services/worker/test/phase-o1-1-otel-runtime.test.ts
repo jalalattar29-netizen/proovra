@@ -9,11 +9,11 @@
  *   * docker-compose pins `OTEL_SERVICE_NAME` per container and does
  *     NOT hardcode the Grafana token.
  *   * The bounded PROOVRA span names cover the documented critical
- *     spans (signer / custody / c2pa / siu / package + queue +
+ *     spans (signer / custody / siu / package + queue +
  *     recovery).
  *   * `withProovraSpan` helper exists and is used at critical entry
- *     points: SIU preflight, SIU export, C2PA detect, C2PA package
- *     summary, signer health, recovery validation.
+ *     points: SIU preflight, SIU export, signer health, recovery
+ *     validation.
  *   * `/v1/runtime/otel-health` endpoint never returns the OTLP
  *     endpoint URL, headers, or Grafana token.
  *   * Bootstrap logs include `endpointConfigured` / `protocol` /
@@ -99,9 +99,6 @@ describe("O1.1 — Bootstrap log line shape (api + worker)", () => {
         "proovra.custody.attestation.sign",
         "proovra.custody.attestation.verify",
         "proovra.package.attestations.collect",
-        "proovra.c2pa.detect",
-        "proovra.c2pa.validate",
-        "proovra.c2pa.package_summary",
         "proovra.siu.export.preflight",
         "proovra.siu.export.generate",
         "proovra.siu.followup.request",
@@ -169,18 +166,6 @@ describe("O1.1 — withProovraSpan is wired into critical entry points", () => {
     );
     expect(src).toContain("withProovraSpan");
     expect(src).toContain("PROOVRA_SPAN_NAMES.SIU_EXPORT_GENERATE");
-  });
-
-  it("C2PA provider wraps detection with proovra.c2pa.detect", () => {
-    const src = read("services/worker/src/c2pa/provider.ts");
-    expect(src).toContain("withProovraSpan");
-    expect(src).toContain("PROOVRA_SPAN_NAMES.C2PA_DETECT");
-  });
-
-  it("C2PA package summary wraps with proovra.c2pa.package_summary", () => {
-    const src = read("services/worker/src/c2pa/package-summary.ts");
-    expect(src).toContain("withProovraSpan");
-    expect(src).toContain("PROOVRA_SPAN_NAMES.C2PA_PACKAGE_SUMMARY");
   });
 
   it("signer health wraps with proovra.signer.health_check", () => {
@@ -264,7 +249,7 @@ describe("O1.1 — bootstrap helper safety (runtime behaviour)", () => {
     // through the no-op tracer.
     let observed: number | null = null;
     const result = await mod.withProovraSpan(
-      mod.PROOVRA_SPAN_NAMES.C2PA_DETECT,
+      mod.PROOVRA_SPAN_NAMES.SIU_EXPORT_PREFLIGHT,
       { evidenceId: "00000000-0000-0000-0000-000000000000" },
       () => {
         observed = 7;
@@ -282,7 +267,7 @@ describe("O1.1 — bootstrap helper safety (runtime behaviour)", () => {
     // throw on hostile attribute values.
     let result: string | null = null;
     await mod.withProovraSpan(
-      mod.PROOVRA_SPAN_NAMES.C2PA_DETECT,
+      mod.PROOVRA_SPAN_NAMES.SIU_EXPORT_PREFLIGHT,
       {
         // bounded — should be truncated by the helper, not thrown.
         nonsense: "x".repeat(1024),

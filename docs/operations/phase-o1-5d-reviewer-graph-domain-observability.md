@@ -1,6 +1,6 @@
-# Phase O1.5D — Reviewer Ops + Graph + C2PA validate + SIU followup/timeline Observability
+# Phase O1.5D — Reviewer Ops + Graph + SIU followup/timeline Observability
 
-**Status:** CLOSED. 12 / 12 required spans emitted, contract-enforced.
+**Status:** CLOSED. 11 / 11 required spans emitted, contract-enforced.
 
 ## Reviewer Ops (5)
 
@@ -24,14 +24,6 @@ Attributes: `proovra.team_id`, `proovra.operation`, `proovra.outcome` (assignmen
 | `proovra.graph.search.projection` | same | `processGraphSearchProjectionJob` | `{name="proovra.graph.search.projection"}` |
 
 Attributes: `proovra.team_id`, `proovra.operation`. NEVER raw graph data.
-
-## C2PA validate (1)
-
-| Span | File | Function | Grafana query |
-| --- | --- | --- | --- |
-| `proovra.c2pa.validate` | `services/worker/src/c2pa/provider.ts` | inside `parseToolStdoutToFileResult` (sync), gated on `mode === "validate" \|\| "embed_supported"`; emitted via `withProovraSpanSync` | `{name="proovra.c2pa.validate"}` |
-
-Attributes: `proovra.operation`, `proovra.stage` (the mode). NEVER raw manifest content.
 
 ## SIU followup + timeline (2)
 

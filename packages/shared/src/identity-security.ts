@@ -162,9 +162,6 @@ export const STEP_UP_PURPOSES = [
   "SIGNER_RETIRE",
   "SIGNER_REVOKE",
   "CUSTODY_ATTESTATION_BACKFILL",
-  // Phase M2.1 — C2PA bulk backfill is potentially expensive across a
-  // large evidence corpus and the operator must confirm intent.
-  "C2PA_BACKFILL_START",
   // Phase M3 — generating an insurer-ready SIU export bundle compiles
   // sensitive case material; the operator must confirm intent.
   "SIU_EXPORT_GENERATE",

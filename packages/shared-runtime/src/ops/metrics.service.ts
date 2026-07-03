@@ -476,7 +476,6 @@ export const COUNTER_NAMES = [
   "recovery_backup_validation_total",
   "recovery_restore_validation_total",
   "recovery_validation_failed_total",
-  "c2pa_backfill_run_failure_total",
   "siu_pii_revealed_total",
   // Phase P3.1.1 — Verification Package attestation closure.
   "package_attestations_included_total",

@@ -132,11 +132,8 @@ export type ReportAnchorSummary = {
   provider: string | null;
   publicBaseUrl: string | null;
   configured: boolean;
-  published: boolean;
   anchorHash: string | null;
-  receiptId: string | null;
   transactionId: string | null;
-  publicUrl: string | null;
   anchoredAtUtc: string | null;
 };
 
@@ -283,9 +280,7 @@ export type ReportEvidence = {
   anchorMode?: string | null;
   anchorProvider?: string | null;
   anchorHash?: string | null;
-  anchorReceiptId?: string | null;
   anchorTransactionId?: string | null;
-  anchorPublicUrl?: string | null;
   anchorAnchoredAtUtc?: string | null;
   embeddedPreviewsSnapshot?: Array<{
     id: string;

@@ -93,12 +93,12 @@ audit script verifies post-repair state.
 
 ### What ships
 
-- **11 trace-derived dashboards** at `infra/grafana/dashboards/`:
+- **10 trace-derived dashboards** at `infra/grafana/dashboards/`:
   `proovra-capture-evidence`, `proovra-integrity`, `proovra-report`,
   `proovra-verification-package`, `proovra-reviewer-ops`,
-  `proovra-graph`, `proovra-c2pa`, `proovra-siu`, `proovra-ai`,
+  `proovra-graph`, `proovra-siu`, `proovra-ai`,
   `proovra-communications`, `proovra-executive-operations`.
-- **34 alert rules** (11 from O1.2 baseline + 23 from O1.6) in
+- **32 alert rules** (10 from O1.2 baseline + 22 from O1.6) in
   `infra/grafana/alerts/proovra-operations-alerts.yaml`. Every rule has
   severity + runbook URL.
 - **Runbook anchors** for every new alert in

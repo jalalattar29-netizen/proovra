@@ -261,13 +261,12 @@ describe("report v2 pipeline", () => {
     ]);
   });
 
-  it("treats txid-only anchor metadata as published and anchored in report-v2", async () => {
+  it("treats txid-only anchor metadata as anchored in report-v2", async () => {
     const input = buildInput({
       evidence: {
         ...buildInput().evidence,
         anchorTransactionId:
           "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        anchorPublicUrl: null,
         anchorAnchoredAtUtc: null,
         otsStatus: "ANCHORED",
       },
@@ -276,7 +275,6 @@ describe("report v2 pipeline", () => {
     const vm = await buildReportViewModel(input);
 
     expect(vm.anchorSummary).not.toBeNull();
-    expect(vm.anchorSummary?.published).toBe(true);
     expect(vm.anchorSummary?.mode).toBe("anchored");
     expect(vm.anchorSummary?.transactionId).toBe(
       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

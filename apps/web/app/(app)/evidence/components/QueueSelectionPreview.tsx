@@ -219,7 +219,7 @@ export function QueueSelectionPreview({
             <strong>{publicVerification ? "Enabled" : "Not configured"}</strong>
             <p>
               {publicVerification
-                ? detail.evidence?.anchor?.publicUrl || "Verification link available."
+                ? "Verification link available."
                 : "No public verification link is configured in the loaded queue preview."}
             </p>
           </div>

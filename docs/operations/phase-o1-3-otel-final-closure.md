@@ -86,7 +86,6 @@ OPENAI_AI_REQUEST, SMTP_EMAIL_SEND, WEBHOOK_DISPATCH
 | `proovra.queue.job.replay` / `proovra.queue.job.retry` | `services/api/src/services/operations/queue-replay-action.service.ts` | O1.2 |
 | `proovra.custody.attestation.sign` / `.verify` / `.backfill` | Existing | O1.1 / O1.2 |
 | `proovra.signer.health_check` / `.rotation.preview` / `.rotation.promote` | Existing | O1.1 |
-| `proovra.c2pa.detect` / `.validate` / `.package_summary` | Existing | M2 |
 | `proovra.siu.export.preflight` / `.generate` | Existing | M3 |
 | `proovra.recovery.backup.validate` / `.restore.validate` | Existing | O1.1 |
 | `proovra.tsa.timestamp` / `proovra.ots.anchor` | Existing | P2 |

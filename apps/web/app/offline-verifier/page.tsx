@@ -70,8 +70,6 @@ const PATHS = {
   tsaToken: "timestamps/tsa.tsr",
   otsProof: "opentimestamps-proof.ots",
   otsJson: "opentimestamps.json",
-  // Phase M2
-  c2paSummary: "provenance/c2pa-summary.json",
 };
 
 const LEGACY_PATHS = {
@@ -95,12 +93,6 @@ const STANDING_LIMITATIONS = [
   "HISTORICAL_VERIFICATION_DOES_NOT_IMPLY_CURRENT_TRUST",
   "CURRENT_REVOCATION_STATUS_NOT_CHECKED_OFFLINE",
   "SIGNER_MAY_HAVE_BEEN_ROTATED_OR_REVOKED_AFTER_SIGNING",
-  "C2PA_DOES_NOT_PROVE_CONTENT_TRUTH",
-  "C2PA_DOES_NOT_PROVE_LEGAL_ADMISSIBILITY",
-  "C2PA_IS_NOT_A_REPLACEMENT_FOR_PROOVRA_CUSTODY",
-  "MISSING_C2PA_DOES_NOT_REDUCE_PROOVRA_INTEGRITY",
-  "INVALID_C2PA_DOES_NOT_OVERRIDE_PROOVRA_HASH_DECISION",
-  "C2PA_VALIDATION_REQUIRES_TOOLING_NOT_BUNDLED_OFFLINE",
 ];
 
 type ResultPayload = Record<string, unknown>;
@@ -992,90 +984,6 @@ async function verify(file: File): Promise<ResultPayload> {
     warnings.push("OTS_PROOF_MISSING");
   }
 
-  // Phase M2 — C2PA provenance summary
-  type C2paBlock = {
-    status: string;
-    validationStatus: string;
-    itemsChecked: number;
-    providerMode: string;
-  };
-  let c2pa: C2paBlock = {
-    status: "missing",
-    validationStatus: "not_checked",
-    itemsChecked: 0,
-    providerMode: "unknown",
-  };
-  const c2paText = await reader.readText(PATHS.c2paSummary);
-  if (!c2paText) {
-    warnings.push("C2PA_SUMMARY_FILE_MISSING");
-  } else {
-    try {
-      const parsedC2pa = JSON.parse(c2paText) as {
-        aggregateStatus?: string;
-        aggregateValidationStatus?: string;
-        itemsChecked?: number;
-        providerMode?: string;
-        files?: ReadonlyArray<unknown>;
-      };
-      const allowedStatus = [
-        "not_present",
-        "present",
-        "valid",
-        "invalid",
-        "unsupported",
-        "disabled",
-        "error",
-      ];
-      const allowedValidation = [
-        "not_checked",
-        "valid",
-        "invalid",
-        "unsupported",
-        "error",
-      ];
-      const allowedProvider = [
-        "disabled",
-        "detect_only",
-        "validate",
-        "embed_supported",
-      ];
-      const status =
-        parsedC2pa.aggregateStatus &&
-        allowedStatus.includes(parsedC2pa.aggregateStatus)
-          ? parsedC2pa.aggregateStatus
-          : "error";
-      const validationStatus =
-        parsedC2pa.aggregateValidationStatus &&
-        allowedValidation.includes(parsedC2pa.aggregateValidationStatus)
-          ? parsedC2pa.aggregateValidationStatus
-          : "error";
-      const itemsChecked = Number.isInteger(parsedC2pa.itemsChecked)
-        ? Math.max(0, Number(parsedC2pa.itemsChecked))
-        : Array.isArray(parsedC2pa.files)
-          ? parsedC2pa.files.length
-          : 0;
-      const providerMode =
-        parsedC2pa.providerMode &&
-        allowedProvider.includes(parsedC2pa.providerMode)
-          ? parsedC2pa.providerMode
-          : "unknown";
-      c2pa = { status, validationStatus, itemsChecked, providerMode };
-      if (status === "invalid") {
-        warnings.push("C2PA_PROVIDER_REPORTED_INVALID_MANIFEST");
-      } else if (status === "error") {
-        warnings.push("C2PA_PROVIDER_REPORTED_EXTRACTION_ERROR");
-      }
-    } catch {
-      warnings.push("C2PA_SUMMARY_SCHEMA_INVALID");
-      c2pa = {
-        status: "error",
-        validationStatus: "error",
-        itemsChecked: 0,
-        providerMode: "unknown",
-      };
-    }
-  }
-
   // Package + overall aggregation
   let packageStatus;
   if (checksumsStatus === "verified" && manifestStatus === "verified") {
@@ -1167,7 +1075,6 @@ async function verify(file: File): Promise<ResultPayload> {
       note:
         "The offline verifier does not contact PROOVRA. Current signer trust / revocation status cannot be determined here. Consult /operations/signers on the live PROOVRA deployment for current state.",
     },
-    c2pa,
     overall: {
       status: overall,
       warnings: dedupe(warnings),
@@ -1248,12 +1155,6 @@ function ResultRender({ result }: { result: ResultPayload }) {
     historicalVerification: Record<string, unknown>;
     currentTrustStatus: { status: string; note: string };
     timestamping: Record<string, unknown>;
-    c2pa?: {
-      status: string;
-      validationStatus: string;
-      itemsChecked: number;
-      providerMode: string;
-    };
   };
   return (
     <div data-testid="result-card">
@@ -1290,30 +1191,6 @@ function ResultRender({ result }: { result: ResultPayload }) {
       </div>
 
       <ResultBlock title="Timestamping" data={r.timestamping} />
-
-      <div
-        data-testid="c2pa-panel"
-        className="mt-4 rounded-[12px] p-4"
-        style={{
-          background: "#F8FAFC",
-          border: "1px solid #E5ECF5",
-          color: "#0F172A",
-        }}
-      >
-        <div className="flex flex-wrap items-center gap-2 text-[13.5px] font-semibold">
-          C2PA provenance: <Badge status={r.c2pa?.status ?? "missing"} />
-          <span className="text-[12.5px] font-normal text-[#475569]">
-            validation={r.c2pa?.validationStatus ?? "not_checked"} · items=
-            {r.c2pa?.itemsChecked ?? 0} · mode={r.c2pa?.providerMode ?? "unknown"}
-          </span>
-        </div>
-        <p className="mt-1 text-[12.5px] leading-[1.55] text-[#475569]">
-          C2PA provenance is an interoperability signal. It does NOT determine
-          factual truth, authorship, or legal admissibility. Missing or invalid
-          C2PA does not by itself reduce PROOVRA&apos;s hash + custody integrity
-          verdict.
-        </p>
-      </div>
 
       {r.overall.warnings.length > 0 ? (
         <div className="mt-4">

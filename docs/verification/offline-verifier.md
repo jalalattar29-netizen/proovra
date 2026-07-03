@@ -24,7 +24,6 @@ All three run **entirely on your machine**. The browser surfaces NEVER upload th
 - `custody/attestations.json` — structural integrity of every detached attestation envelope (P3.1.1).
 - `signers/signer-registry-snapshot.json` — shape sanity.
 - `signers/historical-verification-material.json` — historical signing-time public material bundle (M1.1). Surfaces `historicalVerification.status` when present.
-- `provenance/c2pa-summary.json` — bounded C2PA provenance summary (M2). Surfaces `c2pa.status` + `c2pa.validationStatus`. The offline verifier NEVER runs external C2PA cryptographic validation.
 - `timestamps/tsa.tsr` + `opentimestamps-proof.ots` — presence + bounded structural sanity.
 
 ## 3. What is NOT verified offline (honest limitations)
@@ -34,7 +33,6 @@ All three run **entirely on your machine**. The browser surfaces NEVER upload th
 - **Custody attestation signatures** — the signer's public material is REFERENCED from the snapshot but not bundled. Use the PROOVRA API endpoint `POST /v1/operations/custody-attestations/:id/verify` when bound to the live deployment.
 - **Embedded PDF signature** — use a PDF-signing toolchain.
 - **Current signer trust status (M1.1)** — `currentTrustStatus.status` is ALWAYS `unknown` offline. Rotation, revocation, and degradation events cannot be observed without contacting the live PROOVRA signer registry. See §8.
-- **C2PA cryptographic validation (M2)** — The offline verifier does NOT bundle C2PA validation tooling. Even when the bundled summary reports `valid`, the verifier surfaces the standing limitation `C2PA_VALIDATION_REQUIRES_TOOLING_NOT_BUNDLED_OFFLINE`. Use `c2patool` or another compatible verifier against the original evidence files for an independent cryptographic check.
 
 These limitations are surfaced explicitly in the result's `limitations[]` array using bounded codes.
 

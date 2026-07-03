@@ -268,15 +268,15 @@ export function buildIntegrityReadinessSummary(
 export function buildAnchorPublicationSummary(
   anchor: ReportAnchorSummary | null
 ): string {
-  if (anchor?.published) {
-    return `Published via ${safe(anchor.provider, "external anchor")}`;
+  if (anchor?.transactionId || anchor?.anchoredAtUtc) {
+    return "OpenTimestamps Bitcoin anchoring verified";
   }
 
   if (anchor?.configured) {
-    return "Public anchoring pending";
+    return "OpenTimestamps proof present; public anchoring pending";
   }
 
-  return "Public anchoring unavailable";
+  return "OpenTimestamps anchoring unavailable";
 }
 
 /**
@@ -431,12 +431,9 @@ export function buildTrustDecision(params: {
       anchor: params.evidence.anchor
         ? {
             configured: params.evidence.anchor.configured,
-            published: params.evidence.anchor.published,
             provider: params.evidence.anchor.provider,
-            publicUrl: params.evidence.anchor.publicUrl,
             anchoredAtUtc: params.evidence.anchor.anchoredAtUtc,
             transactionId: params.evidence.anchor.transactionId,
-            receiptId: params.evidence.anchor.receiptId,
           }
         : null,
     },

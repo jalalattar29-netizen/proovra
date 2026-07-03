@@ -129,22 +129,6 @@ groups:
         labels:
           severity: critical
 
-      - uid: proovra-c2pa-backfill-failure
-        title: C2PA backfill failure
-        condition: c2pa_backfill_fail
-        for: 15m
-        data:
-          - refId: c2pa_backfill_fail
-            datasourceUid: prometheus
-            model:
-              expr: |
-                sum(rate(c2pa_backfill_run_failure_total[15m])) > 0.05
-        annotations:
-          summary: C2PA backfill failure rate above threshold.
-          runbook_url: docs/operations/observability-runbooks.md#c2pa-backfill-failure
-        labels:
-          severity: warning
-
       - uid: proovra-signer-health-degraded
         title: Signer health degraded
         condition: signer_degraded
@@ -328,22 +312,6 @@ groups:
         annotations:
           summary: OpenTimestamps anchor/upgrade/verify failure rate above threshold.
           runbook_url: docs/operations/observability-runbooks.md#ots-failure-spike
-        labels:
-          severity: warning
-
-      - uid: proovra-c2pa-validate-failure
-        title: C2PA validate failure spike
-        condition: c2pa_validate_fail
-        for: 15m
-        data:
-          - refId: c2pa_validate_fail
-            datasourceUid: prometheus
-            model:
-              expr: |
-                sum(rate(traces_spanmetrics_calls_total{span_name="proovra.c2pa.validate",status_code="STATUS_CODE_ERROR"}[15m])) > 0.05
-        annotations:
-          summary: C2PA manifest validation failure rate above threshold.
-          runbook_url: docs/operations/observability-runbooks.md#c2pa-validate-failure
         labels:
           severity: warning
 

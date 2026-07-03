@@ -15,7 +15,7 @@
 > * API
 > * Worker
 > * BullMQ jobs
-> * critical operations (report / verification package / SIU export / C2PA / offline package / queue replay / recovery / signer health / custody attestation)
+> * critical operations (report / verification package / SIU export / offline package / queue replay / recovery / signer health / custody attestation)
 >
 > Grafana must receive services `proovra-api` and `proovra-worker`. No more "env exists but no traces".
 
@@ -27,7 +27,7 @@ The audit identified four classes of problem that previously combined to suppres
 
 1. **`.env` global `OTEL_SERVICE_NAME=proovra-worker`** — meant the api container also reported as `proovra-worker`, so traces from both services collided under one service identifier in Grafana.
 2. **Bootstrap log lines were quiet on success** — there was an `otel.disabled` line but no positive `otel.bootstrap_succeeded`, so operators couldn't confirm the bootstrap fired.
-3. **Critical PROOVRA service entry points were not wrapped in spans** — the bounded `PROOVRA_SPAN_NAMES` enum existed but was unused at the SIU export / C2PA / signer / recovery entry points. Auto-instrumentation produced http spans but no business-level spans.
+3. **Critical PROOVRA service entry points were not wrapped in spans** — the bounded `PROOVRA_SPAN_NAMES` enum existed but was unused at the SIU export / signer / recovery entry points. Auto-instrumentation produced http spans but no business-level spans.
 4. **No runtime-visible OTEL health surface** — operators had to grep container logs; there was no `/v1/runtime/otel-health` endpoint.
 
 Phase O1.1 fixes each class.
@@ -58,7 +58,7 @@ Phase O1.1 fixes each class.
 
 ## 5. Custom spans wired
 
-The bounded `PROOVRA_SPAN_NAMES` enum now contains **24** names (was 10). Phase O1.1 added: `SIGNER_HEALTH_CHECK`, `SIGNER_ROTATION_PREVIEW`, `SIGNER_ROTATION_PROMOTE`, `CUSTODY_ATTESTATION_SIGN`, `CUSTODY_ATTESTATION_VERIFY`, `PACKAGE_ATTESTATIONS_COLLECT`, `PACKAGE_SIGNER_SNAPSHOT_GENERATE`, `C2PA_DETECT`, `C2PA_VALIDATE`, `C2PA_PACKAGE_SUMMARY`, `SIU_EXPORT_PREFLIGHT`, `SIU_EXPORT_GENERATE`, `SIU_FOLLOWUP_REQUEST`, `SIU_TIMELINE_BUILD`.
+The bounded `PROOVRA_SPAN_NAMES` enum now contains **21** names (was 10). Phase O1.1 added: `SIGNER_HEALTH_CHECK`, `SIGNER_ROTATION_PREVIEW`, `SIGNER_ROTATION_PROMOTE`, `CUSTODY_ATTESTATION_SIGN`, `CUSTODY_ATTESTATION_VERIFY`, `PACKAGE_ATTESTATIONS_COLLECT`, `PACKAGE_SIGNER_SNAPSHOT_GENERATE`, `SIU_EXPORT_PREFLIGHT`, `SIU_EXPORT_GENERATE`, `SIU_FOLLOWUP_REQUEST`, `SIU_TIMELINE_BUILD`.
 
 `withProovraSpan(name, attributes, fn)` helper:
 
@@ -73,8 +73,6 @@ Wired at these critical entry points in O1.1:
 | --- | --- |
 | `proovra.siu.export.preflight` | `services/api/src/services/siu/siu-preflight.service.ts` → `runSiuExportPreflight` |
 | `proovra.siu.export.generate` | `services/api/src/services/siu/siu-export-bundle.service.ts` → `buildSiuExportBundle` |
-| `proovra.c2pa.detect` | `services/worker/src/c2pa/provider.ts` → `evaluateEvidenceC2pa` |
-| `proovra.c2pa.package_summary` | `services/worker/src/c2pa/package-summary.ts` → `buildC2paPackageSummaryWithSpan` |
 | `proovra.signer.health_check` | `services/api/src/services/operations/signer-health.service.ts` → `probeSignerHealth` |
 | `proovra.recovery.backup.validate` | `services/api/src/services/operations/recovery-validation.service.ts` → `validateBackup` |
 | `proovra.recovery.restore.validate` | `services/api/src/services/operations/recovery-validation.service.ts` → `validateRestore` |
@@ -124,8 +122,6 @@ Typechecks across api + worker: clean.
 - `services/api/src/services/siu/siu-export-bundle.service.ts` — wraps with `proovra.siu.export.generate`
 - `services/api/src/services/operations/signer-health.service.ts` — wraps with `proovra.signer.health_check`
 - `services/api/src/services/operations/recovery-validation.service.ts` — wraps backup + restore
-- `services/worker/src/c2pa/provider.ts` — wraps `evaluateEvidenceC2pa` with `proovra.c2pa.detect`
-- `services/worker/src/c2pa/package-summary.ts` — adds `buildC2paPackageSummaryWithSpan` wrapper
 - `services/worker/.env.example` — documents bounded OTEL keys
 - `docs/operations/observability.md` — Appendix C summary
 

@@ -49,7 +49,6 @@ import {
 import {
   compareReviewerArtifactRolePriority,
   classifyCustodyEventType,
-  deriveAnchorSemantics,
   evaluateRecordedIntegrityPromotion,
   getReviewerEvidenceCategories,
   getReviewerEvidenceTypeLabel,
@@ -270,11 +269,8 @@ type ReportAnchorSummary = {
   provider: string | null;
   publicBaseUrl: string | null;
   configured: boolean;
-  published: boolean;
   anchorHash: string | null;
-  receiptId: string | null;
   transactionId: string | null;
-  publicUrl: string | null;
   anchoredAtUtc: string | null;
 };
 
@@ -287,10 +283,7 @@ type PreparedAnchorPayload = {
   lastEventHash: string | null;
   anchorHash: string;
   generatedAtUtc: string;
-  published?: boolean;
-  receiptId?: string | null;
   transactionId?: string | null;
-  publicUrl?: string | null;
   anchoredAtUtc?: string | null;
 };
 
@@ -1056,11 +1049,8 @@ function buildFinalizedAnchorPayload(params: {
       params.lastEventHash ?? "",
     ]),
     generatedAtUtc: params.generatedAtUtc,
-    published: params.anchorSummary?.published ?? false,
-    receiptId: params.anchorSummary?.receiptId ?? null,
     transactionId:
       params.anchorSummary?.transactionId ?? params.otsBitcoinTxid ?? null,
-    publicUrl: params.anchorSummary?.publicUrl ?? null,
     anchoredAtUtc:
       params.anchorSummary?.anchoredAtUtc ??
       (params.otsBitcoinTxid ? params.otsAnchoredAtUtc ?? null : null),
@@ -1582,9 +1572,7 @@ async function resolveAnchorStatusForReport(
       mode: true,
       provider: true,
       anchorHash: true,
-      receiptId: true,
       transactionId: true,
-      publicUrl: true,
       anchoredAtUtc: true,
     },
   });
@@ -1595,46 +1583,19 @@ async function resolveAnchorStatusForReport(
       provider,
       publicBaseUrl,
       configured: Boolean(provider),
-      published: false,
       anchorHash: null,
-      receiptId: null,
       transactionId: null,
-      publicUrl: null,
       anchoredAtUtc: null,
     };
   }
-
-  const normalizedPublicBaseUrl = publicBaseUrl?.replace(/\/+$/, "") || null;
-  const resolvedPublicUrl =
-    anchor.publicUrl?.trim() ||
-    (normalizedPublicBaseUrl &&
-    (anchor.receiptId || anchor.transactionId || anchor.anchorHash)
-      ? `${normalizedPublicBaseUrl}/${encodeURIComponent(
-          anchor.receiptId ?? anchor.transactionId ?? anchor.anchorHash ?? ""
-        )}`
-      : null);
-
-  const semantics = deriveAnchorSemantics({
-    transactionId: anchor.transactionId ?? null,
-    receiptId: anchor.receiptId ?? null,
-    publicUrl: resolvedPublicUrl,
-    anchoredAtUtc: anchor.anchoredAtUtc
-      ? anchor.anchoredAtUtc.toISOString()
-      : null,
-    otsStatus: null,
-    otsProofPresent: null,
-  });
 
   return {
     mode: normalizeAnchorMode(anchor.mode),
     provider: anchor.provider ?? provider,
     publicBaseUrl,
     configured: Boolean(anchor.provider ?? provider),
-    published: semantics.published,
     anchorHash: anchor.anchorHash ?? null,
-    receiptId: anchor.receiptId ?? null,
     transactionId: anchor.transactionId ?? null,
-    publicUrl: semantics.externalPublicationUrl,
     anchoredAtUtc: anchor.anchoredAtUtc
       ? anchor.anchoredAtUtc.toISOString()
       : null,

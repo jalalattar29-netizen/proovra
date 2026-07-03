@@ -104,18 +104,6 @@ Every section maps to an alert rule's `runbook_url`. Headings are anchor-stable 
 2. Inspect the failed `CaseSiuExport` row's bounded `errorCode` / `errorMessage`. Common codes: `siu_export_storage_unconfigured` (env), `siu_export_upload_failed` (network/IAM).
 3. If the bucket env is misconfigured, set `S3_BUCKET` and re-create the api container.
 
-## c2pa-backfill-failure
-
-**Alert:** `proovra-c2pa-backfill-failure` (severity `warning`).
-
-**Condition:** `rate(c2pa_backfill_failed_total[15m]) > 0.05`.
-
-**First steps:**
-
-1. Confirm `C2PA_ENABLED=true` and `C2PA_BIN` is set + reachable in the worker container.
-2. Inspect the backfill run via `GET /v1/operations/c2pa/backfill/:runId`.
-3. Cancel the run if the failure rate is sustained, and investigate the underlying tooling.
-
 ## signer-health-degraded
 
 **Alert:** `proovra-signer-health-degraded` (severity `critical`).
@@ -246,18 +234,6 @@ real noise floor.** No threshold here is fabricated to look precise.
 1. OpenTimestamps anchor/upgrade/verify failures usually mean a calendar server outage. Threshold deliberately tolerates 30m because OTS is best-effort.
 2. Check `ots_upgrade_failed_total` and `ots_upgrade_pending_total` to distinguish "permanently failed" from "still pending".
 3. If a specific calendar is down, the worker should retry; if all calendars are down, anchor work backs up — drain manually via `pnpm --filter proovra-worker exec ts-node scripts/ots-upgrade-sweep.ts` once recovered.
-
-## c2pa-validate-failure
-
-**Alert:** `proovra-c2pa-validate-failure` (severity `warning`).
-
-**Condition:** `rate(traces_spanmetrics_calls_total{span_name="proovra.c2pa.validate",status_code="STATUS_CODE_ERROR"}[15m]) > 0.05`.
-
-**First steps:**
-
-1. Confirm `C2PA_ENABLED=true` and `C2PA_BIN` resolves inside the worker container.
-2. C2PA validate failures during ingest are expected for malformed manifests — the pipeline records the failure and continues. Sustained failures across multiple evidence items indicate a tooling regression.
-3. Inspect the bounded `proovra.stage` attribute on the failing span to see whether the failure is during detect, validate, or summary.
 
 ## report-generate-failure
 

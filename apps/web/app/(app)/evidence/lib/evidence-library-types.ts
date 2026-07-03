@@ -56,13 +56,9 @@ export type StorageProtectionSummary = {
 export type AnchorSummary = {
   mode: "off" | "ready" | "active";
   provider: string | null;
-  publicBaseUrl: string | null;
   configured: boolean;
-  published: boolean;
   anchorHash: string | null;
-  receiptId: string | null;
   transactionId: string | null;
-  publicUrl: string | null;
   anchoredAtUtc: string | null;
 };
 

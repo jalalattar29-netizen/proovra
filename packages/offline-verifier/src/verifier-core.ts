@@ -38,8 +38,6 @@ import {
   type AttestationFailure,
   type AttestationsStatus,
   type ArtifactIntegrityFailure,
-  type C2paStatus,
-  type C2paValidationStatus,
   type ChecksumFailure,
   type HistoricalVerificationStatus,
   type LimitationCode,
@@ -47,13 +45,6 @@ import {
   type OverallStatus,
   type WarningCode,
 } from "./result-schema.js";
-import type {
-  C2paRawManifestExportStatus,
-  C2paGeneratedAssertionStatusForVerifier,
-} from "./result-schema.js";
-// Silence unused-type warnings — these are exported via result-schema
-// for external consumers; the verifier itself uses the C2paBlock alias.
-type _C2paUnused = C2paRawManifestExportStatus | C2paGeneratedAssertionStatusForVerifier;
 
 // ---------------------------------------------------------------------------
 // Adapter interfaces
@@ -113,8 +104,6 @@ const PATHS = {
   tsaInfo: "timestamps/tsa.json",
   otsProof: "opentimestamps-proof.ots",
   otsJson: "opentimestamps.json",
-  // Phase M2 — C2PA provenance summary.
-  c2paSummary: "provenance/c2pa-summary.json",
 } as const;
 
 // Legacy paths emitted by older / current package generators. The
@@ -496,23 +485,6 @@ export async function verifyPackage(input: {
     "SIGNER_MAY_HAVE_BEEN_ROTATED_OR_REVOKED_AFTER_SIGNING",
   );
 
-  // -----------------------------------------------------------------
-  // Phase M2 — C2PA provenance summary
-  // -----------------------------------------------------------------
-  const c2paBlock = verifyC2paSummary({ reader, warnings });
-  // Standing C2PA distinctions: ALWAYS surfaced so the offline result
-  // can never silently imply C2PA validation when none was performed
-  // and can never let a `valid` C2PA outcome promote PROOVRA's hash
-  // verdict beyond what hash+custody actually showed.
-  limitations.push(
-    "C2PA_DOES_NOT_PROVE_CONTENT_TRUTH",
-    "C2PA_DOES_NOT_PROVE_LEGAL_ADMISSIBILITY",
-    "C2PA_IS_NOT_A_REPLACEMENT_FOR_PROOVRA_CUSTODY",
-    "MISSING_C2PA_DOES_NOT_REDUCE_PROOVRA_INTEGRITY",
-    "INVALID_C2PA_DOES_NOT_OVERRIDE_PROOVRA_HASH_DECISION",
-    "C2PA_VALIDATION_REQUIRES_TOOLING_NOT_BUNDLED_OFFLINE",
-  );
-
   return {
     schemaVersion: SCHEMA_VERSION,
     verifiedAtUtc,
@@ -553,7 +525,6 @@ export async function verifyPackage(input: {
       note:
         "The offline verifier does not contact PROOVRA. Current signer trust / revocation status cannot be determined here. Consult /operations/signers on the live PROOVRA deployment for current state.",
     },
-    c2pa: c2paBlock,
     overall: {
       status: overall,
       warnings: dedupe(warnings),
@@ -840,221 +811,4 @@ async function verifyHistoricalMaterial(input: {
     materialEntriesBundled: bundled,
     materialEntriesVerifiable: verifiable,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Phase M2 — C2PA summary sub-verifier
-// ---------------------------------------------------------------------------
-
-type C2paBlock = OfflineVerificationResult["c2pa"];
-
-function verifyC2paSummary(input: {
-  reader: PackageReader;
-  warnings: WarningCode[];
-}): C2paBlock {
-  const text = input.reader.readText(PATHS.c2paSummary);
-  if (!text) {
-    // No summary file — emit honest "missing" (not "failed"). Old
-    // pre-M2 packages all land here.
-    input.warnings.push("C2PA_SUMMARY_FILE_MISSING");
-    return {
-      status: "missing",
-      validationStatus: "not_checked",
-      itemsChecked: 0,
-      providerMode: "unknown",
-      rawManifestExportStatus: "disabled",
-      rawManifestFilesFound: 0,
-      rawManifestFilesClaimed: 0,
-      generatedAssertionStatus: "not_generated",
-    };
-  }
-  type SummaryShape = {
-    schemaVersion?: string;
-    providerMode?: string;
-    aggregateStatus?: string;
-    aggregateValidationStatus?: string;
-    itemsChecked?: number;
-    files?: ReadonlyArray<{
-      rawManifest?: {
-        status?: string;
-        packageRelativePath?: string | null;
-        sha256Hex?: string | null;
-      };
-    }>;
-    generatedAssertion?: {
-      status?: string;
-    };
-    rawManifestExportStatus?: string;
-  };
-  let parsed: SummaryShape;
-  try {
-    parsed = JSON.parse(text) as SummaryShape;
-  } catch {
-    input.warnings.push("C2PA_SUMMARY_SCHEMA_INVALID");
-    return {
-      status: "error",
-      validationStatus: "error",
-      itemsChecked: 0,
-      providerMode: "unknown",
-      rawManifestExportStatus: "disabled",
-      rawManifestFilesFound: 0,
-      rawManifestFilesClaimed: 0,
-      generatedAssertionStatus: "not_generated",
-    };
-  }
-  const status = normalizeC2paStatus(parsed.aggregateStatus);
-  const validationStatus = normalizeC2paValidationStatus(
-    parsed.aggregateValidationStatus,
-  );
-  const itemsChecked = Number.isInteger(parsed.itemsChecked)
-    ? Math.max(0, parsed.itemsChecked as number)
-    : Array.isArray(parsed.files)
-      ? parsed.files.length
-      : 0;
-  const providerMode = normalizeC2paProviderMode(parsed.providerMode);
-
-  if (status === "invalid") {
-    input.warnings.push("C2PA_PROVIDER_REPORTED_INVALID_MANIFEST");
-  } else if (status === "error") {
-    input.warnings.push("C2PA_PROVIDER_REPORTED_EXTRACTION_ERROR");
-  }
-
-  // Phase M2.1 — raw manifest reconciliation. The summary lists
-  // claimed `packageRelativePath` entries; we count how many actually
-  // exist inside the ZIP. Any mismatch becomes a bounded warning.
-  let rawManifestFilesClaimed = 0;
-  let rawManifestFilesFound = 0;
-  const files = Array.isArray(parsed.files) ? parsed.files : [];
-  for (const f of files) {
-    const ref = f?.rawManifest;
-    const claimedPath = ref?.packageRelativePath ?? null;
-    if (
-      claimedPath &&
-      typeof claimedPath === "string" &&
-      claimedPath.startsWith("provenance/c2pa-manifests/")
-    ) {
-      rawManifestFilesClaimed++;
-      const bytes = input.reader.readBytes(claimedPath);
-      if (bytes && bytes.byteLength > 0) {
-        rawManifestFilesFound++;
-      } else {
-        input.warnings.push("C2PA_RAW_MANIFEST_FILE_MISSING_FROM_PACKAGE");
-      }
-    }
-  }
-  const rawManifestExportStatus = normalizeRawManifestExportStatus(
-    parsed.rawManifestExportStatus,
-    {
-      claimed: rawManifestFilesClaimed,
-      found: rawManifestFilesFound,
-    },
-  );
-
-  // Phase M2.1 — generated-assertion status mirror.
-  const generatedAssertionStatus = normalizeGeneratedAssertionStatus(
-    parsed.generatedAssertion?.status,
-  );
-
-  return {
-    status,
-    validationStatus,
-    itemsChecked,
-    providerMode,
-    rawManifestExportStatus,
-    rawManifestFilesFound,
-    rawManifestFilesClaimed,
-    generatedAssertionStatus,
-  };
-}
-
-function normalizeRawManifestExportStatus(
-  raw: string | undefined,
-  counts: { claimed: number; found: number },
-): C2paBlock["rawManifestExportStatus"] {
-  const allowed: ReadonlyArray<C2paBlock["rawManifestExportStatus"]> = [
-    "not_exported",
-    "exported_to_package",
-    "exported_to_artifact_store",
-    "too_large_to_export",
-    "unsupported",
-    "disabled",
-    "missing",
-  ];
-  if (counts.claimed > 0 && counts.found === 0) {
-    return "missing";
-  }
-  if (raw && (allowed as ReadonlyArray<string>).includes(raw)) {
-    return raw as C2paBlock["rawManifestExportStatus"];
-  }
-  // Fall back: if files reference paths but the summary's aggregate
-  // is absent, infer based on the count.
-  if (counts.claimed > 0 && counts.found === counts.claimed) {
-    return "exported_to_package";
-  }
-  return "disabled";
-}
-
-function normalizeGeneratedAssertionStatus(
-  raw: string | undefined,
-): C2paBlock["generatedAssertionStatus"] {
-  const allowed: ReadonlyArray<C2paBlock["generatedAssertionStatus"]> = [
-    "not_generated",
-    "generated_for_derivative",
-    "generation_disabled",
-    "generation_unavailable",
-    "generation_refused",
-  ];
-  if (raw && (allowed as ReadonlyArray<string>).includes(raw)) {
-    return raw as C2paBlock["generatedAssertionStatus"];
-  }
-  return "not_generated";
-}
-
-function normalizeC2paStatus(raw: string | undefined): C2paStatus {
-  const allowed: ReadonlyArray<C2paStatus> = [
-    "not_present",
-    "present",
-    "valid",
-    "invalid",
-    "unsupported",
-    "disabled",
-    "error",
-    "missing",
-  ];
-  if (raw && (allowed as ReadonlyArray<string>).includes(raw)) {
-    return raw as C2paStatus;
-  }
-  return "error";
-}
-
-function normalizeC2paValidationStatus(
-  raw: string | undefined,
-): C2paValidationStatus {
-  const allowed: ReadonlyArray<C2paValidationStatus> = [
-    "not_checked",
-    "valid",
-    "invalid",
-    "unsupported",
-    "error",
-  ];
-  if (raw && (allowed as ReadonlyArray<string>).includes(raw)) {
-    return raw as C2paValidationStatus;
-  }
-  return "error";
-}
-
-function normalizeC2paProviderMode(
-  raw: string | undefined,
-): C2paBlock["providerMode"] {
-  const allowed: ReadonlyArray<C2paBlock["providerMode"]> = [
-    "disabled",
-    "detect_only",
-    "validate",
-    "embed_supported",
-    "unknown",
-  ];
-  if (raw && (allowed as ReadonlyArray<string>).includes(raw)) {
-    return raw as C2paBlock["providerMode"];
-  }
-  return "unknown";
 }

@@ -227,6 +227,13 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // Entries here do NOT silence findings — they declare the audit
     // record. New entries require a Phase Final-Closure ledger entry.
     const APPROVED_CRITICAL_BY_MIGRATION = {
+        // Removes the unsupported external publication / public receipt layer
+        // from `evidence_anchors` (receipt_id, public_url). Confirmed-unused
+        // after the product-wide cleanup; DROP COLUMN IF EXISTS is idempotent.
+        // Documented in `docs/operations/audit-closure-ledger.md`.
+        "20270908000000_drop_evidence_anchor_publication_columns": new Set([
+            "ALTER_TABLE_DROP_COLUMN",
+        ]),
         // Drops the orphan `reviewer_queue_projections` table introduced
         // in Phase 37.97. The table was created alongside the canonical
         // `org_health_projections` read model but was never wired into

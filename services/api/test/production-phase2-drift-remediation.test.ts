@@ -1037,7 +1037,9 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 //     scoped: this is the global marketing-lead queue, the rows have
 //     no tenant relation, and PATCH calls write
 //     `platform_audit_log` for accountability.
-const ROUTE_COUNT_PHASE_2_BASELINE = 96;
+// A retired operations route file was removed from the tree, dropping
+// the route-file count from 96 → 95.
+const ROUTE_COUNT_PHASE_2_BASELINE = 95;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

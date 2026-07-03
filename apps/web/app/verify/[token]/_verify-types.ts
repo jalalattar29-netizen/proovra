@@ -56,10 +56,6 @@ export type VerifyOverview = {
   otsStatus?: string | null;
   storageProtection?: string | null;
   chainOfCustodyPresent?: boolean | null;
-  externalPublicationPresent?: boolean | null;
-  externalPublicationProvider?: string | null;
-  externalPublicationUrl?: string | null;
-  externalPublicationAnchoredAtUtc?: string | null;
 };
 
 export type VerifyHumanSummary = {
@@ -98,10 +94,6 @@ export type VerifyHumanSummary = {
   timestampStatus?: string | null;
   otsStatus?: string | null;
   storageProtection?: string | null;
-  externalPublicationPresent?: boolean | null;
-  externalPublicationProvider?: string | null;
-  externalPublicationUrl?: string | null;
-  externalPublicationAnchoredAtUtc?: string | null;
 };
 
 export type VerifyCaptureContext = {
@@ -206,13 +198,9 @@ export type VerifyIdentity = {
 export type VerifyAnchor = {
   mode?: string | null;
   provider?: string | null;
-  publicBaseUrl?: string | null;
   configured?: boolean | null;
-  published?: boolean | null;
   anchorHash?: string | null;
-  receiptId?: string | null;
   transactionId?: string | null;
-  publicUrl?: string | null;
   anchoredAtUtc?: string | null;
 } | null;
 
@@ -432,7 +420,6 @@ export type VerificationSignalInput = {
   tsaStatus?: string | null;
   storageVerified: boolean | null;
   immutableStorage: boolean | null;
-  externalPublicationPresent: boolean | null;
 };
 
 export type VerificationPackageIntegrity = {

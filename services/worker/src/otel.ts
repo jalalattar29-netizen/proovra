@@ -14,7 +14,7 @@
  * Phase O1.1 additions:
  *   * Bounded `withProovraSpan(name, attrs, fn)` helper.
  *   * Extended bounded `PROOVRA_SPAN_NAMES` enum covering signer /
- *     custody / C2PA / SIU surfaces.
+ *     custody / SIU surfaces.
  *   * Bootstrap state tracking exposed via `getOtelStatus()` so the
  *     api-side `/v1/runtime/otel-health` endpoint can render it.
  */
@@ -286,8 +286,6 @@ export const PROOVRA_SPAN_NAMES = {
   CUSTODY_ATTESTATION_SIGN: "proovra.custody.attestation.sign",
   CUSTODY_ATTESTATION_VERIFY: "proovra.custody.attestation.verify",
   CUSTODY_ATTESTATION_BACKFILL: "proovra.custody.attestation.backfill",
-  C2PA_DETECT: "proovra.c2pa.detect",
-  C2PA_PACKAGE_SUMMARY: "proovra.c2pa.package_summary",
   SIU_EXPORT_PREFLIGHT: "proovra.siu.export.preflight",
   SIU_EXPORT_GENERATE: "proovra.siu.export.generate",
   WORKER_REPORT_GENERATE: "proovra.worker.report.generate",
@@ -348,8 +346,7 @@ export const PROOVRA_SPAN_NAMES = {
   GRAPH_TIMELINE_BUILD: "proovra.graph.timeline.build",
   GRAPH_DOMAIN_SYNC: "proovra.graph.domain.sync",
   GRAPH_SEARCH_PROJECTION: "proovra.graph.search.projection",
-  // Phase O1.5D — C2PA validate + SIU followup/timeline.
-  C2PA_VALIDATE: "proovra.c2pa.validate",
+  // Phase O1.5D — SIU followup/timeline.
   SIU_FOLLOWUP_REQUEST: "proovra.siu.followup.request",
   SIU_TIMELINE_BUILD: "proovra.siu.timeline.build",
   // Phase O1.5E — AI.

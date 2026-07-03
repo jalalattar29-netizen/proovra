@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "schema": "PROOVRA_TECHNICAL_EXIF_DETAILS",
   "evidenceId": "ev-intake-001",
-  "generatedAtUtc": "2026-07-03T03:50:56.249Z",
+  "generatedAtUtc": "2026-07-03T07:21:51.782Z",
   "source": "exif",
   "advisory": "Deep metadata embedded in the file by the capturing device/software, for technical reviewers. GPS is reduced to a presence flag; raw coordinates are never included. Does not duplicate the manifest's mime/size/hash facts.",
   "parts": [
@@ -10,7 +10,7 @@
       "partId": "part-1",
       "filename": "IMG_4821.jpg",
       "source": "exif",
-      "extractedAt": "2026-07-03T03:50:56.249Z",
+      "extractedAt": "2026-07-03T07:21:51.782Z",
       "metadataStatus": "PRESENT",
       "fieldsPresent": [
         "make",

@@ -7,7 +7,7 @@
 --   * ADD COLUMN  → IF NOT EXISTS guard
 --   * DROP NOT NULL → DO block guarded by pg_tables + information_schema.columns
 --
--- Capabilities preserved: C2PA / provenance chain, signed assertions, device
+-- Capabilities preserved: provenance chain, signed assertions, device
 -- attestation, device keys, trust envelopes, offline queue, mobile ingest,
 -- verify/report/package integration. No DROP COLUMN.
 

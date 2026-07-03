@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "schema": "PROOVRA_TECHNICAL_CAPTURE_ENVIRONMENT",
   "evidenceId": "ev-intake-001",
-  "generatedAtUtc": "2026-07-03T03:50:56.249Z",
+  "generatedAtUtc": "2026-07-03T07:21:51.782Z",
   "source": "browser+server-observed",
   "advisory": "Privacy-safe record of the PROOVRA upload/capture environment. Browser/OS/device/timezone/locale are parsed from the client; masked IP + UA hash + country are server-observed. NEVER the full IP or raw User-Agent.",
   "captureMethod": "INTAKE_LINK",

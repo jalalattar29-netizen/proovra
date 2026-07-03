@@ -1512,7 +1512,6 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     input.timestampDigestMatches === true,
     input.otsHashMatches === true,
     input.storageVerified === true || input.immutableStorage === true,
-    input.externalPublicationPresent === true,
   ].filter(Boolean).length;
 
   const knownSignals = [
@@ -1522,7 +1521,6 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     input.timestampDigestMatches !== null,
     input.otsHashMatches !== null,
     input.storageVerified !== null || input.immutableStorage !== null,
-    input.externalPublicationPresent !== null,
   ].filter(Boolean).length;
 
   const confidenceScore =
@@ -1574,12 +1572,12 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
       riskLevel: publicAnchoringPending ? "Medium" : "Low",
       actionRequired:
         publicAnchoringPending
-          ? "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility. Independent public anchoring is not finalized yet and should be rechecked later if external/public publication matters to the review."
+          ? "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility. Independent public anchoring is not finalized yet and should be rechecked later if public anchoring matters to the review."
           : "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility.",
       legalStatement:
         publicAnchoringPending
           ? "The available cryptographic, custody, timestamping, and storage signals returned in this verification response support the recorded integrity state. Independent public anchoring is still pending and must not be treated as finalized publication. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content."
-          : "The available cryptographic, custody, timestamping, storage, and publication signals returned in this verification response support the recorded integrity state. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
+          : "The available cryptographic, custody, timestamping, and storage signals returned in this verification response support the recorded integrity state. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
       reviewerSummary:
         publicAnchoringPending
           ? "The available technical verification signals support the recorded integrity state, while independent public anchoring remains pending."
@@ -1720,15 +1718,9 @@ function buildLegacyTrustDecisionFallback(params: {
               typeof params.anchor.configured === "boolean"
                 ? params.anchor.configured
                 : null,
-            published:
-              typeof params.anchor.published === "boolean"
-                ? params.anchor.published
-                : null,
             provider: params.anchor.provider ?? null,
-            publicUrl: params.anchor.publicUrl ?? null,
             anchoredAtUtc: params.anchor.anchoredAtUtc ?? null,
             transactionId: params.anchor.transactionId ?? null,
-            receiptId: params.anchor.receiptId ?? null,
           }
         : null,
     },
@@ -1773,7 +1765,6 @@ function buildReviewerActions(params: {
   timestampDigestMatches: boolean | null;
   otsHashMatches: boolean | null;
   storageProtection: StorageProtection | null;
-  externalPublicationPresent: boolean | null;
   tsaStatus: string | null;
 }): string[] {
   const actions: string[] = [];
@@ -1829,12 +1820,6 @@ function buildReviewerActions(params: {
   ) {
     actions.push(
       "Confirm storage immutability or retention status before relying on the storage-protection layer."
-    );
-  }
-
-  if (params.externalPublicationPresent !== true) {
-    actions.push(
-      "Check whether an external anchor/publication record is expected for this evidence workflow."
     );
   }
 
@@ -2787,15 +2772,6 @@ export default function VerifyPage() {
     null
   );
 
-  const [externalPublicationPresent, setExternalPublicationPresent] = useState<
-    boolean | null
-  >(null);
-  const [externalPublicationProvider, setExternalPublicationProvider] =
-    useState<string | null>(null);
-  const [externalPublicationUrl, setExternalPublicationUrl] =
-    useState<string | null>(null);
-  const [externalPublicationAnchoredAtUtc, setExternalPublicationAnchoredAtUtc] =
-    useState<string | null>(null);
   const [anchorTransactionId, setAnchorTransactionId] =
     useState<string | null>(null);
 
@@ -3235,37 +3211,6 @@ setFullCustodyTimeline(fullTimeline);
             : null
     );
 
-    setExternalPublicationPresent(
-      typeof effectiveHumanSummary?.externalPublicationPresent === "boolean"
-        ? effectiveHumanSummary.externalPublicationPresent
-        : typeof effectiveOverview?.externalPublicationPresent === "boolean"
-          ? effectiveOverview.externalPublicationPresent
-          : data.anchor
-            ? Boolean(
-                data.anchor.publicUrl ||
-                  data.anchor.transactionId ||
-                  data.anchor.anchoredAtUtc
-              )
-            : null
-    );
-    setExternalPublicationProvider(
-      effectiveHumanSummary?.externalPublicationProvider ??
-        effectiveOverview?.externalPublicationProvider ??
-        data.anchor?.provider ??
-        null
-    );
-    setExternalPublicationUrl(
-      effectiveHumanSummary?.externalPublicationUrl ??
-        effectiveOverview?.externalPublicationUrl ??
-        data.anchor?.publicUrl ??
-        null
-    );
-    setExternalPublicationAnchoredAtUtc(
-      effectiveHumanSummary?.externalPublicationAnchoredAtUtc ??
-        effectiveOverview?.externalPublicationAnchoredAtUtc ??
-        data.anchor?.anchoredAtUtc ??
-        null
-    );
     setAnchorTransactionId(data.anchor?.transactionId ?? null);
 
     setForensicTimeline(forensicOnly);
@@ -3653,7 +3598,6 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
         tsaStatus,
         storageVerified: storageProtection?.verified ?? null,
         immutableStorage: storageProtection?.immutable ?? null,
-        externalPublicationPresent,
       }),
     [
       serverTrustDecision,
@@ -3667,7 +3611,6 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
       tsaStatus,
       storageProtection?.verified,
       storageProtection?.immutable,
-      externalPublicationPresent,
     ]
   );
 
@@ -3681,7 +3624,6 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
         timestampDigestMatches,
         otsHashMatches,
         storageProtection,
-        externalPublicationPresent,
         tsaStatus,
       }),
     [
@@ -3692,7 +3634,6 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
       timestampDigestMatches,
       otsHashMatches,
       storageProtection,
-      externalPublicationPresent,
       tsaStatus,
     ]
   );
@@ -3738,10 +3679,7 @@ const trustDecision = useMemo(() => {
     !authProvider &&
     !verificationPackageVersion &&
     !(overview?.verificationPackageGeneratedAtUtc ?? humanSummary?.verificationPackageGeneratedAtUtc) &&
-    !externalPublicationPresent &&
-    !externalPublicationProvider &&
-    !externalPublicationUrl &&
-    !externalPublicationAnchoredAtUtc &&
+    !anchorTransactionId &&
     forensicTimeline.length === 0 &&
     accessTimeline.length === 0
   ) {
@@ -3774,29 +3712,17 @@ const trustDecision = useMemo(() => {
       null,
     anchor: {
       configured:
-        Boolean(externalPublicationProvider) ||
-        Boolean(externalPublicationUrl) ||
-        Boolean(externalPublicationAnchoredAtUtc) ||
-        Boolean(anchorTransactionId),
-      published:
-        Boolean(externalPublicationUrl) ||
-        Boolean(anchorTransactionId) ||
-        Boolean(externalPublicationAnchoredAtUtc),
-      provider: externalPublicationProvider,
-      publicUrl: externalPublicationUrl,
-      anchoredAtUtc: externalPublicationAnchoredAtUtc,
+        Boolean(anchorTransactionId) || Boolean(otsAnchoredAtUtc),
+      provider: null,
+      anchoredAtUtc: otsAnchoredAtUtc,
       transactionId: anchorTransactionId,
-      receiptId: null,
     },
     custodyEvents: [...forensicTimeline, ...accessTimeline],
   });
 }, [
   accessTimeline,
+  anchorTransactionId,
   authProvider,
-  externalPublicationAnchoredAtUtc,
-  externalPublicationPresent,
-  externalPublicationProvider,
-  externalPublicationUrl,
   fingerprintHash,
   forensicTimeline,
   hash,
@@ -3805,6 +3731,7 @@ const trustDecision = useMemo(() => {
   identityLevel,
   overview?.recordedIntegrityVerifiedAtUtc,
   overview?.verificationPackageGeneratedAtUtc,
+  otsAnchoredAtUtc,
   otsFailureReason,
   otsStatus,
   publicKeyPem,
@@ -4403,37 +4330,6 @@ tone={
           ),
           show: true,
         },
-        // External Publication is a SEPARATE feature from OTS / Bitcoin
-        // anchoring (which is shown in the OTS / Public Anchoring rows
-        // above). The card is shown ONLY when a real external publication
-        // URL exists. We never display "Not Published" / pending / disabled
-        // states for a publication pipeline the workspace has not opted
-        // into — that would imply a missing feature and confuse the
-        // reader. Bitcoin txid + anchoredAt are OTS / public-anchoring
-        // signals and surface in their own rows above.
-        {
-          label: "External Publication",
-          content: (
-            <Badge label="Publication record available" tone="success" />
-          ),
-          show: Boolean(externalPublicationUrl),
-        },
-        {
-          label: "Anchor Provider",
-          content: externalPublicationProvider ?? null,
-          show:
-            Boolean(externalPublicationUrl) &&
-            Boolean(externalPublicationProvider),
-        },
-        {
-          label: "Anchor Time",
-          content: externalPublicationAnchoredAtUtc
-            ? formatDateTime(externalPublicationAnchoredAtUtc)
-            : null,
-          show:
-            Boolean(externalPublicationUrl) &&
-            Boolean(externalPublicationAnchoredAtUtc),
-        },
       ].filter((item) => item.show),
     [
       signature,
@@ -4456,10 +4352,6 @@ tone={
       tsaHashAlgorithm,
       signingKeyId,
       signingKeyVersion,
-      externalPublicationPresent,
-      externalPublicationProvider,
-      externalPublicationUrl,
-      externalPublicationAnchoredAtUtc,
     ]
   );
 
@@ -4521,9 +4413,6 @@ tone={
           "OTS Anchored At",
           "OTS Upgraded At",
           "OTS Hash Check",
-          "External Publication",
-          "Anchor Provider",
-          "Anchor Time",
         ].includes(card.label)
       ),
     [technicalCards]
@@ -5604,12 +5493,12 @@ Reviewer Action
                           color: VERIFY_BRAND.ink,
                         }}
                       >
-                        Recorded integrity is verified, but independent public anchoring or external publication is not finalized yet. Reviewers should treat this as a conditional publication state and recheck publication later if external/public anchoring matters to the review.
+                        Recorded integrity is verified, but independent public anchoring is not finalized yet. Reviewers should treat this as a conditional anchoring state and recheck anchoring later if independent public anchoring matters to the review.
                       </div>
                     </div>
                   ) : null}
 
-                  {externalPublicationUrl || anchorTransactionId || externalPublicationAnchoredAtUtc ? (
+                  {anchorTransactionId ? (
                     <div
                       style={{
                         ...glassCardStyle,
@@ -5626,87 +5515,49 @@ Reviewer Action
                           color: VERIFY_BRAND.success,
                         }}
                       >
-                        External Publication
+                        Bitcoin Anchoring
                       </div>
-                      <div
-                        style={{
-                          ...VERIFY_TYPO.small,
-                          fontSize: 13,
-                          color: VERIFY_BRAND.ink,
-                        }}
-                      >
-                        This evidence record includes public anchoring metadata. A
-                        separate external publication link is available only when
-                        an externalPublicationUrl is returned.
-                      </div>
-                      {externalPublicationProvider ? (
-                        <div style={VERIFY_TYPO.small}>
-                          Provider: {externalPublicationProvider}
-                        </div>
-                      ) : null}
-                      {externalPublicationAnchoredAtUtc ? (
-                        <div style={VERIFY_TYPO.small}>
-                          Anchored At: {formatDateTime(externalPublicationAnchoredAtUtc)}
-                        </div>
-                      ) : null}
-                      {externalPublicationUrl ? (
-                        <a
-                          href={externalPublicationUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                      <div style={{ display: "grid", gap: 10 }}>
+                        <div
                           style={{
                             ...VERIFY_TYPO.small,
-                            color: VERIFY_BRAND.accent2,
-                            fontWeight: 900,
-                            textDecoration: "underline",
-                            wordBreak: "break-all",
+                            fontWeight: 700,
+                            color: VERIFY_BRAND.ink,
                           }}
                         >
-                          Open publication record
-                        </a>
-                      ) : anchorTransactionId ? (
-                        <div style={{ display: "grid", gap: 10 }}>
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.small,
-                              fontWeight: 700,
-                              color: VERIFY_BRAND.ink,
-                            }}
-                          >
-                            Bitcoin anchor recorded
-                          </div>
-                          <div
-                            style={{
-                              ...VERIFY_TYPO.small,
-                              color: VERIFY_BRAND.ink,
-                            }}
-                          >
-                            TxID: {truncateHash(anchorTransactionId)}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(anchorTransactionId);
-                              addToast("Transaction ID copied", "success");
-                            }}
-                            style={{
-                              width: "fit-content",
-                              borderRadius: 999,
-                              border: `1px solid ${VERIFY_BRAND.line}`,
-                              background: "rgba(255,255,255,0.62)",
-                              color: VERIFY_BRAND.accent,
-                              fontSize: 12,
-                              fontWeight: 900,
-                              letterSpacing: "0.065em",
-                              textTransform: "uppercase",
-                              padding: "10px 14px",
-                              cursor: "pointer",
-                            }}
-                          >
-                            Copy TxID
-                          </button>
+                          Bitcoin anchor recorded
                         </div>
-                      ) : null}
+                        <div
+                          style={{
+                            ...VERIFY_TYPO.small,
+                            color: VERIFY_BRAND.ink,
+                          }}
+                        >
+                          TxID: {truncateHash(anchorTransactionId)}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(anchorTransactionId);
+                            addToast("Transaction ID copied", "success");
+                          }}
+                          style={{
+                            width: "fit-content",
+                            borderRadius: 999,
+                            border: `1px solid ${VERIFY_BRAND.line}`,
+                            background: "rgba(255,255,255,0.62)",
+                            color: VERIFY_BRAND.accent,
+                            fontSize: 12,
+                            fontWeight: 900,
+                            letterSpacing: "0.065em",
+                            textTransform: "uppercase",
+                            padding: "10px 14px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Copy TxID
+                        </button>
+                      </div>
                     </div>
                   ) : null}
 
@@ -7038,8 +6889,7 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                         maxWidth: 760,
                       }}
                     >
-                      Copy the verification link or open the external publication
-                      record when available.
+                      Copy the verification link to share this record.
                     </div>
                   </div>
 
@@ -7105,33 +6955,6 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                         ? "Checking anchoring status..."
                         : "Check Latest Anchoring Status"}
                     </button>
-
-                    {externalPublicationUrl ? (
-                      <a
-                        href={externalPublicationUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{
-                          width: "100%",
-                          minHeight: 52,
-                          borderRadius: 999,
-                          border: `1px solid ${VERIFY_BRAND.line}`,
-                          background: "rgba(255,255,255,0.54)",
-                          color: VERIFY_BRAND.ink,
-                          fontSize: 12,
-                          fontWeight: 900,
-                          letterSpacing: "0.065em",
-                          textTransform: "uppercase",
-                          textDecoration: "none",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          boxShadow: "0 10px 24px rgba(16,32,29,0.08)",
-                        }}
-                      >
-                        Open External Publication
-                      </a>
-                    ) : null}
                   </div>
                 </div>
               </Card>

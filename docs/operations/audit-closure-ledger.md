@@ -110,3 +110,32 @@ A finding marked CLOSED in this ledger may be reopened ONLY by appending a
 new row (do not rewrite history) that names the new evidence + production
 reproduction. The audit author must satisfy the **Reopen allowed only if**
 column for the target row.
+
+---
+
+## Approved destructive migration — evidence_anchors publication columns
+
+**Migration:** `20270908000000_drop_evidence_anchor_publication_columns`
+
+**Change:** `ALTER TABLE "evidence_anchors" DROP COLUMN IF EXISTS "receipt_id";`
+and `DROP COLUMN IF EXISTS "public_url";`
+
+**Why approved:** PROOVRA does not support a separate Public Publication
+Layer / Public Receipt Object. Anchoring is OpenTimestamps → Bitcoin only
+(`transaction_id` + `anchored_at_utc`), surfaced via the verification page,
+verification package, chain of custody, RFC3161 timestamp and signature
+package. The two columns were removed product-wide first (Prisma model,
+worker/API/report/verification-package/verify-page, types, tests) leaving
+zero code, schema, report or package references. The dead external-publication
+publisher (`services/worker/src/anchor-publisher.ts`) had no callers and was
+deleted in the same change.
+
+**Safety:** `DROP COLUMN IF EXISTS` is idempotent and safe on partial state.
+The CRITICAL `ALTER_TABLE_DROP_COLUMN` finding is registered in
+`phase-o-migration-safety-gate.test.ts` `APPROVED_CRITICAL_BY_MIGRATION` and
+in `phase-32-7-2-security-event-mapping-drift.test.ts`
+`PERMITTED_LATER_MIGRATIONS`.
+
+**Reopen allowed only if:** any surface re-introduces `receipt_id` /
+`public_url` / `published` / `externalPublicationAttached` on the anchor, or
+the external-publication concept is deliberately re-added by design.

@@ -215,7 +215,6 @@ implement parity. Each row records what's there + the priority for CR2.
 | Mobile — biometric reauth | ✗ (despite `expo-secure-store` installed) | ✗ | ✗ | HIGH | HIGH (R7) |
 | Mobile — audio capture | ✗ (web has it) | ✗ | partial | MEDIUM | MEDIUM (R7) |
 | Mobile — workflow templates / checklist | ✗ | ✗ | ✗ | MEDIUM | MEDIUM (R7) |
-| C2PA content credentials at capture | ✗ | ✗ | ✗ (Truepic's pitch) | HIGH | HIGH (R7) |
 
 ---
 
@@ -354,8 +353,7 @@ contributors do not accidentally collapse them.
 | TSA failure retry + async + backfill | **CR3** | Reliability hardening. |
 | OTS Bitcoin anchor ON by default | **CR3** | Same. |
 | Real DLQ pattern with replay UI | **CR3** | Same. |
-| C2PA content credentials at capture | **R7** | Mobile + external workflow hardening. |
-| Mobile multipart + background uploads + streaming hash | **R7** | Same. |
+| Mobile multipart + background uploads + streaming hash | **R7** | Mobile + external workflow hardening. |
 | Mobile workflow-intake-link redemption | **R7** | Same. |
 | Mobile SSO/SAML/MDM | **R7** | Same. |
 | Notification template branding + custom-domain DKIM | **R8** | Enterprise identity & security. |
@@ -389,7 +387,7 @@ established by earlier ones.
 | 13 | **CR5** Capture Safety Extraction | Extract CaptureSessionPanel children one at a time with parity tests; reduce panel stack to ≤2 default | R5 |
 | 14 | **CR3** Reliability Hardening | Async TSA + retry + backfill; OTS ON by default; real DLQ + replay UI; per-queue process isolation; BullMQ repeatable schedulers | CR1.5 |
 | 15 | **CR4** Verify Decomposition | Split `verification-package.ts` (3240 LoC) + `verify/[token]/page.tsx` (7404 LoC) into module trees with snapshot parity tests | CR3 |
-| 16 | **R7** Mobile & External Workflow Hardening | Mobile multipart + background uploads + streaming hash; mobile intake-link redemption; mobile SSO/SAML/MDM; C2PA at capture | CR2 |
+| 16 | **R7** Mobile & External Workflow Hardening | Mobile multipart + background uploads + streaming hash; mobile intake-link redemption; mobile SSO/SAML/MDM | CR2 |
 | 17 | **R8** Enterprise Identity & Security | TOTP + WebAuthn + passkey MFA; full SAML 2.0; SCIM PATCH compliance + discovery; SIEM forwarder; per-tenant audit chain verify; recovery codes | CR2 |
 | 18 | **R9** Enterprise Operations Activation | Reviewer auto-assignment; SLA business hours; 4-eyes hold release; signed destruction certificate; custodian hold-notification workflow; SOC2 evidence pack; OpenAPI + SDK + Postman; per-credential rate limit enforcement; bulk-export API | R7, R8 |
 | 19 | **R9.5** Design Primitive Consolidation | Extract design tokens, component library; unify badges/toolbars/headers/spacing across surfaces | R9 |

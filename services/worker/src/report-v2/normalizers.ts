@@ -307,7 +307,7 @@ export function mapOtsStatusPublicLabelWithTxid(params: {
     /^[a-f0-9]{64}$/i.test(params.bitcoinTxid.trim());
 
   if (status === "ANCHORED" && hasTxid) {
-    return "Bitcoin anchoring verified";
+    return "OpenTimestamps Bitcoin anchoring verified";
   }
   return mapOtsStatusPublicLabel(params.status);
 }

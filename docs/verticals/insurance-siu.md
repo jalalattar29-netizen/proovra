@@ -10,7 +10,7 @@ PROOVRA's Insurance SIU bundle is an additive layer on top of the existing Cases
 
 - collect evidence from claimants and field agents,
 - organize that evidence into a claim matter,
-- review integrity / provenance / custody / C2PA signals,
+- review integrity / provenance / custody signals,
 - produce a bounded export bundle that an insurer can ingest.
 
 ## 2. What this is NOT
@@ -78,8 +78,6 @@ Bounded codes:
 - `FILE_LAST_MODIFIED_OLDER_THAN_INCIDENT`
 - `CAPTURE_TIMESTAMP_INCONSISTENT_WITH_CONTEXT`
 - `RECOMMENDED_LOCATION_MISSING`
-- `C2PA_MANIFEST_INVALID`
-- `C2PA_MANIFEST_MALFORMED`
 - `EVIDENCE_HASH_CUSTODY_MISMATCH`
 - `FOLLOW_UP_OVERDUE`
 - `REVIEWER_FLAGGED_FOR_FOLLOW_UP`

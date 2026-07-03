@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "schema": "PROOVRA_TECHNICAL_DEVICE_ENRICHMENT",
   "evidenceId": "ev-intake-noenv-001",
-  "generatedAtUtc": "2026-07-03T03:50:59.246Z",
+  "generatedAtUtc": "2026-07-03T07:21:54.715Z",
   "advisory": "Concise CAMERA enrichment for reviewers, derived solely from the file's embedded EXIF (camera make/model and original capture time). No capture environment (OS/device/browser) was recorded for this evidence, so no such fields are present. Each field carries its own value, source, and confidence.",
   "sources": [
     "exif"

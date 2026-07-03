@@ -136,9 +136,8 @@ The presence of `/v1/intelligence/search` as a sibling endpoint is an anti-patte
 | Metadata filters | Compet | Strong | Compet | Compet | Partial | Partial | Compet | Compet |
 | Relationships | Compet | Partial | Compet | Partial | Stub | Missing | Partial | Partial |
 | Permission-aware | Compet | Strong | Compet | Partial | Partial | Missing | Partial | Strong |
-| C2PA provenance | Strong | Missing | Missing | Missing | Missing | Missing | Missing | Missing |
 
-**PROOVRA positioning:** tied with Everlaw / Logikcull on keyword/OCR/transcript; behind Relativity / OpenText on semantic search, snippets, and saved-search depth; ahead of Magnet Axiom / Cellebrite on metadata filtering, relationships, and permission scoping. **Unique strength:** C2PA cryptographic provenance integration — no competitor surfaces capture-time device attestation in evidence search results.
+**PROOVRA positioning:** tied with Everlaw / Logikcull on keyword/OCR/transcript; behind Relativity / OpenText on semantic search, snippets, and saved-search depth; ahead of Magnet Axiom / Cellebrite on metadata filtering, relationships, and permission scoping.
 
 ---
 
@@ -263,7 +262,6 @@ Items 1–5 are the highest-ROI fixes: they close the staleness bug without any 
 - Existing /search should become canonical Global Intelligence Search ✓
 - Investigation pages should consume the same search engine ✓
 - Phase 14 scope confirmed: re-index trigger network + entity facet + pgvector + deep-link propagation ✓
-- C2PA provenance remains the unique competitive moat — no change required ✓
 
 ---
 
@@ -693,7 +691,6 @@ This was documented as Phase 14 deferred scope in Phase 13 docs (section 8: sema
 - **Tied with Everlaw / Logikcull** on keyword/OCR/transcript
 - **Behind Relativity / OpenText** on semantic search, snippets, saved searches
 - **Ahead of Magnet Axiom / Cellebrite** on metadata filtering, relationships, permissions
-- **Unique strength:** C2PA provenance integration (Phase 1B; visible in verify page, not search)
 
 ### Top 3 PROOVRA Gaps
 
@@ -703,13 +700,11 @@ This was documented as Phase 14 deferred scope in Phase 13 docs (section 8: sema
 
 3. **Result snippets + highlights not implemented** — Search index stores OCR/transcript text but UI renders only title/subtitle/summary (metadata). Operator cannot see in-body excerpt where the keyword matched. No OCR chunk highlights, no transcript segment callouts. **Competitors:** Relativity, Everlaw, OpenText all show matching excerpt + context lines in results.
 
-### Top 3 PROOVRA Strengths
+### Top PROOVRA Strengths
 
-1. **Native C2PA provenance chain in search results** (Phase 1B + Verify integration) — No competitor integrates cryptographic capture-time provenance into evidence search. PROOVRA surfaces trust signals (device attestation, capture session integrity, signature verification) on verify page and verification package; competitors have no equivalent. **Competitive moat:** 7+ years ahead on video intelligence; C2PA is the differentiator for law enforcement + compliance.
+1. **Entity extraction + graph normalization** (Phase 13) — Extracted entities (PERSON_NAME, EMAIL, PHONE, URL, ORG) are normalized, deduplicated by `(kind, normalizedValue)`, and materialized as graph nodes + edges. Operators can pivot from evidence → entity → all evidence mentioning that entity. No competitor offers this level of entity-first navigation in a keyword search context. **Missing:** deep integration into `/search` UI.
 
-2. **Entity extraction + graph normalization** (Phase 13) — Extracted entities (PERSON_NAME, EMAIL, PHONE, URL, ORG) are normalized, deduplicated by `(kind, normalizedValue)`, and materialized as graph nodes + edges. Operators can pivot from evidence → entity → all evidence mentioning that entity. No competitor offers this level of entity-first navigation in a keyword search context. **Missing:** deep integration into `/search` UI.
-
-3. **Permission-aware + governance-scoped search** (Phase 24) — Search enforces workspace isolation, lifecycle states (DESTROYED, PENDING_DESTRUCTION), legal-hold + retention policy, reviewer visibility restrictions at query time. No result leakage if the operator's access changes. Results carry `filteredByGovernance` + `filteredByVisibility` counts so operator knows what was hidden. **Competitors:** Relativity, OpenText have comparable governance; Logikcull/Magnet Axiom do not.
+2. **Permission-aware + governance-scoped search** (Phase 24) — Search enforces workspace isolation, lifecycle states (DESTROYED, PENDING_DESTRUCTION), legal-hold + retention policy, reviewer visibility restrictions at query time. No result leakage if the operator's access changes. Results carry `filteredByGovernance` + `filteredByVisibility` counts so operator knows what was hidden. **Competitors:** Relativity, OpenText have comparable governance; Logikcull/Magnet Axiom do not.
 
 **File references:**
 - Phase 13 Intelligence Chain: `D:\digital-witness\docs\architecture\phase-13-intelligence-chain.md`

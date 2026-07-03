@@ -88,7 +88,6 @@ describe("M3 — bounded enums", () => {
       "REQUIRED_EVIDENCE_MISSING",
       "REPORT_PDF_MISSING",
       "VERIFICATION_PACKAGE_MISSING",
-      "C2PA_DEGRADED",
       "CORE_INTEGRITY_WARNING_PRESENT",
       "FOLLOW_UP_INCOMPLETE",
       "OFFLINE_VERIFICATION_UNSUPPORTED_FOR_PACKAGE",
@@ -101,8 +100,8 @@ describe("M3 — bounded enums", () => {
       expect(SIU_PREFLIGHT_CODES).toContain(code);
     }
   });
-  it("SIU_STANDING_LIMITATIONS include the 7 bounded codes", () => {
-    expect(SIU_STANDING_LIMITATIONS.length).toBe(7);
+  it("SIU_STANDING_LIMITATIONS include the 5 bounded codes", () => {
+    expect(SIU_STANDING_LIMITATIONS.length).toBe(5);
     expect(SIU_STANDING_LIMITATIONS).toContain(
       "SIU_BUNDLE_IS_NOT_A_FRAUD_DETERMINATION",
     );
@@ -259,10 +258,6 @@ describe("M3 — api SIU service source contract", () => {
     );
     expect(src).toContain("LEGAL_HOLD_EXPORT_BLOCK");
     expect(src).toContain("EVIDENCE_INTEGRITY_FAILED");
-    // The bounded preflight surfaces C2PA only as a warning, never
-    // as a blocker on its own.
-    expect(src).toContain('warning("C2PA_DEGRADED"');
-    expect(src).not.toMatch(/blocker\("C2PA_DEGRADED"/);
     assertNoForbiddenPhrases(src, "siu-preflight.service.ts");
   });
 

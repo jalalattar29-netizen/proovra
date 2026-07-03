@@ -3,7 +3,7 @@
 **Phase:** M3 (Vertical Productization / Investigation Operations Track)
 **Status:** CLOSED
 **Closed at (UTC):** 2026-05-28
-**Predecessors:** M2.1 (C2PA Product Surface + Backfill + Portability)
+**Predecessors:** M2.1 (Backfill + Portability)
 **Successors:** none scheduled
 
 ---
@@ -106,7 +106,7 @@ Future-deferred entries (additive, no schema break): per-evidence `reports/repor
 
 `services/api/src/services/siu/siu-preflight.service.ts` emits one of four bounded readiness states based on bounded findings:
 
-- Warnings: required-evidence-missing / report-pdf-missing / verification-package-missing / c2pa-degraded / follow-up-incomplete / review-indicator-warning.
+- Warnings: required-evidence-missing / report-pdf-missing / verification-package-missing / follow-up-incomplete / review-indicator-warning.
 - Blockers: legal-hold / retention / hash-mismatch / block-export-indicator.
 
 `ready_with_warnings` requires a bounded operator reason (≥8 chars) at export time. `blocked` is a hard refusal at HTTP 409.
@@ -175,7 +175,7 @@ Deferred (out of M3 scope):
 | 5 | follow-up evidence requests exist | ✅ follow-up service + endpoints |
 | 6 | SIU export pre-flight exists | ✅ bounded 4-state preflight |
 | 7 | SIU export bundle exists | ✅ ZIP builder + manifest |
-| 8 | export includes verification/report/offline/C2PA/custody summaries | ✅ bounded JSONs + offline-verification.md pointer |
+| 8 | export includes verification/report/offline/custody summaries | ✅ bounded JSONs + offline-verification.md pointer |
 | 9 | UI is present and usable | ✅ `SiuPanel.tsx` |
 | 10 | permissions/governance are enforced | ✅ case-access + step-up + audit |
 | 11 | tests/docs/closure report exist | ✅ 5 docs + closure + bounded test suite |

@@ -167,10 +167,6 @@ import { operationsExportsRoutes } from "./routes/operations-exports.routes.js";
 // restore validation, recovery reports).
 import { operationsQueuesRoutes } from "./routes/operations-queues.routes.js";
 import { operationsRecoveryRoutes } from "./routes/operations-recovery.routes.js";
-// Phase M2.1 — C2PA operations (provider status, backfill, generation
-// readiness). Routes are auth + step-up gated identically to other
-// operations console surfaces.
-import { operationsC2paRoutes } from "./routes/operations-c2pa.routes.js";
 // Phase M3 — Insurance SIU bundle (profile + checklist + indicators +
 // follow-ups + export bundle). Workspace-scoped and step-up gated on
 // the export action.
@@ -1158,9 +1154,6 @@ allowedHeaders: [
   // P2.3 + P2.5 — queue operations + DR recovery routes.
   await app.register(operationsQueuesRoutes);
   await app.register(operationsRecoveryRoutes);
-  // Phase M2.1 — C2PA operations + bulk backfill + generation
-  // readiness routes. Auth + workspace-scoped + step-up gated.
-  await app.register(operationsC2paRoutes);
   // Phase M3 — Insurance SIU bundle routes (profile, checklist,
   // indicators, follow-ups, export preflight + bundle). Auth +
   // workspace-scoped + step-up gated on export.

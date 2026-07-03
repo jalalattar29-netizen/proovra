@@ -704,7 +704,8 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
   describe("Executive Summary LEAD ITEM — always ONE canonical lead item", () => {
     function multipartInput(primaryCount: number, opts?: { anyPrimary?: boolean }) {
       const base = buildInput();
-      const proto = base.evidence.contentItems[0];
+      const contentItems = base.evidence.contentItems ?? [];
+      const proto = contentItems[0];
       const total = Math.max(primaryCount, opts?.anyPrimary === false ? 2 : primaryCount);
       const items = Array.from({ length: total }, (_, i) => ({
         ...proto,
@@ -712,14 +713,14 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
         index: i,
         originalFileName: `primary-${i}.jpg`,
         label: `Item ${i}`,
-        kind: "image",
+        kind: "image" as const,
         artifactRole:
           opts?.anyPrimary === false
             ? "supporting_evidence"
             : i < primaryCount
               ? "primary_evidence"
               : "supporting_evidence",
-      }));
+      })) as typeof contentItems;
       const firstPrimary =
         opts?.anyPrimary === false ? null : items.find((x) => x.artifactRole === "primary_evidence") ?? null;
       return buildInput({
@@ -734,7 +735,7 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
             imageCount: total,
             textCount: 0,
             primaryKind: "image",
-          },
+          } as typeof base.evidence.contentSummary,
         },
       });
     }

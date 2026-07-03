@@ -115,7 +115,6 @@ describe("O1.2 — metric registry", () => {
     "recovery_backup_validation_total",
     "recovery_restore_validation_total",
     "recovery_validation_failed_total",
-    "c2pa_backfill_run_failure_total",
     "siu_pii_revealed_total",
   ]) {
     it(`COUNTER_NAMES includes ${counter}`, () => {
@@ -193,7 +192,6 @@ describe("O1.2 — alert rules", () => {
       "proovra-package-generation-failure",
       "proovra-recovery-validation-failure",
       "proovra-siu-export-upload-failure",
-      "proovra-c2pa-backfill-failure",
       "proovra-signer-health-degraded",
       "proovra-forbidden-replay-attempted",
       "proovra-pii-reveal-spike",
@@ -223,7 +221,6 @@ describe("O1.2 — runbook anchors", () => {
     "## package-generation-failures",
     "## recovery-validation-failures",
     "## siu-export-upload-failure",
-    "## c2pa-backfill-failure",
     "## signer-health-degraded",
     "## forbidden-replay-attempted",
     "## siu-pii-reveal-spike",

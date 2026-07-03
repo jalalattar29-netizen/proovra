@@ -14,12 +14,8 @@ Existing files retain their canonical paths and content. Each phase only **adds*
 | `custody/attestation-verification.md` | Step-by-step external-verifier procedure | `text/markdown` | n/a | P3.1.1 |
 | `signers/signer-registry-snapshot.json` | Signer state at package generation time | `application/json` | `PROOVRA_SIGNER_REGISTRY_SNAPSHOT` v1 | P3.1.1 |
 | `signers/historical-verification-material.json` | Bounded public signing-time material | `application/json` | `PROOVRA_HISTORICAL_VERIFICATION_MATERIAL` v1 | M1.1 |
-| `provenance/c2pa-summary.json` | Bounded C2PA provenance summary | `application/json` | `PROOVRA_C2PA_RESULT_V1` | M2 |
-| `provenance/c2pa-verification.md` | Operator README for the C2PA summary | `text/markdown` | n/a | M2 |
 
 The `package-checksums.json` index automatically lists every new file (the canonical SHA-256 source of truth for every file in the ZIP). We do **NOT** emit separate `.sha256` companions — the checksums index is the single source.
-
-The C2PA summary file is **always emitted** for M2+ generations, even when the C2PA provider is operationally disabled — the file then carries the bounded `disabled` aggregate. This is preferable to silence: a downstream reviewer can mechanically tell "C2PA was acknowledged and reported as disabled" from "this is a pre-M2 package".
 
 ## 2. `custody/attestations.json` shape
 

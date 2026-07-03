@@ -87,17 +87,13 @@ export function resolveAnchorSummary(
     Boolean(evidence.anchorMode) ||
     Boolean(evidence.anchorProvider) ||
     Boolean(evidence.anchorHash) ||
-    Boolean(evidence.anchorPublicUrl) ||
     Boolean(evidence.anchorAnchoredAtUtc) ||
-    Boolean(evidence.anchorTransactionId) ||
-    Boolean(evidence.anchorReceiptId);
+    Boolean(evidence.anchorTransactionId);
 
   if (!hasLegacyAnchor) return null;
 
   const semantics = deriveAnchorSemantics({
     transactionId: evidence.anchorTransactionId ?? null,
-    receiptId: evidence.anchorReceiptId ?? null,
-    publicUrl: evidence.anchorPublicUrl ?? null,
     anchoredAtUtc: evidence.anchorAnchoredAtUtc ?? null,
     otsStatus: evidence.otsStatus,
     otsProofPresent: Boolean(evidence.otsProofBase64),
@@ -108,11 +104,8 @@ export function resolveAnchorSummary(
     provider: evidence.anchorProvider ?? null,
     publicBaseUrl: null,
     configured: Boolean(evidence.anchorProvider),
-    published: semantics.published,
     anchorHash: evidence.anchorHash ?? null,
-    receiptId: semantics.receiptId,
     transactionId: semantics.transactionId,
-    publicUrl: semantics.externalPublicationUrl,
     anchoredAtUtc: semantics.anchoredAtUtc,
   };
 }
@@ -350,11 +343,6 @@ export function buildAnchorRows(
       value: formatTimestampForReportUtc(anchorSummary.anchoredAtUtc),
     },
     {
-      label: "Anchor Public URL",
-      value: safe(anchorSummary.publicUrl),
-    },
-    { label: "Anchor Receipt ID", value: safe(anchorSummary.receiptId) },
-    {
       label: "Anchor Transaction ID",
       value: safe(anchorSummary.transactionId),
     },
@@ -487,8 +475,8 @@ timestampReferenceNote:
         ? "Full signature and public-key materials remain available through the verification package and technical verification endpoint."
         : "Signature blobs are intentionally excluded from the PDF body.",
     anchoringReferenceNote:
-      evidence.otsProofBase64 || anchorSummary?.publicUrl
-        ? "Full anchoring proofs and publication materials remain available through the verification package and verification endpoint."
+      evidence.otsProofBase64 || anchorSummary?.transactionId
+        ? "Full OpenTimestamps anchoring proofs remain available through the verification package and verification endpoint."
         : "No additional anchoring proof payload was recorded.",
     timestampDigestLabel,
   };

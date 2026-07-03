@@ -23,7 +23,6 @@
  *   - attestation: { provider, verdict } — bounded enums.
  *   - timeAnchors: { rfc3161Applied, otsApplied, otsConfirmations }.
  *   - countersigned: boolean.
- *   - c2paAggregate: one of C2PA aggregate statuses.
  *   - trustEventCounts: { total, failures }.
  *   - limitations: standing bounded list.
  *   - advisory: bounded disclaimer string.
@@ -64,14 +63,6 @@ export type VerifyTrustProjection = {
     otsConfirmations: number | null;
   };
   countersigned: boolean;
-  c2paAggregate:
-    | "not_present"
-    | "present"
-    | "valid"
-    | "invalid"
-    | "unsupported"
-    | "disabled"
-    | "error";
   trustEventCounts: {
     total: number;
     failures: number;
@@ -113,8 +104,7 @@ export async function projectVerifyCaptureTrust(
     chain.capture.attestationVerdict === "NOT_ATTEMPTED" &&
     !chain.server.countersigned &&
     !chain.time.rfc3161.applied &&
-    !chain.time.ots.applied &&
-    chain.c2pa.aggregateStatus === "not_present";
+    !chain.time.ots.applied;
   if (nothingToSay) return null;
 
   return {
@@ -134,7 +124,6 @@ export async function projectVerifyCaptureTrust(
       otsConfirmations: chain.time.ots.confirmations,
     },
     countersigned: chain.server.countersigned,
-    c2paAggregate: chain.c2pa.aggregateStatus,
     trustEventCounts: {
       total: chain.trustEventSummary.total,
       failures: chain.trustEventSummary.failures,

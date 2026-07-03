@@ -127,16 +127,6 @@ async function runSiuExportPreflightInner(
         evidenceId: ev.id,
       }));
     }
-    const meta = ev.verificationPackageMetadata as
-      | { c2pa?: { aggregateStatus?: string } | null }
-      | null;
-    const c2paStatus = meta?.c2pa?.aggregateStatus;
-    if (c2paStatus === "invalid" || c2paStatus === "error") {
-      findings.push(warning("C2PA_DEGRADED", {
-        detail: `Evidence reports C2PA status \`${c2paStatus}\`. Bundled honestly.`,
-        evidenceId: ev.id,
-      }));
-    }
   }
 
   // 3. Follow-ups still open.

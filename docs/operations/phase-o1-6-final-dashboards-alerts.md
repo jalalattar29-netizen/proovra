@@ -8,7 +8,7 @@ Trace-derived observability for every O1.5A/B/C/D/E business flow, plus
 the executive rollup. Every panel and alert references a real emitted
 span (from `PROOVRA_SPAN_NAMES`) or a real counter (from `COUNTER_NAMES`).
 
-## Dashboards (11)
+## Dashboards (10)
 
 All live under `infra/grafana/dashboards/`:
 
@@ -20,7 +20,6 @@ All live under `infra/grafana/dashboards/`:
 | `proovra-verification-package.json` | Package generate / manifest / attestations / signer snapshot / zip / upload | 4 |
 | `proovra-reviewer-ops.json` | Reviewer assignment create/complete + queue.build + console.load + reconcile | 6 |
 | `proovra-graph.json` | Graph reconcile / timeline / domain.sync / search.projection + worker.graph.reconcile | 5 |
-| `proovra-c2pa.json` | C2PA detect / validate / package_summary | 4 |
 | `proovra-siu.json` | SIU export preflight + generate + followup.request + timeline.build | 5 |
 | `proovra-ai.json` | AI chat + capture.review + support.response + openai.ai_request | 5 |
 | `proovra-communications.json` | SMTP email_send + external.review.notify + webhook.dispatch | 6 |
@@ -28,7 +27,7 @@ All live under `infra/grafana/dashboards/`:
 
 The 4 pre-existing O1.2 dashboards (`proovra-operations-overview.json`,
 `proovra-queue-operations.json`, `proovra-exports-reproducibility.json`,
-`proovra-recovery.json`) remain unchanged. Total provisioned: 15 JSON
+`proovra-recovery.json`) remain unchanged. Total provisioned: 14 JSON
 files (contract-asserted).
 
 Every panel uses one of two PromQL families:
@@ -38,14 +37,14 @@ Every panel uses one of two PromQL families:
 
 A small subset also references the bounded counter registry (e.g., `dlq_job_total`, `queue_retry_failure_total`, `package_generation_failed_total`, `worker_stalled_total`) for legacy counter-based signals that pre-date span-metrics.
 
-## Alerts (11 + 23 = 34)
+## Alerts (10 + 22 = 32)
 
 `infra/grafana/alerts/proovra-operations-alerts.yaml` carries:
 
-- **11 alerts from O1.2** (unchanged): api-down, worker-degraded, queue-failed-jobs-spike, export-failure-spike, package-generation-failure, recovery-validation-failure, siu-export-upload-failure, c2pa-backfill-failure, signer-health-degraded, forbidden-replay-attempted, pii-reveal-spike.
-- **23 new O1.6 alerts** grouped into 6 bounded folders:
+- **10 alerts from O1.2** (unchanged): api-down, worker-degraded, queue-failed-jobs-spike, export-failure-spike, package-generation-failure, recovery-validation-failure, siu-export-upload-failure, signer-health-degraded, forbidden-replay-attempted, pii-reveal-spike.
+- **22 new O1.6 alerts** grouped into 6 bounded folders:
   - **proovra-infrastructure (3)**: redis-unavailable, queue-backlog-spike, queue-retry-failure-spike.
-  - **proovra-integrity (5)**: signature-verify-failure, custody-chain-verify-failure, tsa-failure-spike, ots-failure-spike, c2pa-validate-failure.
+  - **proovra-integrity (4)**: signature-verify-failure, custody-chain-verify-failure, tsa-failure-spike, ots-failure-spike.
   - **proovra-report-package (4)**: report-generate-failure, report-upload-failure, package-upload-failure, package-attestation-degraded.
   - **proovra-reviewer-graph (3)**: reviewer-reconcile-failure, reviewer-assignment-backlog, graph-reconcile-failure.
   - **proovra-siu (2)**: siu-export-generate-failure, siu-followup-failure.

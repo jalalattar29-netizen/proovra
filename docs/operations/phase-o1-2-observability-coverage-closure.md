@@ -30,7 +30,7 @@ Wired `withProovraSpan` into:
 - `services/api/src/services/operations/queue-replay-action.service.ts` — `proovra.queue.job.retry` + `proovra.queue.job.replay` around `retryFailedJob()` and `replayFailedJob()`.
 - `services/api/src/services/operations/custody-attestation.service.ts` — `proovra.custody.attestation.sign` + `.verify` + `.backfill` around `signCustodyEvent()`, `verifyCustodyAttestation()`, `backfillCustodyAttestations()`.
 
-Pre-existing critical spans (O1.1) remain intact: SIU preflight + generate, C2PA detect + package summary, signer health, recovery backup + restore.
+Pre-existing critical spans (O1.1) remain intact: SIU preflight + generate, signer health, recovery backup + restore.
 
 Bounded span enum extended with `CUSTODY_ATTESTATION_BACKFILL = "proovra.custody.attestation.backfill"` (now 25 names, was 24).
 
@@ -38,7 +38,7 @@ Span attributes always bounded — never raw payload / signature value / canonic
 
 ## 2. Metric coverage summary
 
-`packages/shared-runtime/src/ops/metrics.service.ts` extended with 18 bounded counter names under the Phase O1.2 block:
+`packages/shared-runtime/src/ops/metrics.service.ts` extended with 17 bounded counter names under the Phase O1.2 block:
 
 ```
 queue_retry_total
@@ -57,7 +57,6 @@ export_reproducibility_verify_total
 recovery_backup_validation_total
 recovery_restore_validation_total
 recovery_validation_failed_total
-c2pa_backfill_run_failure_total
 siu_pii_revealed_total
 ```
 
@@ -69,7 +68,7 @@ Four Grafana JSON dashboards under `infra/grafana/dashboards/`:
 
 | File | Purpose |
 | --- | --- |
-| `proovra-operations-overview.json` | API + worker health, queue failures, generation/export funnels, C2PA backfill, SIU exports |
+| `proovra-operations-overview.json` | API + worker health, queue failures, generation/export funnels, SIU exports |
 | `proovra-queue-operations.json` | Per-queue failed jobs, replay vs retry, forbidden replay, step-up replay, stalled workers |
 | `proovra-exports-reproducibility.json` | WORM exports, reproducibility verifications, SIU export pipeline, Object Lock checks |
 | `proovra-recovery.json` | Backup + restore validation runs, validation failures, recovery report generation, signer health, custody attestation verify counts |
@@ -78,7 +77,7 @@ Every panel references a metric that is asserted to exist in the bounded `COUNTE
 
 ## 4. Alert summary
 
-Single alert provisioning file `infra/grafana/alerts/proovra-operations-alerts.yaml` with 11 bounded rules:
+Single alert provisioning file `infra/grafana/alerts/proovra-operations-alerts.yaml` with 10 bounded rules:
 
 | Alert UID | Severity | Condition |
 | --- | --- | --- |
@@ -89,7 +88,6 @@ Single alert provisioning file `infra/grafana/alerts/proovra-operations-alerts.y
 | `proovra-package-generation-failure` | critical | `rate(package_generation_failed_total) > 0.05` |
 | `proovra-recovery-validation-failure` | warning | any `recovery_validation_failed_total` increase |
 | `proovra-siu-export-upload-failure` | critical | any `siu_export_upload_failure_total` increase |
-| `proovra-c2pa-backfill-failure` | warning | `rate(c2pa_backfill_run_failure_total) > 0.05` |
 | `proovra-signer-health-degraded` | critical | any `signer_health_degraded_total` increase |
 | `proovra-forbidden-replay-attempted` | warning | any `queue_replay_forbidden_total` increase |
 | `proovra-pii-reveal-spike` | warning | `rate(siu_pii_revealed_total) > 0.05` |

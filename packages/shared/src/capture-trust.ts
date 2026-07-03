@@ -21,10 +21,6 @@
  *   * NOT a legal/authenticity assertion. Phase 0 P6 prohibits
  *     PROOVRA from asserting truth — these contracts only describe
  *     the integrity primitives.
- *   * NOT a substitute for the C2PA shared contract (`./c2pa.ts`).
- *     C2PA describes Content Credentials state; this file describes
- *     PROOVRA's at-source capture trust state. Both can coexist on
- *     the same evidence record.
  *
  * Hard rules:
  *   1. Every state is a bounded enum.
@@ -475,19 +471,6 @@ export type ProvenanceChain = {
       appliedAtUtc: string | null;
       confirmations: number | null;
     };
-  };
-
-  /** C2PA state (mirrors `./c2pa.ts` aggregate). */
-  c2pa: {
-    aggregateStatus:
-      | "not_present"
-      | "present"
-      | "valid"
-      | "invalid"
-      | "unsupported"
-      | "disabled"
-      | "error";
-    providerMode: "disabled" | "detect_only" | "validate" | "embed_supported";
   };
 
   /** Derivation lineage (parent → derived edges). */

@@ -411,13 +411,13 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
     );
   });
 
-  it("ANCHORED + valid txid → 'Bitcoin anchoring verified' (verified-state label preserved)", () => {
+  it("ANCHORED + valid txid → 'OpenTimestamps Bitcoin anchoring verified' (verified-state label preserved)", () => {
     expect(
       mapOtsStatusPublicLabelWithTxid({
         status: "ANCHORED",
         bitcoinTxid: TXID,
       }),
-    ).toBe("Bitcoin anchoring verified");
+    ).toBe("OpenTimestamps Bitcoin anchoring verified");
   });
 
   it("ANCHORED + no txid → never falsely 'verified'", () => {

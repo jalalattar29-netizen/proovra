@@ -139,9 +139,7 @@ export type EvidenceIntelligenceAnchorSummary = {
   provider: string | null;
   mode: string;
   configured: boolean;
-  published: boolean;
   anchorHash: string | null;
-  publicUrl: string | null;
   anchoredAtUtc: string | null;
 };
 

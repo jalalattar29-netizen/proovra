@@ -866,20 +866,8 @@ function buildStorageRows(
         value: safe(anchorSummary.provider),
       },
       {
-        label: "Anchor Published",
-        value: safeBooleanLabel(anchorSummary.published, "Yes", "No"),
-      },
-      {
         label: "Anchor Anchored At (UTC)",
         value: formatReportTimestamp(anchorSummary.anchoredAtUtc),
-      },
-      {
-        label: "Anchor Public URL",
-        value: safe(anchorSummary.publicUrl),
-      },
-      {
-        label: "Anchor Receipt ID",
-        value: safe(anchorSummary.receiptId),
       },
       {
         label: "Anchor Transaction ID",

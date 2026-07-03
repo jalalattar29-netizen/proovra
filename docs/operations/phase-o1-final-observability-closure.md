@@ -24,7 +24,7 @@
 
 All six emitted via the `_emitPackagePipelineSpans(evidenceId)` helper at the top of `createVerificationPackage` in `services/worker/src/verification-package.ts`. Bounded attributes: `proovra.operation` + `proovra.evidence_id` only. NEVER signatures, TSA tokens, OTS proof bytes, or private keys.
 
-## Phase O1.5D — Reviewer Ops + Graph + C2PA + SIU (12 spans)
+## Phase O1.5D — Reviewer Ops + Graph + SIU (11 spans)
 
 ### Reviewer Ops (5) — `services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts`
 - `proovra.reviewer.assignment.create` — wraps `assignReviewerToWorkflow`
@@ -38,9 +38,6 @@ All six emitted via the `_emitPackagePipelineSpans(evidenceId)` helper at the to
 - `proovra.graph.timeline.build` — wraps `processGraphTimelineSyncJob`
 - `proovra.graph.domain.sync` — wraps `processGraphDomainSyncJob`
 - `proovra.graph.search.projection` — wraps `processGraphSearchProjectionJob`
-
-### C2PA validate (1)
-- `proovra.c2pa.validate` — `services/worker/src/c2pa/provider.ts` inside `parseToolStdoutToFileResult` when `mode === "validate" || "embed_supported"` (sync emit via `withProovraSpanSync` because the surrounding function is sync)
 
 ### SIU followup + timeline (2)
 - `proovra.siu.followup.request` — `services/api/src/services/siu/siu-profile.service.ts` wraps `createFollowUpRequest`
@@ -95,9 +92,9 @@ Existing O1.2 dashboards (`infra/grafana/dashboards/`) continue to reference rea
 
 ## Alerts
 
-Existing O1.2 alert rules cover the failure surfaces that have been operational since launch (api-down, worker-degraded, queue-failed-jobs-spike, export-failure-spike, package-generation-failure, recovery-validation-failure, siu-export-upload-failure, c2pa-backfill-failure, signer-health-degraded, forbidden-replay-attempted, pii-reveal-spike — all in `infra/grafana/alerts/proovra-operations-alerts.yaml`). All reference real emitted metrics with runbook URLs.
+Existing O1.2 alert rules cover the failure surfaces that have been operational since launch (api-down, worker-degraded, queue-failed-jobs-spike, export-failure-spike, package-generation-failure, recovery-validation-failure, siu-export-upload-failure, signer-health-degraded, forbidden-replay-attempted, pii-reveal-spike — all in `infra/grafana/alerts/proovra-operations-alerts.yaml`). All reference real emitted metrics with runbook URLs.
 
-New O1.5C/D/E alert candidates (report failure, package failure, reviewer reconcile failure, graph reconcile failure, c2pa validate failure, siu followup failure, ai request failure, smtp send failure, external review notify failure) are tracked as operator-tunable trace-derived alerts in Grafana — the spans now exist; alert thresholds are baselined as part of the post-deploy tuning window. The honest copy in `docs/operations/observability-runbooks.md` documents this baseline approach.
+New O1.5C/D/E alert candidates (report failure, package failure, reviewer reconcile failure, graph reconcile failure, siu followup failure, ai request failure, smtp send failure, external review notify failure) are tracked as operator-tunable trace-derived alerts in Grafana — the spans now exist; alert thresholds are baselined as part of the post-deploy tuning window. The honest copy in `docs/operations/observability-runbooks.md` documents this baseline approach.
 
 ## Runtime diagnostics
 

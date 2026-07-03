@@ -368,7 +368,7 @@ async function buildSiuExportBundleInner(
     generatedAtUtc: summary.generatedAtUtc,
     inventory: artifactInventory,
     note:
-      "Per-evidence integrity verdicts (hash, custody, TSA, OTS, C2PA) live inside each evidence's Verification Package ZIP (`verification/<id>/verification-package.zip`). This file is the bounded index.",
+      "Per-evidence integrity verdicts (hash, custody, TSA, OTS) live inside each evidence's Verification Package ZIP (`verification/<id>/verification-package.zip`). This file is the bounded index.",
   });
   appendJson("custody-audit-summary.json", {
     generatedAtUtc: summary.generatedAtUtc,

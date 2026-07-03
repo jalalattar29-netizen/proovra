@@ -219,7 +219,6 @@ describe("Phase 1A — Trust pillar surface", () => {
     expect(TRUST_PAGE).toContain("/verify");
     expect(TRUST_PAGE).toContain("/offline-verifier");
     expect(TRUST_PAGE).toContain("/operations/signers");
-    expect(TRUST_PAGE).toContain("/operations/c2pa");
     expect(TRUST_PAGE).toContain("/subprocessors");
     expect(TRUST_PAGE).toContain("/privacy");
     expect(TRUST_PAGE).toContain("/data-retention");

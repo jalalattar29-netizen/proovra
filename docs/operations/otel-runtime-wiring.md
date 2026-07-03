@@ -58,7 +58,6 @@ These lines NEVER include the OTLP endpoint URL, headers, or the Grafana token.
 Use `withProovraSpan(name, attributes, fn)` to wrap any unit of work. Phase O1.1 wires it into:
 
 - SIU export preflight + generate
-- C2PA detect + package summary
 - Signer health probe
 - Recovery backup + restore validation
 - (existing) Verification Package attestations + historical material

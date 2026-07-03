@@ -396,7 +396,7 @@ The response NEVER includes the OTLP endpoint URL, the Grafana token, or any sec
 Phase O1.1 hardened the OTEL bootstrap and added the runtime-visible state:
 
 - Bootstrap emits four bounded log lines: `otel.bootstrap_started` / `succeeded` / `disabled` / `failed`.
-- Bounded `withProovraSpan(name, attrs, fn)` helper wires the critical entry points (SIU preflight + generate, C2PA detect + summary, signer health, recovery backup + restore validate).
+- Bounded `withProovraSpan(name, attrs, fn)` helper wires the critical entry points (SIU preflight + generate, signer health, recovery backup + restore validate).
 - New endpoint `GET /v1/runtime/otel-health` returns the bounded `getOtelStatus()` snapshot — `started` / `degraded` / `lastBootstrapAtUtc` / `lastBootstrapOutcome` / `lastBootstrapFailureCode` / `lastExportErrorCode` / `spansCreatedCount` / `resourceAttributes`. Never returns the OTLP endpoint URL, headers, or Grafana token.
 
 Full runbook: `docs/operations/otel-runtime-wiring.md`. Closure report: `docs/operations/phase-o1-1-otel-runtime-closure.md`.
@@ -408,7 +408,7 @@ Full runbook: `docs/operations/otel-runtime-wiring.md`. Closure report: `docs/op
 Phase O1.2 added:
 
 - **Span coverage**: `proovra.queue.job.retry` / `.replay` and `proovra.custody.attestation.sign` / `.verify` / `.backfill` wired into the api services.
-- **Metric registry additions** (18 bounded names): `queue_retry_total`, `queue_retry_failure_total`, `queue_replay_duration_ms`, `custody_attestation_sign_failure_total`, `siu_export_generated_total`, `siu_export_failed_total`, `siu_export_download_total`, `siu_export_upload_failure_total`, `package_generation_total`, `package_generation_failed_total`, `export_generation_total`, `export_generation_failed_total`, `export_reproducibility_verify_total`, `recovery_backup_validation_total`, `recovery_restore_validation_total`, `recovery_validation_failed_total`, `c2pa_backfill_run_failure_total`, `siu_pii_revealed_total`.
+- **Metric registry additions** (17 bounded names): `queue_retry_total`, `queue_retry_failure_total`, `queue_replay_duration_ms`, `custody_attestation_sign_failure_total`, `siu_export_generated_total`, `siu_export_failed_total`, `siu_export_download_total`, `siu_export_upload_failure_total`, `package_generation_total`, `package_generation_failed_total`, `export_generation_total`, `export_generation_failed_total`, `export_reproducibility_verify_total`, `recovery_backup_validation_total`, `recovery_restore_validation_total`, `recovery_validation_failed_total`, `siu_pii_revealed_total`.
 - **Four Grafana dashboards** at `infra/grafana/dashboards/`: PROOVRA — Operations Overview / Queue Operations / Exports & Reproducibility / Recovery.
 - **Eleven alert rules** at `infra/grafana/alerts/proovra-operations-alerts.yaml`. Every rule's `runbook_url` resolves to an anchor in `observability-runbooks.md`.
 - **Internal SLO model** at `slo-model.md`. Six bounded internal targets. Bounded copy "internal target — not a customer SLA".

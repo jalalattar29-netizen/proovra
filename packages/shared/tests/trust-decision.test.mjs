@@ -188,25 +188,6 @@ test("anchored with valid ots bitcoin txid passes public anchoring", () => {
   assert.equal(anchoring?.points, 10);
 });
 
-test("anchored with valid public receipt url passes public anchoring", () => {
-  const trustDecision = buildEvidenceTrustDecision({
-    evidence: buildBaseEvidence({
-      otsStatus: "ANCHORED",
-      anchor: {
-        publicUrl: "https://anchor.example/receipt/123",
-      },
-    }),
-    custodyEvents: [buildForensicEvent(1), buildForensicEvent(2), buildForensicEvent(3)],
-  });
-
-  const anchoring = trustDecision.signals.find(
-    (signal) => signal.key === "public_anchoring"
-  );
-
-  assert.equal(anchoring?.status, "passed");
-  assert.equal(anchoring?.points, 10);
-});
-
 test("anchored without defensible public material stays partial", () => {
   const trustDecision = buildEvidenceTrustDecision({
     evidence: buildBaseEvidence({
@@ -272,7 +253,6 @@ test("finalized publication can retain a success presentation tone", () => {
       otsBitcoinTxid: "c".repeat(64),
       anchor: {
         transactionId: "c".repeat(64),
-        publicUrl: "https://anchor.example/receipt/123",
       },
     }),
     custodyEvents: [

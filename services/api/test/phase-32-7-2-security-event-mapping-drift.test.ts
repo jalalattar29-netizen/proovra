@@ -779,6 +779,13 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // allowlisted so the guardrail keeps detecting UNattributed
       // migrations while permitting this deliberate metadata work.
       "20270907000000_technical_metadata_capture_environment",
+      // Removes the unsupported external publication / public receipt layer
+      // from evidence_anchors (receipt_id, public_url). Deliberate,
+      // confirmed-unused destructive cleanup; DROP COLUMN IF EXISTS is
+      // idempotent and its CRITICAL finding is separately reviewed in
+      // phase-o-migration-safety-gate's APPROVED_CRITICAL_BY_MIGRATION.
+      // Unrelated to Phase 32.7.2 SecurityEvent mapping.
+      "20270908000000_drop_evidence_anchor_publication_columns",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

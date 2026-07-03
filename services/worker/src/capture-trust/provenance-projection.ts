@@ -199,41 +199,6 @@ export async function projectProvenanceChain(
     }
   }
 
-  // ----- C2PA aggregate (best-effort) -----------------------------------
-  let c2paAggregateStatus:
-    | "not_present"
-    | "present"
-    | "valid"
-    | "invalid"
-    | "unsupported"
-    | "disabled"
-    | "error" = "not_present";
-  let c2paProviderMode:
-    | "disabled"
-    | "detect_only"
-    | "validate"
-    | "embed_supported" = "disabled";
-  try {
-    const ev2 = (await prisma.evidence.findUnique({
-      where: { id: evidenceId },
-      select: { verificationPackageMetadata: true as never },
-    })) as { verificationPackageMetadata?: { c2pa?: unknown } } | null;
-    const c2pa = ev2?.verificationPackageMetadata?.c2pa as
-      | Record<string, unknown>
-      | undefined;
-    if (c2pa) {
-      if (typeof c2pa["aggregateStatus"] === "string") {
-        c2paAggregateStatus =
-          c2pa["aggregateStatus"] as typeof c2paAggregateStatus;
-      }
-      if (typeof c2pa["providerMode"] === "string") {
-        c2paProviderMode = c2pa["providerMode"] as typeof c2paProviderMode;
-      }
-    }
-  } catch {
-    // Optional field — never block the projection.
-  }
-
   // ----- Derivations (parent→derived edges) -----------------------------
   const derivations: Array<{
     derivedEvidenceId: string;
@@ -306,11 +271,6 @@ export async function projectProvenanceChain(
       },
     },
 
-    c2pa: {
-      aggregateStatus: c2paAggregateStatus,
-      providerMode: c2paProviderMode,
-    },
-
     derivations,
 
     trustEventSummary: {
@@ -357,7 +317,6 @@ function emptyProjection(
         confirmations: null,
       },
     },
-    c2pa: { aggregateStatus: "not_present", providerMode: "disabled" },
     derivations: [],
     trustEventSummary: { total: 0, failures: 0, lastEventAtUtc: null },
     limitations: STANDING_PROVENANCE_LIMITATIONS,
