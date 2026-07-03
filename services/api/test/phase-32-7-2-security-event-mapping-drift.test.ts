@@ -779,7 +779,7 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // allowlisted so the guardrail keeps detecting UNattributed
       // migrations while permitting this deliberate metadata work.
       "20270907000000_technical_metadata_capture_environment",
-      // Removes the unsupported external publication / public receipt layer
+      // Removes the unsupported anchor receipt_id / public_url columns
       // from evidence_anchors (receipt_id, public_url). Deliberate,
       // confirmed-unused destructive cleanup; DROP COLUMN IF EXISTS is
       // idempotent and its CRITICAL finding is separately reviewed in

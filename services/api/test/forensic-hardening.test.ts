@@ -34,14 +34,14 @@ const SNAPSHOT_TRUST_DECISION = {
   score: 84,
   maxScore: 100,
   scoreLabel: "84/100",
-  verdictLabel: "Recorded integrity verified; publication pending",
-  shortLabel: "Pending publication",
+  verdictLabel: "Recorded integrity verified; Bitcoin anchoring pending",
+  shortLabel: "Anchoring pending",
   summary:
-    "Recorded integrity is verified, but public anchoring is still pending.",
+    "Recorded integrity is verified, but Bitcoin anchoring is still pending.",
   narrative:
-    "Recorded integrity is verified, but independent public anchoring is not finalized yet.",
-  primaryReason: "Publication is pending.",
-  reviewerAction: "Recheck publication later if independent anchoring is required.",
+    "Recorded integrity is verified, but Bitcoin anchoring is not finalized yet.",
+  primaryReason: "Bitcoin anchoring is pending.",
+  reviewerAction: "Recheck anchoring later if independent Bitcoin anchoring is required.",
   legalBoundary: "Integrity verification is not a truth finding.",
   degradedButUsable: true,
   relianceLevel: "high",
@@ -78,12 +78,12 @@ const SNAPSHOT_TRUST_DECISION = {
     },
     {
       key: "public_anchoring",
-      label: "Public anchoring",
+      label: "Bitcoin anchoring",
       status: "pending",
       tone: "warning",
       points: 9,
       maxPoints: 15,
-      summary: "OpenTimestamps proof present; public anchoring pending",
+      summary: "OpenTimestamps proof present; Bitcoin anchoring pending",
       detail: "Independent public anchoring has not completed yet.",
     },
     {
@@ -178,7 +178,7 @@ describe("public verify semantics (Governance Item 1)", () => {
     expect(verifyPageSource).toContain('label: "Current public verify page view"');
     expect(verifyPageSource).not.toContain('label: "Last Verified At"');
     expect(verifyPageSource).toContain("getTrustDecisionConfidenceLabel");
-    expect(verifyPageSource).toContain("Recorded integrity verified; publication pending");
+    expect(verifyPageSource).toContain("Recorded integrity verified; Bitcoin anchoring pending");
   });
 
   it("classifies access-only divergence as informational and non-integrity-critical", () => {

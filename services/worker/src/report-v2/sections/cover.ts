@@ -112,7 +112,7 @@ function renderDecisionIndicator(params: {
         : params.tone === "danger"
           ? "Timestamp failed"
           : "Timestamp pending";
-  } else if (normalizedLabel.includes("public anchoring")) {
+  } else if (normalizedLabel.includes("bitcoin anchoring")) {
     compactValue =
       params.tone === "success"
         ? "Anchored"
@@ -221,7 +221,7 @@ const integrityBadgeText = decision.shortLabel;
     vm.meta.publicEvidenceTypeLabel || "Digital evidence record"
   );
 
-  const anchoringLabel = findRowValue(vm.storageRows, "Public Anchoring Status");
+  const anchoringLabel = findRowValue(vm.storageRows, "Bitcoin Anchoring Status");
 
   const leadItemLabel = safe(
     vm.primaryContentItem?.originalFileName || vm.primaryContentItem?.label,

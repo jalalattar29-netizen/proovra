@@ -431,7 +431,7 @@ export async function enqueueOutboundMessage(
     // number not WA-enabled) read "SENT" forever in the UI. The
     // webhook handler at communications.routes.ts is already wired;
     // it just never knew Twilio existed because we never told
-    // Twilio our callback URL. Operators set the public URL via
+    // Twilio our callback URL. Operators set the public callback URL via
     // TWILIO_STATUS_CALLBACK_URL (typically
     // https://api.proovra.com/v1/communications/webhooks/twilio/status).
     statusCallbackUrl: resolveTwilioStatusCallbackUrl(),

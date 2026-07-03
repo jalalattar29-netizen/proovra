@@ -174,7 +174,7 @@ Where appropriate, material changes may trigger an updated acceptance flow or ad
 
 ## 5. HISTORICAL REFERENCE
 
-Older versions may be retained internally for audit, compliance, contractual, or evidentiary purposes. PROOVRA does not guarantee public publication of every historical draft or intermediate revision unless required by law or contract.
+Older versions may be retained internally for audit, compliance, contractual, or evidentiary purposes. PROOVRA does not guarantee public release of every historical draft or intermediate revision unless required by law or contract.
 
 ## 6. RELATED DOCUMENTS
 

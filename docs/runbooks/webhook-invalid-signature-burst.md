@@ -15,7 +15,7 @@
 1. Inspect inbound IPs from the SecurityEvent details (we redact bodies; the IP is operator-visible).
 2. Confirm `TWILIO_API_SECRET` is set and matches the configured Twilio account.
 3. Confirm proxy / load balancer is preserving the `X-Twilio-Signature` header.
-4. If a NEW load balancer was introduced recently, check that the public URL Twilio POSTs to matches the URL we reconstruct (the signature base includes the full URL).
+4. If a NEW load balancer was introduced recently, check that the public callback URL Twilio POSTs to matches the URL we reconstruct (the signature base includes the full URL).
 
 ## What NOT to do
 - **Do not** disable the signature check. The Phase 18 webhook routes are signature-gated; turning off validation lets arbitrary callers update message state.

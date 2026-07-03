@@ -86,7 +86,7 @@ test("CreateBody — superRefine enforces channel → recipient field dependenci
     /\(data\.deliveryMethod === "SMS" \|\| data\.deliveryMethod === "WHATSAPP"\)[\s\S]{0,40}!data\.recipientPhone/,
   );
   // Non-MANUAL requires intakeUrlBase so the backend can compose the
-  // public URL the contributor opens.
+  // public link the contributor opens.
   assert.match(
     src,
     /data\.deliveryMethod !== "MANUAL" && !data\.intakeUrlBase/,

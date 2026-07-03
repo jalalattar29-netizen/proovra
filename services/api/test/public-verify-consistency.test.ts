@@ -39,7 +39,7 @@ function buildTrustDecision(status: "passed" | "partial" | "failed"): TrustDecis
     signals: [
       {
         key: "public_anchoring",
-        label: "Public anchoring",
+        label: "Bitcoin anchoring",
         status,
         tone: status === "failed" ? "danger" : status === "passed" ? "success" : "warning",
         points: status === "passed" ? 10 : status === "partial" ? 5 : 0,

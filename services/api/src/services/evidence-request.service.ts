@@ -661,7 +661,7 @@ export async function sendEvidenceRequest(
 
   // External recipient — generate intake link if not already bound. For
   // INTERNAL_USER recipients we deliberately skip token issuance; no
-  // public URL is created and `rawToken` stays null.
+  // public intake link is created and `rawToken` stays null.
   if (
     isExternalRecipientMode(existing.recipientMode as "EXTERNAL_CONTRIBUTOR") &&
     !intakeLinkId

@@ -264,8 +264,8 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
     });
 
     // Legal boundary: the OTS proof can be preserved in an anchored state even
-    // before a Bitcoin txid or other public receipt is available. The shared
-    // trust engine still requires defensible public anchor material before it
+    // before a Bitcoin txid is available. The shared
+    // trust engine still requires defensible anchoring material before it
     // awards a full 10/10 public-anchoring signal.
 // Phase IA-OTS-hybrid — promotion to ANCHORED is now gated on
     // `classification.kind === "FULLY_ANCHORED"`, which requires

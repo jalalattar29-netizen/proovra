@@ -61,7 +61,12 @@ export function mapCaptureMethodLabel(value: string | null | undefined): string 
     case "IMPORTED_DOCUMENT":
       return "Imported document";
     case "MULTIPART_PACKAGE":
-      return "Multipart package";
+      // MULTIPART_PACKAGE is an evidence STRUCTURE, not an acquisition method.
+      // A multipart record is produced by a PROOVRA web/browser multi-file
+      // upload, so the reviewer-facing capture method reads "PROOVRA Web
+      // Upload". The structure is shown separately as "Multipart evidence
+      // package".
+      return "PROOVRA Web Upload";
     case "EXTERNAL_INTAKE_UPLOAD":
       // Intake-only value. Keeps the Technical Appendix "Capture Method"
       // consistent with the Technical Summary + Evidence Acquisition, which
@@ -262,9 +267,9 @@ export function mapTimestampStatusPublicLabel(
 }
 
 /**
- * Truthful OTS / public anchoring labels.
+ * Truthful OTS / Bitcoin anchoring labels.
  *
- * "Public anchoring verified" was previously returned for ANCHORED, but the
+ * "OpenTimestamps Bitcoin anchoring verified" was previously returned for ANCHORED, but the
  * worker can persist ANCHORED before a Bitcoin transaction id is attached
  * (that lives behind a separate upgrade pass). For legal safety we no longer
  * return "verified" purely on the ANCHORED status. Use the txid-aware variant
@@ -275,9 +280,9 @@ export function mapOtsStatusPublicLabel(status: string | null | undefined): stri
     case "ANCHORED":
       // Without txid context we cannot assert Bitcoin anchoring; report the
       // honest OTS state instead.
-      return "OpenTimestamps proof present; public anchoring pending";
+      return "OpenTimestamps proof present; Bitcoin anchoring pending";
     case "PENDING":
-      return "OpenTimestamps proof present; public anchoring pending";
+      return "OpenTimestamps proof present; Bitcoin anchoring pending";
     case "FAILED":
       return "OpenTimestamps anchoring failed";
     case "DISABLED":
@@ -369,7 +374,7 @@ export function mapOtsStatusTechnicalDetail(params: {
     case "PENDING":
       return hasTxid
         ? "OTS proof present; Bitcoin transaction id detected; verification pending."
-        : "OTS proof present; public anchoring pending.";
+        : "OTS proof present; Bitcoin anchoring pending.";
     case "FAILED":
       return "OTS anchoring failed.";
     case "DISABLED":
@@ -396,23 +401,23 @@ export function mapAnchorModePublicLabel(mode: string | null | undefined): strin
   switch (safe(mode, "").toUpperCase()) {
     case "ANCHORED":
     case "ACTIVE":
-      return "Public anchoring verified";
+      return "OpenTimestamps Bitcoin anchoring verified";
     case "PENDING_PUBLIC_ANCHOR":
     case "READY":
-      return "OTS proof present, public anchoring pending";
+      return "OTS proof present; Bitcoin anchoring pending";
     case "FAILED":
-      return "Public anchoring failed";
+      return "OpenTimestamps anchoring failed";
     case "NOT_CONFIGURED":
     case "OFF":
-      return "Public anchoring unavailable";
+      return "Anchoring not recorded";
     case "PUBLIC":
-      return "Public anchoring";
+      return "Bitcoin anchoring";
     case "PRIVATE":
       return "Private anchoring";
     case "HASH_ONLY":
       return "Digest anchoring";
     default:
-      return "Public anchoring unavailable";
+      return "Anchoring not recorded";
   }
 }
 
@@ -422,20 +427,20 @@ export function mapAnchorModePublicLabel(mode: string | null | undefined): strin
  *
  * The row historically reflected the EvidenceAnchor (external
  * publication) pipeline only, which produced a misleading
- * "OTS proof present, public anchoring pending" label on records whose
+ * "OTS proof present; Bitcoin anchoring pending" label on records whose
  * OTS proof was actually fully ANCHORED with a Bitcoin txid. The row
- * is supposed to summarize the *public anchoring* state — i.e. OTS /
- * Bitcoin anchoring — not the external publication pipeline. This
+ * is supposed to summarize the *Bitcoin anchoring* state — i.e. OTS /
+ * Bitcoin anchoring. This
  * helper inspects the canonical OTS facts FIRST and only falls back to
  * the EvidenceAnchor-derived mode when OTS state is unknown.
  *
  * Honest semantics:
- *   - OTS ANCHORED with valid txid/anchoredAt → "Public anchoring verified"
+ *   - OTS ANCHORED with valid txid/anchoredAt → "OpenTimestamps Bitcoin anchoring verified"
  *   - OTS PENDING / proof present, not yet upgraded → "OTS proof present,
- *     public anchoring pending"
- *   - OTS FAILED → "Public anchoring failed"
+ *     Bitcoin anchoring pending"
+ *   - OTS FAILED → "OpenTimestamps anchoring failed"
  *   - OTS DISABLED / missing → fall through to anchor-mode label
- *     (typically "Public anchoring unavailable")
+ *     (typically "Anchoring not recorded")
  *
  * NEVER fabricates. Never asserts verified anchoring without canonical
  * proof signals (txid OR anchoredAtUtc).
@@ -455,16 +460,16 @@ export function mapPublicAnchoringLabelFromOts(input: {
   const hasProof = Boolean(input.otsProofPresent);
 
   if (status === "ANCHORED" && (hasTxid || hasAnchoredAt)) {
-    return "Public anchoring verified";
+    return "OpenTimestamps Bitcoin anchoring verified";
   }
   if (status === "FAILED") {
-    return "Public anchoring failed";
+    return "OpenTimestamps anchoring failed";
   }
   if (status === "PENDING" || hasProof) {
-    return "OTS proof present, public anchoring pending";
+    return "OTS proof present; Bitcoin anchoring pending";
   }
   if (status === "DISABLED") {
-    return "Public anchoring unavailable";
+    return "Anchoring not recorded";
   }
   return mapAnchorModePublicLabel(input.fallbackAnchorMode ?? null);
 }

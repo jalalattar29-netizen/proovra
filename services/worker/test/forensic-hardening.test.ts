@@ -39,7 +39,7 @@ describe("OTS labels (Phase B #9 / Phase C #4)", () => {
     ).toBe("OpenTimestamps Bitcoin anchoring verified");
     expect(
       mapOtsStatusPublicLabelWithTxid({ status: "ANCHORED", bitcoinTxid: null })
-    ).toContain("public anchoring pending");
+    ).toContain("Bitcoin anchoring pending");
     expect(
       mapOtsStatusPublicLabelWithTxid({ status: "PENDING", bitcoinTxid: validTxid })
     ).toContain("pending");

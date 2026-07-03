@@ -102,7 +102,6 @@ export function resolveAnchorSummary(
   return {
     mode: semantics.anchorMode,
     provider: evidence.anchorProvider ?? null,
-    publicBaseUrl: null,
     configured: Boolean(evidence.anchorProvider),
     anchorHash: evidence.anchorHash ?? null,
     transactionId: semantics.transactionId,
@@ -322,7 +321,7 @@ export function buildAnchorRows(
   if (!anchorSummary) return [];
 
   // The "Anchor Mode" row summarizes PUBLIC ANCHORING state (OTS /
-  // Bitcoin), not the external publication pipeline. Drive the label
+  // Bitcoin). Drive the label
   // from canonical OTS facts when supplied; fall back to the
   // EvidenceAnchor-derived mode label only when OTS state is absent.
   const anchorModeLabel = otsFacts

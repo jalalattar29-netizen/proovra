@@ -267,7 +267,6 @@ type ReportLegalLimitations = {
 type ReportAnchorSummary = {
   mode: "off" | "ready" | "active";
   provider: string | null;
-  publicBaseUrl: string | null;
   configured: boolean;
   anchorHash: string | null;
   transactionId: string | null;
@@ -1269,7 +1268,7 @@ function buildReviewerRepresentationNote(params: {
 function buildVerificationMaterialsNote(params: {
   kind: ReportEvidenceAssetKind;
 }): string {
-  return `Verification materials for this ${params.kind} item include the recorded digest, custody linkage, timestamping state, and any published anchoring records associated with the preserved evidence record.`;
+  return `Verification materials for this ${params.kind} item include the recorded digest, custody linkage, timestamping state, and any OpenTimestamps/Bitcoin anchoring records associated with the preserved evidence record.`;
 }
 
 function buildReportEvidenceContent(params: {
@@ -1564,7 +1563,6 @@ async function resolveAnchorStatusForReport(
 ): Promise<ReportAnchorSummary> {
   const mode = normalizeAnchorMode(process.env.ANCHOR_MODE);
   const provider = process.env.ANCHOR_PROVIDER?.trim() || null;
-  const publicBaseUrl = process.env.ANCHOR_PUBLIC_BASE_URL?.trim() || null;
 
   const anchor = await prisma.evidenceAnchor.findUnique({
     where: { evidenceId },
@@ -1581,7 +1579,6 @@ async function resolveAnchorStatusForReport(
     return {
       mode,
       provider,
-      publicBaseUrl,
       configured: Boolean(provider),
       anchorHash: null,
       transactionId: null,
@@ -1592,7 +1589,6 @@ async function resolveAnchorStatusForReport(
   return {
     mode: normalizeAnchorMode(anchor.mode),
     provider: anchor.provider ?? provider,
-    publicBaseUrl,
     configured: Boolean(anchor.provider ?? provider),
     anchorHash: anchor.anchorHash ?? null,
     transactionId: anchor.transactionId ?? null,
@@ -3656,8 +3652,6 @@ signingKeyVersion: evidence.signingKeyVersion ?? undefined,
           anchor: finalizedAnchorPayload,
           anchorMode: normalizeAnchorMode(process.env.ANCHOR_MODE),
           anchorProvider: process.env.ANCHOR_PROVIDER?.trim() || null,
-          anchorPublicBaseUrl:
-            process.env.ANCHOR_PUBLIC_BASE_URL?.trim() || null,
           certifications: prepared.certifications,
           // Hotfix — pass OTS state + proof through so the package
           // honestly includes `opentimestamps-proof.ots` whenever the
@@ -3681,8 +3675,40 @@ signingKeyVersion: evidence.signingKeyVersion ?? undefined,
           },
           metadata: {
             title: prepared.display.displayTitle,
-            rawEvidenceType: String(evidence.type),
-            rawEvidenceTypeSource: "primary_record_enum",
+            // A multipart package aggregates multiple items, so the single
+            // primary-record enum (which may be DOCUMENT) is misleading in
+            // legal/forensic package material. Derive a package-level type
+            // from the SAME reviewer categories used by reviewerEvidenceType
+            // so the two can never contradict: MIXED_MEDIA_PACKAGE only when
+            // genuinely mixed (>1 media category), a single-category package
+            // label otherwise (e.g. IMAGE_PACKAGE), never DOCUMENT for a
+            // package. Single-item evidence keeps the raw record enum.
+            rawEvidenceType:
+              prepared.contentSummary.itemCount > 1
+                ? (() => {
+                    const cats = getReviewerEvidenceCategories({
+                      itemCount: prepared.contentSummary.itemCount,
+                      structure: prepared.contentSummary.structure,
+                      imageCount: prepared.contentSummary.imageCount,
+                      videoCount: prepared.contentSummary.videoCount,
+                      audioCount: prepared.contentSummary.audioCount,
+                      pdfCount: prepared.contentSummary.pdfCount,
+                      textCount: prepared.contentSummary.textCount,
+                      otherCount: prepared.contentSummary.otherCount,
+                      evidenceType: String(evidence.type),
+                      mimeType: evidence.mimeType ?? null,
+                    }).filter((c) => c !== "Other");
+                    return cats.length > 1
+                      ? "MIXED_MEDIA_PACKAGE"
+                      : cats.length === 1
+                        ? `${cats[0].toUpperCase().replace(/\s+/g, "_")}_PACKAGE`
+                        : "MULTIPART_PACKAGE";
+                  })()
+                : String(evidence.type),
+            rawEvidenceTypeSource:
+              prepared.contentSummary.itemCount > 1
+                ? "multipart_package_derivation"
+                : "primary_record_enum",
             reviewerEvidenceType: getReviewerEvidenceTypeLabel({
               itemCount: prepared.contentSummary.itemCount,
               structure: prepared.contentSummary.structure,

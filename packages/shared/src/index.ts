@@ -1902,6 +1902,7 @@ export {
   demoteToClassC,
   attestationVerdictKeepsClassA,
   signatureVerdictIsFatal,
+  describeDeviceSignatureVerdict,
 } from "./capture-trust.js";
 export type {
   CaptureProvenanceClass,

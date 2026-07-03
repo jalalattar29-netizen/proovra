@@ -64,14 +64,14 @@ test("OutputContextBadge renders canonical legal boundary from outputContext.leg
   );
 });
 
-test("hardcoded 'Recorded integrity verified; publication pending' now defers to canonical label", () => {
+test("hardcoded 'Recorded integrity verified; Bitcoin anchoring pending' now defers to canonical label", () => {
   const src = readFileSync(PAGE, "utf8");
   // The string still exists as the LEGACY-only fallback (when no
   // trustDecision was provided). The Phase 2 closure invariant is
   // that it is preceded by a getTrustDecisionLabel(input.trustDecision)
   // canonical branch.
   const labelBlock = src.match(
-    /input\.trustDecision\s*\?\s*getTrustDecisionLabel\(input\.trustDecision\)[\s\S]{0,300}"Recorded integrity verified; publication pending"/,
+    /input\.trustDecision\s*\?\s*getTrustDecisionLabel\(input\.trustDecision\)[\s\S]{0,300}"Recorded integrity verified; Bitcoin anchoring pending"/,
   );
   assert.ok(
     labelBlock,

@@ -99,7 +99,7 @@ describe("E3.2 Test 1 — WEBHOOK_DELIVERY_INTERNAL_ONLY added to action allowli
 // ===========================================================================
 
 describe("E3.2 Test 2 — URL safety / SSRF protection (static)", () => {
-  it("accepts a normal HTTPS public URL", () => {
+  it("accepts a normal HTTPS endpoint URL", () => {
     const r = validateDestinationUrlStatic("https://hooks.example.com/proovra");
     expect(r.ok).toBe(true);
     if (r.ok) {

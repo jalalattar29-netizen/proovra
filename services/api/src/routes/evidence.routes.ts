@@ -676,7 +676,7 @@ function buildReviewerRepresentationNote(params: {
 function buildVerificationMaterialsNote(params: {
   kind: PublicEvidenceAssetKind;
 }): string {
-  return `Verification materials for this ${params.kind} item include the recorded digest, custody linkage, timestamping state, and published anchoring indicators associated with the evidence record.`;
+  return `Verification materials for this ${params.kind} item include the recorded digest, custody linkage, timestamping state, and OpenTimestamps/Bitcoin anchoring records associated with the evidence record.`;
 }
 
 function sortPublicEvidenceItems(items: PublicEvidenceAsset[]): PublicEvidenceAsset[] {
@@ -798,7 +798,6 @@ type StorageProtectionSummary = {
 type AnchorStatusSummary = {
   mode: "off" | "ready" | "active";
   provider: string | null;
-  publicBaseUrl: string | null;
   configured: boolean;
   anchorHash: string | null;
   transactionId: string | null;
@@ -1551,9 +1550,9 @@ function mapOtsStatusLabel(status: string | null | undefined): string {
   const normalized = normalizeOtsStatus(status);
   switch (normalized) {
     case "ANCHORED":
-      return "OpenTimestamps proof present; public anchoring pending";
+      return "OpenTimestamps proof present; Bitcoin anchoring pending";
     case "PENDING":
-      return "OpenTimestamps proof present; public anchoring pending";
+      return "OpenTimestamps proof present; Bitcoin anchoring pending";
     case "FAILED":
       return "OpenTimestamps anchoring failed";
     case "DISABLED":
@@ -1810,7 +1809,7 @@ anchorHash ? `Anchor: ${anchorHash}` : null,
       const provider = normalizePublicPayloadValue(obj.provider);
       const reason = normalizePublicPayloadValue(obj.reason);
       return [
-        "External anchor publication failed",
+        "OpenTimestamps Bitcoin anchoring failed",
         provider ? `Provider: ${provider}` : null,
         reason ? `Reason: ${reason}` : null,
       ]
@@ -3795,7 +3794,6 @@ async function getAnchorStatus(
 ): Promise<AnchorStatusSummary> {
   const mode = normalizeAnchorMode(process.env.ANCHOR_MODE);
   const provider = process.env.ANCHOR_PROVIDER?.trim() || null;
-  const publicBaseUrl = process.env.ANCHOR_PUBLIC_BASE_URL?.trim() || null;
 
   const anchor = await prisma.evidenceAnchor.findUnique({
     where: { evidenceId },
@@ -3812,7 +3810,6 @@ async function getAnchorStatus(
     return {
       mode,
       provider,
-      publicBaseUrl,
       configured: Boolean(provider),
       anchorHash: null,
       transactionId: null,
@@ -3823,7 +3820,6 @@ async function getAnchorStatus(
   return {
     mode: normalizeAnchorMode(anchor.mode),
     provider: anchor.provider ?? provider,
-    publicBaseUrl,
     configured: Boolean(anchor.provider ?? provider),
     anchorHash: anchor.anchorHash ?? null,
     transactionId: anchor.transactionId ?? null,

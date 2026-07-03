@@ -83,6 +83,7 @@ export const CAPTURE_MODES = [
   "OPERATOR_SDK_EMBED", // Partner app via SDK
   "OPERATOR_WEB_CAPTURE", // Operator browser (capture-v2)
   "CITIZEN_PWA", // Public intake browser, no install
+  "SECURE_INTAKE_LINK", // Remote contributor upload via a secure intake link
   "BULK_IMPORT", // Operator imports existing files
 ] as const;
 export type CaptureMode = (typeof CAPTURE_MODES)[number];
@@ -99,6 +100,7 @@ export const MAX_PROVENANCE_CLASS_BY_MODE: Readonly<
   OPERATOR_SDK_EMBED: "A",
   OPERATOR_WEB_CAPTURE: "B",
   CITIZEN_PWA: "B",
+  SECURE_INTAKE_LINK: "C",
   BULK_IMPORT: "C",
 };
 
@@ -438,8 +440,18 @@ export type ProvenanceChain = {
     sessionId: string | null;
     /** Device id (may be null for citizen PWA / bulk imports). */
     deviceId: string | null;
-    /** Bounded signature verdict. */
-    signatureVerdict: CaptureSignatureVerdict;
+    /**
+     * Bounded CAPTURE-SIDE / device signature verdict. This describes only
+     * whether the contributor's capture device signed the artifact at source
+     * — it is NOT the PROOVRA preservation signature (which is recorded
+     * separately in signature.txt / the package manifest signature). A
+     * "MISSING" value here means the source device did not provide a
+     * signature (e.g. bulk import or secure intake upload), not that
+     * PROOVRA's cryptographic signature is absent.
+     */
+    deviceSignatureVerdict: CaptureSignatureVerdict;
+    /** Human-readable clarification of the device-signature verdict. */
+    deviceSignatureNote: string;
     /** Bounded attestation verdict. */
     attestationVerdict: DeviceAttestationVerdict;
     /** Bounded attestation provider. */
@@ -564,4 +576,19 @@ export function signatureVerdictIsFatal(
     v === "INVALID_CANONICAL_JSON" ||
     v === "UNKNOWN_DEVICE"
   );
+}
+
+/**
+ * Human-readable clarification for the capture-side / device signature
+ * verdict in a ProvenanceChain. Makes explicit that this describes only the
+ * SOURCE-DEVICE signature and never the PROOVRA preservation signature, so a
+ * "MISSING" verdict is not misread as an absent PROOVRA signature.
+ */
+export function describeDeviceSignatureVerdict(
+  v: CaptureSignatureVerdict,
+): string {
+  if (v === "MISSING") {
+    return "Device/source signature not provided by contributor device. PROOVRA preservation signature is recorded separately.";
+  }
+  return `Capture-side device signature verdict: ${v}. This describes the source-device signature only; the PROOVRA preservation signature is recorded separately.`;
 }

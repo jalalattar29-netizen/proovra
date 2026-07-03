@@ -39,6 +39,7 @@ import type { PrismaClient } from "@prisma/client";
 import {
   PROVENANCE_CHAIN_SCHEMA_VERSION,
   STANDING_PROVENANCE_LIMITATIONS,
+  describeDeviceSignatureVerdict,
   type CaptureMode,
   type CaptureProvenanceClass,
   type CaptureSignatureVerdict,
@@ -68,11 +69,18 @@ export async function projectProvenanceChain(
   // ----- Evidence root + certification fields ---------------------------
   const evidence = await prisma.evidence.findUnique({
     where: { id: evidenceId },
-    select: { id: true },
+    select: { id: true, captureMethod: true },
   });
   if (!evidence) {
     return emptyProjection(evidenceId, generatedAtUtc, "BULK_IMPORT", "C");
   }
+
+  // Intake evidence (submitted through a Secure Intake Link) never carries a
+  // capture-trust device signature, so the capture-side mode must reflect the
+  // intake workflow rather than defaulting to the misleading BULK_IMPORT.
+  const isIntakeEvidence =
+    String(evidence.captureMethod ?? "").toUpperCase() ===
+    "EXTERNAL_INTAKE_UPLOAD";
 
   // ----- Capture-trust events for this evidence -------------------------
   const trustEvents = await prisma.captureTrustEventRecord.findMany({
@@ -91,7 +99,7 @@ export async function projectProvenanceChain(
   });
 
   // ----- Resolve capture-side mode, class, session, device, sig verdict --
-  let mode: CaptureMode = "BULK_IMPORT";
+  let mode: CaptureMode = isIntakeEvidence ? "SECURE_INTAKE_LINK" : "BULK_IMPORT";
   let provenanceClass: CaptureProvenanceClass = "C";
   let sessionId: string | null = null;
   let deviceId: string | null = null;
@@ -245,7 +253,8 @@ export async function projectProvenanceChain(
       provenanceClass,
       sessionId,
       deviceId,
-      signatureVerdict,
+      deviceSignatureVerdict: signatureVerdict,
+      deviceSignatureNote: describeDeviceSignatureVerdict(signatureVerdict),
       attestationVerdict,
       attestationProvider,
       signedAtUtc,
@@ -298,7 +307,8 @@ function emptyProjection(
       provenanceClass: cls,
       sessionId: null,
       deviceId: null,
-      signatureVerdict: "MISSING",
+      deviceSignatureVerdict: "MISSING",
+      deviceSignatureNote: describeDeviceSignatureVerdict("MISSING"),
       attestationVerdict: "NOT_ATTEMPTED",
       attestationProvider: "NONE",
       signedAtUtc: null,

@@ -261,7 +261,7 @@ const stampArgs = [
       );
 
       // Legal boundary: an OTS proof can reach an anchored state before we have
-      // a defensible public receipt such as a Bitcoin txid. We preserve the
+      // a defensible Bitcoin transaction id. We preserve the
       // anchored proof state here, but downstream trust scoring only awards full
       // public-anchoring credit when additional public anchor material exists.
       if (anchored) {

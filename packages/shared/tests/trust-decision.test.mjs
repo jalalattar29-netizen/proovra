@@ -222,7 +222,7 @@ test("pending ots yields pending anchoring signal", () => {
   assert.equal(anchoring?.points, 4);
 });
 
-test("pending publication degrades presentation tone and confidence label", () => {
+test("pending Bitcoin anchoring degrades presentation tone and confidence label", () => {
   const trustDecision = buildEvidenceTrustDecision({
     evidence: buildBaseEvidence({
       verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
@@ -240,8 +240,8 @@ test("pending publication degrades presentation tone and confidence label", () =
 
   assert.equal(trustDecision.presentationState, "VERIFIED_PENDING_PUBLICATION");
   assert.equal(getTrustDecisionPresentationTone(trustDecision), "warning");
-  assert.equal(getTrustDecisionConfidenceLabel(trustDecision), "High (Pending publication)");
-  assert.match(trustDecision.verdictLabel, /publication pending/i);
+  assert.equal(getTrustDecisionConfidenceLabel(trustDecision), "High (Bitcoin anchoring pending)");
+  assert.match(trustDecision.verdictLabel, /Bitcoin anchoring pending/i);
 });
 
 test("finalized publication can retain a success presentation tone", () => {

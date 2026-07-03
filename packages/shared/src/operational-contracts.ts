@@ -261,7 +261,7 @@ export const QUEUE_RETRY_PROFILES = {
     backoffDelayMs: 1000,
     dlqRequired: true,
   },
-  /** Long-running compliance jobs (anchor publication, OTS upgrades).
+  /** Long-running compliance jobs (Bitcoin anchoring, OTS upgrades).
    *  Many attempts at slow backoff are appropriate. */
   compliance: {
     attempts: 20,

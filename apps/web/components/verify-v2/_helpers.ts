@@ -136,7 +136,7 @@ export function otsTone(
   if (s === "ANCHORED") {
     return hasValidBitcoinTxid
       ? { label: "ANCHORED", tone: "success" }
-      : { label: "PUBLICATION PENDING", tone: "warning" };
+      : { label: "ANCHORING PENDING", tone: "warning" };
   }
 
   if (s === "PENDING") {

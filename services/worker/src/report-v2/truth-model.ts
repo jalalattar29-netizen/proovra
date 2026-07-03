@@ -119,9 +119,9 @@ export function buildExecutiveConclusion(
       decision.presentationState === "VERIFIED_FINALIZED"
         ? "The preserved evidence record reached a verified recorded-integrity state with finalized supporting publication materials at report generation time. Reviewers can use this report to orient themselves to the package, then proceed to the later technical and legal sections for deeper validation and interpretation."
         : decision.presentationState === "VERIFIED_PENDING_PUBLICATION"
-          ? `The preserved evidence record reached a verified recorded-integrity state at report generation time, but independent public anchoring or external publication was not finalized yet. Technical confidence remains ${getTrustDecisionConfidenceLabel(
+          ? `The preserved evidence record reached a verified recorded-integrity state at report generation time, but Bitcoin anchoring has not finalized yet. An OpenTimestamps proof is recorded. Technical confidence remains ${getTrustDecisionConfidenceLabel(
               decision
-            ).toLowerCase()}, and publication recheck is recommended if independent public anchoring is required.`
+            ).toLowerCase()}, and anchoring recheck is recommended if independent Bitcoin anchoring is required.`
           : "The preserved evidence record is present and reviewable, but one or more supporting technical confirmation signals were not finalized at report generation time. Reviewers should use this report as an evidence-orientation and technical-review aid.",
     tone:
       decision.presentationState === "VERIFIED_FINALIZED" ? "success" : "warning",
@@ -222,11 +222,11 @@ export function buildOtsCallout(
             : "Unavailable",
     body:
       tone === "success"
-        ? "An OpenTimestamps proof is recorded with a Bitcoin transaction reference. This supports independent public anchoring evidence."
+        ? "An OpenTimestamps proof is recorded with a Bitcoin transaction reference. This supports independent Bitcoin anchoring evidence."
         : tone === "warning"
           ? baseStatusTone === "success"
             ? "An OpenTimestamps proof is recorded, but the Bitcoin transaction reference is not yet attached. Bitcoin anchoring will be confirmed after a separate upgrade pass."
-            : "OpenTimestamps proof material is present, but public anchoring has not finalized yet."
+            : "OpenTimestamps proof material is present, but Bitcoin anchoring has not finalized yet."
           : tone === "danger"
             ? `OpenTimestamps processing reported a failure state.${safe(
                 failureReason,
@@ -234,7 +234,7 @@ export function buildOtsCallout(
               )
                 ? ` ${safe(failureReason)}`
                 : ""}`.trim()
-            : "No public anchoring record was included.",
+            : "No Bitcoin anchoring record was included.",
     tone,
   };
 }
@@ -273,7 +273,7 @@ export function buildAnchorPublicationSummary(
   }
 
   if (anchor?.configured) {
-    return "OpenTimestamps proof present; public anchoring pending";
+    return "OpenTimestamps proof present; Bitcoin anchoring pending";
   }
 
   return "OpenTimestamps anchoring unavailable";

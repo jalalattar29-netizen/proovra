@@ -215,7 +215,7 @@ export function getTrustDecisionConfidenceLabel(
     decision.presentationState === "VERIFIED_PENDING_PUBLICATION" ||
     hasPublicationPendingSignal(decision)
   ) {
-    return "High (Pending publication)";
+    return "High (Bitcoin anchoring pending)";
   }
 
   if (decision.presentationState === "VERIFIED_WITH_DEGRADED_SIGNALS") {
@@ -253,16 +253,16 @@ export function getTrustSignalPresentationLabel(
 function getPublicationStateLabel(state: TrustPublicationState): string {
   switch (state) {
     case "finalized":
-      return "Independent publication finalized";
+      return "OpenTimestamps Bitcoin anchoring verified";
     case "pending":
-      return "Public anchoring pending";
+      return "Bitcoin anchoring pending";
     case "degraded":
-      return "Public anchoring recorded with limitations";
+      return "Bitcoin anchoring recorded with limitations";
     case "failed":
-      return "Public anchoring failed";
+      return "OpenTimestamps anchoring failed";
     case "unavailable":
     default:
-      return "Public anchoring unavailable";
+      return "Anchoring not recorded";
   }
 }
 
@@ -282,14 +282,14 @@ export function getTrustNarrative(
     decision.verdictLabel === "Verified" ||
     decision.verdictLabel === "Recorded integrity verified"
   ) {
-    return "Recorded integrity is verified across the returned cryptographic, custody, storage, timestamp, and publication materials. This remains a technical integrity conclusion, not proof of factual truth, authorship, legal admissibility, or original device capture authenticity.";
+    return "Recorded integrity is verified across the returned cryptographic, custody, storage, timestamp, and anchoring materials. This remains a technical integrity conclusion, not proof of factual truth, authorship, legal admissibility, or original device capture authenticity.";
   }
 
   if (
     decision.presentationState === "VERIFIED_PENDING_PUBLICATION" ||
     hasPublicationPendingSignal(decision)
   ) {
-    return "Recorded integrity is verified, but independent public anchoring or external publication is still pending. Reviewers should treat the record as conditionally reliable for integrity review and recheck publication status later if independent public anchoring is required.";
+    return "Recorded integrity is verified, but Bitcoin anchoring has not finalized yet. An OpenTimestamps proof is recorded. Reviewers should treat the record as conditionally reliable for integrity review and recheck anchoring later if independent Bitcoin anchoring is required.";
   }
 
   if (decision.presentationState === "VERIFIED_WITH_DEGRADED_SIGNALS") {
@@ -311,7 +311,7 @@ export function getTrustNarrative(
 }
 
 export const TRUST_DECISION_LEGAL_BOUNDARY =
-  "This trust decision summarizes the recorded integrity state of the evidence record. It does not independently prove factual truth, authorship, legal admissibility, intent, or completed public anchoring unless those external publication materials are separately verified.";
+  "This trust decision summarizes the recorded integrity state of the evidence record. It does not independently prove factual truth, authorship, legal admissibility, intent, or completed Bitcoin anchoring unless those anchoring materials are separately verified.";
 
 export function serializeTrustDecisionForReviewerPackage(
   decision: TrustDecision,
@@ -466,12 +466,16 @@ function makeSignal(params: {
   maxPoints: number;
   summary: string;
   detail: string;
+  // Optional presentation tone override. Used for the identity signal so
+  // recorded (but not independently verified) contributor identity renders
+  // as "Recorded" rather than "Verified", without changing scoring.
+  tone?: TrustDecisionTone;
 }): TrustSignal {
   return {
     key: params.key,
     label: params.label,
     status: params.status,
-    tone: toneForStatus(params.status),
+    tone: params.tone ?? toneForStatus(params.status),
     points: clampScore(params.points, params.maxPoints),
     maxPoints: params.maxPoints,
     summary: params.summary,
@@ -811,33 +815,33 @@ function buildAnchoringSignal(
   if (otsHashMismatch) {
     return makeSignal({
       key: "public_anchoring",
-      label: "Public anchoring",
+      label: "Bitcoin anchoring",
       status: "failed",
       points: 2,
       maxPoints: 10,
-      summary: "Public anchoring review required",
+      summary: "Bitcoin anchoring review required",
       detail:
-        "Recorded OpenTimestamps hash material does not match the canonical fingerprint hash, so public anchoring cannot be treated as verified.",
+        "Recorded OpenTimestamps hash material does not match the canonical fingerprint hash, so Bitcoin anchoring cannot be treated as verified.",
     });
   }
 
   if (malformedTxidWithoutOtherProof) {
     return makeSignal({
       key: "public_anchoring",
-      label: "Public anchoring",
+      label: "Bitcoin anchoring",
       status: "failed",
       points: 2,
       maxPoints: 10,
-      summary: "Public anchoring review required",
+      summary: "Bitcoin anchoring review required",
       detail:
-        "A malformed Bitcoin transaction identifier was recorded without any other defensible public anchoring receipt, URL, or anchored publication metadata.",
+        "A malformed Bitcoin transaction identifier was recorded without any other defensible Bitcoin transaction id or anchored timestamp.",
     });
   }
 
   if (isAnchoredOts(evidence.otsStatus) && defensibleAnchorMaterial) {
     return makeSignal({
       key: "public_anchoring",
-      label: "Public anchoring",
+      label: "Bitcoin anchoring",
       status: "passed",
       points: 10,
       maxPoints: 10,
@@ -850,63 +854,63 @@ function buildAnchoringSignal(
   if (isAnchoredOts(evidence.otsStatus)) {
     return makeSignal({
       key: "public_anchoring",
-      label: "Public anchoring",
+      label: "Bitcoin anchoring",
       status: "partial",
       points: 6,
       maxPoints: 10,
-      summary: "OpenTimestamps proof present; public anchoring pending",
+      summary: "OpenTimestamps proof present; Bitcoin anchoring pending",
       detail:
-        "Anchoring material is recorded in an anchored state, but no defensible public transaction id, receipt, public URL, or anchored publication metadata was attached.",
+        "OpenTimestamps proof material is recorded in an anchored state, but no defensible Bitcoin transaction id or anchored timestamp was attached yet.",
     });
   }
 
   if (isPendingOts(evidence.otsStatus)) {
     return makeSignal({
       key: "public_anchoring",
-      label: "Public anchoring",
+      label: "Bitcoin anchoring",
       status: "pending",
       points: 4,
       maxPoints: 10,
-      summary: "OpenTimestamps proof present; public anchoring pending",
+      summary: "OpenTimestamps proof present; Bitcoin anchoring pending",
       detail:
-        "OpenTimestamps proof material is present, but Bitcoin/public anchoring has not finalized yet.",
+        "OpenTimestamps proof material is present, but Bitcoin anchoring has not finalized yet.",
     });
   }
 
   if (isDisabledOts(evidence.otsStatus)) {
     return makeSignal({
       key: "public_anchoring",
-      label: "Public anchoring",
+      label: "Bitcoin anchoring",
       status: "missing",
       points: 3,
       maxPoints: 10,
-      summary: "Public anchoring unavailable",
+      summary: "Anchoring not recorded",
       detail:
-        "Public anchoring was disabled or not used for this evidence record.",
+        "Anchoring was not recorded for this evidence record.",
     });
   }
 
   if (isFailedOts(evidence.otsStatus)) {
     return makeSignal({
       key: "public_anchoring",
-      label: "Public anchoring",
+      label: "Bitcoin anchoring",
       status: "failed",
       points: 2,
       maxPoints: 10,
-      summary: "Public anchoring failed",
+      summary: "OpenTimestamps anchoring failed",
       detail:
-        "OpenTimestamps or external publication processing reported a failure state.",
+        "OpenTimestamps anchoring processing reported a failure state.",
     });
   }
 
   return makeSignal({
     key: "public_anchoring",
-    label: "Public anchoring",
+    label: "Bitcoin anchoring",
     status: "missing",
     points: 0,
     maxPoints: 10,
-    summary: "Public anchoring unavailable",
-    detail: "No public anchoring material was recorded for this evidence state.",
+    summary: "Anchoring not recorded",
+    detail: "No anchoring material was recorded for this evidence state.",
   });
 }
 
@@ -1030,53 +1034,52 @@ function buildIdentitySignal(
   if (level === "VERIFIED_ORGANIZATION") {
     return makeSignal({
       key: "identity",
-      label: "Identity assurance",
+      label: "Workspace identity",
       status: "passed",
+      tone: "neutral",
       points: 5,
       maxPoints: 5,
-      summary: "Verified organization identity",
+      summary: "Workspace organization identity recorded",
       detail:
-        "The submitter context is associated with a verified organization identity level.",
+        "The workspace is associated with a verified organization account. Remote contributor identity was not independently verified.",
     });
   }
 
   if (level === "ORGANIZATION_ACCOUNT" || level === "OAUTH_BACKED_IDENTITY") {
     return makeSignal({
       key: "identity",
-      label: "Identity assurance",
+      label: "Workspace identity",
       status: "passed",
+      tone: "neutral",
       points: 4,
       maxPoints: 5,
-      summary:
-        level === "ORGANIZATION_ACCOUNT"
-          ? "Organization account recorded"
-          : "OAuth-backed identity recorded",
+      summary: "Workspace/link creator identity recorded",
       detail:
-        "A meaningful submitter identity level is recorded for reviewer context.",
+        "Workspace or link creator identity was recorded for reviewer context. Remote contributor identity was not independently verified.",
     });
   }
 
   if (level === "VERIFIED_EMAIL" || hasEmail || hasProvider) {
     return makeSignal({
       key: "identity",
-      label: "Identity assurance",
+      label: "Workspace identity",
       status: "partial",
       points: 3,
       maxPoints: 5,
-      summary: "Submitter identity recorded",
+      summary: "Workspace/link creator identity recorded",
       detail:
-        "Basic submitter identity information is present, but stronger organization verification was not recorded.",
+        "Workspace or link creator identity information is recorded. Remote contributor identity was not independently verified.",
     });
   }
 
   return makeSignal({
     key: "identity",
-    label: "Identity assurance",
+    label: "Workspace identity",
     status: "missing",
     points: 0,
     maxPoints: 5,
     summary: "Identity not recorded",
-    detail: "No meaningful submitter identity context was recorded.",
+    detail: "No meaningful workspace or link creator identity context was recorded.",
   });
 }
 
@@ -1227,20 +1230,20 @@ export function buildEvidenceTrustDecision(
       presentationTone = "warning";
       verdictLabel =
         publicationState === "pending" || publicationState === "degraded"
-          ? "Recorded integrity verified; publication pending"
+          ? "Recorded integrity verified; Bitcoin anchoring pending"
           : "Recorded integrity verified with supporting limitations";
       shortLabel =
         publicationState === "pending" || publicationState === "degraded"
-          ? "Pending publication"
+          ? "Anchoring pending"
           : "Conditional";
       title =
         publicationState === "pending" || publicationState === "degraded"
-          ? "Recorded integrity verified; public anchoring pending"
+          ? "Recorded integrity verified; Bitcoin anchoring pending"
           : "Conditional trust state";
       relianceLevel = "medium";
       confidenceLabel =
         publicationState === "pending" || publicationState === "degraded"
-          ? "High (Pending publication)"
+          ? "High (Bitcoin anchoring pending)"
           : "Conditional";
     }
   } else if (score >= 78 && corePassed) {
@@ -1254,20 +1257,20 @@ export function buildEvidenceTrustDecision(
     presentationTone = "warning";
     verdictLabel =
       publicationState === "pending" || publicationState === "degraded"
-        ? "Recorded integrity verified; publication pending"
+        ? "Recorded integrity verified; Bitcoin anchoring pending"
         : "Recorded integrity verified with supporting limitations";
     shortLabel =
       publicationState === "pending" || publicationState === "degraded"
-        ? "Pending publication"
+        ? "Anchoring pending"
         : "Conditional";
     title =
       publicationState === "pending" || publicationState === "degraded"
-        ? "Recorded integrity verified; public anchoring pending"
+        ? "Recorded integrity verified; Bitcoin anchoring pending"
         : "Conditional trust state";
     relianceLevel = "medium";
     confidenceLabel =
       publicationState === "pending" || publicationState === "degraded"
-        ? "High (Pending publication)"
+        ? "High (Bitcoin anchoring pending)"
         : "Conditional";
   } else if (score >= 78 && !corePassed) {
     verdict = "PARTIALLY_VERIFIED";
@@ -1332,9 +1335,9 @@ export function buildEvidenceTrustDecision(
   const reviewerAction = criticalFailed
     ? "Do not rely on this record as verified until failed core integrity, signature, or custody signals are reviewed."
     : (publicAnchoringPending || publicAnchoringPartial) && corePassed
-      ? "Recorded integrity is verified, but independent public anchoring is not finalized yet. Use the technical integrity result with a conditional publication posture and recheck publication later if independent public anchoring is required."
+      ? "Recorded integrity is verified, but Bitcoin anchoring is not finalized yet. An OpenTimestamps proof is recorded. Use the technical integrity result and recheck anchoring later if independent Bitcoin anchoring is required."
     : degradedButUsable
-      ? "Review the degraded signals before high-reliance use, especially timestamping, public anchoring, storage, or custody items marked as pending, partial, missing, or failed."
+      ? "Review the degraded signals before high-reliance use, especially timestamping, Bitcoin anchoring, storage, or custody items marked as pending, partial, missing, or failed."
       : score >= 78
         ? "Proceed with normal review. For formal reliance, validate the technical appendix and verification package."
         : "Perform manual reviewer validation before relying on this evidence record.";

@@ -305,7 +305,7 @@ const PATTERNS: ReadonlyArray<{ regex: RegExp; reason: string }> = [
   },
   {
     // Hardcoded verdict labels from the public verify hero card.
-    regex: /"Recorded integrity verified;\s*publication pending"/i,
+    regex: /"Recorded integrity verified;\s*Bitcoin anchoring pending"/i,
     reason:
       "Hardcoded verdict label string outside packages/shared/src/trust-decision.ts. Lifecycle contract: verdict labels come from getTrustDecisionLabel().",
   },

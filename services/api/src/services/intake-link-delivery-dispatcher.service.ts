@@ -76,7 +76,7 @@ export type DispatchIntakeDeliveryInput = {
   /** Required — the raw token is unrecoverable after creation; the
    *  caller must hold it. */
   rawToken: string;
-  /** Full public URL the contributor opens (origin + /intake/<token>). */
+  /** Full public link the contributor opens (origin + /intake/<token>). */
   intakeUrl: string;
   channel: IntakeDeliveryChannel;
   actorUserId: string;

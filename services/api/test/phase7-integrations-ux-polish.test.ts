@@ -281,7 +281,7 @@ describe("PHASE 7 — SSRF guard rejects private destinations", () => {
     if (!credRes.ok) expect(credRes.reason).toBe("credentials_in_url_not_allowed");
   });
 
-  it("accepts a normal HTTPS public URL", () => {
+  it("accepts a normal HTTPS endpoint URL", () => {
     const ok = validateWebhookUrl("https://example.com/webhooks/proovra");
     expect(ok.ok).toBe(true);
   });

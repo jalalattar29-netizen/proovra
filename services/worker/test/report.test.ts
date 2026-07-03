@@ -284,7 +284,7 @@ describe("report v2 pipeline", () => {
     expect(html).toContain(
       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     );
-    expect(html).not.toContain("Public anchoring pending");
+    expect(html.toLowerCase()).not.toContain("public anchoring");
   });
 
   it("keeps full hashes and supporting previewable evidence visually represented", async () => {

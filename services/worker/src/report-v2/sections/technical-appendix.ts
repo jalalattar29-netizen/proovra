@@ -82,8 +82,6 @@ function hasRecordedPublicAnchoring(vm: ReportViewModel): boolean {
     (row) =>
       [
         "Anchor Anchored At (UTC)",
-        "Anchor Public URL",
-        "Anchor Receipt ID",
         "Anchor Transaction ID",
       ].includes(row.label) && hasMeaningfulTechnicalValue(row.value)
   );
@@ -96,7 +94,7 @@ function normalizeAnchoringRows(vm: ReportViewModel): KeyValueRow[] {
     .filter((row) => hasMeaningfulTechnicalValue(row.value))
     .map((row) => {
       if (row.label === "Anchor Mode" && publicAnchoringRecorded) {
-        return { ...row, value: "Public anchoring recorded" };
+        return { ...row, value: "Bitcoin anchoring recorded" };
       }
       return row;
     });
@@ -122,13 +120,13 @@ function renderTechnicalStatusCards(vm: ReportViewModel): string {
 
       <article class="technical-verification-card tone-${otsTone}">
         <div class="technical-verification-kicker">Anchoring</div>
-        <div class="technical-verification-title">Public Anchoring</div>
+        <div class="technical-verification-title">Bitcoin Anchoring</div>
         <div class="technical-verification-value">${escapeHtml(
           vm.technicalAppendix.otsStatusLabel
           
         )}</div>
         <div class="technical-verification-note">
-          OpenTimestamps or external publication state for the recorded digest.
+          OpenTimestamps anchoring state for the recorded digest.
         </div>
       </article>
       <article class="technical-verification-card tone-${trustTone}">
@@ -420,8 +418,8 @@ timestampDigestLabel.includes("Canonical Package Digest")
           )}
 
           ${renderAppendixSection(
-            "Anchoring & Publication",
-            "OpenTimestamps and external anchoring references connected to the recorded digest state.",
+            "Anchoring",
+            "OpenTimestamps and Bitcoin anchoring references connected to the recorded digest state.",
             `
               ${renderKeyValueGrid(anchoringRows)}
 

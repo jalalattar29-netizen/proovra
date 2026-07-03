@@ -51,7 +51,7 @@ describe("verification package — intake role-safe submitter + capture method",
     expect(cm.submitter.submittedByAuthProvider).toBeNull();
     expect(cm.submitter.submittedByRole).toBe("Remote Contributor");
     expect(cm.submitter.linkCreatorEmail).toBe(OWNER);
-    expect(cm.evidence.captureMethod).toBe("SECURE_INTAKE_LINK");
+    expect(cm.evidence.captureMethod).toBe("Secure Intake Link");
     expect(cm.evidence.captureMethod).not.toBe("MULTIPART_PACKAGE");
     // Structure info is preserved (just not as the capture method).
     expect(cm.evidence.evidenceStructure).toBe("Multipart evidence package");
@@ -68,11 +68,11 @@ describe("verification package — intake role-safe submitter + capture method",
     expect(ol.submittedByEmail).toBeNull();
     expect(ol.submittedByRole).toBe("Remote Contributor");
     expect(ol.linkCreatorEmail).toBe(OWNER);
-    expect(ol.captureMethod).toBe("SECURE_INTAKE_LINK");
+    expect(ol.captureMethod).toBe("Secure Intake Link");
     expect(ol.evidenceStructure).toBe("Multipart evidence package");
   });
 
-  it("Web capture is UNCHANGED (submittedByEmail kept, captureMethod raw, no intake role fields)", () => {
+  it("Web capture keeps submittedByEmail + no intake role fields; captureMethod shows the acquisition display label", () => {
     const cm = buildCaseMetadata(metadata(false), "ev-1") as {
       evidence: { captureMethod: string };
       submitter: { submittedByEmail: string | null; submittedByRole?: string; linkCreatorEmail?: string };
@@ -80,7 +80,8 @@ describe("verification package — intake role-safe submitter + capture method",
     expect(cm.submitter.submittedByEmail).toBe("owner@acme-legal.example");
     expect(cm.submitter.submittedByRole).toBeUndefined();
     expect(cm.submitter.linkCreatorEmail).toBeUndefined();
-    expect(cm.evidence.captureMethod).toBe("MULTIPART_PACKAGE");
+    expect(cm.evidence.captureMethod).toBe("PROOVRA Web Upload");
+    expect(cm.evidence.captureMethod).not.toBe("MULTIPART_PACKAGE");
 
     const ol = buildOriginalLinkage([] as never, metadata(false)) as {
       captureMethod: string;
@@ -89,7 +90,7 @@ describe("verification package — intake role-safe submitter + capture method",
     };
     expect(ol.submittedByEmail).toBe("owner@acme-legal.example");
     expect(ol.submittedByRole).toBeUndefined();
-    expect(ol.captureMethod).toBe("MULTIPART_PACKAGE");
+    expect(ol.captureMethod).toBe("PROOVRA Web Upload");
   });
 
   it("no recipient phone/email or provider IDs are introduced", () => {

@@ -96,7 +96,7 @@ function renderIntegrityResultPill(vm: ReportViewModel): string {
 export function renderIntegrityProofSection(vm: ReportViewModel): string {
   const timestampStatus = findRowValue(vm.storageRows, "RFC 3161 Status");
   const storageStatus = findRowValue(vm.storageRows, "Immutable Storage");
-  const anchoringStatus = findRowValue(vm.storageRows, "Public Anchoring Status");
+  const anchoringStatus = findRowValue(vm.storageRows, "Bitcoin Anchoring Status");
 
   const signatureStatus = findRowValue(
     vm.verificationSummaryRows,
@@ -204,10 +204,10 @@ value:
           })}
 
           ${renderIntegrityCheckRow({
-            label: "Public Anchoring",
+            label: "Bitcoin Anchoring",
             value: anchoringStatus,
             explanation:
-              "Anchoring records whether OpenTimestamps or external publication proof is available or still pending.",
+              "Anchoring records whether an OpenTimestamps proof and Bitcoin transaction reference are available or still pending.",
 tone: toneFromValue(
   anchoringStatus,
   ["published", "verified"],

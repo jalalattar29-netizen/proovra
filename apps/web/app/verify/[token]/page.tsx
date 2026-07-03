@@ -1567,7 +1567,7 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
       label: input.trustDecision
         ? getTrustDecisionLabel(input.trustDecision)
         : publicAnchoringPending
-          ? "Recorded integrity verified; publication pending"
+          ? "Recorded integrity verified; Bitcoin anchoring pending"
           : "Recorded integrity verified",
       riskLevel: publicAnchoringPending ? "Medium" : "Low",
       actionRequired:
@@ -1652,7 +1652,7 @@ function buildUnavailableTrustDecision(): VerifyTrustDecision {
     presentationTone: "neutral",
     publicationState: "unavailable",
     confidenceLabel: "Unavailable",
-    publicationStatusLabel: "Public anchoring unavailable",
+    publicationStatusLabel: "Anchoring not recorded",
     relianceLevel: "limited",
     degradedButUsable: false,
     summary:
@@ -2144,7 +2144,7 @@ function TrustDecisionCard({
         </div>
         <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink }}>
           Publication posture:{" "}
-          {decision.publicationStatusLabel ?? "Public anchoring status requires review"}.
+          {decision.publicationStatusLabel ?? "Bitcoin anchoring status requires review"}.
         </div>
         <div
           style={{

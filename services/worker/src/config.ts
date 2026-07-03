@@ -65,7 +65,6 @@ const EnvSchema = z.object({
 
   ANCHOR_PROVIDER: optionalTrimmedString,
   ANCHOR_MODE: anchorModeSchema,
-  ANCHOR_PUBLIC_BASE_URL: optionalUrl,
 
   SENTRY_DSN: optionalTrimmedString,
   WORKER_BUILD_INFO: optionalTrimmedString,

@@ -1,7 +1,7 @@
 {
   "schema": "PROOVRA_CASE_METADATA",
   "version": 1,
-  "generatedAtUtc": "2026-07-03T07:21:57.739Z",
+  "generatedAtUtc": "2026-07-03T18:32:40.687Z",
   "evidence": {
     "evidenceId": "ev-web-001",
     "title": "Roadside incident photo",
@@ -51,7 +51,7 @@
     "uploadedAtUtc": "2026-06-30T10:04:00.000Z",
     "signedAtUtc": "2026-06-30T10:05:02.000Z",
     "reportGeneratedAtUtc": "2026-06-30T10:06:00.000Z",
-    "accessSnapshotGeneratedAtUtc": "2026-07-03T07:21:57.739Z",
+    "accessSnapshotGeneratedAtUtc": "2026-07-03T18:32:40.687Z",
     "recordedIntegrityVerifiedAtUtc": null
   },
   "captureLocation": null,

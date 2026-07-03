@@ -106,7 +106,7 @@ export function deriveAnchorSemantics(
     anchoringStatus === "verified"
       ? "OpenTimestamps Bitcoin anchoring verified"
       : anchoringStatus === "pending"
-        ? "OpenTimestamps proof present; public anchoring pending"
+        ? "OpenTimestamps proof present; Bitcoin anchoring pending"
         : anchoringStatus === "failed"
           ? "OpenTimestamps anchoring failed"
           : "OpenTimestamps unavailable";

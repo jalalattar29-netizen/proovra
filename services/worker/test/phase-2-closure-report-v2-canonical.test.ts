@@ -50,10 +50,10 @@ describe("Phase 2 closure — report-v2 consumes canonical helpers from @proovra
     // Verdict labels live in packages/shared/src/trust-decision.ts.
     // Any literal repetition here would be a Phase 0 R2 regression.
     expect(viewModel).not.toMatch(
-      /"Recorded integrity verified;\s*publication pending"/,
+      /"Recorded integrity verified;\s*Bitcoin anchoring pending"/,
     );
     expect(truthModel).not.toMatch(
-      /"Recorded integrity verified;\s*publication pending"/,
+      /"Recorded integrity verified;\s*Bitcoin anchoring pending"/,
     );
   });
 });

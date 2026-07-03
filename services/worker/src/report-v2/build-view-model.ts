@@ -626,7 +626,7 @@ function buildReviewReadinessRows(
 },
 
 {
-  label: "Public Anchoring Status",
+  label: "Bitcoin Anchoring Status",
   value: mapOtsStatusPublicLabelWithTxid({
     status:
       canonicalMaterials.otsState.effectiveStatus ??
@@ -829,7 +829,7 @@ function buildStorageRows(
       ),
     },
     {
-      label: "Public Anchoring Status",
+      label: "Bitcoin Anchoring Status",
       value: mapOtsStatusPublicLabelWithTxid({
         status:
           canonicalMaterials.otsState.effectiveStatus ??
@@ -1207,7 +1207,7 @@ function buildTechnicalAppendixCourtRows(params: {
       value: mapTimestampStatusPublicLabel(params.evidence.tsaStatus),
     },
 {
-  label: "Public Anchoring",
+  label: "Bitcoin Anchoring",
   value: mapOtsStatusPublicLabelWithTxid({
     status: params.evidence.otsStatus,
     bitcoinTxid: params.evidence.otsBitcoinTxid,

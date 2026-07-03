@@ -302,12 +302,12 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
   // Entries here do NOT silence findings — they declare the audit
   // record. New entries require a Phase Final-Closure ledger entry.
   const APPROVED_CRITICAL_BY_MIGRATION: Record<string, ReadonlySet<string>> = {
-    // Removes the unsupported external publication / public receipt layer
+    // Removes the unsupported anchor receipt_id / public_url columns
     // from `evidence_anchors`. PROOVRA relies solely on OpenTimestamps ->
     // Bitcoin anchoring (transaction_id + anchored_at_utc), the verification
     // page, verification package, chain of custody, RFC3161 and the
-    // signature package — there is no separate public publication / receipt
-    // object. The two dropped columns (`receipt_id`, `public_url`) are
+    // signature package — there is no separate external anchor-receipt
+    // layer. The two dropped columns (`receipt_id`, `public_url`) are
     // confirmed-unused after the product-wide cleanup (zero code / schema /
     // report / package references). The migration uses `DROP COLUMN IF
     // EXISTS` (idempotent + safe on partial state) and is documented in

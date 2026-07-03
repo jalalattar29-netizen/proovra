@@ -31,6 +31,7 @@ import type { PrismaClient } from "@prisma/client";
 import {
   PROVENANCE_CHAIN_SCHEMA_VERSION,
   STANDING_PROVENANCE_LIMITATIONS,
+  describeDeviceSignatureVerdict,
   type CaptureMode,
   type CaptureProvenanceClass,
   type CaptureSignatureVerdict,
@@ -60,7 +61,7 @@ export async function projectProvenanceChain(
   // ----- Evidence root + certification fields ---------------------------
   const evidence = await prisma.evidence.findUnique({
     where: { id: evidenceId },
-    select: { id: true },
+    select: { id: true, captureMethod: true },
   });
   if (!evidence) {
     return emptyProjection(evidenceId, generatedAtUtc, "BULK_IMPORT", "C");
@@ -86,7 +87,10 @@ export async function projectProvenanceChain(
   // We derive these from the trust-event timeline + the most-recent
   // attestation row. The verifier writes these as payload fields when
   // it emits CAPTURE_ARTIFACT_RECEIVED / CAPTURE_ARTIFACT_SIGNED_AT_SOURCE.
-  let mode: CaptureMode = "BULK_IMPORT";
+  const isIntakeEvidence =
+    String(evidence.captureMethod ?? "").toUpperCase() ===
+    "EXTERNAL_INTAKE_UPLOAD";
+  let mode: CaptureMode = isIntakeEvidence ? "SECURE_INTAKE_LINK" : "BULK_IMPORT";
   let provenanceClass: CaptureProvenanceClass = "C";
   let sessionId: string | null = null;
   let deviceId: string | null = null;
@@ -234,7 +238,8 @@ export async function projectProvenanceChain(
       provenanceClass,
       sessionId,
       deviceId,
-      signatureVerdict,
+      deviceSignatureVerdict: signatureVerdict,
+      deviceSignatureNote: describeDeviceSignatureVerdict(signatureVerdict),
       attestationVerdict,
       attestationProvider,
       signedAtUtc,
@@ -287,7 +292,8 @@ function emptyProjection(
       provenanceClass: cls,
       sessionId: null,
       deviceId: null,
-      signatureVerdict: "MISSING",
+      deviceSignatureVerdict: "MISSING",
+      deviceSignatureNote: describeDeviceSignatureVerdict("MISSING"),
       attestationVerdict: "NOT_ATTEMPTED",
       attestationProvider: "NONE",
       signedAtUtc: null,

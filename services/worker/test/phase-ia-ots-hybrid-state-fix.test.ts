@@ -407,7 +407,7 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
     );
     // Reverts to the pre-existing PENDING wording for compact surfaces.
     expect(label).toBe(
-      "OpenTimestamps proof present; public anchoring pending",
+      "OpenTimestamps proof present; Bitcoin anchoring pending",
     );
   });
 
@@ -439,12 +439,12 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
     );
   });
 
-  it("mapOtsStatusTechnicalDetail(PENDING + no txid) → 'OTS proof present; public anchoring pending.'", () => {
+  it("mapOtsStatusTechnicalDetail(PENDING + no txid) → 'OTS proof present; Bitcoin anchoring pending.'", () => {
     const detail = mapOtsStatusTechnicalDetail({
       status: "PENDING",
       bitcoinTxid: null,
     });
-    expect(detail).toBe("OTS proof present; public anchoring pending.");
+    expect(detail).toBe("OTS proof present; Bitcoin anchoring pending.");
   });
 
   it("the truth-model OTS callout uses SHORT status words ('Anchored' / 'Pending' / 'Failed' / 'Unavailable')", async () => {

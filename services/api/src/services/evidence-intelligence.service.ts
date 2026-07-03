@@ -23,7 +23,6 @@ type EvidenceIntelligenceAnchorInput = {
   mode: string | null;
   configured: boolean;
   anchorHash: string | null;
-  publicBaseUrl: string | null;
   anchoredAtUtc: Date | string | null;
   transactionId: string | null;
 } | null;

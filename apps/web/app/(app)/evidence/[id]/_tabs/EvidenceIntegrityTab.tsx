@@ -220,9 +220,9 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                   ? `Status: ${preservation.tsa.status}`
                   : "Timestamp unavailable",
             },
-            { label: "Public anchoring (OTS)", value: otsStatusPresentation?.label ?? "Not configured" },
+            { label: "Bitcoin anchoring (OTS)", value: otsStatusPresentation?.label ?? "Not configured" },
             {
-              label: "Public anchoring last updated",
+              label: "Bitcoin anchoring last updated",
               value: formatValue(formatUserDateTime(preservation.ots.lastUpdatedAtUtc)),
             },
             {
@@ -232,8 +232,8 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                 : "Not exposed in current API response",
             },
             {
-              label: "Public anchoring detail",
-              value: otsStatusPresentation?.detail ?? "No public anchoring state recorded",
+              label: "Bitcoin anchoring detail",
+              value: otsStatusPresentation?.detail ?? "No Bitcoin anchoring state recorded",
             },
             {
               label: "Report artifact",

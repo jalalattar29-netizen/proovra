@@ -100,7 +100,7 @@ export async function projectVerifyCaptureTrust(
   // If there is genuinely nothing to surface, return null so the
   // visitor sees no capture-trust block.
   const nothingToSay =
-    chain.capture.signatureVerdict === "MISSING" &&
+    chain.capture.deviceSignatureVerdict === "MISSING" &&
     chain.capture.attestationVerdict === "NOT_ATTEMPTED" &&
     !chain.server.countersigned &&
     !chain.time.rfc3161.applied &&
@@ -113,7 +113,7 @@ export async function projectVerifyCaptureTrust(
     evidenceId: chain.evidenceId,
     provenanceClassLabel: provenanceClassLabel(chain.capture.provenanceClass),
     captureMethod: chain.capture.mode,
-    signatureVerdict: chain.capture.signatureVerdict,
+    signatureVerdict: chain.capture.deviceSignatureVerdict,
     attestation: {
       provider: chain.capture.attestationProvider,
       verdict: chain.capture.attestationVerdict,

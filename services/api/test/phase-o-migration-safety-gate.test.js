@@ -227,7 +227,7 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // Entries here do NOT silence findings — they declare the audit
     // record. New entries require a Phase Final-Closure ledger entry.
     const APPROVED_CRITICAL_BY_MIGRATION = {
-        // Removes the unsupported external publication / public receipt layer
+        // Removes the unsupported anchor receipt_id / public_url columns
         // from `evidence_anchors` (receipt_id, public_url). Confirmed-unused
         // after the product-wide cleanup; DROP COLUMN IF EXISTS is idempotent.
         // Documented in `docs/operations/audit-closure-ledger.md`.

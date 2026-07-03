@@ -130,7 +130,6 @@ export type ReportAnchorSummary = {
     | "ready"
     | "active";
   provider: string | null;
-  publicBaseUrl: string | null;
   configured: boolean;
   anchorHash: string | null;
   transactionId: string | null;

@@ -127,9 +127,9 @@ export function buildTrustDecisionConsistency(
   ) {
     pushReason(reasons, {
       code: "PUBLICATION_STATUS_CHANGED",
-      label: "OpenTimestamps or public anchoring status changed after the snapshot",
+      label: "OpenTimestamps or Bitcoin anchoring status changed after the snapshot",
       detail:
-        "The later live state no longer matches the snapshot for OpenTimestamps, external publication, or public-anchoring status. This affects publication posture and reviewer interpretation.",
+        "The later live state no longer matches the snapshot for OpenTimestamps or Bitcoin anchoring status. This affects anchoring state and reviewer interpretation.",
       tone: "warning",
       integrityCritical: false,
     });

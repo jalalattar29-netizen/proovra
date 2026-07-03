@@ -39,7 +39,7 @@ function renderCustodyStats(vm: ReportViewModel): string {
 
 function renderLifecycleSummary(vm: ReportViewModel): string {
   const anchoringStatus = vm.storageRows.find(
-    (row) => row.label === "Public Anchoring Status"
+    (row) => row.label === "Bitcoin Anchoring Status"
   )?.value;
 
   const timestampStatus = vm.storageRows.find(

@@ -5,7 +5,7 @@
 **Test suite:** `services/api/test/phase-e5-trust-center.test.ts`
 **Content module:** `packages/shared-evidence-presentation/src/trust-center-content.ts`
 **Frontend page:** `apps/web/app/about/trust/page.tsx`
-**Public URL:** `/about/trust`
+**Public route:** `/about/trust`
 
 ---
 

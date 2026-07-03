@@ -60,7 +60,7 @@ export function IntegrityPanel({
         </div>
 
         <div className="evidence-library-key-card">
-          <span>Public anchoring</span>
+          <span>Bitcoin anchoring</span>
           <strong>
             {/* Truthful labels: "ANCHORED" alone does not mean Bitcoin
                 anchoring is verified; the OTS upgrade pass attaches the
@@ -68,9 +68,9 @@ export function IntegrityPanel({
                 surface (verify page / verification package) carries the
                 txid-aware wording. */}
             {proof?.otsStatus === "ANCHORED"
-              ? "OpenTimestamps proof present; public anchoring status should be confirmed on the public verify surface"
+              ? "OpenTimestamps proof present; Bitcoin anchoring status should be confirmed on the public verify surface"
               : proof?.otsStatus === "PENDING"
-                ? "OpenTimestamps proof present; public anchoring pending"
+                ? "OpenTimestamps proof present; Bitcoin anchoring pending"
                 : proof?.otsStatus === "FAILED"
                   ? "OpenTimestamps anchoring failed"
                   : "OpenTimestamps not recorded"}

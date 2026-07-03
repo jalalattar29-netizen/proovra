@@ -45,6 +45,7 @@ import {
 } from "@proovra/shared-evidence-presentation";
 import type { ReportTrustDecision } from "./report-v2/types.js";
 import { renderCaptureLocationMapPreviewPng } from "./capture-location-map.js";
+import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
 type VerificationEvidenceFile = {
   name: string;
@@ -147,7 +148,6 @@ type PackageManifest = {
   anchorMode: AnchorMode;
   anchorStatusLabel?: string | null;
   anchorProvider: string | null;
-  anchorPublicBaseUrl: string | null;
   publicAnchoringVerified: boolean;
   transactionId: string | null;
   verificationProfile: "FORENSIC_INTEGRITY";
@@ -538,7 +538,7 @@ function getAnchorStatusLabel(
 ): string {
   // Truthful Bitcoin-anchoring label: only say "Bitcoin anchoring verified"
   // when the OTS proof has progressed to ANCHORED AND a valid Bitcoin
-  // transaction id is recorded. The previous label "Public anchoring verified"
+  // transaction id is recorded. The previous verified-state label
   // could appear before the Bitcoin upgrade pass attached a txid.
   const hasTxid =
     typeof options?.bitcoinTxid === "string" &&
@@ -553,14 +553,14 @@ function getAnchorStatusLabel(
     case "anchored":
       return hasTxid
         ? "OpenTimestamps Bitcoin anchoring verified"
-        : "OpenTimestamps proof present; public anchoring pending";
+        : "OpenTimestamps proof present; Bitcoin anchoring pending";
     case "failed":
       return "OpenTimestamps anchoring failed";
     case "not_configured":
       return "OpenTimestamps not configured";
     case "pending_public_anchor":
     default:
-      return "OpenTimestamps proof present; public anchoring pending";
+      return "OpenTimestamps proof present; Bitcoin anchoring pending";
   }
 }
 
@@ -1006,13 +1006,20 @@ function buildPackageSubmitterFields(metadata: VerificationPackageMetadata): {
       submittedByAuthProvider: null,
       submittedByRole: "Remote Contributor",
       ...(linkCreatorEmail ? { linkCreatorEmail } : {}),
-      captureMethod: "SECURE_INTAKE_LINK",
+      captureMethod: "Secure Intake Link",
     };
   }
   return {
     submittedByEmail: metadata.submittedByEmail ?? null,
     submittedByAuthProvider: metadata.submittedByAuthProvider ?? null,
-    captureMethod: metadata.captureMethod ?? null,
+    // The persisted enum (e.g. MULTIPART_PACKAGE) is an evidence STRUCTURE,
+    // not a capture method. Surface a reviewer-facing acquisition label
+    // ("PROOVRA Web Upload" etc.) so legal/forensic reviewers never see the
+    // internal structure token as a capture method. The structure is shown
+    // separately as "Multipart evidence package".
+    captureMethod: metadata.captureMethod
+      ? captureMethodDisplayLabel({ captureMethod: metadata.captureMethod })
+      : null,
   };
 }
 
@@ -1298,8 +1305,8 @@ Use it together with the original digest and TSA certificate chain available fro
 
 ${
   params.hasAnchor
-    ? `\`anchor.json\` is included. Status: ${params.anchorStatusLabel}. Review its anchor hash, receipt, transaction ID, public URL, and anchored timestamp when present.`
-    : `No \`anchor.json\` is included. Status: ${params.anchorStatusLabel}. Public anchoring should be rechecked on the verification page if independent public anchoring is required.`
+    ? `\`anchor.json\` is included. Status: ${params.anchorStatusLabel}. Review its anchor hash, OpenTimestamps proof, Bitcoin transaction ID when present, and verification endpoint. If Bitcoin anchoring has not finalized, the Bitcoin transaction ID is not present yet.`
+    : `No \`anchor.json\` is included. Status: ${params.anchorStatusLabel}. Recheck anchoring on the verification page if independent Bitcoin anchoring is required.`
 }
 
 ## 7. Review custody and access
@@ -1417,13 +1424,13 @@ function buildVerifyPackageScript() {
     '  const anchorBitcoinTxid = typeof anchor.transactionId === "string" ? anchor.transactionId : typeof anchor.bitcoinTxid === "string" ? anchor.bitcoinTxid : "";',
     '  const anchorHasValidBitcoinTxid = /^[a-f0-9]{64}$/i.test(String(anchorBitcoinTxid).trim());',
     '  const anchorLabel = anchorStatus === "pending_public_anchor"',
-    '    ? "OTS PROOF PRESENT - PUBLIC ANCHORING PENDING"',
+    '    ? "OTS PROOF PRESENT - BITCOIN ANCHORING PENDING"',
     '    : anchorStatus === "anchored"',
-    '      ? anchorHasValidBitcoinTxid ? "PUBLIC ANCHORING VERIFIED" : "OTS PROOF PRESENT - PUBLIC ANCHORING PENDING"',
+    '      ? anchorHasValidBitcoinTxid ? "BITCOIN ANCHORING VERIFIED" : "OTS PROOF PRESENT - BITCOIN ANCHORING PENDING"',
     '      : anchorStatus === "failed"',
-    '        ? "PUBLIC ANCHORING FAILED"',
+    '        ? "OPENTIMESTAMPS ANCHORING FAILED"',
     '        : anchorStatus === "not_configured"',
-    '          ? "PUBLIC ANCHORING UNAVAILABLE"',
+    '          ? "ANCHORING NOT RECORDED"',
     '          : String(anchor.statusLabel || "ANCHOR STATUS RECORDED").toUpperCase();',
     '  console.log("ℹ " + anchorLabel);',
     "} else {",
@@ -1433,11 +1440,11 @@ function buildVerifyPackageScript() {
     '    manifestAnchorMode = String(manifestJson.anchorMode || "").trim().toLowerCase();',
     "  }",
     '  if (manifestAnchorMode === "pending_public_anchor") {',
-    '    console.log("ℹ OTS PROOF PRESENT - PUBLIC ANCHORING PENDING");',
+    '    console.log("ℹ OTS PROOF PRESENT - BITCOIN ANCHORING PENDING");',
     '  } else if (manifestAnchorMode === "not_configured") {',
-    '    console.log("ℹ PUBLIC ANCHORING UNAVAILABLE");',
+    '    console.log("ℹ ANCHORING NOT RECORDED");',
     '  } else {',
-    '    console.log("ℹ PUBLIC ANCHORING MATERIAL NOT INCLUDED");',
+    '    console.log("ℹ ANCHORING MATERIAL NOT INCLUDED");',
     "  }",
     "}",
     "",
@@ -1517,8 +1524,8 @@ function buildVerifyPackageScript() {
     'console.log("  - Manifest signature VALID");',
     'console.log("  - Preserved package files match the signed manifest");',
     'console.log("  - Multipart hash semantics inspected (see HASH SEMANTICS line above)");',
-    'console.log("  - This does not independently prove factual truth, authorship, legal admissibility, or completed public anchoring");',
-    'console.log("  - Review RFC3161 timestamp, OpenTimestamps/public anchoring, custody, and legal context separately");',
+    'console.log("  - This does not independently prove factual truth, authorship, legal admissibility, or completed Bitcoin anchoring");',
+    'console.log("  - Review RFC3161 timestamp, OpenTimestamps/Bitcoin anchoring, custody, and legal context separately");',
     "",
   ].join("\n");
 }
@@ -1528,36 +1535,22 @@ function buildAnchorReadmeSection(params: {
   anchorStatusLabel: string;
   hasAnchorPayload: boolean;
   otsStatus?: string | null;
-  anchorProvider?: string | null;
-  anchorPublicBaseUrl?: string | null;
   bitcoinTxid?: string | null;
 }): string {
-  const providerLine = params.anchorProvider
-    ? `Provider: ${params.anchorProvider}`
-    : "Provider: Not configured";
-
-  const publicBaseLine = params.anchorPublicBaseUrl
-    ? `Public base URL: ${params.anchorPublicBaseUrl}`
-    : "Public base URL: Not configured";
-
   const otsStatus = String(params.otsStatus ?? "").toUpperCase();
 
   if (params.anchorMode === "not_configured") {
     return `ANCHOR STATUS
 
-Anchor publication is disabled for this environment.
-No external anchoring claim is made for this package.
-${providerLine}
-${publicBaseLine}`;
+OpenTimestamps anchoring is not configured for this environment.
+No Bitcoin anchoring claim is made for this package.`;
   }
 
   if (!params.hasAnchorPayload) {
     return `ANCHOR STATUS
 
 No anchor.json file is included in this package.
-Public anchoring status: ${params.anchorStatusLabel}.
-${providerLine}
-${publicBaseLine}`;
+Anchoring status: ${params.anchorStatusLabel}.`;
   }
 
   // Truthful Bitcoin-anchoring section: only assert "Bitcoin anchoring verified"
@@ -1572,48 +1565,38 @@ ${publicBaseLine}`;
 
 anchor.json is included in this package.
 OpenTimestamps Bitcoin anchoring verified (transaction reference recorded).
-This anchoring layer is independent from RFC 3161 timestamping.
-${providerLine}
-${publicBaseLine}`;
+This anchoring layer is independent from RFC 3161 timestamping.`;
     }
     return `ANCHOR STATUS
 
 anchor.json is included in this package.
-OpenTimestamps proof present; public anchoring pending.
+OpenTimestamps proof present; Bitcoin anchoring pending.
 A Bitcoin transaction reference has not yet been attached to the OpenTimestamps proof. Re-check this package after the OTS upgrade pass for confirmed Bitcoin anchoring.
-This anchoring layer is independent from RFC 3161 timestamping.
-${providerLine}
-${publicBaseLine}`;
+This anchoring layer is independent from RFC 3161 timestamping.`;
   }
 
   if (params.anchorMode === "pending_public_anchor" || otsStatus === "PENDING") {
     return `ANCHOR STATUS
 
 anchor.json is included in this package.
-OpenTimestamps proof present; public anchoring pending.
-Public anchoring should be rechecked later if independent public anchoring is required.
-This anchoring layer is independent from RFC 3161 timestamping.
-${providerLine}
-${publicBaseLine}`;
+OpenTimestamps proof present; Bitcoin anchoring pending.
+Recheck anchoring later if independent Bitcoin anchoring is required.
+This anchoring layer is independent from RFC 3161 timestamping.`;
   }
 
   if (params.anchorMode === "failed" || otsStatus === "FAILED") {
     return `ANCHOR STATUS
 
-anchor.json is included in this package, but public anchoring failed or could not be completed.
-Reviewers should rely on preserved originals, hashes, signature, custody continuity, and any available timestamp material.
-${providerLine}
-${publicBaseLine}`;
+anchor.json is included in this package, but OpenTimestamps anchoring failed or could not be completed.
+Reviewers should rely on preserved originals, hashes, signature, custody continuity, and any available timestamp material.`;
   }
 
   return `ANCHOR STATUS
 
 anchor.json is included in this package as anchoring material.
-No external publication receipt or transaction identifier is attached yet.
-Public anchoring should be treated as pending unless a receipt, transaction ID, public URL, or anchored timestamp is present.
-This anchoring layer is independent from RFC 3161 timestamping.
-${providerLine}
-${publicBaseLine}`;
+A Bitcoin transaction ID is not present yet because anchoring has not finalized.
+Anchoring should be treated as pending unless a Bitcoin transaction ID or anchored timestamp is present.
+This anchoring layer is independent from RFC 3161 timestamping.`;
 }
 
 function buildEvidenceManifest(
@@ -1809,7 +1792,6 @@ function buildPackageManifest(params: {
   anchorMode: AnchorMode;
   anchorStatusLabel: string;
   anchorProvider?: string | null;
-  anchorPublicBaseUrl?: string | null;
   anchor?: AnchorPayload | null;
   hasTimestampToken: boolean;
   hasActualCertifications: boolean;
@@ -1883,7 +1865,6 @@ function buildPackageManifest(params: {
     anchorMode: params.anchorMode,
     anchorStatusLabel: params.anchorStatusLabel,
     anchorProvider: params.anchorProvider ?? null,
-    anchorPublicBaseUrl: params.anchorPublicBaseUrl ?? null,
     // PROOVRA models a single anchoring concept: OpenTimestamps → Bitcoin.
     // publicAnchoringVerified is true when a Bitcoin transaction reference
     // or an anchored timestamp is recorded for the OTS proof.
@@ -1952,7 +1933,6 @@ function buildReadme(params: {
   anchorStatusLabel: string;
   anchorIncluded: boolean;
   anchorProvider?: string | null;
-  anchorPublicBaseUrl?: string | null;
   evidenceId?: string;
   reportVersion?: number;
   signingKeyId?: string;
@@ -1981,7 +1961,7 @@ Not included in this package. RFC3161 timestamp status: ${
     ? `anchor.json
 Included in this package. Status: ${params.anchorStatusLabel}.`
     : `anchor.json
-Not included in this package. Public anchoring status: ${params.anchorStatusLabel}.`;
+Not included in this package. Anchoring status: ${params.anchorStatusLabel}.`;
 
   return `PROOVRA Evidence Verification Package
 
@@ -2132,8 +2112,6 @@ ${buildAnchorReadmeSection({
   anchorStatusLabel: params.anchorStatusLabel,
   hasAnchorPayload: params.anchorIncluded,
   otsStatus: params.otsStatus,
-  anchorProvider: params.anchorProvider,
-  anchorPublicBaseUrl: params.anchorPublicBaseUrl,
   bitcoinTxid: params.bitcoinTxid,
 })}
 
@@ -2335,7 +2313,7 @@ This package documents a PROOVRA evidence record and the integrity-verification 
 2. SHA-256 values are recorded for the preserved file or package parts.
 3. A canonical fingerprint record is generated to describe the evidence state and package structure.
 4. The fingerprint-derived material is digitally signed.
-5. Timestamp and public anchoring records are attached where available.
+5. Timestamp and anchoring records are attached where available.
 6. System custody events are recorded separately from later access activity.
 7. Reviewer-facing artifacts such as reports or previews are generated from, and linked back to, the preserved record.
 8. The verification package includes package-checksums.json and package-manifest.sig so reviewers can detect package artifact changes after export.
@@ -2344,7 +2322,7 @@ This package documents a PROOVRA evidence record and the integrity-verification 
 
 Timestamping may not be present in all records depending on external provider availability. In such cases, integrity verification relies on recorded hashes, digital signatures, preserved original files, and custody-chain continuity.
 
-Public anchoring may also be pending, unavailable, or completed after initial report generation depending on external network and calendar availability.
+Anchoring may also be pending, unavailable, or completed after initial report generation depending on external network and calendar availability.
 
 ## Review posture
 
@@ -2385,7 +2363,7 @@ function buildVerifyHtml(params: {
     if (status === "ANCHORED") {
       return hasBitcoinTxid
         ? "OpenTimestamps Bitcoin anchoring verified (transaction reference recorded)."
-        : "OpenTimestamps proof present; public anchoring pending. A Bitcoin transaction reference has not yet been attached to the OpenTimestamps proof.";
+        : "OpenTimestamps proof present; Bitcoin anchoring pending. A Bitcoin transaction reference has not yet been attached to the OpenTimestamps proof.";
     }
 
     if (status === "PENDING") {
@@ -2393,7 +2371,7 @@ function buildVerifyHtml(params: {
       // text stays short. The detailed PENDING+txid explanation
       // belongs in the technical appendix, not the package
       // manifest prose.
-      return "OpenTimestamps proof present; public anchoring pending.";
+      return "OpenTimestamps proof present; Bitcoin anchoring pending.";
     }
 
     if (status === "FAILED") {
@@ -2516,7 +2494,7 @@ a{color:#0b2e27;font-weight:700}
       }
       <li>Verify <code>signature.txt</code> using <code>public-key.pem</code>.</li>
       <li>If present, verify <code>timestamp.tsr</code> as RFC 3161 DER data, for example with <code>openssl ts -reply -in timestamp.tsr -text</code>.</li>
-      <li>If present, review <code>anchor.json</code> as anchoring material only; pending status is not the same as verified public publication.</li>
+      <li>If present, review <code>anchor.json</code> as anchoring material only; pending status is not the same as verified Bitcoin anchoring.</li>
     </ol>
   </div>
 
@@ -2626,7 +2604,6 @@ export async function createVerificationPackage(data: {
   anchor?: AnchorPayload | null;
   anchorMode?: string | null;
   anchorProvider?: string | null;
-  anchorPublicBaseUrl?: string | null;
   certifications?: {
     custodian?: VerificationCertificationRecord | null;
     qualifiedPerson?: VerificationCertificationRecord | null;
@@ -3025,7 +3002,6 @@ export async function createVerificationPackage(data: {
       anchorMode,
       anchorStatusLabel,
       anchorProvider: data.anchorProvider,
-      anchorPublicBaseUrl: data.anchorPublicBaseUrl,
       anchor: data.anchor ?? null,
       hasTimestampToken,
       hasActualCertifications: certificationSummary.hasActualCertifications,
@@ -3344,7 +3320,6 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           anchorStatusLabel,
           anchorIncluded,
           anchorProvider: data.anchorProvider,
-          anchorPublicBaseUrl: data.anchorPublicBaseUrl,
           evidenceId: data.evidenceId,
           reportVersion: data.reportVersion,
           signingKeyId: data.signingKeyId,
