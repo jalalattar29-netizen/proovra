@@ -1,5 +1,84 @@
+import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
+
 import { ReportEvidenceAssetKind } from "./types.js";
 import { normalizeEnumText, safe } from "./formatters.js";
+
+// ---------------------------------------------------------------------------
+// Custody capture-method presentation.
+//
+// `completeEvidence` overwrites `evidence.capture_method` to the evidence
+// STRUCTURE enum (MULTIPART_PACKAGE / BULK_IMPORT), and that raw value is
+// copied verbatim into the `captureMethodSnapshot` custody-event payload. The
+// enum is a structure, not an acquisition method, so it must never render as a
+// reviewer-facing "Capture:" label nor leak into the exported custody JSON.
+//
+// These helpers resolve the raw snapshot into a role-safe capture METHOD
+// ("Secure Intake Link" for intake, otherwise the flow-aware label) plus a
+// separate STRUCTURE label ("Multipart evidence package"). The immutable
+// stored custody payload + its hash are left untouched — only the PDF/report
+// and the package-presentation copies use these normalized values.
+// ---------------------------------------------------------------------------
+
+/** Reviewer-facing evidence STRUCTURE label, or null when the raw value is not
+ *  a structure enum. */
+export function mapEvidenceStructureLabel(
+  raw: string | null | undefined,
+): string | null {
+  switch (safe(raw, "").toUpperCase()) {
+    case "MULTIPART_PACKAGE":
+      return "Multipart evidence package";
+    case "BULK_IMPORT":
+      return "Bulk import set";
+    default:
+      return null;
+  }
+}
+
+/** Resolve a raw custody capture-method snapshot into a role-safe method label
+ *  + a structure label. Intake → "Secure Intake Link". */
+export function resolveCustodyCapturePresentation(
+  raw: unknown,
+  isIntake: boolean,
+): { method: string | null; structure: string | null } {
+  const rawStr =
+    raw == null ? null : String(raw).trim().length > 0 ? String(raw) : null;
+  if (!rawStr) return { method: null, structure: null };
+  return {
+    method: captureMethodDisplayLabel({ captureMethod: rawStr, isIntake }),
+    structure: mapEvidenceStructureLabel(rawStr),
+  };
+}
+
+/**
+ * Presentation copy of a custody-event payload for the exported
+ * custody.json / forensic-custody.json. Leaves non-capture payloads and the
+ * event hash untouched; for payloads carrying `captureMethodSnapshot` /
+ * `captureMethod`, replaces the raw structure enum with the role-safe capture
+ * METHOD and adds an `evidenceStructureSnapshot` structure label. The raw enum
+ * therefore never appears as a captureMethod/captureMethodSnapshot value.
+ */
+export function normalizeCustodyEventPayloadForPresentation(
+  payload: unknown,
+  isIntake: boolean,
+): unknown {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return payload;
+  }
+  const obj = payload as Record<string, unknown>;
+  const hasSnapshot = "captureMethodSnapshot" in obj;
+  const hasMethod = "captureMethod" in obj;
+  if (!hasSnapshot && !hasMethod) return payload;
+
+  const raw = hasSnapshot ? obj.captureMethodSnapshot : obj.captureMethod;
+  const { method, structure } = resolveCustodyCapturePresentation(raw, isIntake);
+  const next: Record<string, unknown> = { ...obj };
+  if (hasSnapshot) next.captureMethodSnapshot = method;
+  if (hasMethod) next.captureMethod = method;
+  if (structure && next.evidenceStructureSnapshot == null) {
+    next.evidenceStructureSnapshot = structure;
+  }
+  return next;
+}
 
 export function mapRecordStatusLabel(status: string | null | undefined): string {
   switch (safe(status, "").toUpperCase()) {

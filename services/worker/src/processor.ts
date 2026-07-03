@@ -82,6 +82,10 @@ import {
   buildReportPdfV2,
   buildReportPdfV2WithSignatureOutcome,
 } from "./report-v2/build-report-pdf.js";
+import {
+  resolveCustodyCapturePresentation,
+  normalizeCustodyEventPayloadForPresentation,
+} from "./report-v2/normalizers.js";
 import { buildReportMediaIntelligence } from "./media-intelligence-report-bridge.js";
 import {
   buildReportTechnicalSummary,
@@ -468,12 +472,13 @@ function normalizePayloadPrimitive(value: unknown): string | null {
   return null;
 }
 
-function summarizePayloadForReport(
+export function summarizePayloadForReport(
   eventType: string,
   payload: unknown,
   context?: {
     itemCount?: number | null;
     structure?: "single" | "multipart" | null;
+    isIntake?: boolean;
   }
 ): string {
   const event = String(eventType || "").toUpperCase();
@@ -649,6 +654,18 @@ case "TIMESTAMP_FAILED": {
         obj.identityLevelSnapshot
       );
 
+      // Role-safe capture presentation. The raw snapshot is the STRUCTURE
+      // enum (MULTIPART_PACKAGE) after `completeEvidence`; render the
+      // reviewer-facing method ("Secure Intake Link" / "PROOVRA Web Upload")
+      // and the structure ("Multipart evidence package") separately — never
+      // the raw enum as the "Capture:" label.
+      const capturePresentation = captureMethodSnapshot
+        ? resolveCustodyCapturePresentation(
+            captureMethodSnapshot,
+            context?.isIntake === true
+          )
+        : { method: null, structure: null };
+
       return [
         reportVersion
           ? `Verification report generated • Version: ${reportVersion}`
@@ -656,7 +673,12 @@ case "TIMESTAMP_FAILED": {
         verificationStatusSnapshot
           ? `Verification: ${verificationStatusSnapshot}`
           : null,
-        captureMethodSnapshot ? `Capture: ${captureMethodSnapshot}` : null,
+        capturePresentation.method
+          ? `Capture: ${capturePresentation.method}`
+          : null,
+        capturePresentation.structure
+          ? `Structure: ${capturePresentation.structure}`
+          : null,
         identityLevelSnapshot ? `Identity: ${identityLevelSnapshot}` : null,
         refreshReason ? `Refresh: ${refreshReason}` : null,
       ]
@@ -2470,9 +2492,18 @@ captureMethod: deriveReportCaptureMethod({
     ),
   });
 
+  // Evidence Acquisition context (public-safe, no recipient). Resolved here so
+  // the custody timeline can render intake-aware capture wording; also reused
+  // for the Executive Summary acquisition table below.
+  const reportAcquisition = await buildReportAcquisitionContext({
+    teamId: evidence.teamId ?? null,
+    evidenceId,
+  });
+
   const custodyDisplayContext = {
     itemCount: contentArtifacts.summary.itemCount,
     structure: contentArtifacts.summary.structure,
+    isIntake: reportAcquisition?.isIntake === true,
   } as const;
 
   const custodyEventsForReport = [
@@ -2685,13 +2716,6 @@ const trustDecision = buildTrustDecision({
   // Never throws; null means the "Media Technical Summary" section
   // renders nothing.
   const reportTechnicalSummary = await buildReportTechnicalSummary({
-    teamId: evidence.teamId ?? null,
-    evidenceId,
-  });
-
-  // Evidence Acquisition context (public-safe, no recipient) for the
-  // Executive Summary. Null → no acquisition table.
-  const reportAcquisition = await buildReportAcquisitionContext({
     teamId: evidence.teamId ?? null,
     evidenceId,
   });
@@ -3205,9 +3229,18 @@ const effectiveReportEvidencePayload = {
           },
         });
 
+        // Resolved before the custody display context so the finalized
+        // custody timeline renders intake-aware capture wording; reused for
+        // the finalized report's acquisition table below.
+        const finalizedReportAcquisition = await buildReportAcquisitionContext({
+          teamId: evidence.teamId ?? null,
+          evidenceId: prepared.evidenceId,
+        });
+
         const finalizedCustodyDisplayContext = {
           itemCount: prepared.contentSummary.itemCount,
           structure: prepared.contentSummary.structure,
+          isIntake: finalizedReportAcquisition?.isIntake === true,
         } as const;
 
         const finalizedCustodyForReport = finalizedCustodyEvents.map((ev) => ({
@@ -3237,10 +3270,6 @@ const effectiveReportEvidencePayload = {
           evidenceId: prepared.evidenceId,
         });
         const finalizedReportTechnicalSummary = await buildReportTechnicalSummary({
-          teamId: evidence.teamId ?? null,
-          evidenceId: prepared.evidenceId,
-        });
-        const finalizedReportAcquisition = await buildReportAcquisitionContext({
           teamId: evidence.teamId ?? null,
           evidenceId: prepared.evidenceId,
         });
@@ -3654,7 +3683,17 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
 signature: evidence.signatureBase64!,
           timestampToken: evidence.tsaTokenBase64 ?? null,
 publicKey: finalized.finalizedReportEvidencePayload.publicKeyPem as string,
-          custody: finalized.finalizedCustodyEvents,
+          // Presentation copy for custody.json / forensic-custody.json: the
+          // raw structure enum (MULTIPART_PACKAGE) in the captureMethodSnapshot
+          // payload is replaced with the role-safe capture method + a separate
+          // structure label. The immutable event hash is preserved.
+          custody: finalized.finalizedCustodyEvents.map((e) => ({
+            ...e,
+            payload: normalizeCustodyEventPayloadForPresentation(
+              e.payload,
+              packageAcquisition?.isIntake === true,
+            ),
+          })),
           evidenceId: prepared.evidenceId,
           reportVersion: prepared.version,
           trustDecision: finalized.finalizedTrustDecision,
