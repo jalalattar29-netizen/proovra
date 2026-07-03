@@ -39,7 +39,7 @@ import {
   SectionHeading,
   type EvidenceDetailCtx,
 } from "./_lib";
-import { EvidenceTechnicalMetadataCard } from "./EvidenceTechnicalMetadataCard";
+import { EvidenceTechnicalAppendix } from "./technical-appendix/EvidenceTechnicalAppendix";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
   PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
@@ -65,7 +65,7 @@ type TrustDecisionForRender = {
   maxScore?: number;
   confidenceLabel?: string;
   relianceLevel?: string;
-  publicationStatusLabel?: string;
+  anchoringStatusLabel?: string;
   summary?: string;
   primaryReason?: string;
   reviewerAction?: string;
@@ -111,8 +111,8 @@ function TrustDecisionSummary({ trust }: { trust: TrustDecisionForRender | null 
   if (trust.relianceLevel) {
     headerRows.push({ label: "Reliance level", value: capitalise(trust.relianceLevel) });
   }
-  if (trust.publicationStatusLabel) {
-    headerRows.push({ label: "Publication", value: trust.publicationStatusLabel });
+  if (trust.anchoringStatusLabel) {
+    headerRows.push({ label: "Anchoring", value: trust.anchoringStatusLabel });
   }
 
   const counts: Array<{ label: string; value: string }> = [
@@ -255,7 +255,13 @@ function pillToneFromTrustTone(tone: string | undefined): string {
   }
 }
 
-export function EvidenceTechnicalAppendixTab({ ctx }: { ctx: EvidenceDetailCtx }) {
+export function EvidenceTechnicalAppendixTab({
+  ctx,
+  onGoToCustody,
+}: {
+  ctx: EvidenceDetailCtx;
+  onGoToCustody?: () => void;
+}) {
   const { workspace, preservation, trustDecision, evidenceId } = ctx;
   const searchParams = useSearchParams();
   // Phase EVIDENCE-TRUSTDECISION-STRUCTURED — raw-JSON debug gate.
@@ -316,11 +322,17 @@ export function EvidenceTechnicalAppendixTab({ ctx }: { ctx: EvidenceDetailCtx }
         </div>
       </details>
 
-      {/* Enterprise Technical Metadata — compact Media / EXIF / Capture
-          Environment surface (collapsed; below the trust summary so it
-          never sits above the primary record actions). Self-fetches the
-          privacy-safe internal projection. */}
-      <EvidenceTechnicalMetadataCard evidenceId={evidenceId} />
+      {/* Enterprise Technical Evidence Context — the primary reviewer-facing
+          source of truth for acquisition, device, camera/EXIF, exposure,
+          location, client environment, upload session, per-part technical
+          metadata, security & integrity, and custody summary. Mirrors the PDF
+          report + Verification Package. Self-fetches the privacy-safe internal
+          projection; location/integrity/custody come from the workspace. */}
+      <EvidenceTechnicalAppendix
+        evidenceId={evidenceId}
+        workspace={workspace}
+        onOpenCustody={onGoToCustody}
+      />
 
       {/* 2. Manifest, TSA imprint, hash semantics */}
       <details data-evidence-technical-block="hashes" style={{ marginBottom: 8 }}>

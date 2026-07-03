@@ -23,11 +23,11 @@ function buildTrustDecision(status: "passed" | "partial" | "failed"): TrustDecis
     presentationState: finalized
       ? "VERIFIED_FINALIZED"
       : pending
-        ? "VERIFIED_PENDING_PUBLICATION"
+        ? "VERIFIED_PENDING_ANCHORING"
         : "FAILED_VERIFICATION",
     presentationTone: finalized ? "success" : pending ? "warning" : "danger",
-    publicationState: finalized ? "finalized" : pending ? "pending" : "failed",
-    publicationStatusLabel: finalized ? "Finalized" : pending ? "Pending" : "Failed",
+    anchoringState: finalized ? "finalized" : pending ? "pending" : "failed",
+    anchoringStatusLabel: finalized ? "Finalized" : pending ? "Pending" : "Failed",
     relianceLevel: "medium",
     degradedButUsable: false,
     summary: "Snapshot trust decision",

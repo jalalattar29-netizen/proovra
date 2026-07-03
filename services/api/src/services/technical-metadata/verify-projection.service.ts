@@ -20,6 +20,9 @@ import {
   humanizeUploadSource,
   primaryMediaTypeLabel,
   toPerPartMediaSummary,
+  evidencePartRoleLabel,
+  evidencePartMappingLabel,
+  metadataStatusLabel,
   buildEvidenceAcquisitionContext,
   toPublicAcquisition,
   toInternalAcquisition,
@@ -80,6 +83,27 @@ export type VerifyTechnicalMetadata = {
     maskedIp?: string | null;
     networkType?: string | null;
   } | null;
+  /** Internal-only. Per-part technical metadata for authenticated reviewers.
+   *  Drives the Technical Appendix "Technical Metadata" per-part table. Never
+   *  present on the public projection. Role/mapping labels are humanized; the
+   *  raw enum is never surfaced. */
+  perParts?: Array<{
+    partIndex: number;
+    filename: string | null;
+    role: "Primary" | "Supporting" | "Context";
+    mappingLabel: string;
+    mediaKind: string | null;
+    mimeType: string | null;
+    sizeBytes: number | null;
+    sha256: string | null;
+    width: number | null;
+    height: number | null;
+    durationMs: number | null;
+    codec: string | null;
+    container: string | null;
+    pageCount: number | null;
+    metadataStatusLabel: string;
+  }> | null;
   /** Internal-only. Richer photographic EXIF for authenticated reviewers —
    *  never present on the public projection. */
   exifExtended?: {
@@ -126,8 +150,9 @@ export async function projectVerifyTechnicalMetadata(input: {
   const prisma = input.prisma ?? defaultPrisma;
   try {
     const parts = (await prisma.$queryRawUnsafe(
-      `SELECT p."id", p."original_file_name", p."mime_type",
-              p."size_bytes", p."sha256", p."technical_metadata"
+      `SELECT p."id", p."part_index", p."original_file_name", p."mime_type",
+              p."size_bytes", p."sha256", p."technical_metadata",
+              p."private_role", p."source_label"
          FROM "evidence_parts" p
          JOIN "evidence" e ON e."id" = p."evidence_id"
          WHERE e."id" = $1
@@ -136,11 +161,14 @@ export async function projectVerifyTechnicalMetadata(input: {
       ...(input.teamId ? [input.evidenceId, input.teamId] : [input.evidenceId]),
     )) as Array<{
       id: string;
+      part_index: number | null;
       original_file_name: string | null;
       mime_type: string | null;
       size_bytes: bigint | number | null;
       sha256: string | null;
       technical_metadata: unknown;
+      private_role: string | null;
+      source_label: string | null;
     }>;
 
     const evidenceRows = (await prisma.$queryRawUnsafe(
@@ -161,6 +189,36 @@ export async function projectVerifyTechnicalMetadata(input: {
         mimeType: p.mime_type,
       }),
     );
+
+    // Internal-only per-part table rows: pair the raw part row (role +
+    // part_index) with its parsed media summary (same order). Never built for
+    // the public projection.
+    const perPartsInternal: VerifyTechnicalMetadata["perParts"] = input.internal
+      ? parts.map((raw, i) => {
+          const s = perPart[i];
+          return {
+            partIndex: raw.part_index ?? i,
+            filename: raw.original_file_name,
+            role: evidencePartRoleLabel(raw.private_role),
+            mappingLabel: evidencePartMappingLabel({
+              role: raw.private_role,
+              mediaKind: s?.mediaKind ?? null,
+              mimeType: s?.mimeType ?? raw.mime_type,
+            }),
+            mediaKind: s?.mediaKind ?? null,
+            mimeType: s?.mimeType ?? raw.mime_type ?? null,
+            sizeBytes: s?.sizeBytes ?? null,
+            sha256: s?.sha256 ?? raw.sha256 ?? null,
+            width: s?.width ?? null,
+            height: s?.height ?? null,
+            durationMs: s?.durationMs ?? null,
+            codec: s?.codec ?? null,
+            container: s?.container ?? null,
+            pageCount: s?.pageCount ?? null,
+            metadataStatusLabel: metadataStatusLabel(s?.metadataStatus ?? null),
+          };
+        })
+      : null;
 
     const ceRaw =
       (evidenceRows[0]?.capture_environment as Record<string, unknown> | null) ??
@@ -302,6 +360,9 @@ export async function projectVerifyTechnicalMetadata(input: {
       exif,
       captureEnvironment,
       network,
+      ...(perPartsInternal && perPartsInternal.length
+        ? { perParts: perPartsInternal }
+        : {}),
       ...(exifExtended ? { exifExtended } : {}),
       ...(acquisition ? { acquisition } : {}),
     };

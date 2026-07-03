@@ -238,7 +238,7 @@ test("pending Bitcoin anchoring degrades presentation tone and confidence label"
     ],
   });
 
-  assert.equal(trustDecision.presentationState, "VERIFIED_PENDING_PUBLICATION");
+  assert.equal(trustDecision.presentationState, "VERIFIED_PENDING_ANCHORING");
   assert.equal(getTrustDecisionPresentationTone(trustDecision), "warning");
   assert.equal(getTrustDecisionConfidenceLabel(trustDecision), "High (Bitcoin anchoring pending)");
   assert.match(trustDecision.verdictLabel, /Bitcoin anchoring pending/i);

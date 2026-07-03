@@ -123,7 +123,7 @@ export type ReportLegalLimitations = {
 export type ReportAnchorSummary = {
   mode:
     | "not_configured"
-    | "pending_public_anchor"
+    | "bitcoin_anchoring_pending"
     | "anchored"
     | "failed"
     | "off"

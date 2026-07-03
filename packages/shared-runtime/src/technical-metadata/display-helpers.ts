@@ -207,3 +207,71 @@ export function metadataRows(
   }
   return out;
 }
+
+// =============================================================================
+// Evidence-part role + reviewer mapping labels
+// =============================================================================
+
+/**
+ * Reviewer-facing role label for one evidence part. Maps the internal
+ * `private_role` / artifact-role token to a short badge label. The raw enum
+ * (PRIMARY_EVIDENCE, SUPPORTING_EVIDENCE, ATTACHMENT, …) is never surfaced.
+ *
+ *   Primary   — the lead review item / primary evidence set member.
+ *   Supporting — corroborating media/files.
+ *   Context   — attachments, logs, and other contextual material.
+ */
+export function evidencePartRoleLabel(
+  role: string | null | undefined,
+): "Primary" | "Supporting" | "Context" {
+  switch ((role ?? "").toUpperCase()) {
+    case "PRIMARY":
+    case "PRIMARY_EVIDENCE":
+    case "PRIMARY_MEDIA":
+    case "LEAD":
+    case "LEAD_ITEM":
+      return "Primary";
+    case "ATTACHMENT":
+    case "CONTEXT":
+    case "LOG":
+    case "SUPPLEMENTARY":
+      return "Context";
+    case "SUPPORTING":
+    case "SUPPORTING_EVIDENCE":
+    default:
+      return "Supporting";
+  }
+}
+
+/**
+ * Longer reviewer-facing "mapping label" describing how a part is represented
+ * in review, derived from its role + media kind. Mirrors the PDF report's
+ * per-part representation wording. Never surfaces raw enums.
+ */
+export function evidencePartMappingLabel(input: {
+  role?: string | null;
+  mediaKind?: string | null;
+  mimeType?: string | null;
+}): string {
+  const role = evidencePartRoleLabel(input.role);
+  const kind = (input.mediaKind ?? "").toUpperCase();
+  const mime = (input.mimeType ?? "").toLowerCase();
+  const isVideo = kind === "VIDEO" || mime.startsWith("video/");
+  const isImage = kind === "IMAGE" || mime.startsWith("image/");
+  const isAudio = kind === "AUDIO" || mime.startsWith("audio/");
+
+  if (role === "Primary") {
+    if (isVideo) return "Primary video reviewer representation";
+    if (isImage) return "Primary image reviewer representation";
+    if (isAudio) return "Primary audio reviewer representation";
+    return "Primary reviewer representation";
+  }
+  if (role === "Supporting") {
+    if (isImage) return "Supporting image reviewer preview";
+    if (isVideo) return "Supporting video reviewer preview";
+    if (isAudio) return "Witness/media statement";
+    return "Supporting file/log";
+  }
+  // Context
+  return "Supporting file/log";
+}

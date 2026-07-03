@@ -1384,7 +1384,10 @@ function EvidenceDetailPageInner() {
             {activeTab === "artifacts" ? <EvidenceArtifactsTab ctx={ctx} /> : null}
             {activeTab === "discussion" ? <EvidenceDiscussionTab ctx={ctx} /> : null}
             {activeTab === "technical" ? (
-              <EvidenceTechnicalAppendixTab ctx={ctx} />
+              <EvidenceTechnicalAppendixTab
+                ctx={ctx}
+                onGoToCustody={() => setActiveTab("custody")}
+              />
             ) : null}
           </main>
 

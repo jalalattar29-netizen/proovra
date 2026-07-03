@@ -57,6 +57,14 @@ import { prisma as defaultPrisma } from "../db.js";
 export type ProvenanceProjectionInput = {
   prisma?: PrismaClient;
   evidenceId: string;
+  /**
+   * Reliable intake signal from the caller (the package builder resolves it
+   * from the acquisition context). Required because `completeEvidence`
+   * overwrites `evidence.capture_method` to the structure enum
+   * MULTIPART_PACKAGE, so the persisted capture method cannot identify intake.
+   * When omitted, intake is inferred from `capture_environment.uploadSource`.
+   */
+  isIntake?: boolean;
 };
 
 export async function projectProvenanceChain(
@@ -69,7 +77,7 @@ export async function projectProvenanceChain(
   // ----- Evidence root + certification fields ---------------------------
   const evidence = await prisma.evidence.findUnique({
     where: { id: evidenceId },
-    select: { id: true, captureMethod: true },
+    select: { id: true, captureMethod: true, captureEnvironment: true },
   });
   if (!evidence) {
     return emptyProjection(evidenceId, generatedAtUtc, "BULK_IMPORT", "C");
@@ -78,9 +86,19 @@ export async function projectProvenanceChain(
   // Intake evidence (submitted through a Secure Intake Link) never carries a
   // capture-trust device signature, so the capture-side mode must reflect the
   // intake workflow rather than defaulting to the misleading BULK_IMPORT.
+  // `completeEvidence` overwrites capture_method to the structure enum
+  // MULTIPART_PACKAGE, so intake is detected from the caller-supplied signal
+  // first, then the persisted capture_environment.uploadSource, and only then
+  // the (pre-completion) capture_method.
+  const uploadSource = String(
+    (evidence.captureEnvironment as { uploadSource?: string } | null)
+      ?.uploadSource ?? "",
+  ).toUpperCase();
   const isIntakeEvidence =
+    input.isIntake === true ||
+    uploadSource === "INTAKE_LINK" ||
     String(evidence.captureMethod ?? "").toUpperCase() ===
-    "EXTERNAL_INTAKE_UPLOAD";
+      "EXTERNAL_INTAKE_UPLOAD";
 
   // ----- Capture-trust events for this evidence -------------------------
   const trustEvents = await prisma.captureTrustEventRecord.findMany({

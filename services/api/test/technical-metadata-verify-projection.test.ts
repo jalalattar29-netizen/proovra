@@ -212,3 +212,103 @@ describe("technical-metadata verify projection — privacy boundary", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Per-part technical metadata (Section 8 of the Technical Appendix).
+// ---------------------------------------------------------------------------
+describe("technical-metadata verify projection — perParts (internal only)", () => {
+  // Multipart: a PRIMARY video part + a SUPPORTING pdf part.
+  function fakePrismaMultipart() {
+    return {
+      $queryRawUnsafe: async (q: string) => {
+        if (q.includes("evidence_parts")) {
+          return [
+            {
+              id: "part-1",
+              part_index: 0,
+              original_file_name: "clip.mp4",
+              mime_type: "video/mp4",
+              size_bytes: 12_000_000,
+              sha256: "a".repeat(64),
+              private_role: "PRIMARY",
+              source_label: "Primary media",
+              technical_metadata: {
+                schemaVersion: "1.0",
+                mediaKind: "VIDEO",
+                mimeType: "video/mp4",
+                parseResult: "OK",
+                metadataStatus: "PRESENT",
+                widthPx: 1920,
+                heightPx: 1080,
+                durationMs: 42_000,
+                videoCodec: "h264",
+                container: "mp4",
+              },
+            },
+            {
+              id: "part-2",
+              part_index: 1,
+              original_file_name: "statement.pdf",
+              mime_type: "application/pdf",
+              size_bytes: 240_000,
+              sha256: "b".repeat(64),
+              private_role: "SUPPORTING",
+              source_label: "Witness statement",
+              technical_metadata: {
+                schemaVersion: "1.0",
+                mediaKind: "PDF",
+                mimeType: "application/pdf",
+                parseResult: "OK",
+                metadataStatus: "PRESENT",
+                pageCount: 3,
+              },
+            },
+          ];
+        }
+        return [{ capture_environment: { schemaVersion: "1.0", uploadSource: "WEB_APP" } }];
+      },
+    } as never;
+  }
+
+  it("internal projection emits per-part rows with humanized role + mapping + sha256", async () => {
+    const result = await projectVerifyTechnicalMetadata({
+      teamId: "team-1",
+      evidenceId: "ev-1",
+      prisma: fakePrismaMultipart(),
+      internal: true,
+    });
+    expect(result!.perParts).toBeTruthy();
+    expect(result!.perParts!).toHaveLength(2);
+
+    const [primary, supporting] = result!.perParts!;
+    // Role + reviewer mapping label are humanized (never the raw enum).
+    expect(primary.role).toBe("Primary");
+    expect(primary.mappingLabel).toBe("Primary video reviewer representation");
+    expect(primary.sha256).toBe("a".repeat(64));
+    expect(primary.width).toBe(1920);
+    expect(primary.height).toBe(1080);
+    expect(primary.durationMs).toBe(42_000);
+    expect(primary.codec).toBe("h264");
+
+    expect(supporting.role).toBe("Supporting");
+    expect(supporting.sha256).toBe("b".repeat(64));
+    expect(supporting.pageCount).toBe(3);
+
+    // Raw role enum must never surface anywhere in the payload.
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("PRIMARY");
+    expect(serialized).not.toContain("SUPPORTING");
+    expect(serialized).not.toContain("MULTIPART_PACKAGE");
+    expect(serialized).not.toContain("BULK_IMPORT");
+  });
+
+  it("public projection never carries perParts", async () => {
+    const result = await projectVerifyTechnicalMetadata({
+      teamId: "team-1",
+      evidenceId: "ev-1",
+      prisma: fakePrismaMultipart(),
+      internal: false,
+    });
+    expect((result as { perParts?: unknown }).perParts ?? null).toBeNull();
+  });
+});

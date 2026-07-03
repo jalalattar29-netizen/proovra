@@ -1451,7 +1451,7 @@ const primaryContentItem = resolvePrimaryContentItem(
     },
     {
       label: "Publication Posture",
-      value: trustDecision.publicationStatusLabel,
+      value: trustDecision.anchoringStatusLabel,
       tone:
         trustDecision.presentationState === "VERIFIED_FINALIZED"
           ? "success"

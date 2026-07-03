@@ -1459,7 +1459,7 @@ function normalizeVerifyTrustDecision(
 ): VerifyTrustDecision & {
   presentationState:
     | "VERIFIED_FINALIZED"
-    | "VERIFIED_PENDING_PUBLICATION"
+    | "VERIFIED_PENDING_ANCHORING"
     | "VERIFIED_WITH_DEGRADED_SIGNALS"
     | "PARTIALLY_VERIFIED"
     | "FAILED_VERIFICATION"
@@ -1490,7 +1490,7 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
   const publicAnchoringPending =
     publicAnchoringSignal?.status === "pending" ||
     publicAnchoringSignal?.status === "partial" ||
-    presentationState === "VERIFIED_PENDING_PUBLICATION";
+    presentationState === "VERIFIED_PENDING_ANCHORING";
   const timestampMismatch =
     isPositiveTsa(input.tsaStatus) && input.timestampDigestMatches === false;
   const timestampUnavailable =
@@ -1650,9 +1650,9 @@ function buildUnavailableTrustDecision(): VerifyTrustDecision {
     tone: "neutral",
     presentationState: "REVIEW_REQUIRED",
     presentationTone: "neutral",
-    publicationState: "unavailable",
+    anchoringState: "unavailable",
     confidenceLabel: "Unavailable",
-    publicationStatusLabel: "Anchoring not recorded",
+    anchoringStatusLabel: "Anchoring not recorded",
     relianceLevel: "limited",
     degradedButUsable: false,
     summary:
@@ -2144,7 +2144,7 @@ function TrustDecisionCard({
         </div>
         <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink }}>
           Publication posture:{" "}
-          {decision.publicationStatusLabel ?? "Bitcoin anchoring status requires review"}.
+          {decision.anchoringStatusLabel ?? "Bitcoin anchoring status requires review"}.
         </div>
         <div
           style={{
@@ -3775,9 +3775,9 @@ const trustDecisionTone = getTrustDecisionPresentationTone(
   normalizedTrustDecision
 );
 const publicationPendingPosture =
-  trustDecision.presentationState === "VERIFIED_PENDING_PUBLICATION" ||
-  trustDecision.publicationState === "pending" ||
-  trustDecision.publicationState === "degraded";
+  trustDecision.presentationState === "VERIFIED_PENDING_ANCHORING" ||
+  trustDecision.anchoringState === "pending" ||
+  trustDecision.anchoringState === "degraded";
 
 const executiveBadges = useMemo<
   Array<{

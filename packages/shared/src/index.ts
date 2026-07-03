@@ -260,7 +260,7 @@ export type {
   TrustSignalStatus,
   TrustDecisionVerdict,
   TrustPresentationState,
-  TrustPublicationState,
+  TrustAnchoringState,
   TrustDecisionEvidenceInput,
   TrustDecisionCustodyEventInput,
   BuildEvidenceTrustDecisionInput,

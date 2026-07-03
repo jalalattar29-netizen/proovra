@@ -122,8 +122,8 @@ export function buildTrustDecisionConsistency(
 
   if (
     signalChanged(input.snapshotTrustDecision, input.liveTrustDecision, "public_anchoring") ||
-    input.snapshotTrustDecision.publicationState !==
-      input.liveTrustDecision.publicationState
+    input.snapshotTrustDecision.anchoringState !==
+      input.liveTrustDecision.anchoringState
   ) {
     pushReason(reasons, {
       code: "PUBLICATION_STATUS_CHANGED",

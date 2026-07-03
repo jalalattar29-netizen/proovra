@@ -20,13 +20,13 @@ export type TrustDecisionVerdict =
 
 export type TrustPresentationState =
   | "VERIFIED_FINALIZED"
-  | "VERIFIED_PENDING_PUBLICATION"
+  | "VERIFIED_PENDING_ANCHORING"
   | "VERIFIED_WITH_DEGRADED_SIGNALS"
   | "PARTIALLY_VERIFIED"
   | "FAILED_VERIFICATION"
   | "REVIEW_REQUIRED";
 
-export type TrustPublicationState =
+export type TrustAnchoringState =
   | "finalized"
   | "pending"
   | "degraded"
@@ -60,7 +60,7 @@ export type TrustDecision = {
   tone: TrustDecisionTone;
   presentationState: TrustPresentationState;
   presentationTone: TrustDecisionTone;
-  publicationState: TrustPublicationState;
+  anchoringState: TrustAnchoringState;
   score: number;
   maxScore: 100;
   scoreLabel: string;
@@ -68,7 +68,7 @@ export type TrustDecision = {
   shortLabel: string;
   title: string;
   confidenceLabel: string;
-  publicationStatusLabel: string;
+  anchoringStatusLabel: string;
   summary: string;
   primaryReason: string;
   reviewerAction: string;
@@ -132,7 +132,7 @@ export function getReviewerRelianceLabel(
   }
 }
 
-function hasPublicationPendingSignal(
+function hasAnchoringPendingSignal(
   decision:
     | Pick<TrustDecision, "signals">
     | {
@@ -148,7 +148,7 @@ function hasPublicationPendingSignal(
   );
 }
 
-function hasPublicationFailedSignal(
+function hasAnchoringFailedSignal(
   decision:
     | Pick<TrustDecision, "signals">
     | {
@@ -178,11 +178,11 @@ export function getTrustDecisionPresentationTone(
     return decision.presentationTone;
   }
 
-  if (hasPublicationPendingSignal(decision)) {
+  if (hasAnchoringPendingSignal(decision)) {
     return "warning";
   }
 
-  if (hasPublicationFailedSignal(decision)) {
+  if (hasAnchoringFailedSignal(decision)) {
     return "danger";
   }
 
@@ -212,8 +212,8 @@ export function getTrustDecisionConfidenceLabel(
   }
 
   if (
-    decision.presentationState === "VERIFIED_PENDING_PUBLICATION" ||
-    hasPublicationPendingSignal(decision)
+    decision.presentationState === "VERIFIED_PENDING_ANCHORING" ||
+    hasAnchoringPendingSignal(decision)
   ) {
     return "High (Bitcoin anchoring pending)";
   }
@@ -250,7 +250,7 @@ export function getTrustSignalPresentationLabel(
   }
 }
 
-function getPublicationStateLabel(state: TrustPublicationState): string {
+function getAnchoringStateLabel(state: TrustAnchoringState): string {
   switch (state) {
     case "finalized":
       return "OpenTimestamps Bitcoin anchoring verified";
@@ -286,8 +286,8 @@ export function getTrustNarrative(
   }
 
   if (
-    decision.presentationState === "VERIFIED_PENDING_PUBLICATION" ||
-    hasPublicationPendingSignal(decision)
+    decision.presentationState === "VERIFIED_PENDING_ANCHORING" ||
+    hasAnchoringPendingSignal(decision)
   ) {
     return "Recorded integrity is verified, but Bitcoin anchoring has not finalized yet. An OpenTimestamps proof is recorded. Reviewers should treat the record as conditionally reliable for integrity review and recheck anchoring later if independent Bitcoin anchoring is required.";
   }
@@ -1175,7 +1175,7 @@ export function buildEvidenceTrustDecision(
   const corePassed = core.status === "passed";
   const publicAnchoringPending = anchoring.status === "pending";
   const publicAnchoringPartial = anchoring.status === "partial";
-  const publicationState: TrustPublicationState =
+  const anchoringState: TrustAnchoringState =
     anchoring.status === "passed"
       ? "finalized"
       : publicAnchoringPending
@@ -1210,7 +1210,7 @@ export function buildEvidenceTrustDecision(
     confidenceLabel = "Low";
   } else if (score >= 90 && failedSignals === 0 && corePassed) {
     verdict = "STRONGLY_VERIFIED";
-    if (publicationState === "finalized") {
+    if (anchoringState === "finalized") {
       level = "strong";
       tone = "success";
       presentationState = "VERIFIED_FINALIZED";
@@ -1224,25 +1224,25 @@ export function buildEvidenceTrustDecision(
       level = "standard";
       tone = "warning";
       presentationState =
-        publicationState === "pending" || publicationState === "degraded"
-          ? "VERIFIED_PENDING_PUBLICATION"
+        anchoringState === "pending" || anchoringState === "degraded"
+          ? "VERIFIED_PENDING_ANCHORING"
           : "VERIFIED_WITH_DEGRADED_SIGNALS";
       presentationTone = "warning";
       verdictLabel =
-        publicationState === "pending" || publicationState === "degraded"
+        anchoringState === "pending" || anchoringState === "degraded"
           ? "Recorded integrity verified; Bitcoin anchoring pending"
           : "Recorded integrity verified with supporting limitations";
       shortLabel =
-        publicationState === "pending" || publicationState === "degraded"
+        anchoringState === "pending" || anchoringState === "degraded"
           ? "Anchoring pending"
           : "Conditional";
       title =
-        publicationState === "pending" || publicationState === "degraded"
+        anchoringState === "pending" || anchoringState === "degraded"
           ? "Recorded integrity verified; Bitcoin anchoring pending"
           : "Conditional trust state";
       relianceLevel = "medium";
       confidenceLabel =
-        publicationState === "pending" || publicationState === "degraded"
+        anchoringState === "pending" || anchoringState === "degraded"
           ? "High (Bitcoin anchoring pending)"
           : "Conditional";
     }
@@ -1251,25 +1251,25 @@ export function buildEvidenceTrustDecision(
     level = "standard";
     tone = "warning";
     presentationState =
-      publicationState === "pending" || publicationState === "degraded"
-        ? "VERIFIED_PENDING_PUBLICATION"
+      anchoringState === "pending" || anchoringState === "degraded"
+        ? "VERIFIED_PENDING_ANCHORING"
         : "VERIFIED_WITH_DEGRADED_SIGNALS";
     presentationTone = "warning";
     verdictLabel =
-      publicationState === "pending" || publicationState === "degraded"
+      anchoringState === "pending" || anchoringState === "degraded"
         ? "Recorded integrity verified; Bitcoin anchoring pending"
         : "Recorded integrity verified with supporting limitations";
     shortLabel =
-      publicationState === "pending" || publicationState === "degraded"
+      anchoringState === "pending" || anchoringState === "degraded"
         ? "Anchoring pending"
         : "Conditional";
     title =
-      publicationState === "pending" || publicationState === "degraded"
+      anchoringState === "pending" || anchoringState === "degraded"
         ? "Recorded integrity verified; Bitcoin anchoring pending"
         : "Conditional trust state";
     relianceLevel = "medium";
     confidenceLabel =
-      publicationState === "pending" || publicationState === "degraded"
+      anchoringState === "pending" || anchoringState === "degraded"
         ? "High (Bitcoin anchoring pending)"
         : "Conditional";
   } else if (score >= 78 && !corePassed) {
@@ -1348,7 +1348,7 @@ export function buildEvidenceTrustDecision(
     tone,
     presentationState,
     presentationTone,
-    publicationState,
+    anchoringState,
     score,
     maxScore: 100,
     scoreLabel: `${score}/100`,
@@ -1356,7 +1356,7 @@ export function buildEvidenceTrustDecision(
     shortLabel,
     title,
     confidenceLabel,
-    publicationStatusLabel: getPublicationStateLabel(publicationState),
+    anchoringStatusLabel: getAnchoringStateLabel(anchoringState),
     summary,
     primaryReason,
     reviewerAction,

@@ -3574,14 +3574,6 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
             evidenceId: prepared.evidenceId,
           });
 
-        // Phase 1B Closure — load the bounded ProvenanceChain projection
-        // BEFORE invoking createVerificationPackage so the resulting ZIP
-        // can include `provenance/chain.json` for offline verifiers. The
-        // loader returns null on any failure; the package builds either
-        // way (chain.json is OPTIONAL and never blocks the bundle).
-        const verificationPackageProvenanceChain =
-          await loadProvenanceChainForPackage(prepared.evidenceId);
-
         // Phase 3 — canonical evidence materials sealed at
         // verification-package generation time. The bundle is the
         // single self-describing snapshot of every lifecycle
@@ -3589,6 +3581,19 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
         // `canonical-record.json`. Every section's
         // `snapshotSemantics` is `package-snapshot-only` because
         // outputType = VERIFICATION_PACKAGE_SNAPSHOT.
+        // Acquisition context for the PACKAGE metadata scope (the report-scope
+        // `finalizedReportAcquisition` is out of scope here). Drives role-safe
+        // submitter/capture-method labeling in case-metadata.json +
+        // original-linkage.json + canonical-record.json. Same bounded
+        // projection used for the report. Resolved FIRST because the canonical
+        // materials + provenance chain below both need the reliable intake
+        // signal (`completeEvidence` overwrites capture_method to the structure
+        // enum MULTIPART_PACKAGE, so it cannot be used to detect intake).
+        const packageAcquisition = await buildReportAcquisitionContext({
+          teamId: evidence.teamId ?? null,
+          evidenceId: prepared.evidenceId,
+        });
+
         const packageCanonicalMaterials = buildReportCanonicalMaterials({
           evidence: finalized.finalizedReportEvidencePayload,
           custodyEvents: finalized.finalizedCustodyEvents.map((e) => ({
@@ -3600,6 +3605,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
             eventHash: e.eventHash ?? null,
           })),
           trustDecision: finalized.finalizedTrustDecision,
+          isIntake: packageAcquisition?.isIntake === true,
           snapshotGeneratedAtUtc:
             finalized.finalizedReportEvidencePayload.reportGeneratedAtUtc ??
             prepared.now,
@@ -3613,14 +3619,19 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
           mediaIntelligence: verificationPackageIntelligence ?? null,
         });
 
-        // Acquisition context for the PACKAGE metadata scope (the report-scope
-        // `finalizedReportAcquisition` is out of scope here). Drives role-safe
-        // submitter/capture-method labeling in case-metadata.json +
-        // original-linkage.json. Same bounded projection used for the report.
-        const packageAcquisition = await buildReportAcquisitionContext({
-          teamId: evidence.teamId ?? null,
-          evidenceId: prepared.evidenceId,
-        });
+        // Phase 1B Closure — bounded ProvenanceChain for `provenance/chain.json`.
+        // Loaded AFTER the acquisition context so intake evidence resolves to
+        // SECURE_INTAKE_LINK: `completeEvidence` overwrites the persisted
+        // capture_method to the structure enum MULTIPART_PACKAGE, so it cannot
+        // be used to detect intake. The reliable, persistent intake signal is
+        // the acquisition context (intake-link linkage / uploadSource). Optional
+        // — a null chain never blocks the bundle.
+        const verificationPackageProvenanceChain =
+          await loadProvenanceChainForPackage(
+            prepared.evidenceId,
+            packageAcquisition?.isIntake === true,
+          );
+
         const finalizedVerificationPackage = await createVerificationPackage({
           teamId: evidence.teamId ?? undefined,
           // Phase 2 canonical workspace scope inputs. `isPersonalTeam`

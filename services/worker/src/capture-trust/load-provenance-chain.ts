@@ -33,10 +33,11 @@ import { projectProvenanceChain } from "./provenance-projection.js";
 
 export async function loadProvenanceChainForPackage(
   evidenceId: string,
+  isIntake?: boolean,
 ): Promise<ProvenanceChain | null> {
   if (!evidenceId) return null;
   try {
-    return await projectProvenanceChain({ evidenceId });
+    return await projectProvenanceChain({ evidenceId, isIntake });
   } catch {
     return null;
   }

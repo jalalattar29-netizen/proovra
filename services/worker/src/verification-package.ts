@@ -101,7 +101,7 @@ type VerificationCertificationRecord = {
 
 type AnchorMode =
   | "not_configured"
-  | "pending_public_anchor"
+  | "bitcoin_anchoring_pending"
   | "anchored"
   | "failed";
 
@@ -525,10 +525,10 @@ function normalizeAnchorMode(value: string | null | undefined): AnchorMode {
     case "not_configured":
     case "off":
       return "not_configured";
-    case "pending_public_anchor":
+    case "bitcoin_anchoring_pending":
     case "ready":
     default:
-      return "pending_public_anchor";
+      return "bitcoin_anchoring_pending";
   }
 }
 
@@ -558,7 +558,7 @@ function getAnchorStatusLabel(
       return "OpenTimestamps anchoring failed";
     case "not_configured":
       return "OpenTimestamps not configured";
-    case "pending_public_anchor":
+    case "bitcoin_anchoring_pending":
     default:
       return "OpenTimestamps proof present; Bitcoin anchoring pending";
   }
@@ -588,9 +588,9 @@ function derivePackageAnchorMode(params: {
   if (
     anchoringSignal?.status === "pending" ||
     anchoringSignal?.status === "partial" ||
-    normalizedRawMode === "pending_public_anchor"
+    normalizedRawMode === "bitcoin_anchoring_pending"
   ) {
-    return "pending_public_anchor";
+    return "bitcoin_anchoring_pending";
   }
 
   if (normalizedRawMode === "failed") {
@@ -598,7 +598,7 @@ function derivePackageAnchorMode(params: {
   }
 
   if (normalizedRawMode === "anchored") {
-    return hasPublicAnchorMaterial ? "anchored" : "pending_public_anchor";
+    return hasPublicAnchorMaterial ? "anchored" : "bitcoin_anchoring_pending";
   }
 
   return "not_configured";
@@ -901,7 +901,7 @@ function buildOfflineVerificationReadme(): string {
     "- `custody/attestations.json` — bounded structural integrity of every",
     "  detached custody attestation envelope.",
     "- `signers/signer-registry-snapshot.json` — bounded shape sanity.",
-    "- `timestamps/tsa.tsr` / `opentimestamps-proof.ots` — presence and",
+    "- `timestamp.tsr` / `opentimestamps-proof.ots` — presence and",
     "  bounded structural sanity only.",
     "",
     "## What is NOT verified offline (honest limitations)",
@@ -1021,6 +1021,23 @@ function buildPackageSubmitterFields(metadata: VerificationPackageMetadata): {
       ? captureMethodDisplayLabel({ captureMethod: metadata.captureMethod })
       : null,
   };
+}
+
+/**
+ * Single source of truth for the reviewer-facing capture-method label emitted
+ * anywhere in the package (case-metadata, original-linkage,
+ * court-admissibility-checklist, system-process-declaration, canonical-record).
+ * Intake → "Secure Intake Link"; otherwise the flow-aware display label
+ * (e.g. "PROOVRA Web Upload"). The internal structure enum (MULTIPART_PACKAGE,
+ * BULK_IMPORT, …) is NEVER surfaced as a capture method.
+ */
+function resolvePackageCaptureMethodLabel(
+  metadata: VerificationPackageMetadata,
+): string | null {
+  if (metadata.isIntake) return "Secure Intake Link";
+  return metadata.captureMethod
+    ? captureMethodDisplayLabel({ captureMethod: metadata.captureMethod })
+    : null;
 }
 
 // Exported for focused tests / artifact harnesses that verify the emitted
@@ -1423,7 +1440,7 @@ function buildVerifyPackageScript() {
     '  const anchorStatus = String(anchor.status || "").trim().toLowerCase();',
     '  const anchorBitcoinTxid = typeof anchor.transactionId === "string" ? anchor.transactionId : typeof anchor.bitcoinTxid === "string" ? anchor.bitcoinTxid : "";',
     '  const anchorHasValidBitcoinTxid = /^[a-f0-9]{64}$/i.test(String(anchorBitcoinTxid).trim());',
-    '  const anchorLabel = anchorStatus === "pending_public_anchor"',
+    '  const anchorLabel = anchorStatus === "bitcoin_anchoring_pending"',
     '    ? "OTS PROOF PRESENT - BITCOIN ANCHORING PENDING"',
     '    : anchorStatus === "anchored"',
     '      ? anchorHasValidBitcoinTxid ? "BITCOIN ANCHORING VERIFIED" : "OTS PROOF PRESENT - BITCOIN ANCHORING PENDING"',
@@ -1439,7 +1456,7 @@ function buildVerifyPackageScript() {
     '    const manifestJson = JSON.parse(readFileSync(manifestPath, "utf8"));',
     '    manifestAnchorMode = String(manifestJson.anchorMode || "").trim().toLowerCase();',
     "  }",
-    '  if (manifestAnchorMode === "pending_public_anchor") {',
+    '  if (manifestAnchorMode === "bitcoin_anchoring_pending") {',
     '    console.log("ℹ OTS PROOF PRESENT - BITCOIN ANCHORING PENDING");',
     '  } else if (manifestAnchorMode === "not_configured") {',
     '    console.log("ℹ ANCHORING NOT RECORDED");',
@@ -1575,7 +1592,7 @@ A Bitcoin transaction reference has not yet been attached to the OpenTimestamps 
 This anchoring layer is independent from RFC 3161 timestamping.`;
   }
 
-  if (params.anchorMode === "pending_public_anchor" || otsStatus === "PENDING") {
+  if (params.anchorMode === "bitcoin_anchoring_pending" || otsStatus === "PENDING") {
     return `ANCHOR STATUS
 
 anchor.json is included in this package.
@@ -2213,7 +2230,9 @@ function buildCourtReadinessChecklist(params: {
       itemCount: reviewerEvidence.itemCount,
       contentCategories: reviewerEvidence.contentCategories,
       verificationStatus: params.metadata.verificationStatus ?? null,
-      captureMethod: params.metadata.captureMethod ?? null,
+      // Role-safe display: intake → "Secure Intake Link"; otherwise the
+      // flow-aware label. Never the raw structure enum (MULTIPART_PACKAGE).
+      captureMethod: resolvePackageCaptureMethodLabel(params.metadata),
       forensicCustodyEventCount: params.forensicCustodyCount,
       accessActivityEventCount: params.accessActivityCount,
       caseId: params.metadata.caseId ?? null,
@@ -2305,7 +2324,7 @@ This package documents a PROOVRA evidence record and the integrity-verification 
 - Included preserved item count: ${params.evidenceFiles.length}
 - Reviewer evidence type: ${safeText(reviewerEvidence.reviewerEvidenceType, "Not included")}
 - Raw evidence type enum: ${safeText(reviewerEvidence.rawEvidenceType, "Not included")}
-- Capture method snapshot: ${safeText(params.metadata.captureMethod, "Not included")}
+- Capture method: ${safeText(resolvePackageCaptureMethodLabel(params.metadata), "Not included")}
 
 ## Integrity process
 

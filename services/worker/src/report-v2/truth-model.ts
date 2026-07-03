@@ -6,6 +6,7 @@ import {
   isExplicitRecordedIntegrityVerified,
   type CanonicalEvidenceMaterials,
 } from "@proovra/shared";
+import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import {
   Tone,
   ReportEvidence,
@@ -118,7 +119,7 @@ export function buildExecutiveConclusion(
     body:
       decision.presentationState === "VERIFIED_FINALIZED"
         ? "The preserved evidence record reached a verified recorded-integrity state with finalized supporting publication materials at report generation time. Reviewers can use this report to orient themselves to the package, then proceed to the later technical and legal sections for deeper validation and interpretation."
-        : decision.presentationState === "VERIFIED_PENDING_PUBLICATION"
+        : decision.presentationState === "VERIFIED_PENDING_ANCHORING"
           ? `The preserved evidence record reached a verified recorded-integrity state at report generation time, but Bitcoin anchoring has not finalized yet. An OpenTimestamps proof is recorded. Technical confidence remains ${getTrustDecisionConfidenceLabel(
               decision
             ).toLowerCase()}, and anchoring recheck is recommended if independent Bitcoin anchoring is required.`
@@ -294,6 +295,13 @@ export function buildReportCanonicalMaterials(params: {
   evidence: ReportEvidence;
   custodyEvents: ReportCustodyEvent[];
   trustDecision: ReportTrustDecision;
+  /**
+   * Reliable intake signal from the acquisition context. Required because
+   * `completeEvidence` overwrites `evidence.capture_method` to the structure
+   * enum MULTIPART_PACKAGE, so the persisted method cannot identify intake.
+   * When true, the canonical capture-method reads "Secure Intake Link".
+   */
+  isIntake?: boolean;
   snapshotGeneratedAtUtc?: string | Date | null;
   /**
    * Evidence parts for the canonical part index. Pass the real ordered
@@ -329,7 +337,16 @@ export function buildReportCanonicalMaterials(params: {
       id: ev.id,
       status: ev.status ?? null,
       verificationStatus: ev.verificationStatus ?? null,
-      captureMethod: ev.captureMethod ?? null,
+      // Role-safe display. `completeEvidence` overwrites capture_method to the
+      // structure enum MULTIPART_PACKAGE, so the canonical record must never
+      // surface the raw enum. Intake → "Secure Intake Link"; otherwise the
+      // flow-aware display label (e.g. "PROOVRA Web Upload").
+      captureMethod:
+        params.isIntake === true
+          ? "Secure Intake Link"
+          : ev.captureMethod
+            ? captureMethodDisplayLabel({ captureMethod: ev.captureMethod })
+            : null,
       uploadedAtUtc: ev.uploadedAtUtc ?? null,
       signedAtUtc: ev.signedAtUtc ?? null,
       recordedIntegrityVerifiedAtUtc:

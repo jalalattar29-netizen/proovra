@@ -402,7 +402,7 @@ export function mapAnchorModePublicLabel(mode: string | null | undefined): strin
     case "ANCHORED":
     case "ACTIVE":
       return "OpenTimestamps Bitcoin anchoring verified";
-    case "PENDING_PUBLIC_ANCHOR":
+    case "BITCOIN_ANCHORING_PENDING":
     case "READY":
       return "OTS proof present; Bitcoin anchoring pending";
     case "FAILED":

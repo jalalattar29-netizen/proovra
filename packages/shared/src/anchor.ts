@@ -22,7 +22,7 @@ export type AnchorSemantics = {
   publicAnchoringVerified: boolean;
   anchoringStatus: "verified" | "pending" | "failed" | "unavailable";
   anchoringLabel: string;
-  anchorMode: "anchored" | "pending_public_anchor" | "failed" | "not_configured";
+  anchorMode: "anchored" | "bitcoin_anchoring_pending" | "failed" | "not_configured";
   publicVerificationUrl: string | null;
 };
 
@@ -80,7 +80,7 @@ export function deriveAnchorSemantics(
         : hasAnchorMaterial ||
           effectiveOtsStatus === "ANCHORED" ||
           effectiveOtsStatus === "PENDING"
-          ? "pending_public_anchor"
+          ? "bitcoin_anchoring_pending"
           : "not_configured";
 
   let anchoringStatus: AnchorSemantics["anchoringStatus"] = "unavailable";

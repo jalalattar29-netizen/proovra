@@ -367,20 +367,20 @@ export type VerifyTrustDecision = {
   tone: TrustDecisionTone;
   presentationState?:
     | "VERIFIED_FINALIZED"
-    | "VERIFIED_PENDING_PUBLICATION"
+    | "VERIFIED_PENDING_ANCHORING"
     | "VERIFIED_WITH_DEGRADED_SIGNALS"
     | "PARTIALLY_VERIFIED"
     | "FAILED_VERIFICATION"
     | "REVIEW_REQUIRED";
   presentationTone?: TrustDecisionTone;
-  publicationState?:
+  anchoringState?:
     | "finalized"
     | "pending"
     | "degraded"
     | "unavailable"
     | "failed";
   confidenceLabel?: string;
-  publicationStatusLabel?: string;
+  anchoringStatusLabel?: string;
   relianceLevel: "high" | "medium" | "limited" | "low";
   degradedButUsable: boolean;
   summary: string;
