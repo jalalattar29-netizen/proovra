@@ -27,6 +27,7 @@ import {
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../lib/api";
+import { formatUserDateTime } from "../../../lib/date";
 
 export default function ExecutiveDashboardPage() {
   return (
@@ -133,10 +134,10 @@ function ExecutiveDashboardShell() {
       ) : (
         <>
           <p style={{ color: "#475569", fontSize: 11, margin: "0 0 10px" }}>
-            Current window {new Date(trends.windowStartUtc).toLocaleString()} →{" "}
-            {new Date(trends.windowEndUtc).toLocaleString()} · Comparison
-            window {new Date(trends.previousWindowStartUtc).toLocaleString()} →{" "}
-            {new Date(trends.previousWindowEndUtc).toLocaleString()}
+            Current window {formatUserDateTime(trends.windowStartUtc)} →{" "}
+            {formatUserDateTime(trends.windowEndUtc)} · Comparison
+            window {formatUserDateTime(trends.previousWindowStartUtc)} →{" "}
+            {formatUserDateTime(trends.previousWindowEndUtc)}
           </p>
 
           <div style={{ display: "grid", gap: 12 }}>

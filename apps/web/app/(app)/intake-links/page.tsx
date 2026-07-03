@@ -27,6 +27,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { apiFetch } from "../../../lib/api";
+import { formatUserDate } from "../../../lib/date";
 import {
   canOpenEvidence as canOpenEvidenceFromSession,
 } from "../../../lib/intake-links/state-model";
@@ -799,7 +800,7 @@ function describeRelativeTime(iso: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 14) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
+  return formatUserDate(iso);
 }
 
 // -----------------------------------------------------------------------------

@@ -26,6 +26,7 @@ import {
   logout as portalLogout,
   setBearer,
 } from "../../../lib/external-portal/portal-client";
+import { formatUserDate, formatUserDateTime } from "../../../lib/date";
 
 export default function PortalDashboardPage({
   params,
@@ -188,7 +189,7 @@ function PortalRibbon({
       ) : null}
       <span style={{ flex: 1 }} />
       <Pill
-        label={`Expires ${new Date(projection.scope.expiresAtUtc).toLocaleString()}`}
+        label={`Expires ${formatUserDateTime(projection.scope.expiresAtUtc)}`}
       />
       <button
         type="button"
@@ -287,7 +288,7 @@ function AssignedList({
                   )}
                 </td>
                 <td style={td}>
-                  {a.dueAt ? new Date(a.dueAt).toLocaleDateString() : "—"}
+                  {a.dueAt ? formatUserDate(a.dueAt) : "—"}
                 </td>
                 <td style={td}>
                   <Link

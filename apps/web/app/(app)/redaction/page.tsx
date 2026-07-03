@@ -18,6 +18,7 @@ import Link from "next/link";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../lib/api";
+import { formatUserDateTime } from "../../../lib/date";
 
 type ProjectRow = {
   id: string;
@@ -453,7 +454,7 @@ function ProjectsTable({ rows }: { rows: ReadonlyArray<ProjectRow> }) {
                 <Chip label={p.state} tone={stateTone(p.state)} />
               </td>
               <td style={td}>
-                {new Date(p.createdAtUtc).toLocaleString()}
+                {formatUserDateTime(p.createdAtUtc)}
               </td>
               <td style={td}>
                 <Link

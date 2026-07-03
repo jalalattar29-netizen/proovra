@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../lib/api";
+import { formatUserDate } from "../../../lib/date";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
@@ -225,7 +226,7 @@ function Shell() {
                   <td style={td}>{e.source}</td>
                   <td style={td}>
                     {e.expiresAtUtc
-                      ? new Date(e.expiresAtUtc).toLocaleDateString()
+                      ? formatUserDate(e.expiresAtUtc)
                       : "—"}
                   </td>
                 </tr>

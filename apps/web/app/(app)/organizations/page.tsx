@@ -38,6 +38,7 @@ import { useRouter } from "next/navigation";
 
 import { apiFetch } from "../../../lib/api";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { formatUserDate } from "../../../lib/date";
 
 type OrgRole =
   | "ORG_OWNER"
@@ -559,7 +560,7 @@ function OrganizationsListPageInner() {
                   </span>
                   <span data-meta="member-since" style={{ opacity: 0.75 }}>
                     you joined{" "}
-                    {new Date(org.memberSince).toLocaleDateString()}
+                    {formatUserDate(org.memberSince)}
                   </span>
                 </div>
               </div>

@@ -19,6 +19,7 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { useToast } from "../../../../components/ui";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { ApiError } from "../../../../lib/api";
+import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import {
   type CollaborationTeamActivityItem,
   type CollaborationTeamAssignment,
@@ -768,7 +769,7 @@ function MemberRow({
         <div>
           <div style={{ fontWeight: 600, color: "#182b30" }}>{displayName}</div>
           <div style={{ color: "#5d6d71", fontSize: "0.82rem" }}>
-            Joined {new Date(member.joinedAt).toLocaleDateString()}{" "}
+            Joined {formatUserDate(member.joinedAt)}{" "}
             • {member.user.email ?? "no email"}
           </div>
         </div>
@@ -1435,7 +1436,7 @@ function InviteRow({
         <div style={{ fontWeight: 600, color: "#182b30" }}>{recipient}</div>
         <div style={{ color: "#5d6d71", fontSize: "0.78rem" }}>
           {invite.channel} • {invite.role} • expires{" "}
-          {new Date(invite.expiresAtUtc).toLocaleDateString()}
+          {formatUserDate(invite.expiresAtUtc)}
         </div>
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -1925,7 +1926,7 @@ function AssignmentRow({
           <div style={{ color: "#5d6d71", fontSize: "0.82rem" }}>
             Assignee: {assigneeLabel} · Priority: {assignment.priority}
             {assignment.dueAtUtc
-              ? ` · Due ${new Date(assignment.dueAtUtc).toLocaleDateString()}`
+              ? ` · Due ${formatUserDate(assignment.dueAtUtc)}`
               : ""}
           </div>
           {assignment.note ? (
@@ -2237,7 +2238,7 @@ function ActivityTab({ team }: { team: CollaborationTeamDetail }) {
               </div>
               <div style={{ color: "#5d6d71", fontSize: "0.78rem" }}>
                 {a.targetType ? `${a.targetType.toLowerCase()} · ` : ""}
-                {new Date(a.createdAt).toLocaleString()}
+                {formatUserDateTime(a.createdAt)}
               </div>
             </div>
             <code

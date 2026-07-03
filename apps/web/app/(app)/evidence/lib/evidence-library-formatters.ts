@@ -1,3 +1,5 @@
+import { formatUtcAuditDateTime } from "../../../../lib/date";
+
 export const EVIDENCE_LIBRARY_LEGAL_BOUNDARY =
   "PROOVRA verifies the recorded integrity state of evidence records. It does not independently establish factual truth, authorship, identity, legal admissibility, or evidentiary weight.";
 
@@ -7,14 +9,7 @@ export function formatUtcDateTime(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Not recorded";
 
-  const month = date.toLocaleString("en-GB", {
-    month: "short",
-    timeZone: "UTC",
-  });
-
-  return `${String(date.getUTCDate()).padStart(2, "0")} ${month} ${date.getUTCFullYear()}, ${String(
-    date.getUTCHours()
-  ).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")} UTC`;
+  return formatUtcAuditDateTime(value);
 }
 
 export function formatBytes(value: string | number | null | undefined): string {

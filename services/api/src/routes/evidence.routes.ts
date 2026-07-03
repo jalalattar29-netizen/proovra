@@ -40,6 +40,7 @@ import {
   // emits the same boundary copy as the snapshot outputs (Report PDF
   // and Verification Package) will in Phase 3.
   buildCanonicalLegalBoundaryMaterial,
+  formatTimestampForReportUtc,
   type EvidenceIntelligence,
   type ReviewerArtifactRole,
   type ReviewerArtifactRoleSource,
@@ -1293,17 +1294,7 @@ function mapVerificationSourceLabel(
 }
 
 function formatDisplayDateUtc(value: Date | string): string {
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-
-  const day = d.getUTCDate().toString().padStart(2, "0");
-  const month = d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
-  const year = d.getUTCFullYear();
-  const hours = d.getUTCHours().toString().padStart(2, "0");
-  const minutes = d.getUTCMinutes().toString().padStart(2, "0");
-  const seconds = d.getUTCSeconds().toString().padStart(2, "0");
-
-  return `${day} ${month} ${year}, ${hours}:${minutes}:${seconds} UTC`;
+  return formatTimestampForReportUtc(value);
 }
 
 function buildEvidenceSubtitle(params: {
@@ -4689,6 +4680,11 @@ intakePlanJson:
   body.intakePlanJson === null || body.intakePlanJson === undefined
     ? undefined
     : (body.intakePlanJson as Prisma.InputJsonValue),
+  // POST /v1/evidence is the authenticated Web Capture / Browser Upload path —
+  // its UPLOAD_AUTHORIZED custody event should read "initial browser upload
+  // location", not the generic "initial intake location". Mobile (citizen
+  // capture) and Intake Link callers do not set this and keep their wording.
+  browserUpload: true,
       });
 
       // 4B-I1: QUOTA_EVIDENCE_COUNT — gate on workspace evidence count.

@@ -31,6 +31,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDate, formatUtcAuditDateTime } from "../../../../lib/date";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 // Phase P1.4 — step-up gating on certificate rotation. Cert
 // promotion replaces the active IdP cert; mistakes lock users out
@@ -174,12 +175,12 @@ function SsoAdminContent() {
   } {
     if (!certNotAfter) return { label: "Expiry unknown (ingest metadata to populate)", style: "warn" };
     const ms = new Date(certNotAfter).getTime() - Date.now();
-    if (ms <= 0) return { label: `Expired ${new Date(certNotAfter).toLocaleDateString()}`, style: "error" };
+    if (ms <= 0) return { label: `Expired ${formatUserDate(certNotAfter)}`, style: "error" };
     const days = Math.floor(ms / 86400000);
     if (days <= 30) return { label: `Expires in ${days} day${days !== 1 ? "s" : ""} — rotate immediately`, style: "error" };
     if (days <= 60) return { label: `Expires in ${days} days — rotation recommended`, style: "warn" };
     if (days <= 90) return { label: `Expires in ${days} days — plan rotation`, style: "warn" };
-    return { label: `Expires ${new Date(certNotAfter).toLocaleDateString()}`, style: "ok" };
+    return { label: `Expires ${formatUserDate(certNotAfter)}`, style: "ok" };
   }
 
   // R8.2.1 — Test-connection handler
@@ -421,7 +422,7 @@ function SsoAdminContent() {
               </div>
               {p.lastUsedAtUtc ? (
                 <div style={mutedStyle}>
-                  Last used: {new Date(p.lastUsedAtUtc).toLocaleString()}
+                  Last used: {formatUtcAuditDateTime(p.lastUsedAtUtc)}
                 </div>
               ) : null}
             </div>
@@ -430,7 +431,7 @@ function SsoAdminContent() {
             {p.outageDetectedAtUtc ? (
               <div style={warnBoxStyle}>
                 <strong>Auth outage detected</strong> — consecutive failures
-                recorded since {new Date(p.outageDetectedAtUtc).toLocaleString()}.
+                recorded since {formatUtcAuditDateTime(p.outageDetectedAtUtc)}.
                 {p.consecutiveFailureCount
                   ? ` ${p.consecutiveFailureCount} consecutive failure(s).`
                   : null}{" "}
@@ -607,7 +608,7 @@ function SsoAdminContent() {
                     {/* Last test status from DB */}
                     {p.samlLastTestedAt ? (
                       <div style={lastTestBannerStyle(p.samlLastTestStatus ?? null)}>
-                        Last tested: {new Date(p.samlLastTestedAt).toLocaleString()}
+                        Last tested: {formatUtcAuditDateTime(p.samlLastTestedAt)}
                         {" — "}
                         <strong>{p.samlLastTestStatus ?? "unknown"}</strong>
                         {p.samlLastTestError ? (

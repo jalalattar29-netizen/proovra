@@ -33,6 +33,7 @@
 import { use, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { formatUserDateTime } from "../../../lib/date";
 import { IntakeChecklist } from "../../../components/intake/IntakeChecklist";
 
 /**
@@ -802,7 +803,7 @@ export default function ExternalIntakePage({
           <p style={paragraphStyle}>{link.workflowTemplateDescription}</p>
         ) : null}
         <p style={mutedStyle}>
-          Link expires {new Date(link.expiresAtUtc).toLocaleString()}.
+          Link expires {formatUserDateTime(link.expiresAtUtc)}.
           {link.isAnonymous
             ? " Your identity will not be recorded."
             : null}
@@ -879,7 +880,7 @@ export default function ExternalIntakePage({
                 {request.dueAtUtc ? (
                   <p style={mutedStyle}>
                     Please respond by{" "}
-                    {new Date(request.dueAtUtc).toLocaleString()}.
+                    {formatUserDateTime(request.dueAtUtc)}.
                   </p>
                 ) : null}
               </div>

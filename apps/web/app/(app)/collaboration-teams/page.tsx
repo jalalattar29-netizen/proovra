@@ -22,6 +22,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { useToast } from "../../../components/ui";
 import { ApiError } from "../../../lib/api";
+import { formatUserDate } from "../../../lib/date";
 import {
   createTeam,
   listTeams,
@@ -231,12 +232,7 @@ function TeamCard({ team }: { team: CollaborationTeamSummary }) {
   const lastActivity = useMemo(() => {
     if (!team.lastActivityAt) return "No activity yet";
     try {
-      const d = new Date(team.lastActivityAt);
-      return d.toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
+      return formatUserDate(team.lastActivityAt);
     } catch {
       return "Recent";
     }

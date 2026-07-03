@@ -33,6 +33,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import { formatUtcAuditDateTime } from "../../../../lib/date";
 
 // -----------------------------------------------------------------------------
 // Shared styles (kept inline so this card doesn't pull in unrelated tokens).
@@ -317,11 +318,7 @@ interface MySession {
 }
 
 function fmt(ts: string): string {
-  try {
-    return new Date(ts).toLocaleString();
-  } catch {
-    return ts;
-  }
+  return formatUtcAuditDateTime(ts);
 }
 
 function ActiveSessionsCard() {

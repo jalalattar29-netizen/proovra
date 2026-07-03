@@ -41,6 +41,12 @@ import { useParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import {
+  formatUserDate,
+  formatUserDateTime,
+  formatUserTime,
+  formatUtcAuditDateTime,
+} from "../../../../lib/date";
 
 // ---------------------------------------------------------------------------
 // Types — mirror Phase 2.7X Stage 3/4/5 wire shapes.
@@ -759,7 +765,7 @@ function OrganizationDetailInner() {
           }
           secondary={
             lastAuditAt
-              ? `Latest ${new Date(lastAuditAt).toLocaleString()}`
+              ? `Latest ${formatUtcAuditDateTime(lastAuditAt)}`
               : audit.kind === "ready"
                 ? "No events recorded yet."
                 : audit.kind === "error" && audit.status === 403
@@ -882,7 +888,7 @@ function OrganizationDetailInner() {
                   background: "rgba(76,170,76,0.06)",
                 }}
               >
-                Saved at {new Date(settingsSavedAt).toLocaleTimeString()}.
+                Saved at {formatUserTime(settingsSavedAt)}.
               </div>
             )}
             <div>
@@ -983,7 +989,7 @@ function OrganizationDetailInner() {
                       </Pill>
                     )}
                     <span style={{ fontSize: 12, opacity: 0.7 }}>
-                      since {new Date(m.memberSince).toLocaleDateString()}
+                      since {formatUserDate(m.memberSince)}
                     </span>
                     {canMutate && (
                       <button
@@ -1040,7 +1046,7 @@ function OrganizationDetailInner() {
                     <div style={{ fontWeight: 500 }}>{i.email}</div>
                     <div style={{ fontSize: 12, opacity: 0.7 }}>
                       {ROLE_LABELS[i.role]} · expires{" "}
-                      {new Date(i.expiresAt).toLocaleString()}
+                      {formatUserDateTime(i.expiresAt)}
                       {i.resendCount > 0 ? ` · resent ${i.resendCount}×` : ""}
                     </div>
                     {err && (
@@ -1163,7 +1169,7 @@ function OrganizationDetailInner() {
                     )}
                   </div>
                   <div style={{ fontSize: 12, opacity: 0.7 }}>
-                    Created {new Date(w.createdAt).toLocaleDateString()}
+                    Created {formatUserDate(w.createdAt)}
                     {w.billing
                       ? ` · ${w.billing.includedSeats} included seat${w.billing.includedSeats === 1 ? "" : "s"}`
                       : ""}
@@ -1257,7 +1263,7 @@ function OrganizationDetailInner() {
                     </span>
                   </div>
                   <div style={{ opacity: 0.75, fontSize: 12 }}>
-                    {new Date(e.createdAt).toLocaleString()}
+                    {formatUtcAuditDateTime(e.createdAt)}
                   </div>
                 </div>
                 <div style={{ fontSize: 12, opacity: 0.75 }}>

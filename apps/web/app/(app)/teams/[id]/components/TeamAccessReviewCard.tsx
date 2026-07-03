@@ -40,6 +40,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Card } from "../../../../../components/ui";
 import { apiFetch } from "../../../../../lib/api";
+import { formatUserDate } from "../../../../../lib/date";
 import { AccessGate } from "../../../../../components/access/AccessGate";
 
 type RoleId = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
@@ -150,11 +151,7 @@ function KindPill({ kind }: { kind: "MEMBER" | "EXTERNAL" | "PENDING_INVITE" }) 
 }
 
 function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString();
-  } catch {
-    return iso.slice(0, 10);
-  }
+  return formatUserDate(iso);
 }
 
 function cardShellStyle() {

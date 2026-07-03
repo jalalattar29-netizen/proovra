@@ -24,6 +24,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
@@ -291,7 +292,7 @@ useEffect(() => {
                       </div>
                       <div style={mutedStyle}>
                         last activity{" "}
-                        {new Date(s.lastActivityAtUtc).toLocaleString()}
+                        {formatUserDateTime(s.lastActivityAtUtc)}
                         {s.failureReason ? ` · ${s.failureReason}` : ""}
                       </div>
                     </div>

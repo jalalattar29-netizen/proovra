@@ -9,6 +9,7 @@ import {
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDate } from "../../../../lib/date";
 
 export default function DelegatedAdminPage() {
   return (
@@ -106,8 +107,8 @@ function Shell() {
                   <td style={td}>{g.departmentId ? <code>{g.departmentId.slice(0, 8)}…</code> : "—"}</td>
                   <td style={td}>{g.workspaceId ? <code>{g.workspaceId.slice(0, 8)}…</code> : "—"}</td>
                   <td style={td}>{g.state}</td>
-                  <td style={td}>{new Date(g.grantedAtUtc).toLocaleDateString()}</td>
-                  <td style={td}>{g.expiresAtUtc ? new Date(g.expiresAtUtc).toLocaleDateString() : "—"}</td>
+                  <td style={td}>{formatUserDate(g.grantedAtUtc)}</td>
+                  <td style={td}>{g.expiresAtUtc ? formatUserDate(g.expiresAtUtc) : "—"}</td>
                   <td style={td}>
                     {g.state === "ACTIVE" ? (
                       <button

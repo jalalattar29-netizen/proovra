@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
+import { formatUserDate, formatUserDateTime } from "../../../lib/date";
 import {
   useTeamId,
   useActiveSpace,
@@ -877,7 +878,7 @@ useEffect(() => {
                               : `${w.eventTypes.length} event type${w.eventTypes.length === 1 ? "" : "s"}`}{" "}
                             · failures: {w.failureCount}
                             {w.lastSuccessAtUtc
-                              ? ` · last success ${new Date(w.lastSuccessAtUtc).toLocaleString()}`
+                              ? ` · last success ${formatUserDateTime(w.lastSuccessAtUtc)}`
                               : ""}
                           </div>
                           {/* Phase 4 — rotation history surface. While the
@@ -897,9 +898,9 @@ useEffect(() => {
                               Previous secret{" "}
                               <code>{w.previousSecretPrefix}…</code> still
                               signing until{" "}
-                              {new Date(
+                              {formatUserDateTime(
                                 w.previousSecretValidUntilUtc,
-                              ).toLocaleString()}
+                              )}
                             </div>
                           ) : null}
                         </div>
@@ -1349,7 +1350,7 @@ function formatHealthInstant(iso: string | null): string {
   if (iso === null) return HEALTH_METRIC_MISSING_PLACEHOLDER;
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return HEALTH_METRIC_MISSING_PLACEHOLDER;
-  return new Date(t).toLocaleString();
+  return formatUserDateTime(new Date(t));
 }
 
 // PHASE closure — null-aware millisecond latency formatter. Returns
@@ -1639,7 +1640,7 @@ function DisclosureBanner({
           <code>{disclosed.previousKeyPrefix}…</code>) will keep working
           until{" "}
           <strong>
-            {new Date(disclosed.previousValidUntilUtc).toLocaleString()}
+            {formatUserDateTime(disclosed.previousValidUntilUtc)}
           </strong>
           . After that moment only the new key above is accepted.
         </p>
@@ -1657,7 +1658,7 @@ function DisclosureBanner({
           <strong>both</strong> the new secret above AND the previous
           secret (<code>{disclosed.previousSecretPrefix}…</code>) until{" "}
           <strong>
-            {new Date(disclosed.previousSecretValidUntilUtc).toLocaleString()}
+            {formatUserDateTime(disclosed.previousSecretValidUntilUtc)}
           </strong>
           . The <code>X-Proovra-Signature</code> header carries a
           comma-separated list <code>v1=&lt;new&gt;,v1=&lt;old&gt;</code>{" "}
@@ -1952,9 +1953,9 @@ function ApiKeysTable({
                     </span>
                   </>
                 ) : null}{" "}
-                · created {new Date(k.createdAt).toLocaleDateString()}
+                · created {formatUserDate(k.createdAt)}
                 {k.lastUsedAtUtc ? (
-                  <> · last used {new Date(k.lastUsedAtUtc).toLocaleString()}</>
+                  <> · last used {formatUserDateTime(k.lastUsedAtUtc)}</>
                 ) : (
                   <> · never used</>
                 )}
@@ -1962,7 +1963,7 @@ function ApiKeysTable({
               <div style={mutedStyle}>
                 {expiry ? (
                   <>
-                    expires {expiry.toLocaleString()}
+                    expires {formatUserDateTime(expiry)}
                     {expiryExpired ? " (expired)" : ""}
                   </>
                 ) : (
@@ -1978,7 +1979,7 @@ function ApiKeysTable({
               {graceActive && k.previousKeyPrefix ? (
                 <div style={mutedStyle} data-testid="api-key-previous-grace">
                   Previous key <code>{k.previousKeyPrefix}…</code> accepted
-                  until {grace!.toLocaleString()}.
+                  until {formatUserDateTime(grace)}.
                 </div>
               ) : null}
               {k.status === "REVOKED" && k.revokedReason ? (
@@ -2515,7 +2516,7 @@ function ApiKeyUsageDialog({
                 <div style={mutedStyle}>
                   {u.action}
                   {u.failureReason ? <> · reason: {u.failureReason}</> : null}{" "}
-                  · {new Date(u.createdAt).toLocaleString()}
+                  · {formatUserDateTime(u.createdAt)}
                 </div>
               </li>
             ))}
@@ -2711,13 +2712,13 @@ function WebhookDeliveriesPanel({
                       ) : null}
                     </div>
                     <div style={mutedStyle}>
-                      {new Date(d.createdAt).toLocaleString()} · event{" "}
+                      {formatUserDateTime(d.createdAt)} · event{" "}
                       <code>{d.eventId.slice(0, 8)}…</code>
                       {d.nextAttemptAtUtc ? (
                         <>
                           {" "}
                           · next attempt{" "}
-                          {new Date(d.nextAttemptAtUtc).toLocaleString()}
+                          {formatUserDateTime(d.nextAttemptAtUtc)}
                         </>
                       ) : null}
                     </div>
@@ -2974,7 +2975,7 @@ function ApiKeyActivityPanel({
                       <strong>{label}</strong> by {actorLabel}
                     </div>
                     <div style={mutedStyle}>
-                      {new Date(r.createdAt).toLocaleString()}
+                      {formatUserDateTime(r.createdAt)}
                     </div>
                     {r.reason ? (
                       <div
@@ -3244,7 +3245,7 @@ function WebhookRotationAndActivityPanel({
                       )}
                     </div>
                     <div style={mutedStyle}>
-                      {new Date(r.createdAt).toLocaleString()}
+                      {formatUserDateTime(r.createdAt)}
                     </div>
                     {isRotation && r.previousSecretValidUntilUtc ? (
                       <div
@@ -3252,9 +3253,9 @@ function WebhookRotationAndActivityPanel({
                         data-testid={`integrations-webhook-activity-grace-${r.id}`}
                       >
                         grace until{" "}
-                        {new Date(
+                        {formatUserDateTime(
                           r.previousSecretValidUntilUtc,
-                        ).toLocaleString()}
+                        )}
                       </div>
                     ) : null}
                   </li>

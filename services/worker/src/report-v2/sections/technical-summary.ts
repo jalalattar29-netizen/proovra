@@ -23,11 +23,28 @@
 
 import { ReportViewModel } from "../types.js";
 import { renderFieldGrid, renderPageSection } from "../ui.js";
+import { formatDeviceTime } from "@proovra/shared";
 import {
   captureMethodDisplayLabel,
   humanizeUploadSource,
   metadataRows,
 } from "@proovra/shared-runtime/technical-metadata";
+
+/** EXIF Original Capture Time is DEVICE time — never a server UTC timestamp.
+ *  Formatted with offset when present, else marked "time zone unavailable"
+ *  (never converted, never given an invented Z). */
+function exifCaptureTimeRow(
+  originalCaptureTime: string | null,
+): { label: string; value: string | null } {
+  const dt = formatDeviceTime(originalCaptureTime);
+  if (!dt) return { label: "EXIF Original Capture Time", value: originalCaptureTime };
+  return {
+    label: dt.note
+      ? `EXIF Original Capture Time — ${dt.note}`
+      : "EXIF Original Capture Time",
+    value: dt.formatted,
+  };
+}
 
 function orientationLabel(o: number | null): string | null {
   if (o == null) return null;
@@ -151,7 +168,7 @@ function buildTechnicalSummaryBlocks(vm: ReportViewModel): TechnicalSummaryBlock
       metadataRows([
         ...cameraRows,
         { label: "Lens", value: exif!.lensModel },
-        { label: "EXIF Original Capture Time", value: exif!.originalCaptureTime },
+        exifCaptureTimeRow(exif!.originalCaptureTime),
         { label: "Orientation", value: meaningfulOrientation(exif!.orientation) },
       ]),
     );

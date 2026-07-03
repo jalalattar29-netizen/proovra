@@ -23,6 +23,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
+import { formatUserDateTime } from "../../../../../../lib/date";
 
 interface RetentionResponse {
   organizationId: string;
@@ -143,7 +144,7 @@ function RetentionTab() {
             <div style={{ marginBottom: 6 }}>
               <strong>Published.</strong>
               {policy.data.updatedAt
-                ? ` Last updated ${new Date(policy.data.updatedAt).toLocaleString()}.`
+                ? ` Last updated ${formatUserDateTime(policy.data.updatedAt)}.`
                 : null}
             </div>
             <pre

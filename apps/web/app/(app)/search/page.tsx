@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { formatUserDateTime } from "../../../lib/date";
 import {
   useActiveSpace,
   usePersonaProfile,
@@ -2625,7 +2626,7 @@ async function runSearch(filter: FilterState): Promise<SearchResponse> {
 
 function formatDateTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleString();
+    return formatUserDateTime(iso);
   } catch {
     return iso;
   }

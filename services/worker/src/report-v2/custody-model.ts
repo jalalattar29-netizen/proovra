@@ -1,4 +1,7 @@
-import { isAccessCustodyEventType } from "@proovra/shared";
+import {
+  isAccessCustodyEventType,
+  formatTimestampForReportUtc,
+} from "@proovra/shared";
 import {
   ReportCustodyEvent,
   TimelineRow,
@@ -81,7 +84,7 @@ export function buildTimelineRows(
       safe(ev.eventType, "").toUpperCase() === "IDENTITY_SNAPSHOT_RECORDED";
     return {
       sequence: String(ev.sequence),
-      atUtc: safe(ev.atUtc),
+      atUtc: formatTimestampForReportUtc(ev.atUtc),
       // Flow-aware wording: non-intake evidence must not read "at intake" /
       // "intake authorization" (event types + hashes are unchanged).
       eventLabel:

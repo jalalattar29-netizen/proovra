@@ -6,6 +6,7 @@ import type { DepartmentProjection } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDate } from "../../../../lib/date";
 
 export default function DepartmentsPage() {
   return (
@@ -142,7 +143,7 @@ function Shell() {
                   <td style={td}><code>{d.slug}</code></td>
                   <td style={td}><code>{d.organizationId.slice(0, 8)}…</code></td>
                   <td style={td}>{d.state}</td>
-                  <td style={td}>{new Date(d.createdAtUtc).toLocaleDateString()}</td>
+                  <td style={td}>{formatUserDate(d.createdAtUtc)}</td>
                 </tr>
               ))
             )}

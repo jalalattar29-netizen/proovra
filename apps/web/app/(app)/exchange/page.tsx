@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../lib/api";
+import { formatUserDate, formatUserDateTime } from "../../../lib/date";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
 
@@ -196,7 +197,7 @@ function Shell() {
             {signResult.url}
           </pre>
           <small>
-            Expires: {new Date(signResult.expiresAtUtc).toLocaleString()}
+            Expires: {formatUserDateTime(signResult.expiresAtUtc)}
           </small>
           <br />
           <button
@@ -299,7 +300,7 @@ function Shell() {
                   <td style={td}>
                     <strong>{pkg.state}</strong>
                   </td>
-                  <td style={td}>{new Date(pkg.createdAtUtc).toLocaleDateString()}</td>
+                  <td style={td}>{formatUserDate(pkg.createdAtUtc)}</td>
                   <td style={td}>
                     <button
                       type="button"
@@ -312,7 +313,7 @@ function Shell() {
                     {pkg.signedUrl && (
                       <span style={{ marginLeft: 8, fontSize: 11, color: "#475569" }}>
                         Exp: {pkg.signedUrlExpiresAtUtc
-                          ? new Date(pkg.signedUrlExpiresAtUtc).toLocaleDateString()
+                          ? formatUserDate(pkg.signedUrlExpiresAtUtc)
                           : "—"}
                       </span>
                     )}

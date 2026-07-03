@@ -26,6 +26,7 @@ import {
   openCitizenSession,
   type CitizenSession,
 } from "../../../../lib/citizen-capture/citizen-capture-client";
+import { formatUserDateTime } from "../../../../lib/date";
 
 type StatusKind =
   | { kind: "OPENING" }
@@ -92,8 +93,7 @@ export default function CitizenCapturePage({
 
   const expiryLabel = useMemo(() => {
     if (status.kind === "READY" || status.kind === "RESULT") {
-      const ts = new Date(status.session.descriptor.expiresAtUtc);
-      return ts.toLocaleString();
+      return formatUserDateTime(status.session.descriptor.expiresAtUtc);
     }
     return null;
   }, [status]);

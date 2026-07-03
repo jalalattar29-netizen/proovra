@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "schema": "PROOVRA_TECHNICAL_DEVICE_ENRICHMENT",
   "evidenceId": "ev-intake-001",
-  "generatedAtUtc": "2026-07-03T00:01:01.744Z",
+  "generatedAtUtc": "2026-07-03T02:28:43.307Z",
   "advisory": "Concise device/OS/camera enrichment for reviewers. Camera make/model/capture-time come from the file's embedded EXIF; OS/device/browser come from the parsed capture environment. Each field carries its own value, source, and confidence.",
   "sources": [
     "exif",

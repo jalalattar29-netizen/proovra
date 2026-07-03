@@ -33,6 +33,7 @@ import {
   submitDecision,
   type PortalComment,
 } from "../../../../../lib/external-portal/portal-client";
+import { formatUserDateTime } from "../../../../../lib/date";
 
 export default function PortalReviewPage({
   params,
@@ -411,7 +412,7 @@ function CommentsPanel({
           >
             <small style={{ color: "#64748b", fontSize: 11 }}>
               {r.authorDisplay ?? r.authorEmail} ·{" "}
-              {new Date(r.createdAt).toLocaleString()}
+              {formatUserDateTime(r.createdAt)}
             </small>
             <div style={{ fontSize: 13, marginTop: 2 }}>{r.body}</div>
             {(repliesByRoot[r.id] ?? []).map((rep) => (

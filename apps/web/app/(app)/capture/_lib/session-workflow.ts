@@ -1,5 +1,6 @@
 import type { CollectionPlanTemplate, SessionItem, SessionTimelineEvent } from "./types";
 import type { CapturePlanMode, SessionReadiness } from "./session-readiness";
+import { formatUserTime } from "../../../../lib/date";
 
 export type PersistentSidebarMessageTone = "info" | "warning" | "danger" | "success";
 
@@ -152,10 +153,7 @@ export function buildPersistentSidebarMessages({
     title: event.title,
     detail: event.detail,
     tone: event.tone,
-    meta: new Intl.DateTimeFormat("en", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(event.atUtc)),
+    meta: formatUserTime(event.atUtc),
   }));
 
   return [...systemMessages, ...timelineMessages].slice(0, 7);

@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
@@ -231,7 +232,7 @@ function GovernanceNotificationsPageInner() {
                     ) : null}
                   </td>
                   <td style={tdStyle}>
-                    {new Date(n.lastSeenAtUtc).toLocaleString()}
+                    {formatUserDateTime(n.lastSeenAtUtc)}
                   </td>
                   <td style={tdStyle}>
                     {n.acknowledgedAtUtc ? (

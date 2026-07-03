@@ -651,6 +651,29 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     expect(html).toContain("Capture Device &amp; Camera Metadata");
   });
 
+  it("Intake Technical Appendix: Contributor Identity is 'Not independently verified' even when the requester is verified; requester shown separately (Problem 1)", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({
+        // Requester-derived identityVerification is "Verified" — it must NOT be
+        // shown as the contributor's identity (that contradicted custody).
+        acquisition: { ...SMS_ACQUISITION, identityVerification: "Verified" },
+        evidence: {
+          ...buildInput().evidence,
+          captureMethod: "MULTIPART_PACKAGE",
+          identityLevelSnapshot: "VERIFIED_EMAIL", // requester/owner is verified
+          submittedByEmail: "jalal.attar@proovra.com",
+        },
+      }),
+    );
+    const html = renderReportHtml(vm);
+    const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    // Contributor Identity agrees with the Chain of Custody.
+    expect(text).toMatch(/Contributor Identity\s+Not independently verified/);
+    expect(text).not.toMatch(/Contributor Identity\s+Verified\b/);
+    // The requester's verification is shown separately.
+    expect(text).toMatch(/Requester Identity\s+Verified email/);
+  });
+
   it("Web Capture: Capture Method reads 'PROOVRA Web Upload' in Exec Summary AND Technical Appendix; structure label unchanged", async () => {
     const vm = await buildReportViewModel(
       buildInput({

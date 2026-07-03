@@ -26,6 +26,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
@@ -416,7 +417,7 @@ function VersionsModal({
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                   <strong>v{v.version}</strong>
                   <span style={mutedStyle}>
-                    {new Date(v.authoredAtUtc).toLocaleString()}
+                    {formatUserDateTime(v.authoredAtUtc)}
                   </span>
                 </div>
                 <div style={{ fontSize: 13, marginTop: 4 }}>

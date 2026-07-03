@@ -36,6 +36,7 @@ import { QC_FAILURE_REASONS, QC_VERDICTS } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
+import { formatUserDateTime } from "../../../../lib/date";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
 import {
   fetchQcSamples,
@@ -344,7 +345,7 @@ function QcTable({
                     </div>
                   ) : null}
                 </td>
-                <td style={td}>{new Date(r.sampledAtUtc).toLocaleString()}</td>
+                <td style={td}>{formatUserDateTime(r.sampledAtUtc)}</td>
                 <td style={td}>
                   {readOnly ? (
                     "—"

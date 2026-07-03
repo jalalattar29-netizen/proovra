@@ -29,6 +29,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { formatUserDateTime } from "../../../../../lib/date";
 import {
   REVIEWER_STATUS_LABEL,
   REVIEWER_STATUS_PRIMARY_ACTIONS,
@@ -223,7 +224,7 @@ export default function ExternalIntakeSourceCard({
         </Detail>
         <Detail label="Submitted at">
           {summary.session.submittedAtUtc
-            ? new Date(summary.session.submittedAtUtc).toLocaleString()
+            ? formatUserDateTime(summary.session.submittedAtUtc)
             : "—"}
         </Detail>
         {contributorIdentity ? (
@@ -231,7 +232,7 @@ export default function ExternalIntakeSourceCard({
         ) : null}
         <Detail label="Upload Agreement">
           {summary.session.consentAcceptedAtUtc
-            ? `Accepted ${new Date(summary.session.consentAcceptedAtUtc).toLocaleString()}` +
+            ? `Accepted ${formatUserDateTime(summary.session.consentAcceptedAtUtc)}` +
               (summary.session.consentPolicyVersion
                 ? ` · v${summary.session.consentPolicyVersion}`
                 : "")

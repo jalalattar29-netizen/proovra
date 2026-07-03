@@ -27,6 +27,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useMediaIntelligence } from "../../lib/media-intelligence/useMediaIntelligence";
+import { formatUserDateTime } from "../../lib/date";
 import {
   useDerivedAssets,
   type DerivedAssetRow,
@@ -491,13 +492,7 @@ function SignalRow({
 }
 
 function formatTimestamp(iso: string): string {
-  try {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString();
-  } catch {
-    return iso;
-  }
+  return formatUserDateTime(iso);
 }
 
 // ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ import { supportedLocales, type Locale } from "@proovra/shared";
 import { Button, Card, useToast, Input } from "../../../components/ui";
 import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
+import { formatUserDateTime } from "../../../lib/date";
 // Phase IA-self-serve-simplification — gate the "Identity & Security"
 // (workspace operator) section on /security-center eligibility. Self-
 // serve users get Account Security via /settings/security; the
@@ -1052,7 +1053,7 @@ onClick={(e) => {
                       {latestCookieConsent ? (
                         <div className="text-[12px] text-[#6a777b]">
                           Cookie consent v{latestCookieConsent.consentVersion} — saved on{" "}
-                          {new Date(latestCookieConsent.createdAt).toLocaleString()}
+                          {formatUserDateTime(latestCookieConsent.createdAt)}
                         </div>
                       ) : null}
 
@@ -1061,7 +1062,7 @@ onClick={(e) => {
                           {legalAcceptances.slice(0, 4).map((item) => (
                             <div key={item.id} className="text-[12px] text-[#6a777b]">
                               {item.policyKey} v{item.policyVersion} —{" "}
-                              {new Date(item.acceptedAt).toLocaleString()}
+                              {formatUserDateTime(item.acceptedAt)}
                             </div>
                           ))}
                         </div>

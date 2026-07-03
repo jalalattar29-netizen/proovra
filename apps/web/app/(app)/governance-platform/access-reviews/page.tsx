@@ -9,6 +9,7 @@ import {
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDate } from "../../../../lib/date";
 
 export default function AccessReviewsPage() {
   return (
@@ -117,7 +118,7 @@ function Shell() {
                   <td style={td}>{c.name}</td>
                   <td style={td}><code>{c.kind}</code></td>
                   <td style={td}><strong>{c.state}</strong></td>
-                  <td style={td}>{new Date(c.scheduledStartUtc).toLocaleDateString()} → {new Date(c.scheduledEndUtc).toLocaleDateString()}</td>
+                  <td style={td}>{formatUserDate(c.scheduledStartUtc)} → {formatUserDate(c.scheduledEndUtc)}</td>
                   <td style={td}>{c.totalItems}</td>
                   <td style={td}>{c.pendingItems}</td>
                   <td style={td}>{c.approvedItems}</td>

@@ -24,6 +24,7 @@ import {
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../lib/api";
+import { formatUtcAuditDateTime } from "../../../lib/date";
 
 export default function AuditTransparencyCenterPage() {
   return (
@@ -177,7 +178,7 @@ function AuditTransparencyShell() {
                     data-audit-transparency-category-row={e.category}
                   >
                     <td style={td}>
-                      {new Date(e.occurredAtUtc).toLocaleString()}
+                      {formatUtcAuditDateTime(e.occurredAtUtc)}
                     </td>
                     <td style={td}>
                       <code>{e.category}</code>

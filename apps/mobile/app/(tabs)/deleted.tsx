@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { apiFetch } from "../../src/api";
+import { formatUtcAuditDateTime } from "../../src/lib/date";
 
 type DeletedEvidenceItem = {
   id: string;
@@ -29,25 +30,6 @@ type DeletedEvidenceResponse = {
   scope?: string;
   items?: DeletedEvidenceItem[];
 };
-
-function formatUtcDateTime(value: string | null | undefined): string {
-  if (!value) return "Not available";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not available";
-
-  const day = date.getUTCDate().toString().padStart(2, "0");
-  const month = date.toLocaleString("en-GB", {
-    month: "short",
-    timeZone: "UTC",
-  });
-  const year = date.getUTCFullYear();
-  const hours = date.getUTCHours().toString().padStart(2, "0");
-  const minutes = date.getUTCMinutes().toString().padStart(2, "0");
-  const seconds = date.getUTCSeconds().toString().padStart(2, "0");
-
-  return `${day} ${month} ${year}, ${hours}:${minutes}:${seconds} UTC`;
-}
 
 function resolveTitle(item: DeletedEvidenceItem): string {
   const raw = typeof item.title === "string" ? item.title.trim() : "";
@@ -187,12 +169,12 @@ export default function DeletedEvidenceScreen() {
         <View style={styles.metaBlock}>
           <Text style={styles.metaLine}>
             <Text style={styles.metaLabel}>Deleted At: </Text>
-            {formatUtcDateTime(item.deletedAt)}
+            {formatUtcAuditDateTime(item.deletedAt)}
           </Text>
 
           <Text style={styles.metaLine}>
             <Text style={styles.metaLabel}>Permanent Deletion Date: </Text>
-            {formatUtcDateTime(item.deleteScheduledForUtc)}
+            {formatUtcAuditDateTime(item.deleteScheduledForUtc)}
           </Text>
 
           <Text style={styles.metaLine}>

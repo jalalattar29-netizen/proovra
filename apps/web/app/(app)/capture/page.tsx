@@ -18,6 +18,7 @@ import {
   getRoleFromChecklistStep,
 } from "./_lib/captureReadiness";
 import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
+import { formatUserDateTime, formatUserTime } from "../../../lib/date";
 import { CaptureBottomBar } from "../../../components/capture-v2/CaptureBottomBar";
 import { CaptureCameraOverlay } from "../../../components/capture-v2/CaptureCameraOverlay";
 import { CaptureDropzone } from "../../../components/capture-v2/CaptureDropzone";
@@ -690,7 +691,7 @@ function CapturePageInner() {
                 {draft.itemCount} staged item{draft.itemCount === 1 ? "" : "s"}
                 {draft.planMode ? ` • ${draft.planMode}` : ""}
                 {draft.expiresAtUtc
-                  ? ` • Expires ${new Date(draft.expiresAtUtc).toLocaleString()}`
+                  ? ` • Expires ${formatUserDateTime(draft.expiresAtUtc)}`
                   : ""}
               </span>
             </div>
@@ -1017,7 +1018,7 @@ onClick={async () => {
                           : draftPersistence.savingState === "error"
                             ? "Failed to save the latest changes to the server draft."
                             : draftPersistence.lastSavedAt
-                              ? `Last saved ${draftPersistence.lastSavedAt.toLocaleTimeString()}`
+                              ? `Last saved ${formatUserTime(draftPersistence.lastSavedAt)}`
                               : "Draft is staged locally."
                       }
                     >

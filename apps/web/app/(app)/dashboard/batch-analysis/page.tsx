@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 import {
   useToast,
   Skeleton,
@@ -622,7 +623,7 @@ function BatchAnalysisPageInner() {
                       <div className="dashboard-batch-job-header-main">
                         <h3 className="dashboard-batch-job-title">{job.name}</h3>
                         <p className="dashboard-batch-job-date">
-                          {new Date(job.createdAt).toLocaleString()}
+                          {formatUserDateTime(job.createdAt)}
                         </p>
                       </div>
 

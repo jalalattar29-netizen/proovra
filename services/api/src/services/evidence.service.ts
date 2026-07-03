@@ -173,6 +173,12 @@ export async function createEvidence(params: {
   checksumSha256Base64?: string | null;
   contentMd5Base64?: string | null;
 intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
+  // Web Capture / Browser Upload only. When true, the UPLOAD_AUTHORIZED custody
+  // event's human-readable `meaning` says "initial browser upload location"
+  // instead of the generic "initial intake location" (which is misleading for a
+  // normal browser upload — it is NOT an Intake Link submission). Default
+  // (undefined/false) preserves the existing wording for Intake and Mobile.
+  browserUpload?: boolean;
 })
 {
   const owner = await prisma.user.findUnique({
@@ -473,8 +479,9 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
         bucket,
         key,
         contentType: normalizedMimeType,
-        meaning:
-          "A presigned upload URL was issued for the initial intake location. No bytes have been confirmed uploaded yet, and the final evidence structure may still become multipart during completion.",
+        meaning: params.browserUpload
+          ? "A presigned upload URL was issued for the initial browser upload location. No bytes have been confirmed uploaded yet, and the final evidence structure may still become multipart during completion."
+          : "A presigned upload URL was issued for the initial intake location. No bytes have been confirmed uploaded yet, and the final evidence structure may still become multipart during completion.",
       } as prismaPkg.Prisma.InputJsonValue,
     });
 

@@ -6,6 +6,7 @@ import { useLocale } from "../../src/locale-context";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../src/api";
+import { formatUserDate } from "../../src/lib/date";
 
 export default function ReportsScreen() {
   const { t, fontFamilyBold } = useLocale();
@@ -59,7 +60,7 @@ export default function ReportsScreen() {
                     Report #{report.evidenceId.slice(0, 8)}
                   </Text>
                   <Text style={styles.reportDate}>
-                    {new Date(report.createdAt).toLocaleDateString()}
+                    {formatUserDate(report.createdAt)}
                   </Text>
                 </View>
 

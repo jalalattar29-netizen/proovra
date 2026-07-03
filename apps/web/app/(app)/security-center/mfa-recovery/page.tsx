@@ -25,6 +25,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 
 import { useTeamId } from "../../../../lib/platform-context";
 import { apiFetch, ApiError } from "../../../../lib/api";
+import { formatUserDateTime, formatUtcAuditDateTime } from "../../../../lib/date";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { MfaRecoveryApprovalHistoryBlock } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
 
@@ -481,7 +482,7 @@ function MfaRecoveryAdminBody() {
                   ) : null}
                 </td>
                 <td style={tdStyle}>
-                  {new Date(rq.expiresAt).toLocaleString()}
+                  {formatUtcAuditDateTime(rq.expiresAt)}
                 </td>
                 <td style={tdStyle}>
                   <button
@@ -628,7 +629,7 @@ function MfaRecoveryAdminBody() {
             </ul>
             <p style={mutedStyle}>
               Generated{" "}
-              {new Date(preview.generatedAt).toLocaleString()}.
+              {formatUtcAuditDateTime(preview.generatedAt)}.
             </p>
           </>
         )}
@@ -719,11 +720,11 @@ function MfaRecoveryAdminBody() {
             />
             <DetailRow
               label="Created"
-              value={new Date(selected.createdAt).toLocaleString()}
+              value={formatUtcAuditDateTime(selected.createdAt)}
             />
             <DetailRow
               label="Expires"
-              value={new Date(selected.expiresAt).toLocaleString()}
+              value={formatUtcAuditDateTime(selected.expiresAt)}
             />
             <div style={{ marginTop: 12 }}>
               <strong>Reason:</strong>
@@ -1067,14 +1068,12 @@ function DigestPreferenceRowEditor(props: {
         <div style={{ color: "#475569", fontSize: 13 }}>
           {enabled
             ? isSnoozed
-              ? `Snoozed until ${new Date(
-                  snoozedUntil as string,
-                ).toLocaleString()}`
+              ? `Snoozed until ${formatUserDateTime(snoozedUntil)}`
               : "Digest emails enabled"
             : "Digest emails disabled"}
           {props.pref?.updatedAt ? (
             <span>
-              {" "}· last updated {new Date(props.pref.updatedAt).toLocaleString()}
+              {" "}· last updated {formatUserDateTime(props.pref.updatedAt)}
             </span>
           ) : null}
         </div>

@@ -417,14 +417,19 @@ describe("Phase 1B Closure — wiring: verification package + worker", () => {
     expect(WORKER_PROVENANCE_LOADER).toMatch(/projectProvenanceChain/);
   });
   it("processor calls the loader before createVerificationPackage", () => {
-    // Phase 3: the loader→createVerificationPackage gap grew when the
-    // processor started building the canonical-materials snapshot
-    // (packageCanonicalMaterials = buildReportCanonicalMaterials({...}))
-    // between them. The ordering invariant still holds; the window is
-    // widened to accept the additional ~600 characters.
-    expect(PROCESSOR).toMatch(
-      /loadProvenanceChainForPackage[\s\S]{0,2000}?createVerificationPackage/,
-    );
+    // The invariant is ORDERING, not proximity: the provenance chain must be
+    // loaded before createVerificationPackage runs. Asserting on the character
+    // distance is brittle — unrelated edits between the two calls (e.g. the
+    // canonical-materials snapshot, or timestamp-display changes) widen the gap
+    // without breaking the ordering. Assert the order directly instead.
+    // Anchor on the CALL sites (not the bare names, which also appear in the
+    // import block at the top of the file) so the ordering check is accurate.
+    const provenanceIndex = PROCESSOR.indexOf("await loadProvenanceChainForPackage");
+    const packageIndex = PROCESSOR.indexOf("await createVerificationPackage");
+
+    expect(provenanceIndex).toBeGreaterThanOrEqual(0);
+    expect(packageIndex).toBeGreaterThanOrEqual(0);
+    expect(provenanceIndex).toBeLessThan(packageIndex);
   });
 });
 

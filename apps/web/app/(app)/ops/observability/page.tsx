@@ -27,6 +27,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { formatUserTime } from "../../../../lib/date";
 import {
   OPS_INK,
   OPS_SURFACE,
@@ -479,7 +480,7 @@ function ObservabilityDashboardPageInner() {
           <p style={mutedStyle}>
             Internal operator surface. In-process metrics + alert evaluation
             for the API runtime. Polled every 15 s.
-            {lastPolledAtUtc ? ` Last sample: ${new Date(lastPolledAtUtc).toLocaleTimeString()}` : ""}
+            {lastPolledAtUtc ? ` Last sample: ${formatUserTime(lastPolledAtUtc)}` : ""}
           </p>
         </div>
         <Link href="/ops" style={navLinkStyle}>

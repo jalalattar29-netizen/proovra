@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { formatUserDate } from "../../lib/date";
 
 import type {
   ActiveMatterRow,
@@ -92,11 +93,7 @@ function formatRelativeFuture(iso: string): string {
   if (hours < 24) return `in ${hours}h`;
   const days = Math.round(hours / 24);
   if (days < 30) return `in ${days}d`;
-  try {
-    return new Date(t).toLocaleDateString();
-  } catch {
-    return iso.slice(0, 10);
-  }
+  return formatUserDate(new Date(t));
 }
 
 function formatRelative(iso: string | null): string {
@@ -110,11 +107,7 @@ function formatRelative(iso: string | null): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.round(hours / 24);
   if (days < 7) return `${days}d ago`;
-  try {
-    return new Date(t).toLocaleDateString();
-  } catch {
-    return iso.slice(0, 10);
-  }
+  return formatUserDate(new Date(t));
 }
 
 // ============================================================================

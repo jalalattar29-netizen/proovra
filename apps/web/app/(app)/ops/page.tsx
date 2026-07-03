@@ -19,6 +19,7 @@ import { apiFetch } from "../../../lib/api";
 import { useTeamWorkspaceGate } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { HubQuickActionsBar } from "../../../components/hubs/HubQuickActionsBar";
+import { formatUserDateTime } from "../../../lib/date";
 
 // Phase 32.6.4 — bounded per-panel state machine. Replaces the
 // previous `null | data` pattern where a single 503 from any of the
@@ -461,8 +462,8 @@ function OpsPageInner() {
                       </div>
                       <div style={mutedStyle}>{i.safeSummary}</div>
                       <div style={mutedStyle}>
-                        first {new Date(i.firstSeenAtUtc).toLocaleString()} ·{" "}
-                        last {new Date(i.lastSeenAtUtc).toLocaleString()}
+                        first {formatUserDateTime(i.firstSeenAtUtc)} ·{" "}
+                        last {formatUserDateTime(i.lastSeenAtUtc)}
                         {i.runbookSlug ? ` · runbook: ${i.runbookSlug}` : ""}
                         {i.requestId ? ` · req ${i.requestId.slice(0, 8)}…` : ""}
                       </div>

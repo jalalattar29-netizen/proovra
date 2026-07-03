@@ -3656,6 +3656,14 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
           mediaIntelligence: verificationPackageIntelligence ?? null,
         });
 
+        // Acquisition context for the PACKAGE metadata scope (the report-scope
+        // `finalizedReportAcquisition` is out of scope here). Drives role-safe
+        // submitter/capture-method labeling in case-metadata.json +
+        // original-linkage.json. Same bounded projection used for the report.
+        const packageAcquisition = await buildReportAcquisitionContext({
+          teamId: evidence.teamId ?? null,
+          evidenceId: prepared.evidenceId,
+        });
         const finalizedVerificationPackage = await createVerificationPackage({
           teamId: evidence.teamId ?? undefined,
           // Phase 2 canonical workspace scope inputs. `isPersonalTeam`
@@ -3758,6 +3766,10 @@ verificationStatus: String(
 captureMethod: String(
   finalized.finalizedReportEvidencePayload.captureMethod,
 ),
+// Drives role-safe submitter/capture-method labeling in case-metadata.json +
+// original-linkage.json (the identity-snapshot email is the LINK CREATOR /
+// workspace owner for intake, never the remote contributor).
+isIntake: packageAcquisition?.isIntake === true,
 identityLevelSnapshot: String(
   finalized.finalizedReportEvidencePayload.identityLevelSnapshot,
 ),

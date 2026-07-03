@@ -27,6 +27,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { formatUserDateTime } from "../../../../lib/date";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
 import { OperationalEmptyState } from "../../../../components/operational";
 import { fetchReviewerMetrics } from "../../../../lib/reviewer-workspace/reviewer-api";
@@ -156,7 +157,7 @@ function MetricsShell() {
         <strong style={{ color: "#0f172a" }}>Scope</strong>
         <span>Workspace-wide reviewer activity</span>
         <span>Period: last 7 days</span>
-        <span>Updated: {loadedAt ? new Date(loadedAt).toLocaleString() : "Not yet loaded"}</span>
+        <span>Updated: {loadedAt ? formatUserDateTime(loadedAt) : "Not yet loaded"}</span>
       </div>
 
       {state.kind === "LOADING" ? (

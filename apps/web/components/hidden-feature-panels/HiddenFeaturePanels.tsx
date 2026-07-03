@@ -51,6 +51,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { formatUserDateTime } from "../../lib/date";
 
 // -----------------------------------------------------------------------------
 // Shared styles (used by every panel for consistency without a redesign)
@@ -136,11 +137,7 @@ const scoreNumber: React.CSSProperties = {
 
 function tsFmt(ts: string | null | undefined): string {
   if (!ts) return "—";
-  try {
-    return new Date(ts).toLocaleString();
-  } catch {
-    return ts;
-  }
+  return formatUserDateTime(ts);
 }
 
 function severityTone(

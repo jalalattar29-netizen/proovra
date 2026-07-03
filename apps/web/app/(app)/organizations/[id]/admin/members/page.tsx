@@ -31,6 +31,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../../../../components/ui/ConfirmActionModal";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
+import { formatUserDate, formatUserDateTime } from "../../../../../../lib/date";
 
 type OrgRole =
   | "ORG_OWNER"
@@ -577,7 +578,7 @@ function MembersTab() {
                       </span>
                     )}
                     <span style={{ fontSize: 12, opacity: 0.7 }}>
-                      since {new Date(m.memberSince).toLocaleDateString()}
+                      since {formatUserDate(m.memberSince)}
                     </span>
                     {canMutate ? (
                       <button
@@ -664,7 +665,7 @@ function MembersTab() {
                     <div style={{ fontWeight: 500 }}>{i.email}</div>
                     <div style={{ fontSize: 12, opacity: 0.7 }}>
                       {ROLE_LABEL[i.role]} · expires{" "}
-                      {new Date(i.expiresAt).toLocaleString()}
+                      {formatUserDateTime(i.expiresAt)}
                       {i.resendCount > 0 ? ` · resent ${i.resendCount}×` : ""}
                     </div>
                     {err ? (

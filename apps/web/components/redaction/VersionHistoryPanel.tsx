@@ -14,6 +14,8 @@
  *     panel never needs to re-query individual versions.
  */
 
+import { formatUserDateTime } from "../../lib/date";
+
 type VersionRow = {
   id: string;
   versionOrdinal: number;
@@ -103,7 +105,7 @@ export function VersionHistoryPanel({
                   accepted · {v.rejectedDetectionCount} rejected
                 </small>
                 <div style={{ color: "#475569", fontSize: 11 }}>
-                  {new Date(v.createdAtUtc).toLocaleString()}
+                  {formatUserDateTime(v.createdAtUtc)}
                 </div>
               </li>
             );

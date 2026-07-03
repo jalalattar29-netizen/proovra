@@ -31,6 +31,7 @@ import {
   classifyInvestigationEmptyState,
   type ProducerModeStatusLike,
 } from "../../../../lib/empty-state/classifier";
+import { formatUserDateTime } from "../../../../lib/date";
 type DuplicateEdgeKind =
   | "SAME_HASH_AS"
   | "SIMILAR_TO"
@@ -743,7 +744,7 @@ function formatDateTime(iso: string): string {
   try {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString();
+    return formatUserDateTime(iso);
   } catch {
     return iso;
   }

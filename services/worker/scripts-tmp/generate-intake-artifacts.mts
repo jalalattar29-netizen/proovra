@@ -23,6 +23,7 @@ import {
   type ReportV2Input,
 } from "../src/report-v2/index.js";
 import { buildTechnicalMetadataPackageFiles } from "../src/verification-package-technical-metadata.js";
+import { buildCaseMetadata, buildOriginalLinkage } from "../src/verification-package.js";
 import {
   buildEvidenceAcquisitionContext,
   toPublicAcquisition,
@@ -167,7 +168,7 @@ function baseEvidence(s: Scenario) {
     lastAccessedByUserId: null, lastAccessedAtUtc: null,
     // The REAL value after completeEvidence for a multi-file intake upload.
     captureMethod: "MULTIPART_PACKAGE",
-    identityLevelSnapshot: s.isIntake ? "BASIC_ACCOUNT" : "VERIFIED_EMAIL",
+    identityLevelSnapshot: "VERIFIED_EMAIL", // requester/owner is verified
     workspaceNameSnapshot: "Jalal Attar's personal workspace", organizationNameSnapshot: null,
     organizationVerifiedSnapshot: false, verificationPackageVersion: 2, reviewerSummaryVersion: 1,
     lastVerifiedSource: "SCHEDULED", otsStatus: "PENDING", otsFailureReason: null, otsBitcoinTxid: null,
@@ -250,7 +251,35 @@ async function generate(s: Scenario) {
     emitted.push(f.path.split("/").pop()!);
     writeFileSync(path.join(OUT, `${s.key}__${f.path.replace(/[\/]/g, "__")}`), JSON.stringify(f.json, null, 2), "utf8");
   }
-  console.log(`[${s.key}] pdf=${pdf.length}B pkg=[${emitted.join(",")}]`);
+  // case-metadata.json + original-linkage.json (real builders). The package
+  // metadata's submittedByEmail is the identity-snapshot email = the LINK
+  // CREATOR / workspace owner for intake; captureMethod is the raw structure
+  // enum MULTIPART_PACKAGE (as after completion).
+  const pkgMetadata = {
+    title: "Roadside incident photo",
+    rawEvidenceType: "PHOTO",
+    reviewerEvidenceType: "Photo Evidence",
+    evidenceStructure: "Multipart evidence package",
+    itemCount: 2,
+    imageCount: 2,
+    mimeType: "image/jpeg",
+    evidenceStatus: "SIGNED",
+    verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
+    captureMethod: "MULTIPART_PACKAGE",
+    identityLevelSnapshot: "VERIFIED_EMAIL",
+    submittedByEmail: s.contributorOrOwnerEmail,
+    submittedByAuthProvider: "google",
+    isIntake: s.isIntake,
+    createdAtUtc: "2026-06-30T10:03:00.000Z",
+    capturedAtUtc: "2026-06-30T10:05:00.000Z",
+    uploadedAtUtc: "2026-06-30T10:04:00.000Z",
+    signedAtUtc: "2026-06-30T10:05:02.000Z",
+    reportGeneratedAtUtc: "2026-06-30T10:06:00.000Z",
+  };
+  writeFileSync(path.join(OUT, `${s.key}__case-metadata.json`), JSON.stringify(buildCaseMetadata(pkgMetadata as never, ev.id), null, 2), "utf8");
+  writeFileSync(path.join(OUT, `${s.key}__original-linkage.json`), JSON.stringify(buildOriginalLinkage([] as never, pkgMetadata as never), null, 2), "utf8");
+
+  console.log(`[${s.key}] pdf=${pdf.length}B pkg=[${emitted.join(",")}]+case-metadata+original-linkage`);
 }
 
 for (const s of SCENARIOS) await generate(s);

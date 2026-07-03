@@ -22,6 +22,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { formatUserDate } from "../../../../../lib/date";
 
 type Status = {
   legalHold: {
@@ -92,8 +93,8 @@ export default function GovernanceIndicators({
     items.push({
       tone: expired ? "info" : "warn",
       label: expired
-        ? `Retention period ended ${until.toLocaleDateString()}`
-        : `Retained until ${until.toLocaleDateString()}`,
+        ? `Retention period ended ${formatUserDate(until)}`
+        : `Retained until ${formatUserDate(until)}`,
     });
   }
 

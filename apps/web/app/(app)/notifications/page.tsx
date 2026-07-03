@@ -18,6 +18,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { formatUserDateTime } from "../../../lib/date";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { statusBadgeStyle } from "../../../components/ui/StatusBadge";
@@ -194,12 +195,12 @@ const queryString = useMemo(() => {
                   {it.eventType} · {it.channel}/{it.provider} · {it.recipient}
                 </div>
                 <div style={mutedTextStyle}>
-                  Created {new Date(it.createdAt).toLocaleString()}
+                  Created {formatUserDateTime(it.createdAt)}
                   {it.sentAtUtc
-                    ? ` · sent ${new Date(it.sentAtUtc).toLocaleString()}`
+                    ? ` · sent ${formatUserDateTime(it.sentAtUtc)}`
                     : ""}
                   {it.failedAtUtc
-                    ? ` · failed ${new Date(it.failedAtUtc).toLocaleString()}`
+                    ? ` · failed ${formatUserDateTime(it.failedAtUtc)}`
                     : ""}
                 </div>
                 {it.errorCode || it.errorMessage ? (
@@ -212,7 +213,7 @@ const queryString = useMemo(() => {
                   <div style={mutedTextStyle}>
                     Retry attempts: {it.retryCount}
                     {it.nextAttemptAtUtc
-                      ? ` · next ${new Date(it.nextAttemptAtUtc).toLocaleString()}`
+                      ? ` · next ${formatUserDateTime(it.nextAttemptAtUtc)}`
                       : ""}
                   </div>
                 ) : null}

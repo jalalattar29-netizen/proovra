@@ -19,6 +19,7 @@ import type {
   ExtractedTextSummaryRow,
   ExtractedTextsResult,
 } from "../../lib/reviewer-workspace/reviewer-api";
+import { formatUserDateTime } from "../../lib/date";
 
 const MAX_ROWS = 25;
 
@@ -121,14 +122,9 @@ export function SidePaneExtractedTexts({
 }
 
 function Row({ row }: { row: ExtractedTextSummaryRow }) {
-  const when = (() => {
-    if (!row.extractedAtUtc) return null;
-    try {
-      return new Date(row.extractedAtUtc).toLocaleString();
-    } catch {
-      return row.extractedAtUtc;
-    }
-  })();
+  const when = row.extractedAtUtc
+    ? formatUserDateTime(row.extractedAtUtc)
+    : null;
   return (
     <li
       data-side-pane-row={row.id}

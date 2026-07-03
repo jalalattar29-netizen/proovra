@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
+import { formatUserDate, formatUtcAuditDateTime } from "../../../lib/date";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
@@ -446,7 +447,7 @@ function SecurityCenterPageInner() {
                       <div style={mutedStyle}>
                         approvals {rq.approvalCount}/{rq.requiredApprovals} ·
                         expires{" "}
-                        {new Date(rq.expiresAt).toLocaleString()}
+                        {formatUtcAuditDateTime(rq.expiresAt)}
                       </div>
                     </div>
                   </li>
@@ -512,9 +513,9 @@ function SecurityCenterPageInner() {
                       </div>
                       <div style={mutedStyle}>
                         ip {d.ipPreview ?? "—"} · last seen{" "}
-                        {new Date(d.lastSeenAtUtc).toLocaleString()} ·
+                        {formatUtcAuditDateTime(d.lastSeenAtUtc)} ·
                         trusted until{" "}
-                        {new Date(d.trustedUntilUtc).toLocaleDateString()}
+                        {formatUserDate(d.trustedUntilUtc)}
                       </div>
                     </div>
                     <span style={statusBadgeStyle(d.status)}>{d.status}</span>
@@ -550,7 +551,7 @@ function SecurityCenterPageInner() {
                       </div>
                       <div style={mutedStyle}>
                         reason {r.reason} · at{" "}
-                        {new Date(r.revokedAtUtc).toLocaleString()}
+                        {formatUtcAuditDateTime(r.revokedAtUtc)}
                       </div>
                     </div>
                     <button

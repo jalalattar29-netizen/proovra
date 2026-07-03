@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 import type { EvidenceAnnotationsResponse, EvidenceAnnotation } from "../lib/evidence-library-types";
 
 export function AnnotationPanel({
@@ -84,7 +85,7 @@ export function AnnotationPanel({
               <strong>{item.annotationType}</strong>
               <p className="evidence-library-muted">
                 {item.author.displayName || item.author.email || "Reviewer"} •{" "}
-                {new Date(item.createdAt).toLocaleString()}
+                {formatUserDateTime(item.createdAt)}
               </p>
               <p>{item.body || "Annotation metadata recorded."}</p>
               <div className="evidence-library-panel__actions">

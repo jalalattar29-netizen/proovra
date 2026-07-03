@@ -48,6 +48,7 @@ import {
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
 import { transitionDisagreement } from "../../../../lib/reviewer-workspace/reviewer-api";
 
@@ -678,7 +679,7 @@ function ResolutionCell({ row }: { row: DisagreementRow }) {
   if (!row.state.startsWith("RESOLVED_")) {
     return (
       <span style={{ color: "#475569", fontSize: 11 }}>
-        Filed {new Date(row.filedAtUtc).toLocaleString()}
+        Filed {formatUserDateTime(row.filedAtUtc)}
       </span>
     );
   }
@@ -689,7 +690,7 @@ function ResolutionCell({ row }: { row: DisagreementRow }) {
       </strong>
       <span style={{ color: "#475569", fontSize: 11 }}>
         {row.resolvedAtUtc
-          ? new Date(row.resolvedAtUtc).toLocaleString()
+          ? formatUserDateTime(row.resolvedAtUtc)
           : "Resolution time not recorded"}
       </span>
     </div>

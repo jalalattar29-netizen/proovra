@@ -23,6 +23,7 @@ import type {
   EvidenceArtifactSidePaneState,
   EvidenceArtifactsResult,
 } from "../../lib/reviewer-workspace/reviewer-api";
+import { formatUserDateTime } from "../../lib/date";
 
 export function SidePaneReport({
   evidenceId,
@@ -148,14 +149,7 @@ function Tile({
   generatedAt: string | null;
   dataTag: string;
 }) {
-  const when = (() => {
-    if (!generatedAt) return null;
-    try {
-      return new Date(generatedAt).toLocaleString();
-    } catch {
-      return generatedAt;
-    }
-  })();
+  const when = generatedAt ? formatUserDateTime(generatedAt) : null;
   return (
     <div
       data-side-pane-report-tile={dataTag}

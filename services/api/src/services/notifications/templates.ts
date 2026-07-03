@@ -19,6 +19,7 @@ import {
   renderEmailShell,
 } from "../email.service.js";
 import type { NotificationEventType } from "@proovra/shared";
+import { formatTimestampForReportUtc } from "@proovra/shared";
 
 // -----------------------------------------------------------------------------
 // Per-event template context shapes — strictly typed to enforce the
@@ -246,7 +247,7 @@ function renderEvidenceRequestSent(
     : "";
   const due = d.dueAtUtcIso
     ? `<div style="margin:0 0 12px 0;"><strong>Please respond by:</strong> ${escapeEmailHtml(
-        new Date(d.dueAtUtcIso).toLocaleString(),
+        formatTimestampForReportUtc(d.dueAtUtcIso),
       )}</div>`
     : "";
   const deliverableList =
@@ -295,7 +296,7 @@ function renderEvidenceRequestSent(
     d.requestInstructions ? "" : null,
     d.requestInstructions ?? "",
     d.dueAtUtcIso
-      ? `Please respond by: ${new Date(d.dueAtUtcIso).toLocaleString()}`
+      ? `Please respond by: ${formatTimestampForReportUtc(d.dueAtUtcIso)}`
       : null,
     d.deliverableSummaries.length > 0 ? "" : null,
     d.deliverableSummaries.length > 0 ? "What's needed:" : null,
@@ -538,7 +539,7 @@ function renderIntakeLinkCreated(
 ): RenderedTemplate {
   const workspaceName = escapeEmailHtml(d.workspaceName);
   const expiry = d.expiresAtUtcIso
-    ? new Date(d.expiresAtUtcIso).toLocaleString()
+    ? formatTimestampForReportUtc(d.expiresAtUtcIso)
     : null;
   const body = `
     <div style="margin:0 0 12px 0;">

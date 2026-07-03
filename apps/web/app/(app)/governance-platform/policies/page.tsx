@@ -9,6 +9,7 @@ import {
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../lib/api";
+import { formatUserDate } from "../../../../lib/date";
 
 type PermissionDenialState = {
   denial: string;
@@ -145,7 +146,7 @@ function Shell() {
                   <td style={td}><strong>{p.state}</strong></td>
                   <td style={td}>{p.enforcementMode}</td>
                   <td style={td}>v{p.version}</td>
-                  <td style={td}>{new Date(p.createdAtUtc).toLocaleDateString()}</td>
+                  <td style={td}>{formatUserDate(p.createdAtUtc)}</td>
                   <td style={td}>
                     {p.state === "DRAFT" ? (
                       <button data-governance-policy-activate={p.id} type="button" onClick={() => void activate(p.id)} style={secondaryButton}>

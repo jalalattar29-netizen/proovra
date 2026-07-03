@@ -33,6 +33,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
+import { formatUserDate, formatUserDateTime } from "../../../lib/date";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 
 type InboxTone = "info" | "warning" | "high" | "critical";
@@ -1037,7 +1038,7 @@ function InboxPageInner() {
                             }}
                           >
                             <span>
-                              {new Date(item.occurredAt).toLocaleString()}
+                              {formatUserDateTime(item.occurredAt)}
                             </span>
                             {/* Phase IA-cleanup — render real deadlines only
                                 when the source row carries one. Overdue rows
@@ -1056,7 +1057,7 @@ function InboxPageInner() {
                                 {new Date(item.dueAt).getTime() < Date.now()
                                   ? "Overdue · "
                                   : "Due "}
-                                {new Date(item.dueAt).toLocaleDateString()}
+                                {formatUserDate(item.dueAt)}
                               </span>
                             )}
                           </div>

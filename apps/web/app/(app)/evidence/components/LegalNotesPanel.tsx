@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 import type { LegalNote, LegalNotesResponse } from "../lib/evidence-library-types";
 
 const NOTE_TYPES = ["GENERAL", "PRIVILEGED", "DISCLOSURE", "REVIEW_BOUNDARY", "HANDOFF"] as const;
@@ -102,7 +103,7 @@ export function LegalNotesPanel({ evidenceId }: { evidenceId: string }) {
               <strong>{item.noteType.replace(/_/g, " ")}</strong>
               <p className="evidence-library-muted">
                 {item.author.displayName || item.author.email || "Legal reviewer"} •{" "}
-                {new Date(item.createdAt).toLocaleString()} {item.edited ? "• Edited" : ""}
+                {formatUserDateTime(item.createdAt)} {item.edited ? "• Edited" : ""}
               </p>
               {editingId === item.id ? (
                 <>

@@ -18,6 +18,7 @@ import {
 import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 
 type Status =
   | "NEW"
@@ -74,7 +75,7 @@ type Details = ListItem & {
 function formatTimestamp(value?: string | null) {
   if (!value) return "—";
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? value : formatUserDateTime(value);
 }
 
 const STATUS_TONE: Record<Status, string> = {

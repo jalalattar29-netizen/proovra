@@ -24,6 +24,7 @@ import { PageRouteGate } from "../../../../../components/navigation/PageRouteGat
 import { useToast } from "../../../../../components/ui";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import { ApiError } from "../../../../../lib/api";
+import { formatUserDate, formatUserDateTime } from "../../../../../lib/date";
 import { getTeam, type CollaborationTeamDetail } from "../../../../../lib/api/collaboration-teams";
 import {
   useAccount,
@@ -363,7 +364,7 @@ function CommentRow({
               {author?.displayName ?? "Team member"}
             </span>
             <span style={{ color: "#9b826b", fontSize: "0.78rem" }}>
-              {new Date(comment.createdAt).toLocaleString()}
+              {formatUserDateTime(comment.createdAt)}
               {comment.status === "EDITED" ? " · edited" : ""}
             </span>
           </div>
@@ -632,7 +633,7 @@ function NotificationsCard({ onError }: { onError: (err: unknown) => void }) {
                 }}
               >
                 <span style={{ color: "#9b826b", fontSize: "0.72rem" }}>
-                  {new Date(n.createdAt).toLocaleString()}
+                  {formatUserDateTime(n.createdAt)}
                 </span>
                 {n.readAt === null ? (
                   <button
@@ -994,7 +995,7 @@ function GuestsCard({
                 </div>
                 <div style={{ color: "#9b826b", fontSize: "0.74rem" }}>
                   {g.status} · expires{" "}
-                  {new Date(g.expiresAtUtc).toLocaleDateString()}
+                  {formatUserDate(g.expiresAtUtc)}
                 </div>
               </div>
               {canManage && (g.status === "PENDING" || g.status === "ACCEPTED") ? (
@@ -1349,7 +1350,7 @@ function AccessReviewCard({
             >
               Last completed:{" "}
               {reviews[0]?.completedAtUtc
-                ? new Date(reviews[0].completedAtUtc).toLocaleDateString()
+                ? formatUserDate(reviews[0].completedAtUtc)
                 : "—"}
             </div>
           ) : null}

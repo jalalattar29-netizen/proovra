@@ -32,6 +32,7 @@ import {
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 
 type PolicyRow = {
   id: string;
@@ -417,7 +418,7 @@ function PolicyList({
             >
               <strong>{p.name}</strong>
               <div style={{ color: "#475569", fontSize: 11 }}>
-                {new Date(p.createdAt).toLocaleDateString()}
+                {formatUserDate(p.createdAt)}
               </div>
             </li>
           ))}
@@ -521,7 +522,7 @@ function PolicyVersionsPanel({
                 </td>
                 <td style={td}>
                   {v.publishedAtUtc
-                    ? new Date(v.publishedAtUtc).toLocaleDateString()
+                    ? formatUserDate(v.publishedAtUtc)
                     : "—"}
                 </td>
                 <td style={td}>
@@ -775,7 +776,7 @@ function PolicyAuditPanel({ audit }: { audit: ReadonlyArray<AuditRow> }) {
             >
               <code style={{ minWidth: 220 }}>{a.code}</code>
               <span style={{ color: "#475569" }}>
-                {new Date(a.occurredAtUtc).toLocaleString()}
+                {formatUserDateTime(a.occurredAtUtc)}
               </span>
               {a.policyVersionId ? (
                 <code style={{ color: "#475569" }}>

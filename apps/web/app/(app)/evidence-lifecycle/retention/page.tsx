@@ -22,6 +22,7 @@ import { useCallback, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDate } from "../../../../lib/date";
 import {
   DenialBanner,
   EmptyState,
@@ -71,7 +72,7 @@ function formatDate(input: string | null | undefined): string {
   if (!input) return "—";
   const d = new Date(input);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString();
+  return formatUserDate(input);
 }
 
 async function loadRetention(): Promise<RetentionPayload> {

@@ -10,6 +10,7 @@ import type { StatusPageProjection } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../../lib/api";
+import { formatUtcAuditDateTime } from "../../../../../lib/date";
 
 export default function StatusPage() {
   return (
@@ -244,7 +245,7 @@ function Shell() {
                     <td style={td}><strong>{c.health}</strong></td>
                     <td style={td}>{c.description}</td>
                     <td style={td}><code>{c.upstreamSource}</code></td>
-                    <td style={td}>{new Date(c.lastUpdatedUtc).toLocaleString()}</td>
+                    <td style={td}>{formatUtcAuditDateTime(c.lastUpdatedUtc)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -281,8 +282,8 @@ function Shell() {
                     <tr key={w.id} data-maintenance-window={w.id}>
                       <td style={td}>{w.title}</td>
                       <td style={td}>{w.componentKeys.join(", ")}</td>
-                      <td style={td}>{new Date(w.startsAtUtc).toLocaleString()}</td>
-                      <td style={td}>{new Date(w.endsAtUtc).toLocaleString()}</td>
+                      <td style={td}>{formatUtcAuditDateTime(w.startsAtUtc)}</td>
+                      <td style={td}>{formatUtcAuditDateTime(w.endsAtUtc)}</td>
                       <td style={td}>{w.state}</td>
                     </tr>
                   ))}
@@ -346,16 +347,16 @@ function IncidentList({
           </header>
           <p style={{ fontSize: 11, color: "#475569" }}>
             Components: {i.componentKeys.join(", ")} · Started{" "}
-            {new Date(i.startedAtUtc).toLocaleString()}
+            {formatUtcAuditDateTime(i.startedAtUtc)}
             {i.resolvedAtUtc ? (
-              <> · Resolved {new Date(i.resolvedAtUtc).toLocaleString()}</>
+              <> · Resolved {formatUtcAuditDateTime(i.resolvedAtUtc)}</>
             ) : null}
           </p>
           {i.updates.length > 0 ? (
             <ul style={{ marginTop: 6, paddingLeft: 18 }}>
               {i.updates.map((u) => (
                 <li key={u.id} style={{ fontSize: 12 }}>
-                  <code>{u.state}</code> · {new Date(u.createdAtUtc).toLocaleString()} —{" "}
+                  <code>{u.state}</code> · {formatUtcAuditDateTime(u.createdAtUtc)} —{" "}
                   {u.body}
                 </li>
               ))}

@@ -21,6 +21,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { formatUserDateTime } from "../../../../../lib/date";
 
 type RequestRow = {
   id: string;
@@ -306,7 +307,7 @@ export default function EvidenceRequestPanel({
                         {r.submittedByExternalLabel ?? "External contributor"}
                       </strong>{" "}
                       <span style={mutedStyle}>
-                        · {new Date(r.submittedAtUtc).toLocaleString()}
+                        · {formatUserDateTime(r.submittedAtUtc)}
                       </span>
                     </div>
                     <div style={mutedStyle}>
@@ -1109,7 +1110,7 @@ function ActivityTimelineDrawer({
                   {ACTIVITY_LABEL[e.eventType] ?? e.eventType}
                 </div>
                 <div style={mutedTextStyle}>
-                  {new Date(e.createdAt).toLocaleString()}
+                  {formatUserDateTime(e.createdAt)}
                 </div>
               </li>
             ))}

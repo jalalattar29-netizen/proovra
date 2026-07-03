@@ -38,6 +38,7 @@ import { useParams } from "next/navigation";
 import type { WorkflowInstanceStatus } from "@proovra/shared";
 
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
@@ -342,12 +343,12 @@ function WorkflowInstancePageInner() {
                 </div>
                 <div style={mutedStyle}>
                   created{" "}
-                  {new Date(instance.createdAt).toLocaleString()}
+                  {formatUserDateTime(instance.createdAt)}
                   {instance.submittedAtUtc
-                    ? ` · submitted ${new Date(instance.submittedAtUtc).toLocaleString()}`
+                    ? ` · submitted ${formatUserDateTime(instance.submittedAtUtc)}`
                     : ""}
                   {instance.approvedAtUtc
-                    ? ` · approved ${new Date(instance.approvedAtUtc).toLocaleString()}`
+                    ? ` · approved ${formatUserDateTime(instance.approvedAtUtc)}`
                     : ""}
                 </div>
               </div>
@@ -461,7 +462,7 @@ function WorkflowInstancePageInner() {
                           ? ` · mapped evidence ${s.mappedEvidenceId.slice(0, 8)}…`
                           : ""}
                         {s.completedAtUtc
-                          ? ` · completed ${new Date(s.completedAtUtc).toLocaleString()}`
+                          ? ` · completed ${formatUserDateTime(s.completedAtUtc)}`
                           : ""}
                       </div>
                       {s.waiverReason ? (
@@ -523,7 +524,7 @@ function WorkflowInstancePageInner() {
                         evidence {m.evidenceId.slice(0, 8)}…
                       </div>
                       <div style={mutedStyle}>
-                        mapped {new Date(m.mappedAtUtc).toLocaleString()}
+                        mapped {formatUserDateTime(m.mappedAtUtc)}
                       </div>
                     </div>
                   </li>
@@ -547,7 +548,7 @@ function WorkflowInstancePageInner() {
                         actor {e.actorType}
                         {e.actorUserId ? ` (${e.actorUserId.slice(0, 8)}…)` : ""}
                         {" · "}
-                        {new Date(e.occurredAtUtc).toLocaleString()}
+                        {formatUserDateTime(e.occurredAtUtc)}
                       </div>
                     </div>
                     <span style={timelineKindBadge}>{e.kind}</span>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDate } from "../../../../lib/date";
 import { useToast, Skeleton, Card } from "../../../../components/ui";
 import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import { dashboardStyles } from "../../../../components/dashboard/styles";
@@ -449,7 +450,7 @@ function QuotasPageInner() {
                     <div className="dashboard-quotas-reset-row">
                       Quotas reset on{" "}
                       <strong style={{ color: "#d8e0dd" }}>
-                        {new Date(quotas.analyses.resetDate).toLocaleDateString()}
+                        {formatUserDate(quotas.analyses.resetDate)}
                       </strong>
                     </div>
                   </div>

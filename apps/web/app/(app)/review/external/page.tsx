@@ -41,6 +41,7 @@ import {
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import { useActiveSpace, useCan } from "../../../../lib/platform-context";
 
 // ---------------------------------------------------------------------------
@@ -685,11 +686,11 @@ function InvitationsTable({
                   )}
                 </td>
                 <td style={td}>
-                  {new Date(r.inviteSentAtUtc).toLocaleDateString()}
+                  {formatUserDate(r.inviteSentAtUtc)}
                 </td>
                 <td style={td}>
                   {r.expiresAtUtc
-                    ? new Date(r.expiresAtUtc).toLocaleDateString()
+                    ? formatUserDate(r.expiresAtUtc)
                     : "—"}
                 </td>
                 <td style={td}>{r.activityCount}</td>
@@ -836,7 +837,7 @@ function InvitationDetailDrawer({
         {row.expiresAtUtc ? (
           <Chip
             tone={row.expired ? "warn" : "muted"}
-            label={`Expires ${new Date(row.expiresAtUtc).toLocaleString()}`}
+            label={`Expires ${formatUserDateTime(row.expiresAtUtc)}`}
           />
         ) : null}
         {row.ssoConnectionId ? (
@@ -1042,11 +1043,11 @@ function InvitationDetailDrawer({
                     <code>{d.provider}</code>
                   </td>
                   <td style={td}>
-                    {new Date(d.queuedAtUtc).toLocaleString()}
+                    {formatUserDateTime(d.queuedAtUtc)}
                   </td>
                   <td style={td}>
                     {d.sentAtUtc
-                      ? new Date(d.sentAtUtc).toLocaleString()
+                      ? formatUserDateTime(d.sentAtUtc)
                       : "—"}
                   </td>
                   <td style={td}>
@@ -1096,7 +1097,7 @@ function InvitationDetailDrawer({
             <p style={{ margin: 0, marginBottom: 4 }}>
               SSO bound at:{" "}
               <span data-sso-bound-at>
-                {new Date(row.ssoBoundAtUtc).toLocaleString()}
+                {formatUserDateTime(row.ssoBoundAtUtc)}
               </span>
             </p>
           ) : null}
@@ -1138,7 +1139,7 @@ function InvitationDetailDrawer({
               >
                 <code style={{ minWidth: 220 }}>{a.code}</code>
                 <span style={{ color: "#475569" }}>
-                  {new Date(a.occurredAtUtc).toLocaleString()}
+                  {formatUserDateTime(a.occurredAtUtc)}
                 </span>
               </li>
             ))}

@@ -10,6 +10,7 @@ import { useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system";
 import { uploadWithPut } from "../../src/upload-utils";
 import { Linking } from "react-native";
+import { formatUserTime } from "../../src/lib/date";
 
 export default function SettingsScreen() {
   const { t, locale, mode, setLocale, setLocaleMode, fontFamilyBold } = useLocale();
@@ -23,7 +24,7 @@ export default function SettingsScreen() {
   const showSmoke = useMemo(() => __DEV__ && process.env.EXPO_PUBLIC_DEBUG_SMOKE === "1", []);
 
   const appendLog = (message: string) => {
-    const stamp = new Date().toLocaleTimeString();
+    const stamp = formatUserTime(new Date());
     setSmokeLogs((prev) => [...prev, `${stamp} ${message}`]);
   };
 

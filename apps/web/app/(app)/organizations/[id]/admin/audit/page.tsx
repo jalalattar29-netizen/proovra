@@ -22,6 +22,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
+import { formatUtcAuditDateTime } from "../../../../../../lib/date";
 
 interface AuditEvent {
   id: string;
@@ -213,7 +214,7 @@ function AuditTab() {
                     </span>
                   </div>
                   <div style={{ opacity: 0.75, fontSize: 12 }}>
-                    {new Date(e.createdAt).toLocaleString()}
+                    {formatUtcAuditDateTime(e.createdAt)}
                   </div>
                 </div>
                 <div style={{ fontSize: 12, opacity: 0.75 }}>

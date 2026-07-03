@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { apiFetch, getAuthToken } from "../../../src/api";
 import * as FileSystem from "expo-file-system";
+import { formatUserDateTime } from "../../../src/lib/date";
 
 type EvidenceItem = {
   id: string;
@@ -45,9 +46,9 @@ function resolveEvidenceSubtitle(item: EvidenceItem): string {
       ? item.itemCount
       : 1;
 
-  return `${count} item${count === 1 ? "" : "s"} • ${new Date(
+  return `${count} item${count === 1 ? "" : "s"} • ${formatUserDateTime(
     item.createdAt
-  ).toLocaleString()}`;
+  )}`;
 }
 
 export default function CaseDetailScreen() {

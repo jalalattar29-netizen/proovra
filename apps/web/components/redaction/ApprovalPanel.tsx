@@ -22,6 +22,8 @@
 
 import { useCallback, useState } from "react";
 
+import { formatUserDateTime } from "../../lib/date";
+
 type ApprovalRow = {
   id: string;
   verdict: string;
@@ -216,7 +218,7 @@ export function ApprovalPanel({
                 data-redaction-approval-row={a.verdict}
               >
                 <code>{a.verdict}</code>{" "}
-                · {new Date(a.decidedAtUtc).toLocaleString()}{" "}
+                · {formatUserDateTime(a.decidedAtUtc)}{" "}
                 · approver <code>{a.approverUserId.slice(0, 8)}…</code>
                 {a.rationale ? (
                   <span style={{ color: "#475569" }}> — {a.rationale.slice(0, 80)}</span>

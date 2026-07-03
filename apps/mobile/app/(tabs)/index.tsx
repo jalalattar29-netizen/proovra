@@ -5,6 +5,7 @@ import { useLocale } from "../../src/locale-context";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../src/api";
+import { formatUserDateTime } from "../../src/lib/date";
 
 export default function HomeScreen() {
   const { t, fontFamilyBold, isRTL } = useLocale();
@@ -58,7 +59,7 @@ export default function HomeScreen() {
               <ListRow
                 key={item.id}
                 title={item.type}
-                subtitle={new Date(item.createdAt).toLocaleString()}
+                subtitle={formatUserDateTime(item.createdAt)}
                 badge={
                   item.status === "SIGNED" ? (
                     <Badge tone="signed" label={t("statusSigned")} />

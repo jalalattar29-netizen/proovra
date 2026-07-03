@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../lib/api";
+import { formatUserDateTime } from "../../../lib/date";
 import { usePlatformContext, useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 type ThreadStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
@@ -372,7 +373,7 @@ useEffect(() => {
                           : m.authorUserId
                             ? `user ${m.authorUserId.slice(0, 8)}…`
                             : "system"}{" "}
-                        · {new Date(m.createdAt).toLocaleString()}
+                        · {formatUserDateTime(m.createdAt)}
                       </div>
                       <div style={{ whiteSpace: "pre-wrap" }}>{m.body}</div>
                     </li>

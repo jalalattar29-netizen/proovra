@@ -26,7 +26,7 @@ import {
   mapPublicAnchoringLabelFromOts,
   mapTimestampStatusPublicLabel,
 } from "./normalizers.js";
-import { deriveAnchorSemantics } from "@proovra/shared";
+import { deriveAnchorSemantics, formatTimestampForReportUtc } from "@proovra/shared";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
 export function getTimestampDigestValueLabel(params: {
@@ -147,6 +147,12 @@ export function buildOrganizationStatus(evidence: ReportEvidence): string {
 export const INTAKE_SUBMITTED_BY_ROLE_LABEL =
   "Remote Contributor via Secure Intake Link";
 
+/** Intake Contributor Identity — the remote contributor is never independently
+ *  verified by an intake link, so the Technical Appendix states this plainly,
+ *  matching the Chain of Custody. (The requester's verification level is shown
+ *  separately under "Requester Identity".) */
+export const INTAKE_CONTRIBUTOR_IDENTITY_LABEL = "Not independently verified";
+
 export function buildTechnicalIdentityRows(
   evidence: ReportEvidence,
   externalMode: boolean,
@@ -168,7 +174,7 @@ export function buildTechnicalIdentityRows(
       label: "Last Accessed By User Ref",
       value: redactIdentifier(evidence.lastAccessedByUserId),
     },
-    { label: "Last Accessed At (UTC)", value: safe(evidence.lastAccessedAtUtc) },
+    { label: "Last Accessed At (UTC)", value: formatTimestampForReportUtc(evidence.lastAccessedAtUtc) },
   ];
   const orgRows: KeyValueRow[] = [
     { label: "Organization / Workspace", value: buildOrganizationDisplay(evidence) },
@@ -186,9 +192,15 @@ export function buildTechnicalIdentityRows(
     // Level is the REQUESTER's snapshot, labeled as such.
     return [
       { label: "Submitted By", value: INTAKE_SUBMITTED_BY_ROLE_LABEL },
-      ...(contributorIdentity
-        ? [{ label: "Contributor Identity", value: contributorIdentity }]
-        : []),
+      // Contributor Identity is the REMOTE CONTRIBUTOR's — which for an intake
+      // link is not independently verified. It must NOT be the requester/
+      // workspace-owner identity level (`identityVerification` is derived from
+      // the REQUESTER's snapshot, not the contributor). This keeps the
+      // Technical Appendix consistent with the Chain of Custody, which states
+      // "the remote contributor's identity is not independently verified".
+      // `contributorIdentity` (requester-derived) is intentionally NOT used
+      // here; the requester's level is shown separately as "Requester Identity".
+      { label: "Contributor Identity", value: INTAKE_CONTRIBUTOR_IDENTITY_LABEL },
       {
         label: "Link Creator User Ref",
         value: redactIdentifier(evidence.createdByUserId),
@@ -265,7 +277,7 @@ export function buildTimestampRows(
     { label: "Timestamp Provider", value: safe((evidence as ReportEvidence).tsaProvider) },
     { label: "Timestamp URL", value: safe((evidence as ReportEvidence).tsaUrl) },
     { label: "Serial Number", value: safe((evidence as ReportEvidence).tsaSerialNumber) },
-    { label: "Generation Time (UTC)", value: safe((evidence as ReportEvidence).tsaGenTimeUtc) },
+    { label: "Generation Time (UTC)", value: formatTimestampForReportUtc((evidence as ReportEvidence).tsaGenTimeUtc) },
     { label: "Hash Algorithm", value: safe((evidence as ReportEvidence).tsaHashAlgorithm) },
     {
       label: "Timestamp Status",
@@ -335,7 +347,7 @@ export function buildAnchorRows(
     { label: "Anchor Provider", value: safe(anchorSummary.provider) },
     {
       label: "Anchor Anchored At (UTC)",
-      value: safe(anchorSummary.anchoredAtUtc),
+      value: formatTimestampForReportUtc(anchorSummary.anchoredAtUtc),
     },
     {
       label: "Anchor Public URL",

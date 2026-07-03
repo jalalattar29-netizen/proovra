@@ -216,6 +216,11 @@ type VerificationPackageMetadata = {
   identityLevelSnapshot?: string | null;
   submittedByEmail?: string | null;
   submittedByAuthProvider?: string | null;
+  /** True when this evidence was acquired via a Secure Intake Link. Drives
+   *  role-safe labeling of the submitter/capture-method fields in
+   *  case-metadata.json + original-linkage.json (the identity-snapshot email
+   *  is the LINK CREATOR / workspace owner, NOT the remote contributor). */
+  isIntake?: boolean | null;
   createdAtUtc?: string | null;
   capturedAtUtc?: string | null;
   deviceTimeIso?: string | null;
@@ -981,11 +986,52 @@ function buildSignedManifest(params: {
   };
 }
 
-function buildCaseMetadata(
+/**
+ * Role-safe submitter + capture-method fields for the verification package
+ * (case-metadata.json, original-linkage.json).
+ *
+ * For INTAKE the identity-snapshot email/provider is the LINK CREATOR /
+ * workspace owner — NOT the remote contributor — so it must NOT be surfaced as
+ * `submittedByEmail`/`submittedByAuthProvider` (that would imply the
+ * contributor submitted with that identity). It is relabeled as
+ * `linkCreatorEmail`, `submittedByEmail` is nulled, and a `submittedByRole`
+ * marks the actual submitter. `MULTIPART_PACKAGE` is an evidence STRUCTURE, not
+ * an acquisition method, so intake capture method reads `SECURE_INTAKE_LINK`
+ * (the structure stays in `evidenceStructure`). Web/mobile capture is
+ * UNCHANGED. NO recipient phone/email or provider IDs are ever added here.
+ */
+function buildPackageSubmitterFields(metadata: VerificationPackageMetadata): {
+  submittedByEmail: string | null;
+  submittedByAuthProvider: string | null;
+  submittedByRole?: string;
+  linkCreatorEmail?: string;
+  captureMethod: string | null;
+} {
+  if (metadata.isIntake) {
+    const linkCreatorEmail = metadata.submittedByEmail ?? null;
+    return {
+      submittedByEmail: null,
+      submittedByAuthProvider: null,
+      submittedByRole: "Remote Contributor",
+      ...(linkCreatorEmail ? { linkCreatorEmail } : {}),
+      captureMethod: "SECURE_INTAKE_LINK",
+    };
+  }
+  return {
+    submittedByEmail: metadata.submittedByEmail ?? null,
+    submittedByAuthProvider: metadata.submittedByAuthProvider ?? null,
+    captureMethod: metadata.captureMethod ?? null,
+  };
+}
+
+// Exported for focused tests / artifact harnesses that verify the emitted
+// case-metadata.json shape without running the full package pipeline. Pure.
+export function buildCaseMetadata(
   metadata: VerificationPackageMetadata,
   evidenceId?: string | null
 ) {
   const reviewerEvidence = buildReviewerEvidenceMetadata(metadata);
+  const submitterFields = buildPackageSubmitterFields(metadata);
 
   return {
     schema: "PROOVRA_CASE_METADATA",
@@ -1009,7 +1055,9 @@ function buildCaseMetadata(
       mimeType: metadata.mimeType ?? null,
       evidenceStatus: metadata.evidenceStatus ?? null,
       verificationStatus: metadata.verificationStatus ?? null,
-      captureMethod: metadata.captureMethod ?? null,
+      // Intake: SECURE_INTAKE_LINK (acquisition), not the structure enum.
+      // The structure is preserved above in `evidenceStructure`.
+      captureMethod: submitterFields.captureMethod,
     },
     case: {
       caseId: metadata.caseId ?? null,
@@ -1027,8 +1075,17 @@ function buildCaseMetadata(
       retentionPolicy: metadata.retentionPolicy ?? null,
     },
     submitter: {
-      submittedByEmail: metadata.submittedByEmail ?? null,
-      submittedByAuthProvider: metadata.submittedByAuthProvider ?? null,
+      // Intake: submittedByEmail is nulled and the identity-snapshot email is
+      // relabeled as linkCreatorEmail with submittedByRole; web/mobile keep the
+      // authenticated submitter's email/provider unchanged.
+      submittedByEmail: submitterFields.submittedByEmail,
+      submittedByAuthProvider: submitterFields.submittedByAuthProvider,
+      ...(submitterFields.submittedByRole
+        ? { submittedByRole: submitterFields.submittedByRole }
+        : {}),
+      ...(submitterFields.linkCreatorEmail
+        ? { linkCreatorEmail: submitterFields.linkCreatorEmail }
+        : {}),
       identityLevelSnapshot: metadata.identityLevelSnapshot ?? null,
     },
     timestamps: {
@@ -1658,11 +1715,13 @@ function buildDuplicateDigests(
   };
 }
 
-function buildOriginalLinkage(
+// Exported for focused tests / artifact harnesses (pure function).
+export function buildOriginalLinkage(
   evidenceFiles: Array<VerificationEvidenceFile & { finalName: string }>,
   metadata: VerificationPackageMetadata
 ): Record<string, unknown> {
   const reviewerEvidence = buildReviewerEvidenceMetadata(metadata);
+  const submitterFields = buildPackageSubmitterFields(metadata);
 
   return {
     evidenceTitle: metadata.title ?? null,
@@ -1681,10 +1740,19 @@ function buildOriginalLinkage(
     mimeType: metadata.mimeType ?? null,
     evidenceStatus: metadata.evidenceStatus ?? null,
     verificationStatus: metadata.verificationStatus ?? null,
-    captureMethod: metadata.captureMethod ?? null,
+    // Intake: SECURE_INTAKE_LINK acquisition (structure stays in
+    // evidenceStructure above); submitter email relabeled as linkCreatorEmail
+    // with a submittedByRole. Web/mobile unchanged.
+    captureMethod: submitterFields.captureMethod,
     identityLevelSnapshot: metadata.identityLevelSnapshot ?? null,
-    submittedByEmail: metadata.submittedByEmail ?? null,
-    submittedByAuthProvider: metadata.submittedByAuthProvider ?? null,
+    submittedByEmail: submitterFields.submittedByEmail,
+    submittedByAuthProvider: submitterFields.submittedByAuthProvider,
+    ...(submitterFields.submittedByRole
+      ? { submittedByRole: submitterFields.submittedByRole }
+      : {}),
+    ...(submitterFields.linkCreatorEmail
+      ? { linkCreatorEmail: submitterFields.linkCreatorEmail }
+      : {}),
     createdAtUtc: metadata.createdAtUtc ?? null,
     capturedAtUtc: metadata.capturedAtUtc ?? null,
     deviceTimeIso: metadata.deviceTimeIso ?? null,

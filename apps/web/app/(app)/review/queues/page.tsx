@@ -70,6 +70,7 @@ import {
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
 import {
   bulkAssign,
@@ -607,7 +608,7 @@ function QueuesShell() {
         <span>Loaded pages: {Math.max(1, Math.ceil(Math.max(visibleRowCount, 1) / QUEUE_PAGE_LIMIT))}</span>
         <span>More available: {hasMore ? "Yes" : "No"}</span>
         <span>
-          Last refresh: {lastRefreshedAt ? new Date(lastRefreshedAt).toLocaleString() : "Not yet loaded"}
+          Last refresh: {lastRefreshedAt ? formatUserDateTime(lastRefreshedAt) : "Not yet loaded"}
         </span>
       </div>
 
@@ -713,7 +714,7 @@ function QueuesShell() {
                     {r.assignedToUserId ? r.assignedToUserId.slice(0, 8) + "…" : "—"}
                   </td>
                   <td style={td}>
-                    {r.dueAt ? new Date(r.dueAt).toLocaleDateString() : "—"}
+                    {r.dueAt ? formatUserDate(r.dueAt) : "—"}
                   </td>
                 </tr>
               ))}

@@ -17,6 +17,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { formatUserDate } from "../../lib/date";
+
 import type {
   EvidenceActivitySeries,
   EvidenceTypeDistribution,
@@ -614,11 +616,7 @@ function formatRelativeShort(iso: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.round(hours / 24);
   if (days < 7) return `${days}d ago`;
-  try {
-    return new Date(t).toLocaleDateString();
-  } catch {
-    return iso.slice(0, 10);
-  }
+  return formatUserDate(new Date(t));
 }
 
 // ============================================================================

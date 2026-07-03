@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 import type { ReviewerComment, ReviewerCommentsResponse } from "../lib/evidence-library-types";
 
 export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
@@ -94,7 +95,7 @@ export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
             <div key={item.id} className="evidence-library-note-card">
               <strong>{item.author.displayName || item.author.email || "Reviewer"}</strong>
               <p className="evidence-library-muted">
-                {new Date(item.createdAt).toLocaleString()} {item.edited ? "• Edited" : ""}
+                {formatUserDateTime(item.createdAt)} {item.edited ? "• Edited" : ""}
               </p>
               {editingId === item.id ? (
                 <>

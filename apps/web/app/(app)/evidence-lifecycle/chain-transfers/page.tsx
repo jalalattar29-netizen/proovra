@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../lib/api";
+import { formatUserDate } from "../../../../lib/date";
 import { LifecycleSectionBoundary } from "../_shared";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
@@ -72,7 +73,7 @@ export default function ChainTransfersPage() {
 function safeDate(input: string | null | undefined): string {
   if (!input) return "—";
   const d = new Date(input);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
+  return Number.isNaN(d.getTime()) ? "—" : formatUserDate(input);
 }
 
 function Shell() {

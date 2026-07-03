@@ -29,6 +29,7 @@ import { useCan, useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
 import { classifyInvestigationEmptyState } from "../../../../lib/empty-state/classifier";
+import { formatUserDate, formatUserTime } from "../../../../lib/date";
 // =============================================================================
 // Types — mirror the /v1/graph/timeline projection
 // =============================================================================
@@ -473,12 +474,7 @@ function formatDayLabel(day: string): string {
   try {
     const d = new Date(`${day}T00:00:00.000Z`);
     if (Number.isNaN(d.getTime())) return day;
-    return d.toLocaleDateString(undefined, {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+    return formatUserDate(`${day}T00:00:00.000Z`);
   } catch {
     return day;
   }
@@ -488,11 +484,7 @@ function formatTime(iso: string): string {
   try {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
+    return formatUserTime(iso);
   } catch {
     return iso;
   }

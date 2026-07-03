@@ -39,6 +39,7 @@ import {
   getCrossEvidenceFindings,
   type CrossEvidenceFinding,
 } from "../../../lib/api/intelligence";
+import { formatUserDateTime } from "../../../lib/date";
 // =============================================================================
 // Types
 // =============================================================================
@@ -1001,7 +1002,7 @@ function formatTimestamp(iso: string): string {
   try {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString();
+    return formatUserDateTime(iso);
   } catch {
     return iso;
   }

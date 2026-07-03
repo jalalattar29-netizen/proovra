@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../lib/api";
+import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import { LifecycleSectionBoundary } from "../_shared";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
@@ -95,7 +96,7 @@ export default function WebhooksPage() {
 function safeDate(input: string | null | undefined): string {
   if (!input) return "—";
   const d = new Date(input);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
+  return Number.isNaN(d.getTime()) ? "—" : formatUserDate(input);
 }
 
 function Shell() {
@@ -437,10 +438,10 @@ function Shell() {
                   <td style={td}>{d.responseStatus ?? "—"}</td>
                   <td style={td}>
                     {d.nextAttemptAtUtc
-                      ? new Date(d.nextAttemptAtUtc).toLocaleString()
+                      ? formatUserDateTime(d.nextAttemptAtUtc)
                       : "—"}
                   </td>
-                  <td style={td}>{new Date(d.enqueuedAtUtc).toLocaleString()}</td>
+                  <td style={td}>{formatUserDateTime(d.enqueuedAtUtc)}</td>
                   <td style={td}>
                     <button
                       type="button"

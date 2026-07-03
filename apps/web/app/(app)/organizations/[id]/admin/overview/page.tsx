@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
+import { formatUserDate, formatUtcAuditDateTime } from "../../../../../../lib/date";
 
 type OrgRole =
   | "ORG_OWNER"
@@ -161,7 +162,7 @@ function Overview() {
           primary={org.kind === "ready" ? org.data.status : loadingOrError(org)}
           secondary={
             org.kind === "ready"
-              ? `Created ${new Date(org.data.createdAt).toLocaleDateString()}`
+              ? `Created ${formatUserDate(org.data.createdAt)}`
               : null
           }
         />
@@ -244,7 +245,7 @@ function Overview() {
           }
           secondary={
             lastAudit
-              ? `Latest ${lastAudit.eventType} · ${new Date(lastAudit.createdAt).toLocaleString()}`
+              ? `Latest ${lastAudit.eventType} · ${formatUtcAuditDateTime(lastAudit.createdAt)}`
               : audit.kind === "ready"
                 ? "No events yet."
                 : audit.kind === "error" && audit.status === 403

@@ -67,6 +67,7 @@ import {
   isPreferenceEnabled,
   type NotificationPreferenceType,
 } from "../services/notifications/notification-preferences.service.js";
+import { formatTimestampForReportUtc } from "@proovra/shared";
 
 /**
  * Phase IA-enterprise — server-driven filter enum. Every chip the
@@ -1450,9 +1451,9 @@ export async function meInboxRoutes(app: FastifyInstance) {
           category: "org_invite",
           tone: "high",
           title: `Organization invite waiting: ${inv.organization.name}`,
-          body: `You have been invited to join ${inv.organization.name} as ${inv.role}. Accept before ${new Date(
+          body: `You have been invited to join ${inv.organization.name} as ${inv.role}. Accept before ${formatTimestampForReportUtc(
             inv.expiresAt,
-          ).toLocaleDateString()}.`,
+          )}.`,
           href: "/organizations",
           occurredAt: inv.createdAt.toISOString(),
           context: {
@@ -2020,7 +2021,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
           category: "intake_link_expiring",
           tone: "info",
           title: `Intake link expiring soon — ${teamName}`,
-          body: `An active intake link${useFraction} expires on ${link.expiresAtUtc.toLocaleDateString()}. Open intake links to renew or revoke.`,
+          body: `An active intake link${useFraction} expires on ${formatTimestampForReportUtc(link.expiresAtUtc)}. Open intake links to renew or revoke.`,
           href: `/intake-links?linkId=${encodeURIComponent(link.id)}`,
           occurredAt: link.updatedAt.toISOString(),
           dueAt: link.expiresAtUtc.toISOString(),

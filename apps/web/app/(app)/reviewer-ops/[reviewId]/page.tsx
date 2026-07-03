@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 // Phase G3.2 — Presence + collision wiring for the reviewer
@@ -1375,7 +1376,7 @@ function ReviewerNotesPanel({
                     </span>
                   </div>
                   <time dateTime={n.createdAt} style={{ opacity: 0.75 }}>
-                    {new Date(n.createdAt).toLocaleString()}
+                    {formatUserDateTime(n.createdAt)}
                   </time>
                 </div>
                 <div
@@ -1410,7 +1411,7 @@ function ReviewerNotesPanel({
                       opacity: 0.7,
                     }}
                   >
-                    Resolved {new Date(n.resolvedAt).toLocaleString()}
+                    Resolved {formatUserDateTime(n.resolvedAt)}
                   </div>
                 ) : null}
               </li>
@@ -2079,7 +2080,7 @@ function ReviewerDecisionLineagePanel({
                     </span>
                   </div>
                   <time dateTime={d.decidedAt} style={{ opacity: 0.75 }}>
-                    {new Date(d.decidedAt).toLocaleString()}
+                    {formatUserDateTime(d.decidedAt)}
                   </time>
                 </div>
                 <div

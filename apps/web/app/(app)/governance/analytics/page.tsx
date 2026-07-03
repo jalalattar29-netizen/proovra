@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
@@ -115,7 +116,7 @@ function GovernanceAnalyticsPageInner() {
 
   const generatedLabel = useMemo(() => {
     if (!data) return "—";
-    return new Date(data.generatedAtUtc).toLocaleString();
+    return formatUserDateTime(data.generatedAtUtc);
   }, [data]);
 
   return (
@@ -261,11 +262,11 @@ function GovernanceAnalyticsPageInner() {
                         <span style={runStatusBadge(r.status)}>{r.status}</span>
                       </td>
                       <td style={tdStyle}>
-                        {new Date(r.startedAtUtc).toLocaleString()}
+                        {formatUserDateTime(r.startedAtUtc)}
                       </td>
                       <td style={tdStyle}>
                         {r.finishedAtUtc
-                          ? new Date(r.finishedAtUtc).toLocaleString()
+                          ? formatUserDateTime(r.finishedAtUtc)
                           : "—"}
                       </td>
                       <td style={tdStyle}>{r.scanned}</td>

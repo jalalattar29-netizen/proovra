@@ -10,6 +10,7 @@ import type { SubprocessorProjection } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../../lib/api";
+import { formatUserDate } from "../../../../../lib/date";
 
 export default function SubprocessorsPage() {
   return (
@@ -201,7 +202,7 @@ function Shell() {
                   </td>
                   <td style={td}><strong>{r.state}</strong></td>
                   <td style={td}>v{r.version}</td>
-                  <td style={td}>{new Date(r.effectiveAtUtc).toLocaleDateString()}</td>
+                  <td style={td}>{formatUserDate(r.effectiveAtUtc)}</td>
                   <td style={td}>
                     {r.documentationUrl ? (
                       <a href={r.documentationUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11 }}>

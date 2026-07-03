@@ -16,6 +16,7 @@ import {
   getReviewerEvidenceTypeLabel,
   hasCaptureLocationMetadata,
   isCompleteOtsAnchor,
+  formatTimestampForReportUtc,
 } from "@proovra/shared";
 import type { CanonicalEvidenceMaterials } from "@proovra/shared";
 import type {
@@ -333,8 +334,8 @@ function buildExecutiveRows(
   // "intake vs submission" wording is on the Capture Context panel, which uses
   // getCaptureContextTimestampLabel. Keep this key stable for the lookup.
   const isIntake = acquisition?.isIntake === true;
-  add("Recorded at intake (server UTC)", safe(evidence.capturedAtUtc));
-  add("Signed (server UTC)", safe(evidence.signedAtUtc));
+  add("Recorded at intake (server UTC)", formatReportTimestamp(evidence.capturedAtUtc));
+  add("Signed (server UTC)", formatReportTimestamp(evidence.signedAtUtc));
   // Role modeling: for remote intake, the authenticated workspace account is
   // the requester/link-creator — NOT the person who captured the evidence.
   // Never imply the workspace owner submitted it; show a contributor role.
@@ -352,22 +353,18 @@ function buildExecutiveRows(
   add("Organization / Workspace", buildOrganizationDisplay(evidence));
   add(
     "Integrity Verified At (UTC)",
-    safe(canonicalMaterials.evidenceRecord.recordedIntegrityVerifiedAtUtc)
+    formatReportTimestamp(canonicalMaterials.evidenceRecord.recordedIntegrityVerifiedAtUtc)
   );
 
   return rows;
 }
 
+// PROOVRA Global Timestamp Display Policy — the PDF report renders every
+// visible system timestamp in UTC only ("03 Jul 2026, 00:48:42 UTC"), never
+// the viewer timezone / GMT+X / raw ISO. Single shared helper; the report is
+// legally stable and viewer-independent.
 function formatReportTimestamp(value: string | null | undefined): string {
-  const raw = safe(value, "");
-  if (!raw) return "Not recorded";
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) {
-    return raw;
-  }
-
-  return parsed.toISOString().replace(".000Z", " UTC").replace("T", " ");
+  return formatTimestampForReportUtc(value);
 }
 
 async function writeCaptureContextDebugArtifact(
@@ -525,7 +522,7 @@ function buildVerificationSummaryRows(
       bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
     })
   );
-  add("Last Verified At (UTC)", safe(evidence.lastVerifiedAtUtc));
+  add("Last Verified At (UTC)", formatReportTimestamp(evidence.lastVerifiedAtUtc));
   add(
     "Last Verified Source",
     mapVerificationSourceLabel(evidence.lastVerifiedSource)
@@ -540,7 +537,7 @@ function buildVerificationSummaryRows(
     "Retention Until (UTC)",
     safe(canonicalMaterials.storageState.storageObjectLockRetainUntilUtc)
   );
-  add("Report Generated At (UTC)", safe(evidence.reportGeneratedAtUtc));
+  add("Report Generated At (UTC)", formatReportTimestamp(evidence.reportGeneratedAtUtc));
   add("Evidence Structure", structureLabel);
   add("Previewable Items", String(contentSummary.previewableItemCount));
   add("Downloadable Items", String(contentSummary.downloadableItemCount));
@@ -781,15 +778,9 @@ function buildStorageRows(
     },
     {
       label: "Protected from modification until",
-      value: canonicalMaterials.storageState.storageObjectLockRetainUntilUtc
-        ? `${new Date(
-            canonicalMaterials.storageState.storageObjectLockRetainUntilUtc
-          ).toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })} (${canonicalMaterials.storageState.storageObjectLockRetainUntilUtc})`
-        : "Not recorded",
+      value: formatReportTimestamp(
+        canonicalMaterials.storageState.storageObjectLockRetainUntilUtc,
+      ),
     },
     {
       label: "Legal Hold",
@@ -810,7 +801,7 @@ function buildStorageRows(
       value: safe(evidence.tsaUrl),
     },
     { label: "RFC 3161 Serial", value: safe(evidence.tsaSerialNumber) },
-    { label: "RFC 3161 Time (UTC)", value: safe(evidence.tsaGenTimeUtc) },
+    { label: "RFC 3161 Time (UTC)", value: formatReportTimestamp(evidence.tsaGenTimeUtc) },
     {
       label: "RFC 3161 Hash Algorithm",
       value: safe(evidence.tsaHashAlgorithm),
@@ -864,7 +855,7 @@ function buildStorageRows(
       },
       {
         label: "Anchor Anchored At (UTC)",
-        value: safe(anchorSummary.anchoredAtUtc),
+        value: formatReportTimestamp(anchorSummary.anchoredAtUtc),
       },
       {
         label: "Anchor Public URL",
@@ -898,7 +889,7 @@ function buildCustodyHashRows(
 
       return {
         sequence,
-        atUtc: safe(event.atUtc),
+        atUtc: formatReportTimestamp(event.atUtc),
         // Flow-aware display label only — event hashes / chain are untouched.
         // Intake identity-snapshot is relabeled to the link creator (owner),
         // never implying the remote contributor.

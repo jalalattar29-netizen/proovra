@@ -36,6 +36,7 @@ import {
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
+import { formatUserDateTime } from "../../../../lib/date";
 
 import { CodingPanel } from "../../../../components/reviewer-workspace/CodingPanel";
 import { useReviewerHotkeys } from "../../../../lib/reviewer-workspace/reviewer-hotkeys";
@@ -1728,7 +1729,7 @@ function DisagreeForm({
                 d.reviewer.userId.slice(0, 8) + "…";
               const when = (() => {
                 try {
-                  return new Date(d.decidedAt).toLocaleString();
+                  return formatUserDateTime(d.decidedAt);
                 } catch {
                   return d.decidedAt;
                 }

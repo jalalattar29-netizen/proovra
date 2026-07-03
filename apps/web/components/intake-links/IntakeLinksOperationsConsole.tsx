@@ -59,6 +59,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { apiFetch } from "../../lib/api";
+import { formatUserDate, formatUserDateTime } from "../../lib/date";
 import {
   type IntakeTab,
   computeIntakeKpis,
@@ -173,19 +174,12 @@ function describeRelativeTime(iso: string | null): string {
   if (h < 24) return `${h}h ago`;
   const d = Math.round(h / 24);
   if (d < 30) return `${d}d ago`;
-  return new Date(iso).toLocaleDateString();
+  return formatUserDate(iso);
 }
 
 function describeAbsoluteDate(iso: string | null): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatUserDateTime(iso);
 }
 
 // isExpiringSoon was retired with the dropped "Expiring soon" tab.
@@ -1194,7 +1188,7 @@ function ExpiresCell({ expiresAtUtc }: { expiresAtUtc: string }) {
         color: expired ? "#991b1b" : soon ? "#92400e" : "#1f2937",
         fontWeight: soon || expired ? 600 : 400,
       }}
-      title={new Date(expiresAtUtc).toLocaleString()}
+      title={formatUserDateTime(expiresAtUtc)}
       data-intake-links-row-expires
     >
       {expired ? label : `in ${label}`}

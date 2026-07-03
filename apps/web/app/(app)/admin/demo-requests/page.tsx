@@ -14,6 +14,7 @@ import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import { dashboardStyles } from "../../../../components/dashboard/styles";
 import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 
 type DemoStatus =
   | "NEW"
@@ -156,7 +157,7 @@ function formatTimestamp(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  return formatUserDateTime(value);
 }
 
 function prettyJson(value: unknown) {

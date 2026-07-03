@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDate } from "../../../../lib/date";
 import { usePlatformContext, useTeamId } from "../../../../lib/platform-context";
 // Closure verification Part C — Phase 13 review operations queue is a
 // high-trust reviewer surface (REVIEWER_OPS_VIEW, ORGANIZATION_ONLY).
@@ -388,7 +389,7 @@ useEffect(() => {
                           ? ` · assigned ${w.assignedToUserId.slice(0, 8)}…`
                           : " · unassigned"}
                         {w.dueAt
-                          ? ` · due ${new Date(w.dueAt).toLocaleDateString()}`
+                          ? ` · due ${formatUserDate(w.dueAt)}`
                           : ""}
                         {w.escalationLevel > 0
                           ? ` · esc L${w.escalationLevel}`

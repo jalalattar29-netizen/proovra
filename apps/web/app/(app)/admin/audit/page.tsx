@@ -7,6 +7,7 @@ import { useToast } from "../../../../components/ui";
 import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import { dashboardStyles } from "../../../../components/dashboard/styles";
 import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
+import { formatUtcAuditDateTime } from "../../../../lib/date";
 
 type AuditRow = {
   id: string;
@@ -34,7 +35,7 @@ type VerifyState =
 function formatTimestamp(value: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString();
+  return formatUtcAuditDateTime(value);
 }
 
 function prettyMetadataJson(metadata: unknown): string {

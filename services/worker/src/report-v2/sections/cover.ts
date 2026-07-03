@@ -8,6 +8,7 @@ import {
   getTrustDecisionLabel,
   getTrustNarrative,
   getTrustDecisionPresentationTone,
+  formatTimestampForReportUtc,
 } from "@proovra/shared";
 const coverBrandIconUrl = reportAssetDataUrl("icon-192.png");
 const coverHeaderLockupUrl = reportAssetDataUrl("report-header.png");
@@ -371,7 +372,7 @@ tone:
 
             <div class="cover-meta-card">
               <div class="cover-meta-label">Generated UTC</div>
-              <div class="cover-meta-value">${escapeHtml(vm.generatedAtUtc)}</div>
+              <div class="cover-meta-value">${escapeHtml(formatTimestampForReportUtc(vm.generatedAtUtc))}</div>
             </div>
 
             <div class="cover-meta-card">

@@ -6,6 +6,7 @@ import type { CrossOrgReviewGrantProjection } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDate } from "../../../../lib/date";
 
 export default function CrossOrgPage() {
   return (
@@ -115,7 +116,7 @@ function Shell() {
                   <td style={td}>
                     {g.externalReviewGrantId ? <code>{g.externalReviewGrantId.slice(0, 8)}…</code> : "—"}
                   </td>
-                  <td style={td}>{g.expiresAtUtc ? new Date(g.expiresAtUtc).toLocaleDateString() : "—"}</td>
+                  <td style={td}>{g.expiresAtUtc ? formatUserDate(g.expiresAtUtc) : "—"}</td>
                   <td style={td}>
                     {g.state === "INVITED" ? (
                       <button type="button" data-cross-org-decline={g.id} onClick={() => void decline(g.id)} style={secondaryButton}>Decline</button>

@@ -24,6 +24,7 @@ import {
   useMicrophonePermissions
 } from "expo-camera";
 import { ensureFileUri, uploadWithPut } from "../../src/upload-utils";
+import { formatUserDateTime } from "../../src/lib/date";
 // Phase 1B Closure — mobile trust runtime. captureWithTrust registers the
 // device, signs the asset with the device key, queues the trust envelope
 // (offline-safe), and emits the bounded outcome the chip strip renders.
@@ -874,7 +875,7 @@ setSessionState(
               <ListRow
                 key={item.id}
                 title={item.type}
-                subtitle={new Date(item.createdAt).toLocaleString()}
+                subtitle={formatUserDateTime(item.createdAt)}
                 badge={
                   item.status === "SIGNED" ? (
                     <Badge tone="signed" label={t("statusSigned")} />

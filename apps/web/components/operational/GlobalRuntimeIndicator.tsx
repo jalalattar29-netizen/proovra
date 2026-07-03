@@ -48,6 +48,7 @@ import {
   type GlobalRuntimeSeverity,
 } from "../../lib/useGlobalRuntimeState";
 import { useCan } from "../../lib/platform-context";
+import { formatUserTime } from "../../lib/date";
 import { OPS_INK, OPS_SURFACE, OPS_TONES } from "./tokens";
 
 export type GlobalRuntimeIndicatorProps = {
@@ -335,7 +336,7 @@ function DropdownHeader({
         </strong>
         <span style={{ fontSize: 11, color: OPS_INK.muted }}>
           {state.refreshedAtUtc
-            ? `Last refresh: ${new Date(state.refreshedAtUtc).toLocaleTimeString()}`
+            ? `Last refresh: ${formatUserTime(state.refreshedAtUtc)}`
             : "Loading runtime state…"}
         </span>
       </div>

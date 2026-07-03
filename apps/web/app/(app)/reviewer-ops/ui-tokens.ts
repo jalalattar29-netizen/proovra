@@ -8,6 +8,8 @@
 
 import type { CSSProperties } from "react";
 
+import { formatUserDateTime } from "../../../lib/date";
+
 export const TOKENS = {
   bgPage: "#f8fafc",
   surface: "#ffffff",
@@ -329,7 +331,7 @@ export function formatRelative(iso: string | null): string {
 export function formatDateTime(iso: string | null): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleString();
+    return formatUserDateTime(iso);
   } catch {
     return iso;
   }

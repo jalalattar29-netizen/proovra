@@ -17,6 +17,7 @@
 import { useMemo, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { formatUserTime } from "../../lib/date";
 import type { ReviewerAnnotationSummary } from "../../lib/reviewer-workspace/annotation-types";
 
 export type AnnotationPanelProps = {
@@ -245,7 +246,7 @@ export function AnnotationPanel({
                 {t.replies.map((r) => (
                   <div key={r.id} data-annotation-reply={r.id}>
                     <small style={{ color: "#64748b" }}>
-                      {new Date(r.createdAt).toLocaleTimeString()}
+                      {formatUserTime(r.createdAt)}
                     </small>{" "}
                     {r.body}
                   </div>

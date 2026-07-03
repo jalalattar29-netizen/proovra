@@ -18,6 +18,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { formatUserDateTime } from "../../../lib/date";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 
@@ -316,7 +317,7 @@ function CommunicationsPageInner() {
                         {m.attemptCount === 1 ? "" : "s"}
                         {m.errorCode ? ` · err ${m.errorCode}` : ""}
                         {m.nextAttemptAtUtc
-                          ? ` · next ${new Date(m.nextAttemptAtUtc).toLocaleString()}`
+                          ? ` · next ${formatUserDateTime(m.nextAttemptAtUtc)}`
                           : ""}
                       </div>
                       {m.bodyPreview ? (

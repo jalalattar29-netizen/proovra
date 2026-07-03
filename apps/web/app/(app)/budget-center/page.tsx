@@ -21,6 +21,7 @@ import {
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../lib/api";
+import { formatUserDateTime } from "../../../lib/date";
 
 export default function BudgetCenterPage() {
   return (
@@ -218,7 +219,7 @@ function BreachTable({ rows }: { rows: ReadonlyArray<BudgetBreachRow> }) {
       <tbody>
         {rows.map((r) => (
           <tr key={r.id} data-budget-breach-row={r.id} data-threshold={r.threshold}>
-            <td style={td}>{new Date(r.occurredAtUtc).toLocaleString()}</td>
+            <td style={td}>{formatUserDateTime(r.occurredAtUtc)}</td>
             <td style={td}>
               <strong style={{ color: r.threshold === "HARD" ? "#b91c1c" : "#a16207" }}>
                 {r.threshold}

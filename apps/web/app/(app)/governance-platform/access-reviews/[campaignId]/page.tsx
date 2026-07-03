@@ -27,6 +27,7 @@ import type {
 
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../lib/api";
+import { formatUserDateTime } from "../../../../../lib/date";
 
 type DenialState = {
   denial: string;
@@ -203,7 +204,7 @@ function Shell() {
                   </td>
                   <td style={td}>
                     {item.reviewedAtUtc
-                      ? new Date(item.reviewedAtUtc).toLocaleString()
+                      ? formatUserDateTime(item.reviewedAtUtc)
                       : "—"}
                   </td>
                   <td style={td}>

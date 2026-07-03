@@ -35,6 +35,7 @@ import {
   usePlatformContext,
 } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { formatUserDateTime } from "../../../../lib/date";
 
 type AutomationRule = {
   id: string;
@@ -288,7 +289,7 @@ function AutomationPageInner(): JSX.Element {
                     {r.enabled ? "Yes" : "No"}
                   </td>
                   <td style={{ color: "#64748b", fontSize: 12 }}>
-                    {new Date(r.updatedAt).toLocaleString()}
+                    {formatUserDateTime(r.updatedAt)}
                   </td>
                 </tr>
               ))}
@@ -332,7 +333,7 @@ function AutomationPageInner(): JSX.Element {
               {runs.map((r) => (
                 <tr key={r.id} data-automation-run-id={r.id}>
                   <td style={{ color: "#64748b", fontSize: 12 }}>
-                    {new Date(r.createdAt).toLocaleString()}
+                    {formatUserDateTime(r.createdAt)}
                   </td>
                   <td>
                     <code style={{ fontSize: 12 }}>{r.triggerType}</code>

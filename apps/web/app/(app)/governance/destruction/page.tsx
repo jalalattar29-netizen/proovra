@@ -24,6 +24,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
@@ -327,7 +328,7 @@ function DestructionQueuePageInner() {
                   <td style={tdStyle}>
                     <div style={monoStyle}>{r.id.slice(0, 8)}…</div>
                     <div style={mutedStyle}>
-                      {new Date(r.createdAt).toLocaleString()}
+                      {formatUserDateTime(r.createdAt)}
                     </div>
                   </td>
                   <td style={tdStyle}>
@@ -346,7 +347,7 @@ function DestructionQueuePageInner() {
                     </span>
                     {r.deferredUntilUtc ? (
                       <div style={mutedStyle}>
-                        Until {new Date(r.deferredUntilUtc).toLocaleString()}
+                        Until {formatUserDateTime(r.deferredUntilUtc)}
                       </div>
                     ) : null}
                   </td>
@@ -358,7 +359,7 @@ function DestructionQueuePageInner() {
                     )}
                     {r.decidedAtUtc ? (
                       <div style={mutedStyle}>
-                        {new Date(r.decidedAtUtc).toLocaleString()}
+                        {formatUserDateTime(r.decidedAtUtc)}
                       </div>
                     ) : null}
                     {r.certificateHash ? (
@@ -548,7 +549,7 @@ function TimelineModal({
                     <span style={transitionTextStyle}>{e.toState}</span>
                   )}
                   <span style={mutedStyle}>
-                    {new Date(e.createdAt).toLocaleString()}
+                    {formatUserDateTime(e.createdAt)}
                   </span>
                 </div>
                 <div style={{ fontSize: 13, marginTop: 4 }}>{e.summary}</div>

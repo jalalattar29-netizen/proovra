@@ -6,6 +6,7 @@ import { useToast } from "../src/toast-context";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../src/api";
+import { formatUserTime } from "../src/lib/date";
 
 export default function VerifyScreen() {
   const { t, fontFamilyBold, isRTL } = useLocale();
@@ -38,7 +39,7 @@ export default function VerifyScreen() {
         setTimeline(
           (data.custodyEvents ?? []).map(
             (ev: { eventType: string; atUtc: string }) =>
-              `${ev.eventType} ${new Date(ev.atUtc).toLocaleTimeString()}`
+              `${ev.eventType} ${formatUserTime(ev.atUtc)}`
           )
         );
         setReportUrl(data.publicUrl ?? null);

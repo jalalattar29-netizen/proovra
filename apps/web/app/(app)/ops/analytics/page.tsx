@@ -29,6 +29,7 @@ import {
   useActiveSpaceId,
 } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 
 // ---------------------------------------------------------------------------
 // Envelope types — mirror services/api/src/services/analytics/analytics.service.ts
@@ -377,8 +378,8 @@ function AnalyticsPageInner(): JSX.Element {
               data-analytics-window-active
               style={{ fontSize: 11, color: "#94a3b8" }}
             >
-              {new Date(headerWindow.start).toISOString().slice(0, 10)} →{" "}
-              {new Date(headerWindow.end).toISOString().slice(0, 10)}
+              {formatUserDate(headerWindow.start)} →{" "}
+              {formatUserDate(headerWindow.end)}
             </span>
           ) : null}
         </div>
@@ -710,7 +711,7 @@ function AnalyticsPageInner(): JSX.Element {
       >
         Generated at{" "}
         {state.data.operations?.generatedAt
-          ? new Date(state.data.operations.generatedAt).toISOString()
+          ? formatUserDateTime(state.data.operations.generatedAt)
           : "unknown"}{" "}
         · Hover any "source: …" badge to see the table + filter used.
       </footer>
