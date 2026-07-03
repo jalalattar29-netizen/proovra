@@ -701,6 +701,80 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     expect(html).not.toContain("Link creator identity recorded");
   });
 
+  describe("Executive Summary LEAD ITEM — always ONE canonical lead item", () => {
+    function multipartInput(primaryCount: number, opts?: { anyPrimary?: boolean }) {
+      const base = buildInput();
+      const proto = base.evidence.contentItems[0];
+      const total = Math.max(primaryCount, opts?.anyPrimary === false ? 2 : primaryCount);
+      const items = Array.from({ length: total }, (_, i) => ({
+        ...proto,
+        id: `item-${i}`,
+        index: i,
+        originalFileName: `primary-${i}.jpg`,
+        label: `Item ${i}`,
+        kind: "image",
+        artifactRole:
+          opts?.anyPrimary === false
+            ? "supporting_evidence"
+            : i < primaryCount
+              ? "primary_evidence"
+              : "supporting_evidence",
+      }));
+      const firstPrimary =
+        opts?.anyPrimary === false ? null : items.find((x) => x.artifactRole === "primary_evidence") ?? null;
+      return buildInput({
+        evidence: {
+          ...base.evidence,
+          contentItems: items,
+          primaryContentItem: firstPrimary,
+          contentSummary: {
+            ...base.evidence.contentSummary,
+            structure: "multipart",
+            itemCount: total,
+            imageCount: total,
+            textCount: 0,
+            primaryKind: "image",
+          },
+        },
+      });
+    }
+    function leadItemValue(html: string): string {
+      const m = html.match(
+        /kv-label">Lead Item<\/div>\s*<div class="kv-value">([\s\S]*?)<\/div>/,
+      );
+      return m ? m[1] : "(lead item not found)";
+    }
+
+    it("A. multipart with 2 primary items → LEAD ITEM shows only the first filename (never the second); gallery keeps both", async () => {
+      const html = renderReportHtml(await buildReportViewModel(multipartInput(2)));
+      const lead = leadItemValue(html);
+      expect(lead).toContain("primary-0.jpg");
+      expect(lead).not.toContain("primary-1.jpg");
+      expect(lead).toContain("Primary evidence set: 2 items");
+      // The second primary filename is NOT removed from the report — it still
+      // appears elsewhere (gallery / inventory), just not in the LEAD ITEM.
+      expect(html).toContain("primary-1.jpg");
+    });
+
+    it("B. multipart with 1 primary item → LEAD ITEM shows that one item", async () => {
+      const lead = leadItemValue(
+        renderReportHtml(await buildReportViewModel(multipartInput(1))),
+      );
+      expect(lead).toContain("primary-0.jpg");
+      expect(lead).not.toContain("Primary evidence set:");
+    });
+
+    it("C. multipart with NO explicit primary → falls back to lead/default item, single value", async () => {
+      const lead = leadItemValue(
+        renderReportHtml(
+          await buildReportViewModel(multipartInput(0, { anyPrimary: false })),
+        ),
+      );
+      expect(lead).not.toContain("Primary evidence set:");
+      expect(lead.length).toBeGreaterThan(0);
+    });
+  });
+
   it("report CSS gives the unified grid accent labels + break protection", () => {
     const css = readFileSync(
       fileURLToPath(

@@ -326,6 +326,22 @@ function buildExecutiveRows(
         ? mapEvidenceAssetKindLabel(primaryContentItem.kind)
         : null
   );
+  // The Executive Summary is a DOCUMENT SUMMARY: its LEAD ITEM field must show
+  // exactly ONE canonical lead item, never the full list of primary filenames
+  // (that list stays in "Primary Evidence Coverage" and the Evidence Gallery).
+  // Multiple-primary support and role/gallery mapping are UNCHANGED — this is a
+  // compact single-item presentation label only. First primary is the canonical
+  // lead when several are marked primary.
+  if (multipleExplicitPrimary) {
+    add(
+      "Executive Lead Item",
+      safe(
+        explicitPrimaryItems[0]?.originalFileName ||
+          explicitPrimaryItems[0]?.label,
+      ),
+    );
+    add("Executive Primary Set Size", String(explicitPrimaryItems.length));
+  }
   add("Total Content Size", safe(contentSummary.totalSizeDisplay));
   // Issue #6: be precise about timestamp provenance. capturedAtUtc / signedAtUtc
   // are SERVER clocks recorded at intake / signing — not device-witnessed times.

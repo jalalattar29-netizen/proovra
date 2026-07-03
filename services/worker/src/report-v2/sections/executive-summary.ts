@@ -112,6 +112,37 @@ function findRowValue(
 }
 
 /**
+ * The Executive Summary LEAD ITEM is a DOCUMENT SUMMARY field: it always
+ * displays exactly ONE canonical lead item, regardless of how many items are
+ * marked primary. This applies to every report path (web / mobile / secure
+ * capture / intake). Multiple-primary support, roles, and the Evidence Gallery
+ * are unchanged — this only controls the compact summary label.
+ *
+ *   - Multiple explicit primary items → the FIRST primary's filename (never the
+ *     full list), with an optional "Primary evidence set: N items" note line.
+ *   - Single primary item → "<filename> • <kind>" (unchanged).
+ *   - No explicit primary → existing lead/default fallback (unchanged).
+ */
+function formatExecutiveLeadItem(vm: ReportViewModel): string {
+  // Multiple-primary case: build-view-model emits a single canonical lead.
+  const execLead = findRowValue(vm.executiveRows, "Executive Lead Item", "");
+  if (execLead) {
+    const size = findRowValue(vm.executiveRows, "Executive Primary Set Size", "");
+    const count = Number(size);
+    return count > 1
+      ? `${execLead}\nPrimary evidence set: ${count} items`
+      : execLead;
+  }
+
+  // Single / fallback case — unchanged behavior ("<filename> • <kind>").
+  const leadItemName = findRowValue(vm.executiveRows, "Lead Review Item", "");
+  const leadItemType = findRowValue(vm.executiveRows, "Lead Item Type", "");
+  return leadItemName && leadItemType
+    ? `${leadItemName} • ${leadItemType}`
+    : leadItemName || leadItemType || "Not recorded";
+}
+
+/**
  * Compact Evidence Acquisition table — how the evidence reached PROOVRA.
  * Lives INSIDE the Executive Summary (near Capture Context), NOT a new page
  * or section. Public-safe: NO recipient value, NO provider IDs. Only
@@ -287,18 +318,7 @@ function renderCourtReviewIndexPage(vm: ReportViewModel): string {
 }
 
 export function renderExecutiveSummarySection(vm: ReportViewModel): string {
-  const leadItemType =
-    findRowValue(vm.executiveRows, "Lead Item Type", "") ||
-    findRowValue(vm.executiveRows, "Primary Evidence Coverage", "");
-
-  const leadItemName =
-    findRowValue(vm.executiveRows, "Lead Review Item", "") ||
-    findRowValue(vm.executiveRows, "Primary Evidence Set", "");
-
-  const leadItemValue =
-    leadItemType && leadItemName
-      ? `${leadItemName} • ${leadItemType}`
-      : leadItemName || leadItemType || "Not recorded";
+  const leadItemValue = formatExecutiveLeadItem(vm);
       
   const executiveRows = [
     {

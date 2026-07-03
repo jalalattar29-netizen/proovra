@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "schema": "PROOVRA_TECHNICAL_INTAKE_DELIVERY",
   "evidenceId": "ev-intake-001",
-  "generatedAtUtc": "2026-07-03T02:28:43.307Z",
+  "generatedAtUtc": "2026-07-03T03:50:56.249Z",
   "source": "intake_link_delivery",
   "advisory": "Privacy-safe Evidence Acquisition context: how the contributor was reached and how the evidence entered PROOVRA. The recipient is masked (full phone/email is NEVER included); provider/message IDs are never included. Delivery/consent are reported only as recorded — never invented.",
   "acquisition": {
