@@ -256,6 +256,17 @@ export function intakeCustodyEventLabel(
 export const INTAKE_IDENTITY_SNAPSHOT_SUMMARY =
   "Identity of the intake link creator (workspace account) was recorded when the secure link was authorized. The remote contributor's identity is not independently verified.";
 
+/**
+ * Role-safe DISPLAY summary for the NON-intake (authenticated Capture / Web
+ * Upload / Mobile Capture) IDENTITY_SNAPSHOT_RECORDED event. The submitter is
+ * the authenticated workspace user themselves — NOT a remote contributor — so
+ * the intake "link creator / not independently verified" wording must never
+ * appear. This states the authenticated, OAuth-backed identity positively.
+ * Raw custody data is unchanged.
+ */
+export const CAPTURE_IDENTITY_SNAPSHOT_SUMMARY =
+  "Authenticated workspace user identity was recorded at submission. Submitted by an authenticated workspace user via an OAuth-backed account.";
+
 export function mapCustodyEventLabel(eventType: string | null | undefined): string {
   switch (safe(eventType, "").toUpperCase()) {
     case "EVIDENCE_CREATED":

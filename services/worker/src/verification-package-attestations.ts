@@ -87,9 +87,18 @@ export type AttestationsFile = {
   /** DEPRECATED alias of totalEventsCount (all custody+access events).
    *  Kept for backwards-compatibility; prefer the explicit counts below. */
   custodyEventsCount: number;
-  /** Forensic custody events only (excludes access/view/download activity).
-   *  This is the count shown in the PDF Chain of Custody. */
+  /** Forensic custody events only (excludes access/view/download activity),
+   *  counted from the LIVE query at package-generation time (see countsBasis).
+   *  The PDF Chain of Custody + custody.json use the report-time SNAPSHOT count,
+   *  surfaced here as `reportSnapshotForensicCustodyEventsCount` so the two are
+   *  explicitly reconciled and never silently disagree. */
   forensicCustodyEventsCount: number;
+  /** Forensic custody event count from the REPORT-TIME snapshot — the exact
+   *  count the PDF Chain of Custody + custody.json show. Equals
+   *  `forensicCustodyEventsCount` unless a forensic event was recorded between
+   *  report generation and package generation. Null only when the package
+   *  builder did not supply the snapshot count. */
+  reportSnapshotForensicCustodyEventsCount: number | null;
   /** Access/activity events (views, downloads) — NOT forensic custody. */
   accessActivityEventsCount: number;
   /** All custody events recorded for this evidence (forensic + access) —
@@ -180,6 +189,10 @@ export async function collectVerificationPackageAttestations(input: {
   teamId: string | null;
   evidenceId: string;
   packageId?: string | null;
+  /** Report-time forensic custody event count (the exact count in the PDF +
+   *  custody.json). Surfaced in attestations.json so the live and snapshot
+   *  counters are explicitly reconciled. */
+  reportSnapshotForensicCount?: number | null;
 }): Promise<AttestationFiles> {
   const tracer = trace.getTracer("proovra-worker");
   return tracer.startActiveSpan(
@@ -244,6 +257,7 @@ async function buildAttestationsJson(input: {
   teamId: string | null;
   evidenceId: string;
   packageId?: string | null;
+  reportSnapshotForensicCount?: number | null;
 }): Promise<AttestationsFile> {
   const generatedAtUtc = new Date().toISOString();
   // Custody events for this evidence — deterministic order by sequence.
@@ -443,7 +457,11 @@ async function buildAttestationsJson(input: {
 }
 
 function baseAttestationsFile(
-  input: { evidenceId: string; packageId?: string | null },
+  input: {
+    evidenceId: string;
+    packageId?: string | null;
+    reportSnapshotForensicCount?: number | null;
+  },
   generatedAtUtc: string,
   payload: {
     custodyEvents: Array<{ id: string; sequence: number; eventType?: string | null }>;
@@ -465,6 +483,8 @@ function baseAttestationsFile(
     packageId: input.packageId ?? null,
     custodyEventsCount: total,
     forensicCustodyEventsCount,
+    reportSnapshotForensicCustodyEventsCount:
+      input.reportSnapshotForensicCount ?? null,
     accessActivityEventsCount,
     totalEventsCount: total,
     snapshotGeneratedAtUtc: generatedAtUtc,

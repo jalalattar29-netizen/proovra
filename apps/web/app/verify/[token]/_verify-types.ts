@@ -340,7 +340,7 @@ export type VerifyTrustSignal = {
     | "core_integrity"
     | "signature"
     | "trusted_timestamp"
-    | "public_anchoring"
+    | "bitcoin_anchoring"
     | "immutable_storage"
     | "custody_chain"
     | "identity"

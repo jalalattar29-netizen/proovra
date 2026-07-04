@@ -38,7 +38,7 @@ function buildTrustDecision(status: "passed" | "partial" | "failed"): TrustDecis
     failedSignals: status === "failed" ? 1 : 0,
     signals: [
       {
-        key: "public_anchoring",
+        key: "bitcoin_anchoring",
         label: "Bitcoin anchoring",
         status,
         tone: status === "failed" ? "danger" : status === "passed" ? "success" : "warning",
@@ -52,7 +52,7 @@ function buildTrustDecision(status: "passed" | "partial" | "failed"): TrustDecis
 }
 
 describe("public verify consistency helpers", () => {
-  it("derives OTS snapshot state from the trust-decision public_anchoring signal", () => {
+  it("derives OTS snapshot state from the trust-decision bitcoin_anchoring signal", () => {
     expect(deriveSnapshotOtsStatus(buildTrustDecision("passed"))).toBe("ANCHORED");
     expect(deriveSnapshotOtsStatus(buildTrustDecision("partial"))).toBe("PENDING");
     expect(deriveSnapshotOtsStatus(buildTrustDecision("failed"))).toBe("FAILED");

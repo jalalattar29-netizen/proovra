@@ -309,7 +309,7 @@ const integrityBadgeText = decision.shortLabel;
                   "core_integrity",
                   "signature",
                   "trusted_timestamp",
-                  "public_anchoring",
+                  "bitcoin_anchoring",
                   "immutable_storage",
                 ].includes(signal.key)
               )

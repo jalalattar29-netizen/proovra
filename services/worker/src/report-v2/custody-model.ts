@@ -15,6 +15,7 @@ import {
   applyFlowAwareCustodyWording,
   intakeCustodyEventLabel,
   INTAKE_IDENTITY_SNAPSHOT_SUMMARY,
+  CAPTURE_IDENTITY_SNAPSHOT_SUMMARY,
 } from "./normalizers.js";
 
 const UNICODE_ELLIPSIS = String.fromCharCode(8230);
@@ -79,9 +80,32 @@ export function buildTimelineRows(
     // summary with a role-safe line. Presentation only; raw event/hash chain
     // untouched.
     const intakeLabel = intakeCustodyEventLabel(ev.eventType, isIntake);
-    const isIntakeIdentitySnapshot =
-      isIntake &&
+    const isIdentitySnapshot =
       safe(ev.eventType, "").toUpperCase() === "IDENTITY_SNAPSHOT_RECORDED";
+
+    // Flow-aware summary of the raw payload (event types + hashes unchanged).
+    const flowAwareSummary = applyFlowAwareCustodyWording(
+      sanitizeReviewerSummary(ev.payloadSummary),
+      isIntake,
+    );
+
+    // IDENTITY_SNAPSHOT_RECORDED gets a role-safe summary that never leaks the
+    // workspace owner's email. Intake → link-creator / not-independently-
+    // verified wording (fully REPLACES the owner-scoped raw summary).
+    // Authenticated Capture → the positive authenticated-workspace-user
+    // statement PREPENDED to the flow-aware raw summary (which carries no PII),
+    // so the record keeps its custody detail and never reads intake wording.
+    let summary: string;
+    if (isIdentitySnapshot) {
+      summary = isIntake
+        ? INTAKE_IDENTITY_SNAPSHOT_SUMMARY
+        : [CAPTURE_IDENTITY_SNAPSHOT_SUMMARY, flowAwareSummary]
+            .filter((s) => s && s.trim().length > 0)
+            .join(" ");
+    } else {
+      summary = flowAwareSummary;
+    }
+
     return {
       sequence: String(ev.sequence),
       atUtc: formatTimestampForReportUtc(ev.atUtc),
@@ -90,12 +114,7 @@ export function buildTimelineRows(
       eventLabel:
         intakeLabel ??
         applyFlowAwareCustodyWording(mapCustodyEventLabel(ev.eventType), isIntake),
-      summary: isIntakeIdentitySnapshot
-        ? INTAKE_IDENTITY_SNAPSHOT_SUMMARY
-        : applyFlowAwareCustodyWording(
-            sanitizeReviewerSummary(ev.payloadSummary),
-            isIntake,
-          ),
+      summary,
     };
   });
 }

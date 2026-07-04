@@ -117,7 +117,16 @@ export async function projectProvenanceChain(
   });
 
   // ----- Resolve capture-side mode, class, session, device, sig verdict --
-  let mode: CaptureMode = isIntakeEvidence ? "SECURE_INTAKE_LINK" : "BULK_IMPORT";
+  // Non-intake evidence must reflect its real acquisition channel, not the
+  // misleading BULK_IMPORT default. A capture-trust event may still override
+  // `mode` below (capture-v2 / mobile emit `payload.captureMode`); the value
+  // here is the honest fallback derived from the persisted uploadSource so a
+  // plain authenticated web upload reads PROOVRA_WEB_UPLOAD rather than
+  // BULK_IMPORT. BULK_IMPORT is emitted ONLY when the evidence genuinely lacks
+  // a capture-channel signal (true operator import / unknown).
+  let mode: CaptureMode = isIntakeEvidence
+    ? "SECURE_INTAKE_LINK"
+    : deriveNonIntakeCaptureMode(uploadSource);
   let provenanceClass: CaptureProvenanceClass = "C";
   let sessionId: string | null = null;
   let deviceId: string | null = null;
@@ -308,6 +317,26 @@ export async function projectProvenanceChain(
 
     limitations: STANDING_PROVENANCE_LIMITATIONS,
   };
+}
+
+/**
+ * Honest capture-mode fallback for NON-intake evidence, derived from the
+ * persisted `capture_environment.uploadSource`. Web upload → PROOVRA_WEB_UPLOAD
+ * (authenticated browser upload, no capture-side attestation); PROOVRA mobile
+ * app → OPERATOR_NATIVE; API/SDK → OPERATOR_SDK_EMBED. Only a genuinely absent
+ * / import channel falls through to BULK_IMPORT.
+ */
+function deriveNonIntakeCaptureMode(uploadSource: string): CaptureMode {
+  switch (uploadSource.toUpperCase()) {
+    case "WEB_APP":
+      return "PROOVRA_WEB_UPLOAD";
+    case "MOBILE_APP":
+      return "OPERATOR_NATIVE";
+    case "API":
+      return "OPERATOR_SDK_EMBED";
+    default:
+      return "BULK_IMPORT";
+  }
 }
 
 function emptyProjection(

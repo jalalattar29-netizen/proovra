@@ -2700,6 +2700,7 @@ evidenceStructure:
 const trustDecision = buildTrustDecision({
   evidence: reportEvidencePayload,
   custodyEvents: custodyEventsForReport,
+  isIntake: reportAcquisition?.isIntake === true,
 });
 
   // Phase 31.11 — bounded media intelligence projection. Never throws,
@@ -3260,6 +3261,7 @@ const effectiveReportEvidencePayload = {
         const finalizedTrustDecision = buildTrustDecision({
           evidence: effectiveReportEvidencePayload,
           custodyEvents: finalizedCustodyForReport,
+          isIntake: finalizedReportAcquisition?.isIntake === true,
         });
 
         // Phase 31.11 — bounded media intelligence projection for the

@@ -66,7 +66,7 @@ const SNAPSHOT_TRUST_DECISION = {
             detail: "RFC 3161 timestamp material is present.",
         },
         {
-            key: "public_anchoring",
+            key: "bitcoin_anchoring",
             label: "Bitcoin anchoring",
             status: "pending",
             tone: "warning",

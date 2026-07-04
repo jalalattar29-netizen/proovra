@@ -82,6 +82,7 @@ export const CAPTURE_MODES = [
   "OPERATOR_NATIVE", // Operator App, signed in
   "OPERATOR_SDK_EMBED", // Partner app via SDK
   "OPERATOR_WEB_CAPTURE", // Operator browser (capture-v2)
+  "PROOVRA_WEB_UPLOAD", // Authenticated workspace browser upload (no capture-side attestation)
   "CITIZEN_PWA", // Public intake browser, no install
   "SECURE_INTAKE_LINK", // Remote contributor upload via a secure intake link
   "BULK_IMPORT", // Operator imports existing files
@@ -99,6 +100,11 @@ export const MAX_PROVENANCE_CLASS_BY_MODE: Readonly<
   OPERATOR_NATIVE: "A",
   OPERATOR_SDK_EMBED: "A",
   OPERATOR_WEB_CAPTURE: "B",
+  // Plain authenticated browser upload has no capture-side device attestation,
+  // so it can never claim more than class C — the same ceiling as an import,
+  // while remaining honest that the acquisition channel is a PROOVRA web upload
+  // (NOT an operator import of pre-existing files).
+  PROOVRA_WEB_UPLOAD: "C",
   CITIZEN_PWA: "B",
   SECURE_INTAKE_LINK: "C",
   BULK_IMPORT: "C",

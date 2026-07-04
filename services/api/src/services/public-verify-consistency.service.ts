@@ -80,7 +80,7 @@ export function deriveSnapshotOtsStatus(
   trustDecisionSnapshot: TrustDecision | null,
 ): string | null {
   const publicAnchoringSignal = trustDecisionSnapshot?.signals?.find(
-    (signal) => signal.key === "public_anchoring",
+    (signal) => signal.key === "bitcoin_anchoring",
   );
 
   return mapSignalStatusToOtsStatus(publicAnchoringSignal?.status);

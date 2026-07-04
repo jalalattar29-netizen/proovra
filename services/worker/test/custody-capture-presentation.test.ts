@@ -31,6 +31,12 @@ const processorSrc = readFileSync(
   fileURLToPath(new URL("../src/processor.ts", import.meta.url)),
   "utf8",
 );
+const workerProjectorSrc = readFileSync(
+  fileURLToPath(
+    new URL("../src/capture-trust/provenance-projection.ts", import.meta.url),
+  ),
+  "utf8",
+);
 
 describe("resolveCustodyCapturePresentation", () => {
   it("intake: MULTIPART_PACKAGE → Secure Intake Link + Multipart evidence package", () => {
@@ -112,6 +118,31 @@ describe("processor render wiring (REPORT_GENERATED custody summary)", () => {
   it("normalizes the exported custody array before the package build", () => {
     expect(processorSrc).toContain(
       "normalizeCustodyEventPayloadForPresentation(",
+    );
+  });
+
+  it("threads isIntake into both trust-decision builds", () => {
+    expect(processorSrc).toContain(
+      "isIntake: reportAcquisition?.isIntake === true",
+    );
+    expect(processorSrc).toContain(
+      "isIntake: finalizedReportAcquisition?.isIntake === true",
+    );
+  });
+});
+
+describe("provenance projector capture mode (non-intake)", () => {
+  it("derives a real acquisition mode from uploadSource, never BULK_IMPORT by default", () => {
+    expect(workerProjectorSrc).toContain("deriveNonIntakeCaptureMode");
+    // Web upload → PROOVRA_WEB_UPLOAD (not BULK_IMPORT).
+    expect(workerProjectorSrc).toMatch(
+      /case "WEB_APP":\s*\n\s*return "PROOVRA_WEB_UPLOAD"/,
+    );
+    // Only genuinely-absent / import channels fall through to BULK_IMPORT.
+    expect(workerProjectorSrc).toMatch(/default:\s*\n\s*return "BULK_IMPORT"/);
+    // The default mode is no longer an unconditional BULK_IMPORT for non-intake.
+    expect(workerProjectorSrc).not.toContain(
+      'isIntakeEvidence ? "SECURE_INTAKE_LINK" : "BULK_IMPORT"',
     );
   });
 });

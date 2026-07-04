@@ -181,7 +181,7 @@ test("anchored with valid ots bitcoin txid passes public anchoring", () => {
   });
 
   const anchoring = trustDecision.signals.find(
-    (signal) => signal.key === "public_anchoring"
+    (signal) => signal.key === "bitcoin_anchoring"
   );
 
   assert.equal(anchoring?.status, "passed");
@@ -199,7 +199,7 @@ test("anchored without defensible public material stays partial", () => {
   });
 
   const anchoring = trustDecision.signals.find(
-    (signal) => signal.key === "public_anchoring"
+    (signal) => signal.key === "bitcoin_anchoring"
   );
 
   assert.equal(anchoring?.status, "partial");
@@ -215,7 +215,7 @@ test("pending ots yields pending anchoring signal", () => {
   });
 
   const anchoring = trustDecision.signals.find(
-    (signal) => signal.key === "public_anchoring"
+    (signal) => signal.key === "bitcoin_anchoring"
   );
 
   assert.equal(anchoring?.status, "pending");
@@ -280,7 +280,7 @@ test("failed ots yields failed anchoring signal", () => {
   });
 
   const anchoring = trustDecision.signals.find(
-    (signal) => signal.key === "public_anchoring"
+    (signal) => signal.key === "bitcoin_anchoring"
   );
 
   assert.equal(anchoring?.status, "failed");
@@ -298,7 +298,7 @@ test("ots hash mismatch blocks anchoring from passing even with a txid", () => {
   });
 
   const anchoring = trustDecision.signals.find(
-    (signal) => signal.key === "public_anchoring"
+    (signal) => signal.key === "bitcoin_anchoring"
   );
 
   assert.equal(anchoring?.status, "failed");
@@ -315,7 +315,7 @@ test("malformed txid alone does not pass anchoring", () => {
   });
 
   const anchoring = trustDecision.signals.find(
-    (signal) => signal.key === "public_anchoring"
+    (signal) => signal.key === "bitcoin_anchoring"
   );
 
   assert.equal(anchoring?.status, "failed");
@@ -333,7 +333,7 @@ test("valid txid with matching ots hash passes anchoring", () => {
   });
 
   const anchoring = trustDecision.signals.find(
-    (signal) => signal.key === "public_anchoring"
+    (signal) => signal.key === "bitcoin_anchoring"
   );
 
   assert.equal(anchoring?.status, "passed");
@@ -351,7 +351,7 @@ test("valid txid with missing ots hash can still pass anchoring", () => {
   });
 
   const anchoring = trustDecision.signals.find(
-    (signal) => signal.key === "public_anchoring"
+    (signal) => signal.key === "bitcoin_anchoring"
   );
 
   assert.equal(anchoring?.status, "passed");
@@ -400,4 +400,47 @@ test("reviewer package trust serialization includes internal debug only when ena
     serialized.internalDebug.signals[0].points,
     trustDecision.signals[0].points
   );
+});
+
+// ---------------------------------------------------------------------------
+// Flow-aware identity signal (Capture vs Secure Intake).
+// ---------------------------------------------------------------------------
+function identitySignal(decision) {
+  return decision.signals.find((s) => s.key === "identity");
+}
+
+test("identity signal: authenticated Capture wording by default (no intake)", () => {
+  const decision = buildEvidenceTrustDecision({
+    evidence: buildBaseEvidence({ identityLevelSnapshot: "ORGANIZATION_ACCOUNT" }),
+    custodyEvents: [buildForensicEvent(1)],
+    // isIntake omitted → defaults to authenticated Capture.
+  });
+  const sig = identitySignal(decision);
+  assert.equal(sig.summary, "Authenticated workspace user identity recorded");
+  assert.ok(/authenticated workspace user/i.test(sig.detail));
+  // Intake-only wording must NEVER appear for authenticated Capture.
+  assert.ok(!/link creator/i.test(sig.detail));
+  assert.ok(!/not independently verified/i.test(sig.detail));
+  assert.ok(!/remote contributor/i.test(sig.detail));
+});
+
+test("identity signal: Secure Intake wording only when isIntake=true", () => {
+  const decision = buildEvidenceTrustDecision({
+    evidence: buildBaseEvidence({ identityLevelSnapshot: "ORGANIZATION_ACCOUNT" }),
+    custodyEvents: [buildForensicEvent(1)],
+    isIntake: true,
+  });
+  const sig = identitySignal(decision);
+  assert.equal(sig.summary, "Workspace/link creator identity recorded");
+  assert.ok(/link creator/i.test(sig.detail));
+  assert.ok(/not independently verified/i.test(sig.detail));
+});
+
+test("anchoring signal uses the bitcoin_anchoring key (never public_anchoring)", () => {
+  const decision = buildEvidenceTrustDecision({
+    evidence: buildBaseEvidence(),
+    custodyEvents: [buildForensicEvent(1)],
+  });
+  assert.ok(decision.signals.some((s) => s.key === "bitcoin_anchoring"));
+  assert.ok(!decision.signals.some((s) => s.key === "public_anchoring"));
 });

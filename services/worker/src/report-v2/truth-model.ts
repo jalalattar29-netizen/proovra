@@ -416,8 +416,12 @@ export function buildReportCanonicalMaterials(params: {
 export function buildTrustDecision(params: {
   evidence: ReportEvidence;
   custodyEvents: ReportCustodyEvent[];
+  /** True ONLY for Secure Intake evidence — drives role-accurate identity
+   *  wording in the trust decision (link creator vs authenticated user). */
+  isIntake?: boolean;
 }): ReportTrustDecision {
   return buildEvidenceTrustDecision({
+    isIntake: params.isIntake === true,
     evidence: {
       verificationStatus: params.evidence.verificationStatus,
       recordedIntegrityVerifiedAtUtc:

@@ -1328,6 +1328,7 @@ export async function buildReportViewModel(
   const trustDecision = buildTrustDecision({
     evidence: otsEvidence,
     custodyEvents: custody.forensic,
+    isIntake: input.acquisition?.isIntake === true,
   });
   // Phase 2/3 — seal canonical evidence materials at report generation
   // time. The bundle is the single chokepoint through which Report-v2

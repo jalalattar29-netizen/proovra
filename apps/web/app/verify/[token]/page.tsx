@@ -1482,7 +1482,7 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     (signal) => signal.key === "core_integrity"
   );
   const publicAnchoringSignal = input.trustDecision?.signals.find(
-    (signal) => signal.key === "public_anchoring"
+    (signal) => signal.key === "bitcoin_anchoring"
   );
   const verdictCode = input.trustDecision?.verdict ?? null;
   const presentationState = input.trustDecision?.presentationState ?? null;
@@ -1688,8 +1688,12 @@ function buildLegacyTrustDecisionFallback(params: {
   verificationPackageGeneratedAtUtc?: string | null;
   anchor?: VerifyAnchor;
   custodyEvents: TimelineItem[];
+  /** True ONLY for Secure Intake evidence — drives role-accurate identity
+   *  wording. Authenticated Capture defaults to false. */
+  isIntake?: boolean;
 }): VerifyTrustDecision {
   return buildEvidenceTrustDecision({
+    isIntake: params.isIntake === true,
     evidence: {
       verificationStatus: params.verificationStatus ?? null,
       recordedIntegrityVerifiedAtUtc:
@@ -3718,6 +3722,11 @@ const trustDecision = useMemo(() => {
       transactionId: anchorTransactionId,
     },
     custodyEvents: [...forensicTimeline, ...accessTimeline],
+    // Intake is derived from the reviewer-facing capture-method label
+    // ("Secure Intake Link"). Everything else is authenticated Capture.
+    isIntake: /intake/i.test(
+      String(humanSummary?.captureMethod ?? overview?.captureMethod ?? ""),
+    ),
   });
 }, [
   accessTimeline,
@@ -6439,7 +6448,7 @@ These materials support the Trust Decision shown above. The Trust Decision is th
       "core_integrity",
       "signature",
       "trusted_timestamp",
-      "public_anchoring",
+      "bitcoin_anchoring",
       "immutable_storage",
     ].includes(signal.key)
   )}

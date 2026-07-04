@@ -37,7 +37,7 @@ export type TrustSignalKey =
   | "core_integrity"
   | "signature"
   | "trusted_timestamp"
-  | "public_anchoring"
+  | "bitcoin_anchoring"
   | "immutable_storage"
   | "custody_chain"
   | "identity"
@@ -140,7 +140,7 @@ function hasAnchoringPendingSignal(
       }
 ): boolean {
   const anchoringSignal = decision.signals?.find(
-    (signal) => signal.key === "public_anchoring"
+    (signal) => signal.key === "bitcoin_anchoring"
   );
 
   return (
@@ -156,7 +156,7 @@ function hasAnchoringFailedSignal(
       }
 ): boolean {
   const anchoringSignal = decision.signals?.find(
-    (signal) => signal.key === "public_anchoring"
+    (signal) => signal.key === "bitcoin_anchoring"
   );
 
   return anchoringSignal?.status === "failed";
@@ -399,6 +399,14 @@ export type TrustDecisionCustodyEventInput = {
 export type BuildEvidenceTrustDecisionInput = {
   evidence: TrustDecisionEvidenceInput;
   custodyEvents: TrustDecisionCustodyEventInput[];
+  /**
+   * True ONLY for Secure Intake Link evidence. Drives role-accurate identity
+   * wording: intake evidence records the LINK CREATOR (workspace account) and
+   * the remote contributor is not independently verified; authenticated
+   * Capture / Web Upload / Mobile evidence is submitted by the authenticated
+   * workspace user themselves. Defaults to false (authenticated capture).
+   */
+  isIntake?: boolean;
 };
 
 export type RecordedIntegrityPromotionInput = {
@@ -814,7 +822,7 @@ function buildAnchoringSignal(
 
   if (otsHashMismatch) {
     return makeSignal({
-      key: "public_anchoring",
+      key: "bitcoin_anchoring",
       label: "Bitcoin anchoring",
       status: "failed",
       points: 2,
@@ -827,7 +835,7 @@ function buildAnchoringSignal(
 
   if (malformedTxidWithoutOtherProof) {
     return makeSignal({
-      key: "public_anchoring",
+      key: "bitcoin_anchoring",
       label: "Bitcoin anchoring",
       status: "failed",
       points: 2,
@@ -840,7 +848,7 @@ function buildAnchoringSignal(
 
   if (isAnchoredOts(evidence.otsStatus) && defensibleAnchorMaterial) {
     return makeSignal({
-      key: "public_anchoring",
+      key: "bitcoin_anchoring",
       label: "Bitcoin anchoring",
       status: "passed",
       points: 10,
@@ -853,7 +861,7 @@ function buildAnchoringSignal(
 
   if (isAnchoredOts(evidence.otsStatus)) {
     return makeSignal({
-      key: "public_anchoring",
+      key: "bitcoin_anchoring",
       label: "Bitcoin anchoring",
       status: "partial",
       points: 6,
@@ -866,7 +874,7 @@ function buildAnchoringSignal(
 
   if (isPendingOts(evidence.otsStatus)) {
     return makeSignal({
-      key: "public_anchoring",
+      key: "bitcoin_anchoring",
       label: "Bitcoin anchoring",
       status: "pending",
       points: 4,
@@ -879,7 +887,7 @@ function buildAnchoringSignal(
 
   if (isDisabledOts(evidence.otsStatus)) {
     return makeSignal({
-      key: "public_anchoring",
+      key: "bitcoin_anchoring",
       label: "Bitcoin anchoring",
       status: "missing",
       points: 3,
@@ -892,7 +900,7 @@ function buildAnchoringSignal(
 
   if (isFailedOts(evidence.otsStatus)) {
     return makeSignal({
-      key: "public_anchoring",
+      key: "bitcoin_anchoring",
       label: "Bitcoin anchoring",
       status: "failed",
       points: 2,
@@ -904,7 +912,7 @@ function buildAnchoringSignal(
   }
 
   return makeSignal({
-    key: "public_anchoring",
+    key: "bitcoin_anchoring",
     label: "Bitcoin anchoring",
     status: "missing",
     points: 0,
@@ -1025,11 +1033,32 @@ function buildCustodySignal(
 }
 
 function buildIdentitySignal(
-  evidence: TrustDecisionEvidenceInput
+  evidence: TrustDecisionEvidenceInput,
+  // True ONLY for Secure Intake evidence. Intake records the LINK CREATOR
+  // (workspace account) while the remote contributor is not independently
+  // verified. Authenticated Capture / Web Upload / Mobile evidence is submitted
+  // by the authenticated workspace user themselves, so it must never read the
+  // "link creator / remote contributor not independently verified" wording.
+  isIntake = false
 ): TrustSignal {
   const level = safe(evidence.identityLevelSnapshot).toUpperCase();
   const hasEmail = hasMeaningfulValue(evidence.submittedByEmail);
   const hasProvider = hasMeaningfulValue(evidence.submittedByAuthProvider);
+
+  // Intake tail: identifies the remote-contributor boundary.
+  const intakeContributorTail =
+    " Remote contributor identity was not independently verified.";
+  // Capture tail: identifies the authenticated workspace submitter.
+  const captureSubmitterTail =
+    " Submitted by the authenticated workspace user; identity was recorded from the authenticated (OAuth-backed) session.";
+  const tail = isIntake ? intakeContributorTail : captureSubmitterTail;
+  // "link creator" only applies to intake; capture uses "workspace user".
+  const recordedParty = isIntake
+    ? "Workspace or link creator"
+    : "Authenticated workspace user";
+  const recordedSummary = isIntake
+    ? "Workspace/link creator identity recorded"
+    : "Authenticated workspace user identity recorded";
 
   if (level === "VERIFIED_ORGANIZATION") {
     return makeSignal({
@@ -1041,7 +1070,7 @@ function buildIdentitySignal(
       maxPoints: 5,
       summary: "Workspace organization identity recorded",
       detail:
-        "The workspace is associated with a verified organization account. Remote contributor identity was not independently verified.",
+        `The workspace is associated with a verified organization account.${tail}`,
     });
   }
 
@@ -1053,9 +1082,8 @@ function buildIdentitySignal(
       tone: "neutral",
       points: 4,
       maxPoints: 5,
-      summary: "Workspace/link creator identity recorded",
-      detail:
-        "Workspace or link creator identity was recorded for reviewer context. Remote contributor identity was not independently verified.",
+      summary: recordedSummary,
+      detail: `${recordedParty} identity was recorded for reviewer context.${tail}`,
     });
   }
 
@@ -1066,9 +1094,8 @@ function buildIdentitySignal(
       status: "partial",
       points: 3,
       maxPoints: 5,
-      summary: "Workspace/link creator identity recorded",
-      detail:
-        "Workspace or link creator identity information is recorded. Remote contributor identity was not independently verified.",
+      summary: recordedSummary,
+      detail: `${recordedParty} identity information is recorded.${tail}`,
     });
   }
 
@@ -1079,7 +1106,9 @@ function buildIdentitySignal(
     points: 0,
     maxPoints: 5,
     summary: "Identity not recorded",
-    detail: "No meaningful workspace or link creator identity context was recorded.",
+    detail: isIntake
+      ? "No meaningful workspace or link creator identity context was recorded."
+      : "No meaningful authenticated workspace user identity context was recorded.",
   });
 }
 
@@ -1135,7 +1164,7 @@ export function buildEvidenceTrustDecision(
   const anchoring = buildAnchoringSignal(input.evidence);
   const storage = buildStorageSignal(input.evidence);
   const custody = buildCustodySignal(input.custodyEvents);
-  const identity = buildIdentitySignal(input.evidence);
+  const identity = buildIdentitySignal(input.evidence, input.isIntake === true);
   const verificationPackage = buildVerificationPackageSignal(input.evidence);
 
   const signals = [

@@ -571,7 +571,7 @@ function derivePackageAnchorMode(params: {
 }): AnchorMode {
   const normalizedRawMode = normalizeAnchorMode(params.rawMode);
   const anchoringSignal = params.trustDecision.signals.find(
-    (signal) => signal.key === "public_anchoring"
+    (signal) => signal.key === "bitcoin_anchoring"
   );
   const hasPublicAnchorMaterial = Boolean(
     params.anchor?.transactionId || params.anchor?.anchoredAtUtc
@@ -1302,7 +1302,7 @@ The package includes:
 - \`signature.txt\`
 - \`public-key.pem\`
 
-The signature is generated against PROOVRA fingerprint material. \`fingerprint.json\` is the raw canonical technical record and may retain low-level source enums such as the primary record evidence type. Use \`case-metadata.json\` and \`original-linkage.json\` for reviewer-facing normalized evidence classification. Depending on the exact signing mode, independent verification may require the platform canonicalization rule or a verifier matched to the production signing scheme.
+The signature is generated against PROOVRA fingerprint material. \`fingerprint.json\` is the raw canonical technical record and is IMMUTABLE — it is hashed into the signature and must not be altered. Its \`type\` field (e.g. \`DOCUMENT\`) is a low-level canonical enum fixed at capture time; for a mixed-media set it stays \`DOCUMENT\` by design and is NOT the reviewer-facing evidence classification. For the reviewer-facing classification (e.g. "Mixed media package") read \`reviewerEvidenceTypeLabel\` in \`canonical-record.json\`, the "Evidence Structure" row in the report, or \`case-metadata.json\` / \`original-linkage.json\`. Depending on the exact signing mode, independent verification may require the platform canonicalization rule or a verifier matched to the production signing scheme.
 
 ## 5. Verify timestamp material
 
@@ -2019,7 +2019,7 @@ The original uploaded evidence item is included at the root of this package.`
 }
 
 fingerprint.json
-Canonical fingerprint used to generate the signature. This is raw signed technical material and may retain the primary record enum rather than the reviewer-facing evidence classification.
+Canonical fingerprint used to generate the signature. This is raw, immutable signed technical material: its "type" field is a low-level canonical enum fixed at capture (e.g. DOCUMENT, even for a mixed-media set) — NOT the reviewer-facing evidence classification. See reviewerEvidenceTypeLabel in canonical-record.json or the report's "Evidence Structure" row (e.g. "Mixed media package").
 
 signature.txt
 Ed25519 signature of the fingerprint hash material.
@@ -3593,6 +3593,10 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         teamId: data.teamId ?? null,
         evidenceId: data.evidenceId as string,
         packageId: null,
+        // Report-time forensic snapshot count (the exact number the PDF Chain
+        // of Custody + custody.json show), so attestations.json reconciles its
+        // live count against the snapshot instead of silently disagreeing.
+        reportSnapshotForensicCount: custodySplit.forensic.length,
       });
       appendPackageEntry(
         archive,

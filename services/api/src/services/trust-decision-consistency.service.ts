@@ -121,7 +121,7 @@ export function buildTrustDecisionConsistency(
   }
 
   if (
-    signalChanged(input.snapshotTrustDecision, input.liveTrustDecision, "public_anchoring") ||
+    signalChanged(input.snapshotTrustDecision, input.liveTrustDecision, "bitcoin_anchoring") ||
     input.snapshotTrustDecision.anchoringState !==
       input.liveTrustDecision.anchoringState
   ) {
