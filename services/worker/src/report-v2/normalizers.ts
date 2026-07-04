@@ -67,16 +67,34 @@ export function normalizeCustodyEventPayloadForPresentation(
   const obj = payload as Record<string, unknown>;
   const hasSnapshot = "captureMethodSnapshot" in obj;
   const hasMethod = "captureMethod" in obj;
-  if (!hasSnapshot && !hasMethod) return payload;
+  // `uploadKind` on the UPLOAD_AUTHORIZED event is written by the shared
+  // authorization builder as "intake_authorization"; for authenticated Web /
+  // Mobile Capture it must read the capture value, not the intake one.
+  const legacyIntakeUploadKind =
+    !isIntake &&
+    String(obj.uploadKind ?? "").toLowerCase() === "intake_authorization";
+  if (!hasSnapshot && !hasMethod && !legacyIntakeUploadKind) return payload;
 
-  const raw = hasSnapshot ? obj.captureMethodSnapshot : obj.captureMethod;
-  const { method, structure } = resolveCustodyCapturePresentation(raw, isIntake);
   const next: Record<string, unknown> = { ...obj };
-  if (hasSnapshot) next.captureMethodSnapshot = method;
-  if (hasMethod) next.captureMethod = method;
-  if (structure && next.evidenceStructureSnapshot == null) {
-    next.evidenceStructureSnapshot = structure;
+
+  if (hasSnapshot || hasMethod) {
+    const raw = hasSnapshot ? obj.captureMethodSnapshot : obj.captureMethod;
+    const { method, structure } = resolveCustodyCapturePresentation(
+      raw,
+      isIntake,
+    );
+    if (hasSnapshot) next.captureMethodSnapshot = method;
+    if (hasMethod) next.captureMethod = method;
+    if (structure && next.evidenceStructureSnapshot == null) {
+      next.evidenceStructureSnapshot = structure;
+    }
   }
+
+  // Non-intake evidence must never carry the intake authorization label.
+  if (legacyIntakeUploadKind) {
+    next.uploadKind = "web_upload_authorization";
+  }
+
   return next;
 }
 

@@ -188,7 +188,9 @@ describe("public verify semantics (Governance Item 1)", () => {
 describe("intake + TSA semantics", () => {
     it("marks initial upload authorization as intake authorization instead of single-upload finality", () => {
         const source = readRepoFile("services", "api", "src", "services", "evidence.service.ts");
-        expect(source).toContain('uploadKind: "intake_authorization"');
+        expect(source).toContain("uploadKind: params.browserUpload");
+        expect(source).toContain('"web_upload_authorization"');
+        expect(source).toContain('"intake_authorization"');
         expect(source).toContain("final evidence structure may still become multipart");
     });
     it("labels multipart timestamp input as canonical package digest", () => {

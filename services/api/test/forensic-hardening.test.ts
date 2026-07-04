@@ -239,7 +239,7 @@ describe("public verify semantics (Governance Item 1)", () => {
 });
 
 describe("intake + TSA semantics", () => {
-  it("marks initial upload authorization as intake authorization instead of single-upload finality", () => {
+  it("derives uploadKind from the acquisition source: web capture vs intake", () => {
     const source = readRepoFile(
       "services",
       "api",
@@ -248,7 +248,11 @@ describe("intake + TSA semantics", () => {
       "evidence.service.ts"
     );
 
-    expect(source).toContain('uploadKind: "intake_authorization"');
+    // Authenticated Web Capture / Browser Upload → web_upload_authorization;
+    // Secure Intake (browserUpload false/undefined) keeps intake_authorization.
+    expect(source).toContain("uploadKind: params.browserUpload");
+    expect(source).toContain('"web_upload_authorization"');
+    expect(source).toContain('"intake_authorization"');
     expect(source).toContain("final evidence structure may still become multipart");
   });
 

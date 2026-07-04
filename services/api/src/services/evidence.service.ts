@@ -474,7 +474,14 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
       atUtc: new Date(),
       payload: {
         phase: "upload_authorized",
-        uploadKind: "intake_authorization",
+        // `uploadKind` must reflect the ACTUAL acquisition source, not a shared
+        // authorization label. Authenticated Web Capture / Browser Upload
+        // (`browserUpload`) → web_upload_authorization; Secure Intake (citizen
+        // PWA + external-intake callers, browserUpload false/undefined) keeps
+        // the intake value unchanged.
+        uploadKind: params.browserUpload
+          ? "web_upload_authorization"
+          : "intake_authorization",
         captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
         bucket,
         key,
