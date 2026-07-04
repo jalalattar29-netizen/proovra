@@ -6,11 +6,41 @@ import * as prismaPkg from "@prisma/client";
 import { log, error } from "../utils/logger.js";
 import { ensurePersonalWorkspace } from "./platform-context/workspace-bootstrap.service.js";
 
+/**
+ * Temporary debug tap for the avatar-ingest pipeline. Set
+ * `AVATAR_DEBUG=1` in the API environment to log:
+ *   1. What the OAuth provider returned (avatarUrl or null)
+ *   2. What the DB row looks like after upsert (avatarUrl written or null)
+ * Redact for URL only — never logs id_tokens, emails, or PII beyond the
+ * user id. Remove or leave disabled in prod once the pipeline is
+ * verified end-to-end.
+ */
+const AVATAR_DEBUG =
+  process.env.AVATAR_DEBUG === "1" || process.env.AVATAR_DEBUG === "true";
+
+function debugAvatar(stage: string, payload: Record<string, unknown>): void {
+  if (!AVATAR_DEBUG) return;
+  const safe: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(payload)) {
+    if (typeof v === "string" && v.length > 200) {
+      safe[k] = v.slice(0, 200) + "…";
+    } else {
+      safe[k] = v;
+    }
+  }
+  log(`[avatar-debug] ${stage}`, safe);
+}
+
 type AuthProfile = {
   provider: prismaPkg.AuthProvider;
   providerUserId: string;
   email?: string | null;
   displayName?: string | null;
+  /** Canonical profile picture URL from the identity provider.
+      Google exposes it via the `picture` id_token claim. Apple does
+      not expose any picture claim. Custom uploads (future) populate the
+      same `User.avatarUrl` column. */
+  avatarUrl?: string | null;
 };
 
 function must(name: string): string {
@@ -58,6 +88,8 @@ function parseJwt(token: string) {
     exp?: number;
     email?: string;
     name?: string;
+    /** Google-only OIDC claim carrying the user's profile picture URL. */
+    picture?: string;
   };
   return { header, payload, signatureB64, signingInput: `${headerB64}.${payloadB64}` };
 }
@@ -104,12 +136,19 @@ export async function verifyGoogleIdToken(idToken: string): Promise<AuthProfile>
   assertAudience(payload.aud, must("GOOGLE_CLIENT_ID"));
   assertIssuer(payload.iss, ["https://accounts.google.com", "accounts.google.com"]);
   assertNotExpired(payload.exp);
-  return {
+  const profile = {
     provider: prismaPkg.AuthProvider.GOOGLE,
     providerUserId: String(payload.sub),
     email: payload.email ? String(payload.email) : null,
     displayName: payload.name ? String(payload.name) : null,
+    avatarUrl: payload.picture ? String(payload.picture) : null,
   };
+  debugAvatar("google.verifyIdToken", {
+    providerUserId: profile.providerUserId,
+    hasPictureClaim: Boolean(payload.picture),
+    avatarUrl: profile.avatarUrl,
+  });
+  return profile;
 }
 
 export async function exchangeGoogleCodeForIdToken(code: string): Promise<string> {
@@ -200,6 +239,9 @@ export async function verifyAppleIdToken(idToken: string): Promise<AuthProfile> 
     providerUserId: String(payload.sub),
     email: payload.email ? String(payload.email) : null,
     displayName: payload.name ? String(payload.name) : null,
+    // Apple id_token does not include a picture claim. Users can upload
+    // a custom avatar later (populates the same User.avatarUrl column).
+    avatarUrl: null,
   };
 }
 
@@ -318,6 +360,11 @@ export async function upsertUser(profile: AuthProfile) {
 }
 
 export async function upsertUserWithEmailLink(profile: AuthProfile) {
+  debugAvatar("upsertUser.in", {
+    provider: profile.provider,
+    providerUserId: profile.providerUserId,
+    incomingAvatarUrl: profile.avatarUrl ?? null,
+  });
   let user = await prisma.user.findUnique({
     where: {
       provider_providerUserId: {
@@ -350,6 +397,12 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
           providerUserId: profile.providerUserId,
           displayName: profile.displayName ?? guest.displayName,
           email: profile.email ?? guest.email,
+          // Guest upgrade — take the provider's avatar iff we have one
+          // and the guest row has none. Guests never upload custom
+          // avatars, so this can never clobber user-chosen imagery.
+          ...(profile.avatarUrl && !guest.avatarUrl
+            ? { avatarUrl: profile.avatarUrl }
+            : {}),
           ...(isOAuthProvider && !guest.emailVerifiedAt
             ? { emailVerifiedAt: now }
             : {}),
@@ -365,6 +418,9 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
         providerUserId: profile.providerUserId,
         email: profile.email ?? null,
         displayName: profile.displayName ?? null,
+        // Provider-supplied avatar (Google `picture` claim, Apple none).
+        // Custom uploads (future) overwrite this on the profile page.
+        avatarUrl: profile.avatarUrl ?? null,
         ...(isOAuthProvider ? { emailVerifiedAt: now } : {}),
       },
     });
@@ -374,6 +430,14 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
       data: {
         email: profile.email ?? user.email,
         displayName: profile.displayName ?? user.displayName,
+        // Backfill avatarUrl on repeat sign-in ONLY when the row has
+        // no avatar yet — this rescues existing accounts created before
+        // this fix, but never overwrites a custom uploaded avatar. Also
+        // never null-out on a subsequent sign-in that lacks a picture
+        // (e.g. Google user removes their photo).
+        ...(profile.avatarUrl && !user.avatarUrl
+          ? { avatarUrl: profile.avatarUrl }
+          : {}),
         // Only fill emailVerifiedAt — never overwrite an existing
         // verification timestamp so we keep the original audit point.
         ...(isOAuthProvider && !user.emailVerifiedAt
@@ -412,6 +476,12 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
   // Non-fatal: bootstrap failures fall through (lazy bootstrap inside
   // buildPlatformContext is the secondary safety net) so authentication
   // itself is never blocked by a degraded workspace section.
+  debugAvatar("upsertUser.out", {
+    userId: user.id,
+    provider: user.provider,
+    finalAvatarUrl: user.avatarUrl ?? null,
+  });
+
   try {
     const personal = await ensurePersonalWorkspace({ userId: user.id });
     if (!user.currentWorkspaceId && personal.teamId) {

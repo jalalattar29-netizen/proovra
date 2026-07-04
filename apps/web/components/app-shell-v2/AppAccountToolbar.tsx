@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -10,6 +10,7 @@ import {
   HelpCircle,
   LogOut,
   Menu,
+  Search,
   Settings,
   ShieldCheck,
   UserCircle,
@@ -25,6 +26,7 @@ import { GlobalRuntimeIndicator } from "../operational";
 import { usePlatformContext } from "../../lib/platform-context";
 import { canAccessSurface } from "../../lib/surface/access";
 import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
+import { ROUTE_REGISTRY } from "../../lib/navigation/routeRegistry";
 
 type LucideIcon = ForwardRefExoticComponent<
   Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>
@@ -104,6 +106,74 @@ function getWorkspaceLabels(
 return { name: "Personal Space", scopeLine: "Personal • Owner" };
 }
 
+// Cross-surface duplicates: hrefs that appear in the sidebar admin group
+// for org-context users, plus routes that clutter the menu once the user
+// already has the workspace switcher in the header. When
+// `canSeeOrganizations` is true these get stripped from the account menu
+// so the menu reads clean (Profile / Workspace / Billing / Preferences /
+// Notifications / Help / Sign out). Personal-only users KEEP them because
+// their sidebar does not surface the admin group and they still need
+// billing + pricing paths from the menu.
+const CROSS_SURFACE_SIDEBAR_HREFS: ReadonlySet<string> = new Set([
+  "/billing",
+  "/teams",
+  "/pricing",
+]);
+
+// Derive a breadcrumb trail from the pathname. Uses ROUTE_REGISTRY for
+// canonical labels, falling back to title-cased path segments.
+function useBreadcrumb(pathname: string | null): Array<{
+  label: string;
+  href: string;
+  current: boolean;
+}> {
+  return useMemo(() => {
+    if (!pathname || pathname === "/") return [];
+    const parts = pathname.split("?")[0]!.split("#")[0]!.split("/").filter(Boolean);
+    if (parts.length === 0) return [];
+
+    // Try the deepest matching registry entry first for a nice label.
+    const deepestHref = "/" + parts.join("/");
+    const deepestRoute = ROUTE_REGISTRY.find((r) => r.href === deepestHref);
+
+    const trail: Array<{ label: string; href: string; current: boolean }> = [];
+    let acc = "";
+    for (let i = 0; i < parts.length; i++) {
+      const seg = parts[i]!;
+      acc += "/" + seg;
+      const route = ROUTE_REGISTRY.find((r) => r.href === acc);
+      const label =
+        route?.label ??
+        (i === parts.length - 1 && deepestRoute
+          ? deepestRoute.label
+          : seg.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
+      trail.push({
+        label,
+        href: acc,
+        current: i === parts.length - 1,
+      });
+    }
+    return trail;
+  }, [pathname]);
+}
+
+// Dispatches Cmd+K (or Ctrl+K on non-mac) so the CommandPalette listener
+// picks it up. The palette owns its own state; this trigger stays stateless.
+function openCommandPalette() {
+  if (typeof window === "undefined") return;
+  const isMac =
+    typeof navigator !== "undefined" &&
+    /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+  const event = new KeyboardEvent("keydown", {
+    key: "k",
+    code: "KeyK",
+    metaKey: isMac,
+    ctrlKey: !isMac,
+    bubbles: true,
+  });
+  window.dispatchEvent(event);
+}
+
 export function AppAccountToolbar({
   onLogout,
   mobileSidebarOpen = false,
@@ -119,6 +189,13 @@ export function AppAccountToolbar({
 
   const [accountOpen, setAccountOpen] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  // If a provider avatar URL fails to load (Google may 403 due to
+  // referrer, network hiccup, expired signed URL) we fall through to
+  // the initials block. The set stores the src that failed so a later
+  // re-render with the same URL doesn't retry indefinitely.
+  const [brokenAvatarUrls, setBrokenAvatarUrls] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const accountRef = useRef<HTMLDivElement | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
@@ -164,30 +241,124 @@ const runtimeTeamId =
     (personalSpace?.id ? 1 : 0) +
     (canSeeOrganizations ? organizations.length : 0);
 
+  // Dedupe account menu items: by href (defensive) + cross-surface removal
+  // of items that appear in the sidebar for org-context users.
+  const accountMenuItems = useMemo(() => {
+    const raw = envelope?.navigation.accountMenu.items ?? [];
+    const seenHrefs = new Set<string>();
+    const out: typeof raw[number][] = [];
+    for (const item of raw) {
+      if (seenHrefs.has(item.href)) continue;
+      // Strip cross-surface duplicates only when the user has org
+      // context (the sidebar admin group surfaces the same href).
+      if (canSeeOrganizations && CROSS_SURFACE_SIDEBAR_HREFS.has(item.href)) {
+        continue;
+      }
+      seenHrefs.add(item.href);
+      out.push(item);
+    }
+    return out;
+  }, [envelope?.navigation.accountMenu.items, canSeeOrganizations]);
+
+  const breadcrumb = useBreadcrumb(pathname);
+
+  const handleSearchClick = useCallback(() => {
+    openCommandPalette();
+  }, []);
+
+  const isMac =
+    typeof navigator !== "undefined" &&
+    /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
   return (
     <div className="app-account-toolbar" data-app-account-toolbar>
       <div className="app-account-toolbar-inner">
-        <button
-          type="button"
-          className="app-account-toolbar-mobile-menu"
-          onClick={onToggleMobileSidebar}
-          aria-label={mobileSidebarOpen ? "Close navigation" : "Open navigation"}
-        >
-          {mobileSidebarOpen ? <X size={21} /> : <Menu size={21} />}
-        </button>
+        <div className="app-header-zone-left">
+          <button
+            type="button"
+            className="app-account-toolbar-mobile-menu"
+            onClick={onToggleMobileSidebar}
+            aria-label={mobileSidebarOpen ? "Close navigation" : "Open navigation"}
+          >
+            {mobileSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
 
-        <div
-          className="app-account-toolbar-runtime"
-          data-app-topbar-runtime
-        >
-          <GlobalRuntimeIndicator teamId={runtimeTeamId} />
+          {breadcrumb.length > 0 ? (
+            <div
+              className="app-header-title-block"
+              data-app-header-title-block
+              aria-label="Current page"
+            >
+              {breadcrumb.length > 1 ? (
+                <nav
+                  className="app-header-page-kicker"
+                  aria-label="Breadcrumb"
+                  data-app-header-breadcrumb
+                >
+                  {breadcrumb.slice(0, -1).map((crumb, idx) => (
+                    <span
+                      key={crumb.href}
+                      style={{ display: "inline-flex", alignItems: "center" }}
+                    >
+                      {idx > 0 ? (
+                        <span
+                          className="app-header-page-kicker-sep"
+                          aria-hidden="true"
+                        >
+                          /
+                        </span>
+                      ) : null}
+                      <Link href={crumb.href}>{crumb.label}</Link>
+                    </span>
+                  ))}
+                </nav>
+              ) : null}
+              <h1
+                className="app-header-page-title"
+                aria-current="page"
+                data-app-header-page-title
+              >
+                {breadcrumb[breadcrumb.length - 1]?.label ?? ""}
+              </h1>
+            </div>
+          ) : null}
         </div>
 
-        <InboxIndicator />
-
-        <div className="app-topbar-v2-language">
-          <LanguageSwitcher />
+        <div className="app-header-zone-center">
+          <button
+            type="button"
+            className="app-header-search"
+            onClick={handleSearchClick}
+            aria-label="Open command palette (search)"
+            data-app-header-search
+          >
+            <Search size={16} strokeWidth={1.9} />
+            <span className="app-header-search-text">
+              Search or jump to…
+            </span>
+            <kbd className="app-header-search-kbd" aria-hidden="true">
+              {isMac ? "⌘" : "Ctrl"}
+              <span>K</span>
+            </kbd>
+          </button>
         </div>
+
+        <div className="app-header-zone-right">
+          <div
+            className="app-topbar-v2-runtime"
+            data-app-topbar-runtime
+            aria-label="Runtime status"
+          >
+            <GlobalRuntimeIndicator teamId={runtimeTeamId} />
+          </div>
+
+          <InboxIndicator />
+
+          <div className="app-topbar-v2-language" aria-label="Language">
+            <LanguageSwitcher />
+          </div>
+
+          <span className="app-header-divider" aria-hidden="true" />
 
         <div
           className="app-topbar-v2-workspace"
@@ -369,14 +540,29 @@ const runtimeTeamId =
             aria-haspopup="menu"
             aria-expanded={accountOpen}
           >
-            {envelope?.user.avatarUrl ? (
+            {envelope?.user.avatarUrl &&
+            !brokenAvatarUrls.has(envelope.user.avatarUrl) ? (
               <img
                 src={envelope.user.avatarUrl}
-                alt=""
+                alt={`${getUserDisplayName(envelope)} avatar`}
                 className="app-topbar-v2-avatar"
+                referrerPolicy="no-referrer"
+                onError={() => {
+                  const url = envelope?.user.avatarUrl;
+                  if (!url) return;
+                  setBrokenAvatarUrls((prev) => {
+                    if (prev.has(url)) return prev;
+                    const next = new Set(prev);
+                    next.add(url);
+                    return next;
+                  });
+                }}
               />
             ) : (
-              <div className="app-topbar-v2-avatar-fallback">
+              <div
+                className="app-topbar-v2-avatar-fallback"
+                aria-label={`${getUserDisplayName(envelope)} avatar (initials fallback)`}
+              >
                 {getInitials(envelope)}
               </div>
             )}
@@ -407,9 +593,28 @@ const runtimeTeamId =
               <div className="app-topbar-v2-account-menu-header">
                 <strong>{getUserDisplayName(envelope)}</strong>
                 <span>{envelope?.user.email ?? "Signed in account"}</span>
+                {activeSpace ? (
+                  <span
+                    data-account-menu-header-workspace
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      marginTop: 4,
+                      fontSize: 11,
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      fontWeight: 700,
+                    }}
+                  >
+                    <Users size={11} strokeWidth={2} />
+                    {workspaceName}
+                  </span>
+                ) : null}
               </div>
 
-              {(envelope?.navigation.accountMenu.items ?? []).map((item) => (
+              {accountMenuItems.map((item) => (
                 <Link
                   key={item.id}
                   href={item.href}
@@ -435,6 +640,7 @@ const runtimeTeamId =
               </button>
             </div>
           ) : null}
+        </div>
         </div>
       </div>
     </div>

@@ -6,24 +6,25 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  Bell,
   BookOpen,
   BriefcaseBusiness,
   Camera,
+  CircleHelp,
   ClipboardList,
   CreditCard,
   FileText,
+  FolderArchive,
   Gauge,
   GaugeCircle,
-  Headphones,
   HeartPulse,
+  Home,
   Inbox,
   Key,
   Layers,
   LayoutGrid,
-  LibraryBig,
-  LifeBuoy,
+  Link2,
   ListTodo,
-  Bell,
   Plug,
   Radio,
   Search,
@@ -31,7 +32,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Trash2,
-  Users,
+  UsersRound,
   type LucideProps,
 } from "lucide-react";
 
@@ -107,14 +108,23 @@ type SidebarIcon = ForwardRefExoticComponent<
 // =============================================================================
 
 const ICON_BY_ROUTE_ID: Record<string, SidebarIcon> = {
-  "workspace.home": Gauge,
+  // Semantic distinctness — each visible sidebar entry maps to a
+  // distinct Lucide glyph. Route IDs are the canonical values from
+  // routeRegistry.ts (verified against the rendered DOM
+  // `data-sidebar-nav-id`). The workspace-scoped Teams and Trust routes
+  // use `workspace.collaboration_teams` and `workspace.trust` — the
+  // sidebar renders those; `admin.teams` / `governance.hub` are separate
+  // registry entries that aren't currently sidebar-eligible.
+  "workspace.home": Home,
   "workspace.capture": Camera,
-  "workspace.evidence": LibraryBig,
+  "workspace.evidence": FolderArchive,
   "workspace.cases": BriefcaseBusiness,
   "workspace.reports": FileText,
   "workspace.search": Search,
   "workspace.notifications": Bell,
   "workspace.integrations": Plug,
+  "workspace.collaboration_teams": UsersRound,
+  "workspace.trust": ShieldCheck,
   "review.queue": ListTodo,
   "review.sla": GaugeCircle,
   "governance.hub": ShieldCheck,
@@ -123,13 +133,13 @@ const ICON_BY_ROUTE_ID: Record<string, SidebarIcon> = {
   "platform.observability": Activity,
   "platform.runbooks": BookOpen,
   "platform.security_center": ShieldAlert,
-  "admin.teams": Users,
+  "admin.teams": UsersRound,
   "account.billing": CreditCard,
   "account.settings": Settings,
   "account.persona": Settings,
   "platform.admin": Key,
   "workspace.tools": LayoutGrid,
-  "workspace.intake_links": LifeBuoy,
+  "workspace.intake_links": Link2,
   "workspace.destruction": Trash2,
   // Final Closure Remediation Parts A + E — newly sidebar-eligible
   // routes get explicit icons so they don't fall back to the generic
@@ -348,7 +358,7 @@ function SidebarLink({
       aria-disabled={degraded ? "false" : undefined}
     >
       <span className="app-sidebar-v2-link-icon">
-        <Icon size={17} strokeWidth={1.9} />
+        <Icon size={20} strokeWidth={1.75} />
       </span>
       <span style={{ flex: 1 }}>{route.label}</span>
       {badge ? <BadgeView badge={badge} /> : null}
@@ -714,8 +724,14 @@ const teamId =
   <div className="app-sidebar-v2-inner">
     <div className="app-sidebar-v2-brand">
       <img
-        src="/assets/branding/report-header.png"
+        src="/assets/branding/proovra-mark.png"
         alt="PROOVRA"
+        className="app-sidebar-v2-brand-mark"
+      />
+      <img
+        src="/assets/branding/footer-logo.png"
+        alt=""
+        aria-hidden="true"
         className="app-sidebar-v2-brand-logo"
       />
     </div>
@@ -762,7 +778,7 @@ const teamId =
                   data-sidebar-nav-id="workspace.tools"
                 >
                   <span className="app-sidebar-v2-link-icon">
-                    <LayoutGrid size={17} strokeWidth={1.9} />
+                    <LayoutGrid size={20} strokeWidth={1.75} />
                   </span>
                   <span style={{ flex: 1 }}>All Tools</span>
                 </Link>
@@ -772,7 +788,7 @@ const teamId =
         </div>
 
         <Link href="/support" className="app-sidebar-v2-help">
-          <Headphones size={18} strokeWidth={1.9} />
+          <CircleHelp size={20} strokeWidth={1.75} />
           <span>
             <strong>Need help?</strong>
             <small>Contact support</small>
