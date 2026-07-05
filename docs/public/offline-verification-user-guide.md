@@ -15,7 +15,7 @@ You get a bounded, machine-readable result that distinguishes between:
 - **Custody attestations** — are the detached attestation envelopes structurally sound? (Cryptographic signature verification of attestations requires the signer's public key, which is not bundled — see §4.)
 - **Timestamping** — are TSA / OTS proof materials present and structurally sane?
 
-## 2. The three ways to run the verifier
+## 2. The two ways to run the verifier
 
 ### Option A — CLI (recommended for repeat use)
 
@@ -34,17 +34,6 @@ Open `apps/offline-verifier/index.html` in any modern browser. Click "Select ZIP
 - Lets you download the result as JSON.
 
 You can verify these facts in your browser's DevTools — the Network tab will show only the initial JSZip script load.
-
-### Option C — Public web mount (no install, no login)
-
-Navigate to `<your-PROOVRA-deployment>/offline-verifier` in any modern browser. Drag the ZIP onto the page (or use the file picker) and click "Verify package".
-
-- No PROOVRA account is required to use this page.
-- The page is the same algorithm as Option B, served from the PROOVRA deployment for convenience.
-- **The ZIP is NEVER uploaded.** The verification runs in your browser. You can confirm this in your network monitor — the Network tab will show only the initial page load and the pinned JSZip CDN script (with Subresource Integrity).
-- The result can be downloaded as JSON.
-
-Use Option C when you want zero-setup verification and trust the PROOVRA deployment to serve the page shell. Use Options A or B when you want zero PROOVRA contact even for the page shell.
 
 ## 3. Reading the result
 

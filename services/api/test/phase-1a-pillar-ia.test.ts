@@ -217,7 +217,6 @@ describe("Phase 1A — Trust pillar surface", () => {
     // The trust page must point at REAL operator pages (no placeholders).
     expect(TRUST_PAGE).toContain("/legal/verification-methodology");
     expect(TRUST_PAGE).toContain("/verify");
-    expect(TRUST_PAGE).toContain("/offline-verifier");
     expect(TRUST_PAGE).toContain("/operations/signers");
     expect(TRUST_PAGE).toContain("/subprocessors");
     expect(TRUST_PAGE).toContain("/privacy");

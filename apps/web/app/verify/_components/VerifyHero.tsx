@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -16,7 +15,6 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
-import { MARKETING_BTN } from "../../../lib/marketing-buttons";
 import { SECTION_BORDER } from "./shared";
 
 const TRUST_CHIPS = [
@@ -84,10 +82,6 @@ export function VerifyHero() {
                   Open verification
                   <ArrowRight size={14} />
                 </a>
-                <Link href="/offline-verifier" className={MARKETING_BTN.heroSecondary}>
-                  Offline Verifier
-                  <ArrowRight size={14} />
-                </Link>
               </div>
 
               <ul className="mt-6 flex max-w-[560px] flex-wrap gap-2">

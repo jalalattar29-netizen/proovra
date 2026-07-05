@@ -6,15 +6,14 @@
 
 ## 1. What the verifier is
 
-Three surfaces, same bounded algorithm:
+Two surfaces, same bounded algorithm:
 
 | Surface | How to run | Use when |
 | --- | --- | --- |
 | **CLI** (Node) | `npx @proovra/offline-verifier package.zip` | Scripted / CI / forensic-lab workflows |
 | **Browser** (static page) | Open `apps/offline-verifier/index.html` locally | One-shot ad-hoc verification, no Node installed |
-| **Public web mount** (Next.js) | Browse to `<deployment>/offline-verifier` | No-install, no-login, drag-and-drop from any browser (Phase M1.1) |
 
-All three run **entirely on your machine**. The browser surfaces NEVER upload the package; the CLI never calls PROOVRA APIs. The public web mount loads the page shell from the PROOVRA deployment but the verification algorithm — including all hashing and signature checks — runs inside the browser. The bytes of the ZIP never leave your device.
+Both run **entirely on your machine**. The browser surface NEVER uploads the package; the CLI never calls PROOVRA APIs. The bytes of the ZIP never leave your device.
 
 ## 2. What is verified offline
 

@@ -81,33 +81,44 @@ export function AppShellV2({ children, onLogout }: AppShellV2Props) {
       data-active-persona={activePersona}
       data-workspace-experience-mode={experienceShell.mode}
     >
-<AppAccountToolbar
-  onLogout={onLogout}
-  mobileSidebarOpen={mobileSidebarOpen}
-  onToggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
-/>
-
-      {/* Phase 38.1 — Persona setup discoverability. Dismissible; never
-          blocks the app; renders only when the active workspace lacks a
-          completed persona profile. */}
-      <PersonaSetupBanner />
-
-      {/* Phase 38.8 — Cmd+K command palette. Self-mounted; renders
-          only when open (via internal state). Never hides existing UI. */}
-      <CommandPalette />
-
-      <div className="app-shell-v2-main">
-        <div className="app-shell-v2-desktop-sidebar">
-          <AppSidebarV2 />
-        </div>
-
-        <div className="app-shell-v2-content-wrap">
-          <main className="app-shell-v2-content">
-            {needsRecovery ? <WorkspaceRecoveryPanel /> : children}
-          </main>
-        </div>
+      {/*
+       * Milestone A — TRUE 2×2 GRID SHELL
+       *
+       *   [ sidebar-slot ] [ header-slot ]     col 1 spans 2 rows
+       *   [ sidebar-slot ] [ content-slot ]
+       *
+       * The header lives in column 2 only, so it never spans over the
+       * sidebar rail. Page identity (breadcrumb + title) sits in the
+       * header's left zone and is geometrically incapable of leaking
+       * behind the sidebar. Banners + recovery panels + page content
+       * all live inside content-slot so the header height stays a
+       * stable constant regardless of which panels are active.
+       */}
+      <div className="app-shell-v2-sidebar-slot">
+        <AppSidebarV2 />
       </div>
 
+      <div className="app-shell-v2-header-slot">
+        <AppAccountToolbar
+          onLogout={onLogout}
+          mobileSidebarOpen={mobileSidebarOpen}
+          onToggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
+        />
+      </div>
+
+      <div className="app-shell-v2-content-slot">
+        {/* Persona banner + recovery panel live inside content-slot so
+            they never disrupt the sticky header height. */}
+        <PersonaSetupBanner />
+        <main className="app-shell-v2-content">
+          {needsRecovery ? <WorkspaceRecoveryPanel /> : children}
+        </main>
+      </div>
+
+      {/* Cmd+K palette — self-mounted portal; renders only when open. */}
+      <CommandPalette />
+
+      {/* Mobile drawer + overlay — hidden by CSS at desktop widths. */}
       <div
         className={`app-shell-v2-mobile-overlay ${
           mobileSidebarOpen ? "is-open" : ""

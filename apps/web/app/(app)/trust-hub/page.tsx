@@ -89,13 +89,8 @@ const TRUST_CARDS: ReadonlyArray<TrustCard> = [
   },
   {
     title: "Public verification",
-    body: "Verify a PROOVRA bundle without an account. Paste a verify token or upload a verification package — the public verifier runs the same checks the offline verifier runs.",
+    body: "Verify a PROOVRA bundle without an account. Paste a verify token or upload a verification package to run the standard verification checks.",
     href: "/verify",
-  },
-  {
-    title: "Offline verifier",
-    body: "Verify a bundle air-gapped. The verifier is open source and ships as a CLI, a browser bundle, and a Node library. Court-grade reproducibility without PROOVRA online.",
-    href: "/offline-verifier",
   },
   {
     title: "Subprocessors",

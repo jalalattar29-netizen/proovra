@@ -83,7 +83,6 @@ export const MARKETING_LINKS = {
   pricing: "/pricing",
   verifyDemo: "/verify/demo",
   verify: "/verify",
-  offlineVerifier: "/offline-verifier",
   sampleReport: "/brand/sample-report.pdf",
   support: "/support",
 

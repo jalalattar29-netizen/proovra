@@ -14,10 +14,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { formatUserDate } from "../../lib/date";
+import { usePlatformContext } from "../../lib/platform-context";
 
 import type {
   EvidenceActivitySeries,
@@ -63,96 +63,139 @@ const ICONS = {
   spark: "M13 3L5 14h6l-1 7 8-11h-6z",
 } as const;
 
-const KPI_ICON: Record<HomeKpi["key"], { d: string; color: string; tint: string }> = {
-  evidence: { d: ICONS.evidence, color: HOME_COLORS.wine, tint: HOME_TINTS.wine },
-  matters: { d: ICONS.matters, color: HOME_COLORS.indigo, tint: HOME_TINTS.indigo },
-  trust: { d: ICONS.shield, color: HOME_COLORS.teal, tint: HOME_TINTS.teal },
-  deliverables: { d: ICONS.report, color: HOME_COLORS.violet, tint: HOME_TINTS.violet },
-  intake: { d: ICONS.inboxIcon, color: HOME_COLORS.warnDeep, tint: HOME_TINTS.warn },
+// Phase HOME-ENTERPRISE — colours SAMPLED PIXEL-FOR-PIXEL from the
+// reference dashboard. The cards are DEEP and dark: a hue-tinted, lighter
+// top-left flowing into a near-navy bottom-right (135deg). The icon sits
+// in a near-white frosted block and takes the DARK card hue. `chart` is
+// the light sparkline tint. `bottomAccent` (intake only) reproduces the
+// reference's amber bottom glow. Do NOT brighten these — the reference is
+// intentionally low-brightness and premium.
+const KPI_SURFACE: Record<
+  HomeKpi["key"],
+  {
+    d: string;
+    grad: string;
+    icon: string;
+    iconBg: string;
+    iconBorder: string;
+    chart: string;
+    bottomAccent?: string;
+  }
+> = {
+  evidence: {
+    d: ICONS.evidence,
+    grad: "linear-gradient(135deg, #3A2D91 0%, #2A2A78 52%, #1E2665 100%)",
+    icon: "#D6BEFF",
+    iconBg: "rgba(182, 145, 255, 0.12)",
+    iconBorder: "rgba(182, 145, 255, 0.20)",
+    chart: "#B88EFB",
+  },
+  matters: {
+    d: ICONS.matters,
+    grad: "linear-gradient(135deg, #3157A4 0%, #234080 52%, #1D366D 100%)",
+    icon: "#8CCBFF",
+    iconBg: "rgba(90, 170, 255, 0.12)",
+    iconBorder: "rgba(90, 170, 255, 0.20)",
+    chart: "#6EB6FF",
+  },
+  trust: {
+    d: ICONS.shield,
+    grad: "linear-gradient(135deg, #17516E 0%, #0D4459 52%, #083F52 100%)",
+    icon: "#98FFF0",
+    iconBg: "rgba(100, 255, 220, 0.10)",
+    iconBorder: "rgba(100, 255, 220, 0.18)",
+    chart: "#5FD6C8",
+  },
+  deliverables: {
+    d: ICONS.report,
+    grad: "linear-gradient(135deg, #5345A2 0%, #36337B 52%, #2C2C6C 100%)",
+    icon: "#D7BEFF",
+    iconBg: "rgba(192, 150, 255, 0.12)",
+    iconBorder: "rgba(192, 150, 255, 0.20)",
+    chart: "#B49CFF",
+  },
+  intake: {
+    d: ICONS.inboxIcon,
+    grad: "linear-gradient(135deg, #514235 0%, #44382E 52%, #372C25 100%)",
+    icon: "#FFD48A",
+    iconBg: "rgba(255, 200, 120, 0.12)",
+    iconBorder: "rgba(255, 200, 120, 0.20)",
+    chart: "#F7A64B",
+    bottomAccent: "rgba(247, 166, 75, 0.55)",
+  },
 };
 
 // ============================================================================
 // Header — greeting, search, inbox indicator, ONE primary action.
 // ============================================================================
 
-export function HomeHeader({
-  workspaceName,
-  inboxCount,
-  hero,
-}: {
-  workspaceName: string | null;
-  inboxCount: number;
-  hero: HeroAction;
-}) {
-  const router = useRouter();
-  const [query, setQuery] = useState("");
+export function HomeHeader({ hero }: { hero: HeroAction }) {
+  // Phase HOME-GREETING — the Home page owns its own identity via a
+  // time-of-day greeting. The global header owns Search / Workspace /
+  // Notifications / Language / Profile, so those controls are NOT
+  // duplicated here (no page search box, no inbox bell). The one
+  // retained page action is a neutral navigation CTA (NOT derived from
+  // hero.ctaLabel — see home-polish CTA-NORM): a true onboarding user
+  // (capture_first) gets "Capture evidence"; everyone else gets the
+  // plain "All evidence" list.
+  const ctx = usePlatformContext();
+  const user = ctx.envelope?.user;
+  const firstName =
+    user?.firstName?.trim() ||
+    user?.displayName?.trim().split(/\s+/)[0] ||
+    "";
 
-  // Phase HOME-CTA-NORMALIZATION — the header is a NEUTRAL navigation
-  // target, not a duplicate of the Operational Queue / Workspace
-  // Priorities decision surfaces.
-  //   - True onboarding (no evidence yet) → "Capture evidence"
-  //   - Everyone else → "Evidence Queue" (unfiltered)
-  // This guarantees a unique purpose per CTA and removes the
-  // double-rendered "Review Integrity" that previously appeared in
-  // both the header and the queue card.
+  // Compute the greeting after mount so server/client render agree
+  // (the hour is only known on the client → avoids hydration mismatch).
+  const [greeting, setGreeting] = useState("Welcome");
+  useEffect(() => {
+    const h = new Date().getHours();
+    setGreeting(
+      h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening",
+    );
+  }, []);
+
+  // Neutral navigation target — NOT a duplicate of the queue/priorities
+  // decision surfaces, and never derived from hero.ctaLabel (which once
+  // double-rendered "Review Integrity"). "All evidence" reads plainly
+  // across all user types; a brand-new user is nudged to capture first.
   const primary =
     hero.kind === "capture_first"
       ? { label: "Capture evidence", href: "/capture" }
-      // Phase HOME-COPY — "All evidence" reads plainly across all
-      // user types (individual through enterprise) and avoids the
-      // "Queue" jargon that suggested an operational worklist.
-      // Same destination, plainer label.
       : { label: "All evidence", href: "/evidence" };
 
   return (
     <header style={headerWrapStyle} data-home-header>
       <div style={{ minWidth: 0 }}>
         <h1 style={headerTitleStyle}>
-          {workspaceName?.trim() || "Your evidence operation"}
+          {greeting}
+          {firstName ? `, ${firstName}` : ""}{" "}
+          <span aria-hidden="true">👋</span>
         </h1>
         <p style={headerSubtitleStyle}>
-          Evidence, intake, reports, and verification in one operational view.
+          Here&apos;s what&apos;s happening across your digital evidence
+          operations today.
         </p>
       </div>
-      <div style={headerActionsStyle}>
-        <form
-          role="search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const q = query.trim();
-            router.push(q ? `/search?q=${encodeURIComponent(q)}` : "/search");
-          }}
-          style={{ margin: 0, position: "relative" }}
-        >
-          <span style={searchIconStyle} aria-hidden>
-            <Icon d={ICONS.search} color={HOME_COLORS.muted} size={15} />
-          </span>
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search evidence, cases, reports…"
-            aria-label="Search evidence, cases, reports"
-            style={searchInputStyle}
-            data-home-search
-          />
-        </form>
-        <Link
-          href="/inbox"
-          aria-label={inboxCount > 0 ? `Inbox — ${inboxCount} items` : "Inbox"}
-          style={bellWrapStyle}
-          data-home-inbox-indicator
-        >
-          <Icon d={ICONS.bell} color={HOME_COLORS.slate} size={17} />
-          {inboxCount > 0 ? <span style={bellDotStyle} data-home-inbox-dot /> : null}
-        </Link>
-        <Link href={primary.href} style={headerPrimaryCtaStyle} data-home-primary-cta>
-          {primary.label}
-        </Link>
-      </div>
+      <Link href={primary.href} style={headerPrimaryCtaStyle} data-home-primary-cta>
+        {primary.label}
+      </Link>
     </header>
   );
 }
+
+const headerPrimaryCtaStyle: React.CSSProperties = {
+  display: "inline-block",
+  padding: "10px 18px",
+  borderRadius: 10,
+  background: "linear-gradient(135deg, #6b5bff 0%, #5949e4 100%)",
+  color: "white",
+  fontWeight: 650,
+  fontSize: 13.5,
+  textDecoration: "none",
+  whiteSpace: "nowrap",
+  boxShadow: "0 2px 8px rgba(89, 73, 228, 0.30)",
+};
 
 // ============================================================================
 // Executive Summary — one-glance workspace state (Phase HOME-EXEC).
@@ -174,20 +217,40 @@ const EXEC_STATE: Record<
 
 export function ExecutiveSummaryBand({ summary }: { summary: ExecutiveSummary }) {
   const s = EXEC_STATE[summary.overallStatus];
-  const tone = toneColor(s.tone);
   return (
     <section
       className="home-card"
       data-self-serve-section="executive-summary"
       data-exec-status={summary.overallStatus}
       style={{
-        ...homeCardStyle,
-        padding: "14px 18px",
+        // Phase HOME-ENTERPRISE — the "command center" bar. A premium
+        // dark-navy surface backed by the PROOVRA icon-card asset (the
+        // 3D hexagon glows on the right; text sits in the dark space on
+        // the left). A status-colored left rail + chip + action carry
+        // the severity signal; the surface itself stays enterprise-dark
+        // in every state. White ink over a strong navy overlay keeps
+        // contrast well above AA.
+        position: "relative",
+        overflow: "hidden",
+        border: "1px solid rgba(255, 255, 255, 0.06)",
         borderLeft: `4px solid ${s.accent}`,
-        background: `linear-gradient(135deg, ${s.tint} 0%, rgba(255,255,255,0) 45%), ${HOME_COLORS.card}`,
+        borderRadius: 16,
+        padding: "16px 20px",
+        margin: 0,
+        color: "#f8fafc",
+        background:
+          // Dark navy base; the icon-card artwork is scaled DOWN to a
+          // decorative hexagon anchored on the right (no longer a
+          // dominant full-bleed cover). The gradient keeps the left ~⅔
+          // solid for text contrast and lets the mark glow on the right.
+          "linear-gradient(90deg, #0b1024 0%, #0b1024 42%, rgba(13, 18, 42, 0.55) 74%, rgba(16, 20, 46, 0.15) 100%)," +
+          'url("/assets/cards/icon-card.png") right center / auto 260% no-repeat,' +
+          "#0b1024",
+        boxShadow:
+          "0 1px 2px rgba(8, 11, 26, 0.20), 0 14px 34px rgba(8, 11, 26, 0.28)",
         display: "flex",
         alignItems: "center",
-        gap: 14,
+        gap: 16,
         flexWrap: "wrap",
       }}
     >
@@ -195,46 +258,80 @@ export function ExecutiveSummaryBand({ summary }: { summary: ExecutiveSummary })
         data-exec-status-chip
         style={{
           ...homeChipStyle,
-          background: tone.bg,
-          color: tone.fg,
-          fontSize: 11,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          background: "rgba(255, 255, 255, 0.06)",
+          border: `1px solid ${s.accent}`,
+          color: "#f8fafc",
+          fontSize: 10.5,
+          fontWeight: 700,
           textTransform: "uppercase",
-          letterSpacing: 0.5,
+          letterSpacing: 0.6,
           flexShrink: 0,
         }}
       >
+        <span
+          aria-hidden
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 999,
+            background: s.accent,
+            boxShadow: `0 0 0 3px ${s.accent}33`,
+          }}
+        />
         {summary.statusLabel}
       </span>
       <div style={{ flex: 1, minWidth: 240 }}>
-        <div data-exec-title style={{ fontSize: 14, fontWeight: 700, color: HOME_COLORS.ink }}>
+        <div
+          data-exec-title
+          style={{ fontSize: 15, fontWeight: 750, color: "#ffffff", letterSpacing: -0.2 }}
+        >
           {summary.summaryTitle}
         </div>
-        <p data-exec-sentence style={{ margin: "2px 0 0 0", fontSize: 12.5, lineHeight: 1.5, color: HOME_COLORS.slate }}>
+        <p
+          data-exec-sentence
+          style={{ margin: "3px 0 0 0", fontSize: 12.5, lineHeight: 1.5, color: "rgba(226, 232, 240, 0.78)" }}
+        >
           {summary.summarySentence}
         </p>
         {summary.secondarySignals.length > 0 ? (
-          <p data-exec-secondary style={{ margin: "4px 0 0 0", fontSize: 11, color: HOME_COLORS.muted }}>
+          <p
+            data-exec-secondary
+            style={{ margin: "5px 0 0 0", fontSize: 11, color: "rgba(226, 232, 240, 0.52)" }}
+          >
             Also: {summary.secondarySignals.join(" · ")}
           </p>
         ) : null}
       </div>
       {summary.actionHref && summary.actionLabel ? (
+        // Glass button — reads as PART of the dark card, not a heavy
+        // floating red block. Styling + hover live in `.home-exec-action`
+        // (app-shell-v2.css) so the hover state works.
         <Link
           href={summary.actionHref}
           data-exec-action
+          className="home-exec-action"
           title={summary.recommendedAction ?? undefined}
-          style={{
-            flexShrink: 0,
-            padding: "8px 14px",
-            borderRadius: 9,
-            background: s.accent,
-            color: "white",
-            fontWeight: 650,
-            fontSize: 12.5,
-            textDecoration: "none",
-          }}
         >
-          {summary.actionLabel}
+          <span>{summary.actionLabel}</span>
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden
+            style={{ opacity: 0.9, flexShrink: 0 }}
+          >
+            <path
+              d="M5 12h14M13 6l6 6-6 6"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </Link>
       ) : null}
     </section>
@@ -246,7 +343,7 @@ export function ExecutiveSummaryBand({ summary }: { summary: ExecutiveSummary })
 // sparkline, status dot, soft per-key gradient.
 // ============================================================================
 
-function Sparkline({ values, color }: { values: number[]; color: string }) {
+function Sparkline({ values, color, uid }: { values: number[]; color: string; uid: string }) {
   const w = 84;
   const h = 30;
   const max = Math.max(...values, 1);
@@ -257,7 +354,7 @@ function Sparkline({ values, color }: { values: number[]; color: string }) {
   );
   const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
   const area = `0,${h} ${line} ${w},${h}`;
-  const gid = `spark-${color.replace(/[^a-z0-9]/gi, "")}`;
+  const gid = `spark-${uid}`;
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden style={{ display: "block" }}>
       <defs>
@@ -283,7 +380,7 @@ export function KpiRow({ kpis }: { kpis: HomeKpi[] }) {
   return (
     <div style={kpiRowStyle} data-home-kpi-row>
       {kpis.map((k) => {
-        const icon = KPI_ICON[k.key];
+        const surface = KPI_SURFACE[k.key];
         const tone = toneColor(k.tone);
         return (
           <Link
@@ -291,28 +388,48 @@ export function KpiRow({ kpis }: { kpis: HomeKpi[] }) {
             href={k.href}
             style={{
               ...kpiCardStyle,
-              background: `linear-gradient(160deg, ${icon.tint} 0%, rgba(255,255,255,0) 36%), ${HOME_COLORS.card}`,
+              // Reference-accurate: the deep diagonal gradient IS the
+              // surface (bright hue top-left → deep navy bottom-right).
+              // A hair of top gloss + a soft outer shadow; intake adds
+              // the amber bottom glow. No brightening, no heavy inner
+              // shadow — the reference is intentionally dark.
+              background: surface.bottomAccent
+                ? `linear-gradient(0deg, ${surface.bottomAccent} 0%, rgba(0,0,0,0) 14%), ${surface.grad}`
+                : surface.grad,
+              boxShadow:
+                "inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 18px rgba(15,23,42,0.14)",
             }}
             data-home-kpi={k.key}
           >
             <div style={kpiTopStyle}>
-              <span style={iconBlockStyle(icon.tint, 34)}>
-                <Icon d={icon.d} color={icon.color} size={17} />
+              <span
+                style={{
+                  ...kpiIconBlockStyle,
+                  background: surface.iconBg,
+                  border: `1px solid ${surface.iconBorder}`,
+                }}
+              >
+                <Icon d={surface.d} color={surface.icon} size={19} />
               </span>
               <span style={kpiLabelStyle}>{k.label}</span>
               <span
                 aria-hidden
                 title={k.tone}
-                style={{ ...kpiToneDotStyle, background: tone.dot }}
+                style={{
+                  ...kpiToneDotStyle,
+                  background: tone.dot,
+                  boxShadow: "0 0 0 2px rgba(255, 255, 255, 0.30)",
+                }}
               />
             </div>
             <div style={kpiValueRowStyle}>
               <span style={kpiValueStyle}>{k.locked ? "—" : k.value}</span>
               {k.spark && k.spark.some((v) => v > 0) ? (
-                <Sparkline values={k.spark} color={icon.color} />
+                <Sparkline values={k.spark} color={surface.chart} uid={k.key} />
               ) : null}
+              {/* chart colour = surface.chart (sampled from reference) */}
             </div>
-            <span style={{ ...kpiSubtitleStyle, color: tone.fg }}>{k.subtitle}</span>
+            <span style={kpiSubtitleStyle}>{k.subtitle}</span>
           </Link>
         );
       })}
@@ -842,111 +959,67 @@ const headerWrapStyle: React.CSSProperties = {
   flexWrap: "wrap",
 };
 const headerTitleStyle: React.CSSProperties = {
-  fontSize: 25,
-  fontWeight: 750,
+  fontSize: 28,
+  fontWeight: 780,
+  lineHeight: 1.15,
   margin: 0,
   color: HOME_COLORS.ink,
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
-  letterSpacing: -0.3,
+  letterSpacing: -0.5,
 };
 const headerSubtitleStyle: React.CSSProperties = {
-  margin: "4px 0 0 0",
-  fontSize: 13.5,
+  margin: "6px 0 0 0",
+  fontSize: 14,
+  lineHeight: 1.5,
   color: HOME_COLORS.slate,
 };
-const headerActionsStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  flexWrap: "wrap",
-};
-const searchIconStyle: React.CSSProperties = {
-  position: "absolute",
-  left: 11,
-  top: "50%",
-  transform: "translateY(-50%)",
-  display: "inline-flex",
-  pointerEvents: "none",
-};
-const searchInputStyle: React.CSSProperties = {
-  width: 250,
-  padding: "9px 13px 9px 32px",
-  borderRadius: 10,
-  border: `1px solid ${HOME_COLORS.cardBorder}`,
-  background: "white",
-  fontSize: 13,
-  color: HOME_COLORS.ink,
-  outline: "none",
-  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
-};
-const bellWrapStyle: React.CSSProperties = {
-  position: "relative",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: 38,
-  height: 38,
-  borderRadius: 10,
-  border: `1px solid ${HOME_COLORS.cardBorder}`,
-  background: "white",
-  textDecoration: "none",
-  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
-};
-const bellDotStyle: React.CSSProperties = {
-  position: "absolute",
-  top: 7,
-  right: 8,
-  width: 8,
-  height: 8,
-  borderRadius: 999,
-  background: HOME_COLORS.danger,
-  border: "1.5px solid white",
-};
-const headerPrimaryCtaStyle: React.CSSProperties = {
-  display: "inline-block",
-  padding: "10px 18px",
-  borderRadius: 10,
-  background: `linear-gradient(135deg, ${HOME_COLORS.wineDeep} 0%, ${HOME_COLORS.wine} 100%)`,
-  color: "white",
-  fontWeight: 650,
-  fontSize: 13.5,
-  textDecoration: "none",
-  whiteSpace: "nowrap",
-  boxShadow: "0 2px 8px rgba(122, 22, 56, 0.28)",
-};
-
 const kpiRowStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(196px, 1fr))",
-  gap: 12,
+  // Wider KPI tiles so the first row feels balanced and the five cards
+  // span naturally across the container instead of floating narrow.
+  // min(100%, …) guarantees a single tile never overflows the narrowest
+  // mobile viewport (no horizontal scroll).
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 248px), 1fr))",
+  gap: 16,
 };
 const kpiCardStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: 8,
-  border: `1px solid ${HOME_COLORS.cardBorder}`,
+  gap: 12,
+  border: "1px solid rgba(255, 255, 255, 0.08)",
   borderRadius: 16,
-  padding: "14px 16px",
+  padding: "18px 20px 16px",
   textDecoration: "none",
-  color: "inherit",
-  boxShadow:
-    "0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 28px rgba(15, 23, 42, 0.05)",
+  color: "#ffffff",
+  minHeight: 140,
   minWidth: 0,
 };
 const kpiTopStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 9,
+  gap: 11,
+};
+// Icon block — subtle, integrated into the card's own colour family
+// (per-card bg/border supplied at render). No white, no solid fill, no
+// shadow — just soft transparency so the icon melts into the card.
+const kpiIconBlockStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 42,
+  height: 42,
+  borderRadius: 12,
+  flexShrink: 0,
 };
 const kpiLabelStyle: React.CSSProperties = {
   flex: 1,
-  fontSize: 10.5,
-  fontWeight: 750,
-  letterSpacing: 0.5,
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: 0.6,
   textTransform: "uppercase",
-  color: HOME_COLORS.slate,
+  color: "rgba(255, 255, 255, 0.82)",
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
@@ -962,20 +1035,21 @@ const kpiValueRowStyle: React.CSSProperties = {
   alignItems: "flex-end",
   justifyContent: "space-between",
   gap: 8,
-  minHeight: 32,
+  minHeight: 40,
 };
 const kpiValueStyle: React.CSSProperties = {
-  fontSize: 28,
-  fontWeight: 780,
+  fontSize: 34,
+  fontWeight: 700,
   lineHeight: 1,
-  color: HOME_COLORS.ink,
+  color: "#ffffff",
   fontVariantNumeric: "tabular-nums",
-  letterSpacing: -0.5,
+  letterSpacing: -0.6,
 };
 const kpiSubtitleStyle: React.CSSProperties = {
-  fontSize: 11.5,
-  lineHeight: 1.45,
-  fontWeight: 550,
+  fontSize: 12,
+  lineHeight: 1.4,
+  fontWeight: 500,
+  color: "rgba(255, 255, 255, 0.66)",
 };
 
 const chartHeaderStyle: React.CSSProperties = {

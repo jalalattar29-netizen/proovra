@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 @import "vanilla-cookieconsent/dist/cookieconsent.css";
+/* Internal design tokens — MUST come before app-shell-v2.css so the
+   shell + primitives can consume them. */
+@import "../lib/design-tokens/tokens.css";
 @import "../components/app-shell-v2/app-shell-v2.css";
 @import "../components/capture-v2/capture-v2.css";
 @import "../components/command-center/command-center.css";

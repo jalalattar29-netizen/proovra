@@ -17,10 +17,9 @@
 //   - heroSecondary    : white surface, brand blue border + text. The
 //                        canonical companion to the dark primary on
 //                        light hero/landing-content surfaces (Verify,
-//                        Offline Verifier, Platform, Technology,
-//                        Solutions, Why PROOVRA, Trust, Support, FAQ,
-//                        homepage hero). Source of truth: the secondary
-//                        on /verify and /offline-verifier heroes.
+//                        Platform, Technology, Solutions, Why PROOVRA,
+//                        Trust, Support, FAQ, homepage hero). Source of
+//                        truth: the secondary on the /verify hero.
 //                        DO NOT use inside final-CTA panels, footer,
 //                        pricing CTA blocks, dashboard, or form submits.
 //

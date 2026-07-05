@@ -20,6 +20,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { SlidersHorizontal, X } from "lucide-react";
 
 import {
   useActiveSpace,
@@ -90,54 +91,89 @@ export function PersonaSetupBanner() {
         persona.onboardingCompleted ? "true" : "false"
       }
       style={{
-        background: "#eef2ff",
-        borderBottom: "1px solid #c7d2fe",
-        padding: "8px 16px",
+        // Compact, elegant enterprise callout — an inset card (not a
+        // full-bleed colored bar). Subtle surface, thin border, a
+        // restrained indigo accent rail, a dismiss control and a single
+        // primary action. Sits above the page content.
         display: "flex",
         alignItems: "center",
-        gap: 12,
-        fontSize: 13,
+        gap: 14,
+        margin: "20px clamp(14px, 4vw, 40px) 0",
+        padding: "12px 12px 12px 16px",
+        background: "#ffffff",
+        border: "1px solid rgba(15, 23, 42, 0.09)",
+        borderLeft: "3px solid #6b5bff",
+        borderRadius: 12,
+        boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
       }}
     >
-      <div style={{ flex: 1, color: "#1e1b4b" }}>
-        <strong>Configure your workflows.</strong>{" "}
-        <span style={{ color: "#3730a3" }}>
+      <span
+        aria-hidden="true"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 34,
+          height: 34,
+          borderRadius: 9,
+          background: "rgba(107, 91, 255, 0.10)",
+          color: "#5949e4",
+          flexShrink: 0,
+        }}
+      >
+        <SlidersHorizontal size={17} strokeWidth={1.9} />
+      </span>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+          Configure your workflows
+        </div>
+        <div style={{ fontSize: 12.5, lineHeight: 1.45, color: "#475569" }}>
           Pick the workflows most important to your work so navigation,
-          defaults, and labels adapt. This never changes what your workspace
-          is allowed to do.
-        </span>
+          defaults, and labels adapt — it never changes what your workspace can
+          do.
+        </div>
       </div>
+
       <Link
         href="/settings/persona"
         data-persona-setup-banner-cta
         style={{
-          padding: "4px 12px",
-          background: "#1e293b",
+          flexShrink: 0,
+          padding: "8px 14px",
+          background: "linear-gradient(135deg, #6b5bff 0%, #5949e4 100%)",
           color: "#fff",
-          fontWeight: 600,
-          borderRadius: 6,
+          fontWeight: 650,
+          borderRadius: 8,
           textDecoration: "none",
-          fontSize: 12,
+          fontSize: 12.5,
+          whiteSpace: "nowrap",
+          boxShadow: "0 1px 2px rgba(89, 73, 228, 0.28)",
         }}
       >
-        Set up workspace
+        Set up
       </Link>
+
       <button
         type="button"
         data-persona-setup-banner-dismiss
         aria-label="Dismiss workspace setup reminder"
         onClick={handleDismiss}
         style={{
-          padding: "4px 8px",
+          flexShrink: 0,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 32,
+          height: 32,
           background: "transparent",
-          color: "#3730a3",
-          border: "1px solid #c7d2fe",
-          borderRadius: 6,
+          color: "#94a3b8",
+          border: "1px solid transparent",
+          borderRadius: 8,
           cursor: "pointer",
-          fontSize: 12,
         }}
       >
-        Not now
+        <X size={16} strokeWidth={2} />
       </button>
     </div>
   );

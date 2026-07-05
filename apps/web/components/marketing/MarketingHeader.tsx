@@ -22,10 +22,10 @@ import {
   HelpCircle,
   BookText,
   Building,
-  PackageCheck,
 } from "lucide-react";
 import { MARKETING_COPY, MARKETING_LINKS } from "./tokens";
 import { MARKETING_BTN } from "../../lib/marketing-buttons";
+import { MarketingLanguageSwitcher } from "./MarketingLanguageSwitcher";
 
 type DropdownItem = {
   label: string;
@@ -170,30 +170,8 @@ const NAV: NavGroup[] = [
     ],
   },
   { label: "Pricing", href: MARKETING_LINKS.pricing },
-  {
-    // Verify dropdown — Public Verify lands on /verify, Offline
-    // Verifier lands on /offline-verifier. Kept as a small 1-col menu
-    // so the header stays balanced on desktop. Mobile expands into
-    // the same two rows under a "Verify" details summary.
-    label: "Verify",
-    cols: 1,
-    items: [
-      {
-        label: "Public Verify",
-        href: MARKETING_LINKS.verify,
-        description: "Verify a published evidence record online",
-        Icon: ShieldCheck,
-        iconColor: "#2563EB",
-      },
-      {
-        label: "Offline Verifier",
-        href: "/offline-verifier",
-        description: "Inspect a Verification Package locally in your browser",
-        Icon: PackageCheck,
-        iconColor: "#10A37F",
-      },
-    ],
-  },
+  // Verify — direct link to the Public Verify landing (`/verify`).
+  { label: "Verify", href: MARKETING_LINKS.verify },
 ];
 
 const LOGO_SRC = "/assets/branding/logo-dark.png";
@@ -364,6 +342,9 @@ className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium
         </nav>
 
         <div className="hidden shrink-0 items-center gap-2 xl:flex">
+          {/* Minimal language switcher — sits between Verify (last nav
+              item) and Sign in. Default EN, code-only, no globe/flag. */}
+          <MarketingLanguageSwitcher variant="desktop" />
           <Link
             href={switchAuthHref}
             className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] font-medium transition-colors ${navTextClass}`}
@@ -456,6 +437,14 @@ className="w-[170px] h-auto object-contain"
             ))}
           </nav>
           <div className="flex flex-col gap-3 border-t border-[#E5E7EB] p-6">
+            {/* Compact language selector — a single quiet row near Sign
+                in (not a large top row). Default EN, code-only. */}
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] font-medium text-[#64748B]">
+                Language
+              </span>
+              <MarketingLanguageSwitcher variant="mobile" />
+            </div>
             <Link
               href={switchAuthHref}
               onClick={() => setMobileOpen(false)}

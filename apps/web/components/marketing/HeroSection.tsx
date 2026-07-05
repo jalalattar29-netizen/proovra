@@ -431,16 +431,6 @@ Digital evidence infrastructure for legal, insurance, investigation, compliance,
               View sample report
               <ArrowRight size={16} />
             </a>
-            {/* Offline verifier — secondary/technical-trust CTA. Links to
-                the existing /offline-verifier page. Sits between the
-                primary "View sample report" and the "Request a demo"
-                sales CTA so the trust → sales hierarchy reads cleanly. */}
-            <Link
-              href={MARKETING_LINKS.offlineVerifier}
-              className={MARKETING_BTN.heroSecondary}
-            >
-              Offline verifier
-            </Link>
             <Link
               href={MARKETING_LINKS.requestDemo}
               className={MARKETING_BTN.heroSecondary}

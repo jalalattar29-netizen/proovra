@@ -238,7 +238,7 @@ export function middleware(req: NextRequest) {
     // list:
     //   * `/auth` — auth callback lives on the app host already
     //   * `/share/[id]`, `/verify/[token]`, `/verify/demo`,
-    //     `/offline-verifier`, `/intake/[token]`, `/release-notes` —
+    //     `/intake/[token]`, `/release-notes` —
     //     public surfaces that live on the marketing host
     //   * `/admin`, `/ops`, `/operations`, `/reviewer-ops`,
     //     `/governance`, `/integrations`, `/intelligence`,

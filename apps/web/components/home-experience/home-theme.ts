@@ -67,32 +67,34 @@ export function toneColor(tone: HomeTone): { fg: string; bg: string; dot: string
   }
 }
 
-/** The canonical Home card — glassy white, soft depth, generous radius. */
+/** The canonical Home card — premium white surface, subtle border, soft
+ * enterprise shadow, 16px radius (same radius/shadow language as every
+ * dashboard panel). Generous padding for calm hierarchy. */
 export const homeCardStyle: React.CSSProperties = {
   background: HOME_COLORS.card,
-  border: `1px solid ${HOME_COLORS.cardBorder}`,
+  border: "1px solid rgba(15, 23, 42, 0.08)",
   borderRadius: 16,
-  padding: 18,
+  padding: 20,
   margin: 0,
   boxShadow:
-    "0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 28px rgba(15, 23, 42, 0.05)",
+    "0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 20px rgba(15, 23, 42, 0.05)",
 };
 
 export const homeCardHeaderStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "baseline",
   justifyContent: "space-between",
-  marginBottom: 12,
+  marginBottom: 14,
   gap: 10,
 };
 
 export const homeCardTitleStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 13,
-  fontWeight: 750,
+  fontWeight: 700,
   color: HOME_COLORS.ink,
   textTransform: "uppercase",
-  letterSpacing: 0.5,
+  letterSpacing: 0.4,
 };
 
 export const homeCardCtaStyle: React.CSSProperties = {
@@ -127,19 +129,24 @@ export const iconBlockStyle = (
   flexShrink: 0,
 });
 
-/** The page surface — soft pearl with faint lavender/teal radials. */
+/**
+ * The page container. Sits directly on the app surface — NO colored
+ * hero panel, NO purple radials, NO rounded banner. A wide, centered
+ * responsive container so cards fill the available width on desktop
+ * instead of floating inside big empty margins. Spacing is on the 8px
+ * system (24px padding / 20px section gap).
+ */
 export const homePageStyle: React.CSSProperties = {
-  maxWidth: 1240,
+  // Centered container. The app shell already supplies the horizontal
+  // gutter (40px), so the page adds NONE — avoiding double padding.
+  // Vertical rhythm + section gaps stay on the 8px grid.
+  maxWidth: 1600,
   margin: "0 auto",
-  padding: "26px 24px 40px",
+  padding: "4px 0 56px",
   fontFamily:
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   display: "flex",
   flexDirection: "column",
-  gap: 16,
-  background:
-    "radial-gradient(circle at 12% 0%, rgba(109, 40, 217, 0.04), transparent 30%)," +
-    "radial-gradient(circle at 88% 8%, rgba(14, 116, 144, 0.035), transparent 26%)," +
-    "linear-gradient(180deg, #f7f7fb 0%, #f3f4f8 100%)",
-  borderRadius: 18,
+  gap: 24,
+  background: "transparent",
 };

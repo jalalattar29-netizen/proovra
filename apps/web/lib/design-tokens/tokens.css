@@ -1,0 +1,151 @@
+/*
+ * PROOVRA Internal Design Tokens
+ *
+ * Single source of truth for the authenticated application shell and
+ * every page migrated to the new page-layout primitives.
+ *
+ * Imported by apps/web/app/globals.css BEFORE app-shell-v2.css so the
+ * shell can consume these tokens directly.
+ *
+ * Rules:
+ *   - Do NOT hard-code hex or px values in page CSS. Consume tokens.
+ *   - The dark sidebar has its own scale (--nav-*) since it lives in a
+ *     different colour context than the light content plane.
+ *   - Marketing (public) surfaces have a separate token set in
+ *     components/marketing/tokens.ts — do NOT cross-import.
+ */
+
+:root {
+  /* ------------------------------------------------------------------
+   * SURFACES
+   * ------------------------------------------------------------------ */
+  --surface-app: #F7F8FC;
+  --surface-card: #FFFFFF;
+  --surface-elevated: #FFFFFF;
+  --surface-muted: #F1F4F9;
+  --surface-header: #F8FAFC;
+
+  /* ------------------------------------------------------------------
+   * BORDERS
+   * ------------------------------------------------------------------ */
+  --border-subtle: rgba(15, 23, 42, 0.06);
+  --border-default: rgba(15, 23, 42, 0.09);
+  --border-strong: rgba(15, 23, 42, 0.14);
+
+  /* ------------------------------------------------------------------
+   * TEXT (ink)
+   * ------------------------------------------------------------------ */
+  --ink-primary: #0F172A;
+  --ink-secondary: #475569;
+  --ink-muted: #94A3B8;
+  --ink-inverse: #F8FAFC;
+
+  /* ------------------------------------------------------------------
+   * BRAND ACCENT (used sparingly)
+   * ------------------------------------------------------------------ */
+  --accent-050: #EEEBFF;
+  --accent-500: #6B5BFF;
+  --accent-600: #5949E4;
+  --brand-gradient: linear-gradient(135deg, #6B5BFF 0%, #4E3EE8 100%);
+
+  /* ------------------------------------------------------------------
+   * SEMANTIC
+   * ------------------------------------------------------------------ */
+  --success: #10B981;
+  --success-050: #ECFDF5;
+  --warning: #F59E0B;
+  --warning-050: #FFFBEB;
+  --error: #DC2626;
+  --error-050: #FEF2F2;
+  --info: #2563EB;
+  --info-050: #EFF6FF;
+
+  /* ------------------------------------------------------------------
+   * RADIUS
+   * ------------------------------------------------------------------ */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-card: 14px;
+  --radius-pill: 999px;
+
+  /* ------------------------------------------------------------------
+   * SHADOWS
+   * ------------------------------------------------------------------ */
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-elevated: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-dropdown:
+    0 12px 40px rgba(15, 23, 42, 0.12),
+    0 2px 6px rgba(15, 23, 42, 0.04);
+  --focus-ring: 0 0 0 3px rgba(107, 91, 255, 0.28);
+
+  /* ------------------------------------------------------------------
+   * SPACING (4px base)
+   * ------------------------------------------------------------------ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ------------------------------------------------------------------
+   * LAYOUT
+   * ------------------------------------------------------------------ */
+  --page-max-w: 1360px;
+  --page-pad-x: 32px;
+  --page-pad-y: 28px;
+  --section-gap: 28px;
+
+  --header-h: 72px;
+  --sidebar-collapsed: 68px;
+  --sidebar-expanded: 240px;
+  --sidebar-transition: 220ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ------------------------------------------------------------------
+   * TYPOGRAPHY
+   * ------------------------------------------------------------------ */
+  --font-page-title: 700 22px/1.2 var(--font-sans, -apple-system, "Segoe UI", system-ui);
+  --font-section-title: 650 15px/1.35 var(--font-sans, -apple-system, "Segoe UI", system-ui);
+  --font-card-title: 600 14px/1.4 var(--font-sans, -apple-system, "Segoe UI", system-ui);
+  --font-body: 500 14px/1.55 var(--font-sans, -apple-system, "Segoe UI", system-ui);
+  --font-meta: 500 12.5px/1.4 var(--font-sans, -apple-system, "Segoe UI", system-ui);
+  --font-label: 700 10.5px/1 var(--font-sans, -apple-system, "Segoe UI", system-ui);
+
+  /* ------------------------------------------------------------------
+   * DENSITY
+   * Consumed by tables / cards / lists to switch row height + padding.
+   * ------------------------------------------------------------------ */
+  --density-comfortable-row-h: 44px;
+  --density-comfortable-pad-y: 12px;
+  --density-comfortable-pad-x: 16px;
+
+  --density-compact-row-h: 36px;
+  --density-compact-pad-y: 8px;
+  --density-compact-pad-x: 12px;
+
+  --density-ultra-compact-row-h: 28px;
+  --density-ultra-compact-pad-y: 4px;
+  --density-ultra-compact-pad-x: 10px;
+
+  /* ------------------------------------------------------------------
+   * SIDEBAR (dark surface, separate scale — never mix with --ink-*)
+   * Premium navy → graphite → subtle indigo undertone.
+   * No pure black. No neon. No violet wash.
+   * ------------------------------------------------------------------ */
+  --nav-surface-top: #0B1220;
+  --nav-surface-mid: #101A2E;
+  --nav-surface-bottom: #151B34;
+  --nav-ink-strong: #F8FAFC;
+  --nav-ink: rgba(226, 232, 240, 0.82);
+  --nav-ink-muted: rgba(226, 232, 240, 0.42);
+  --nav-icon-idle: rgba(226, 232, 240, 0.58);
+  --nav-hover-bg: rgba(255, 255, 255, 0.05);
+  --nav-active-bg: rgba(255, 255, 255, 0.06);
+  --nav-divider: rgba(255, 255, 255, 0.08);
+  --brand-accent: var(--accent-500);
+}

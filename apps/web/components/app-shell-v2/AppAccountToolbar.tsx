@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bell,
+  Camera,
   ChevronDown,
   CreditCard,
   HelpCircle,
@@ -26,7 +27,6 @@ import { GlobalRuntimeIndicator } from "../operational";
 import { usePlatformContext } from "../../lib/platform-context";
 import { canAccessSurface } from "../../lib/surface/access";
 import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
-import { ROUTE_REGISTRY } from "../../lib/navigation/routeRegistry";
 
 type LucideIcon = ForwardRefExoticComponent<
   Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>
@@ -120,43 +120,6 @@ const CROSS_SURFACE_SIDEBAR_HREFS: ReadonlySet<string> = new Set([
   "/pricing",
 ]);
 
-// Derive a breadcrumb trail from the pathname. Uses ROUTE_REGISTRY for
-// canonical labels, falling back to title-cased path segments.
-function useBreadcrumb(pathname: string | null): Array<{
-  label: string;
-  href: string;
-  current: boolean;
-}> {
-  return useMemo(() => {
-    if (!pathname || pathname === "/") return [];
-    const parts = pathname.split("?")[0]!.split("#")[0]!.split("/").filter(Boolean);
-    if (parts.length === 0) return [];
-
-    // Try the deepest matching registry entry first for a nice label.
-    const deepestHref = "/" + parts.join("/");
-    const deepestRoute = ROUTE_REGISTRY.find((r) => r.href === deepestHref);
-
-    const trail: Array<{ label: string; href: string; current: boolean }> = [];
-    let acc = "";
-    for (let i = 0; i < parts.length; i++) {
-      const seg = parts[i]!;
-      acc += "/" + seg;
-      const route = ROUTE_REGISTRY.find((r) => r.href === acc);
-      const label =
-        route?.label ??
-        (i === parts.length - 1 && deepestRoute
-          ? deepestRoute.label
-          : seg.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
-      trail.push({
-        label,
-        href: acc,
-        current: i === parts.length - 1,
-      });
-    }
-    return trail;
-  }, [pathname]);
-}
-
 // Dispatches Cmd+K (or Ctrl+K on non-mac) so the CommandPalette listener
 // picks it up. The palette owns its own state; this trigger stays stateless.
 function openCommandPalette() {
@@ -226,10 +189,10 @@ export function AppAccountToolbar({
 
   const isPlatformAdmin = envelope?.platform.isPlatformAdmin === true;
 
-const runtimeTeamId =
-  envelope?.activeSpace?.type === "ORGANIZATION"
-    ? envelope.activeSpace.id
-    : null;
+  const runtimeTeamId =
+    envelope?.activeSpace?.type === "ORGANIZATION"
+      ? envelope.activeSpace.id
+      : null;
 
   const { name: workspaceName, scopeLine } = getWorkspaceLabels(envelope, state);
 
@@ -260,8 +223,6 @@ const runtimeTeamId =
     return out;
   }, [envelope?.navigation.accountMenu.items, canSeeOrganizations]);
 
-  const breadcrumb = useBreadcrumb(pathname);
-
   const handleSearchClick = useCallback(() => {
     openCommandPalette();
   }, []);
@@ -283,45 +244,10 @@ const runtimeTeamId =
             {mobileSidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
 
-          {breadcrumb.length > 0 ? (
-            <div
-              className="app-header-title-block"
-              data-app-header-title-block
-              aria-label="Current page"
-            >
-              {breadcrumb.length > 1 ? (
-                <nav
-                  className="app-header-page-kicker"
-                  aria-label="Breadcrumb"
-                  data-app-header-breadcrumb
-                >
-                  {breadcrumb.slice(0, -1).map((crumb, idx) => (
-                    <span
-                      key={crumb.href}
-                      style={{ display: "inline-flex", alignItems: "center" }}
-                    >
-                      {idx > 0 ? (
-                        <span
-                          className="app-header-page-kicker-sep"
-                          aria-hidden="true"
-                        >
-                          /
-                        </span>
-                      ) : null}
-                      <Link href={crumb.href}>{crumb.label}</Link>
-                    </span>
-                  ))}
-                </nav>
-              ) : null}
-              <h1
-                className="app-header-page-title"
-                aria-current="page"
-                data-app-header-page-title
-              >
-                {breadcrumb[breadcrumb.length - 1]?.label ?? ""}
-              </h1>
-            </div>
-          ) : null}
+          {/* Phase HEADER-CLEAN — the global header no longer renders
+              page titles or breadcrumbs. Each page owns its own identity
+              (e.g. the Home greeting). The header stays clean: search,
+              workspace, notifications, language, profile. */}
         </div>
 
         <div className="app-header-zone-center">
@@ -344,10 +270,21 @@ const runtimeTeamId =
         </div>
 
         <div className="app-header-zone-right">
+          <Link
+            href="/capture"
+            className="app-header-primary-action"
+            data-app-header-primary-action
+          >
+            <Camera size={16} strokeWidth={2} />
+            <span>New Evidence</span>
+          </Link>
+
+          <span className="app-header-divider" aria-hidden="true" />
+
           <div
             className="app-topbar-v2-runtime"
             data-app-topbar-runtime
-            aria-label="Runtime status"
+            aria-label="System status"
           >
             <GlobalRuntimeIndicator teamId={runtimeTeamId} />
           </div>

@@ -430,6 +430,15 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
       data: {
         email: profile.email ?? user.email,
         displayName: profile.displayName ?? user.displayName,
+        // OAuth email-verification guard FIRST: for GOOGLE / APPLE
+        // sign-ins, stamp emailVerifiedAt when the existing row has none
+        // yet — never overwrite an existing verification timestamp (keeps
+        // the original audit point), and never applied for non-OAuth
+        // providers. Kept ahead of the avatar backfill so the OAuth
+        // verification guard is the first conditional in the payload.
+        ...(isOAuthProvider && !user.emailVerifiedAt
+          ? { emailVerifiedAt: now }
+          : {}),
         // Backfill avatarUrl on repeat sign-in ONLY when the row has
         // no avatar yet — this rescues existing accounts created before
         // this fix, but never overwrites a custom uploaded avatar. Also
@@ -437,11 +446,6 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
         // (e.g. Google user removes their photo).
         ...(profile.avatarUrl && !user.avatarUrl
           ? { avatarUrl: profile.avatarUrl }
-          : {}),
-        // Only fill emailVerifiedAt — never overwrite an existing
-        // verification timestamp so we keep the original audit point.
-        ...(isOAuthProvider && !user.emailVerifiedAt
-          ? { emailVerifiedAt: now }
           : {}),
       },
     });

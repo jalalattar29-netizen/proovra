@@ -88,17 +88,17 @@ export function SelfServeHomeDashboard() {
       data-self-serve-plan={vm.plan ?? "UNKNOWN"}
       style={pageStyle}
     >
-      {/* Header — greeting, search, inbox indicator, one primary action. */}
-      <HomeHeader
-        workspaceName={vm.workspaceName}
-        inboxCount={vm.inboxCount}
-        hero={vm.heroAction}
-      />
+      {/* Header — time-of-day greeting + one neutral navigation CTA
+          (hero-aware: capture-first onboarding vs. "All evidence").
+          Search / inbox live in the global app header, not duplicated. */}
+      <HomeHeader hero={vm.heroAction} />
 
       {/* ─────────────────────────────────────────────────────────
-          LAYER 1 — Overview. What do I have? What is ready?
-          What needs me right now? Two surfaces only: the one-line
-          Executive Summary + the five real-number KPIs.
+          LAYER 1 — Overview. What do I have? What is ready? What needs
+          me right now? Two surfaces only: the one-line Executive Summary
+          (critical alert) + the five real-number KPIs. The 3-layer IA
+          is a product contract (home-ia-three-layer.contract.test.ts) —
+          the Layer 1 header must precede ExecutiveSummaryBand + KpiRow.
           ───────────────────────────────────────────────────────── */}
       <HomeLayerHeader
         layer={1}
@@ -216,47 +216,32 @@ function HomeLayerHeader({
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 2,
-        padding: "10px 4px 2px",
-        marginTop: layer === 1 ? 4 : 14,
+        gap: 3,
+        // Section header with a subtle hairline divider so each band of
+        // cards reads as a distinct, premium section of the dashboard
+        // system rather than a loose pile of white boxes. Extra top
+        // margin gives the sections room to breathe (8px grid).
+        padding: "0 2px 14px",
+        marginTop: layer === 1 ? 8 : 24,
+        borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
       }}
     >
       <div
         style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: 0.4,
-          textTransform: "uppercase",
-          color: "#64748b",
+          fontSize: 15,
+          fontWeight: 750,
+          letterSpacing: -0.2,
+          color: "#0f172a",
         }}
       >
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 18,
-            height: 18,
-            borderRadius: 999,
-            background: "rgba(15,23,42,0.06)",
-            color: "#0f172a",
-            fontSize: 10,
-            fontWeight: 700,
-          }}
-        >
-          {layer}
-        </span>
-        <span>{title}</span>
+        {title}
       </div>
       <p
         style={{
           margin: 0,
-          fontSize: 12.5,
-          color: "#475569",
-          lineHeight: 1.4,
+          fontSize: 13,
+          color: "#64748b",
+          lineHeight: 1.45,
         }}
       >
         {subtitle}
@@ -272,11 +257,12 @@ const pageStyle: React.CSSProperties = homePageStyle;
 const rowTwoColStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))",
-  gap: 14,
+  gap: 20,
+  alignItems: "stretch",
 };
 const rowQueueChartStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))",
-  gap: 14,
-  alignItems: "start",
+  gap: 20,
+  alignItems: "stretch",
 };

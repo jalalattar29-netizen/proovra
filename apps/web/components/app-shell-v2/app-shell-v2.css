@@ -1,59 +1,99 @@
-/* PROOVRA ENTERPRISE APP SHELL
-   Restrained enterprise design system — hover-expand icon rail + sticky command header.
-   Reference systems: Stripe Dashboard, Linear, Figma, Cloudflare — utilitarian sophistication.
-   Icon-alignment invariant: icon center stays at x = 34px in both rail states. */
+/* PROOVRA ENTERPRISE APP SHELL — Milestone A foundation
+   True 2×2 grid architecture (Phase 1). Tokens live in
+   `apps/web/lib/design-tokens/tokens.css` and cascade in via
+   globals.css so this file consumes rather than defines. */
 
-/* ---------- Design tokens ---------- */
+/* ---------- Shell root: 2 columns × 2 rows ----------
+   All tokens are declared on :root in tokens.css and inherit into the
+   shell. This rule ONLY sets shell-scoped ALIASES (never cyclic
+   var(--x, x) — that pattern makes CSS drop the value silently). */
 .app-shell-v2 {
-  --sidebar-collapsed: 68px;
-  --sidebar-expanded: 224px;
-  --sidebar-transition: 220ms cubic-bezier(0.16, 1, 0.3, 1);
-  --header-h: 68px;
-
-  --brand-accent: #6B5BFF;
-
-  /* Sidebar reads as calm chrome, not decoration. Single flat
-     near-black surface with the faintest hint of blue — Linear/GitHub
-     restraint. Any gradient or radial highlight would compete with
-     content for attention. */
-  --nav-surface: #0A0E17;
-  --nav-surface-top: #0A0E17;
-  --nav-surface-mid: #0A0E17;
-  --nav-surface-bottom: #0A0E17;
+  /* Shell-scoped alias tokens that older selectors inside this
+     stylesheet still read via `.app-shell-v2 --foo`. Point them at
+     the canonical :root tokens. */
+  --shell-bg: var(--surface-app);
+  --header-bg: var(--surface-header);
+  --header-border: var(--border-subtle);
+  --content-ink: var(--ink-primary);
+  --content-ink-muted: var(--ink-secondary);
+  --content-hover-bg: rgba(15, 23, 42, 0.05);
+  --content-hover-border: rgba(15, 23, 42, 0.09);
   --nav-ink: rgba(226, 232, 240, 0.82);
   --nav-ink-strong: #F8FAFC;
   --nav-ink-muted: rgba(226, 232, 240, 0.42);
   --nav-icon-idle: rgba(226, 232, 240, 0.62);
-  --nav-hover-bg: rgba(255, 255, 255, 0.04);
+  --nav-hover-bg: rgba(255, 255, 255, 0.05);
   --nav-active-bg: rgba(255, 255, 255, 0.06);
-  --nav-divider: rgba(255, 255, 255, 0.05);
-
-  --shell-bg: #F7F8FB;
-  --header-bg: #FFFFFF;
-  --header-border: rgba(15, 23, 42, 0.06);
-  --content-ink: #0F172A;
-  --content-ink-muted: #64748B;
-  --content-hover-bg: rgba(15, 23, 42, 0.05);
-  --content-hover-border: rgba(15, 23, 42, 0.08);
+  --nav-divider: rgba(255, 255, 255, 0.08);
 
   min-height: 100vh;
   background: var(--shell-bg);
   color: var(--content-ink);
-}
 
-.app-shell-v2-main {
+  /* PHASE 1 — TRUE 2×2 GRID (PUSH MODE).
+     col 1 = sidebar column (68px collapsed → 224px expanded)
+     col 2 = content column (fluid)
+     row 1 = header
+     row 2 = content
+
+     When the sidebar is hovered/focused, grid column 1 grows to the
+     expanded width and the header + content columns SHIFT RIGHT
+     smoothly (push mode). Because the sidebar lives entirely inside
+     column 1 and the header/content live entirely inside column 2,
+     it is geometrically impossible for the expanded sidebar to cover
+     the header title or any page text — in ANY frame of the
+     transition. This is the fix for the expanded-state overlap bug. */
   display: grid;
+  /* FIXED-RAIL + PUSH. Column 1 is a gutter whose width equals the
+     sidebar's current width; column 2 holds the header AND content.
+     The sidebar itself is position:fixed (so it never scrolls away),
+     and on hover BOTH the gutter and the sidebar grow to the expanded
+     width IN LOCKSTEP via :has() — so the header + content shift right
+     together and the header ALWAYS begins exactly at the sidebar's
+     right edge. The sidebar lives in column 1; the header lives in
+     column 2 — they can never overlap in any frame. */
   grid-template-columns: var(--sidebar-collapsed) minmax(0, 1fr);
-  min-height: 100vh;
+  grid-template-rows: var(--header-h) minmax(0, 1fr);
+  transition: grid-template-columns var(--sidebar-transition);
 }
 
-.app-shell-v2-desktop-sidebar {
-  width: var(--sidebar-collapsed);
-  min-width: var(--sidebar-collapsed);
-  max-width: var(--sidebar-collapsed);
-  display: block;
+/* Push: when the fixed rail is hovered/focused, grow the reserved
+   gutter to the expanded width so the header + content move right with
+   it. Desktop only — on mobile the rail is an off-canvas drawer. */
+@media (min-width: 981px) {
+  .app-shell-v2:has(.app-sidebar-v2:hover),
+  .app-shell-v2:has(.app-sidebar-v2:focus-within) {
+    grid-template-columns: var(--sidebar-expanded) minmax(0, 1fr);
+  }
+}
+
+.app-shell-v2-sidebar-slot {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  /* Width is driven by the grid column — no explicit width so the
+     slot (and the sidebar filling it) grows/shrinks with the column. */
+  min-width: 0;
   position: relative;
+  z-index: 80;
+}
+
+.app-shell-v2-header-slot {
+  grid-column: 2;
+  grid-row: 1;
+  height: var(--header-h);
+  position: sticky;
+  top: 0;
   z-index: 90;
+  min-width: 0;
+}
+
+.app-shell-v2-content-slot {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--shell-bg);
 }
 
 .app-shell-v2-mobile-overlay,
@@ -66,25 +106,52 @@
  * =====================================================================*/
 
 .app-sidebar-v2 {
+  /* FIXED RAIL — pinned to the viewport (top:0/left:0) so it NEVER
+     scrolls away or gets cut while the page content scrolls. The grid
+     reserves a matching 68px gutter (column 1) so content is never
+     hidden underneath. On hover the width grows to 224px as an overlay. */
   position: fixed;
-  inset: 0 auto 0 0;
+  top: 0;
+  left: 0;
   width: var(--sidebar-collapsed);
   height: 100vh;
   overflow: hidden;
-  background: var(--nav-surface);
+  /* The vertical-card artwork IS the sidebar background — shown CLEANLY,
+     no overlay / mask / blur / gradient. Full-height cover. Nav-text
+     legibility comes from a text-shadow on the labels (below), not from
+     darkening the artwork. background-color is only the load fallback. */
+  background-color: var(--nav-surface-top);
+  background-image: url("/assets/cards/vertical-card.png");
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: cover;
   border-right: 1px solid var(--nav-divider);
   color: var(--nav-ink);
-  transition:
-    width var(--sidebar-transition),
-    box-shadow var(--sidebar-transition);
-  z-index: 90;
+  transition: width var(--sidebar-transition);
+  z-index: 95;
   isolation: isolate;
 }
 
+/* Legibility without darkening the artwork — a soft shadow behind text
+   and icons so white nav copy reads over the lighter regions of the
+   image. This replaces the removed dark overlay. */
+.app-sidebar-v2-brand,
+.app-sidebar-v2-group-title,
+.app-sidebar-v2-link,
+.app-sidebar-v2-help {
+  text-shadow: 0 1px 3px rgba(2, 6, 20, 0.65);
+}
+
+.app-sidebar-v2-link-icon svg,
+.app-sidebar-v2-help svg {
+  filter: drop-shadow(0 1px 2px rgba(2, 6, 20, 0.6));
+}
+
+/* Hover / keyboard-focus expands the rail; the auto grid track
+   re-measures each frame → the header + content push right smoothly. */
 .app-sidebar-v2:hover,
 .app-sidebar-v2:focus-within {
   width: var(--sidebar-expanded);
-  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.32);
 }
 
 .app-sidebar-v2-bg {
@@ -116,8 +183,8 @@
 }
 
 .app-sidebar-v2-brand-mark {
-  width: 44px;
-  height: 44px;
+  width: 51px;
+  height: 51px;
   margin-left: 0;
   display: block;
   object-fit: contain;
@@ -134,8 +201,8 @@
   left: 18px;
   top: 50%;
   transform: translateY(-50%);
-  height: 40px;
-  max-height: 40px;
+  height: 46px;
+  max-height: 46px;
   width: auto;
   opacity: 0;
   transition: opacity 160ms ease 80ms;
@@ -161,7 +228,10 @@
   overflow-x: hidden;
   display: grid;
   align-content: start;
-  gap: 20px;
+  /* Wider vertical rhythm so each nav group reads as an independent
+     section rather than one cramped list. */
+  gap: 26px;
+  padding: 6px 0 8px;
   scrollbar-width: none;
 }
 
@@ -176,18 +246,18 @@
 
 .app-sidebar-v2-nav {
   display: grid;
-  gap: 1px;
+  gap: 3px;
 }
 
 /* Section title — hidden in the icon rail; fades in after width
    transition. Calm, muted, generous top padding so each group reads
    as an independent section rather than a squashed list. */
 .app-sidebar-v2-group-title {
-  padding: 4px 20px 8px;
-  color: rgba(226, 232, 240, 0.30);
+  padding: 2px 20px 10px;
+  color: rgba(226, 232, 240, 0.52);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   white-space: nowrap;
   opacity: 0;
@@ -203,8 +273,8 @@
    padding-left is 14px, icon column is 40px → icon center at x=34.
    Label span sits after icon with padding-left 8px and clips when collapsed. */
 .app-sidebar-v2-link {
-  height: 40px;
-  min-height: 40px;
+  height: 42px;
+  min-height: 42px;
   width: 100%;
   display: flex;
   align-items: center;
@@ -229,13 +299,13 @@
 }
 
 .app-sidebar-v2-link.is-active {
-  /* Elevation is carried by typography (weight 600 + brighter icon)
-     and a subtle wash + 2px accent — NOT by a heavy colored block.
-     Restraint is the enterprise cue. */
-  background: rgba(255, 255, 255, 0.045);
+  /* Enterprise active state: a subtle glass surface (readable over the
+     artwork now that the overlay is gone) + a 2px accent rail +
+     stronger typography. NO heavy glowing block. */
+  background: rgba(255, 255, 255, 0.10);
   color: var(--nav-ink-strong);
   font-weight: 600;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .app-sidebar-v2-link.is-active::before {
@@ -382,12 +452,13 @@
 
 .app-account-toolbar,
 .app-floating-account-bar {
-  position: sticky;
-  top: 0;
-  z-index: 80;
+  /* The header lives inside the .app-shell-v2-header-slot grid cell,
+     which is itself position:sticky. Positioning is handled by the
+     slot; the bar is now a plain block. */
   height: var(--header-h);
-  background: var(--header-bg);
-  border-bottom: 1px solid var(--header-border);
+  background: var(--surface-header, #F8FAFC);
+  border-bottom: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.08));
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
 }
 
 .app-topbar-v2-inner,
@@ -608,6 +679,60 @@
   letter-spacing: 0.02em;
   flex: 0 0 auto;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* Glass action button inside the dark "command center" alert band.
+   Transparent, belongs to the card; subtle depth, no glow / heavy shadow. */
+.home-exec-action {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.home-exec-action:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+/* Primary action — the header's single filled CTA (enterprise indigo). */
+.app-header-primary-action {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #6b5bff 0%, #5949e4 100%);
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: -0.006em;
+  text-decoration: none;
+  white-space: nowrap;
+  border: 1px solid rgba(89, 73, 228, 0.5);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  transition: filter 120ms ease, box-shadow 120ms ease;
+}
+
+.app-header-primary-action:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 2px 8px rgba(89, 73, 228, 0.32);
+}
+
+.app-header-primary-action svg {
+  flex: 0 0 auto;
 }
 
 /* Right zone — quick create + utility buttons + 1px divider + identity */
@@ -1161,12 +1286,23 @@
 /* Mobile — drawer replaces the icon rail; sidebar renders full-width inside drawer */
 
 @media (max-width: 980px) {
-  .app-shell-v2-main {
-    display: block;
+  /* Collapse the 2×2 grid to a single content column. The sidebar
+     column is removed entirely (the inline sidebar slot is hidden and
+     replaced by the off-canvas drawer). Push mode is inert here — the
+     :has() rule cannot fire because the sidebar slot is display:none. */
+  .app-shell-v2 {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--header-h) minmax(0, 1fr);
+    transition: none;
   }
 
-  .app-shell-v2-desktop-sidebar {
+  .app-shell-v2-sidebar-slot {
     display: none;
+  }
+
+  .app-shell-v2-header-slot,
+  .app-shell-v2-content-slot {
+    grid-column: 1;
   }
 
   .app-account-toolbar,
@@ -1185,6 +1321,17 @@
 
   /* Hide breadcrumb on narrow screens; keep search + right actions */
   .app-header-breadcrumb {
+    display: none;
+  }
+
+  /* Declutter the header on mobile — drop the primary action, system
+     status and language switcher (all still reachable elsewhere) so the
+     bar keeps only notifications, workspace and the user menu. Prevents
+     the right zone from overflowing / clipping on narrow viewports. */
+  .app-header-primary-action,
+  .app-topbar-v2-runtime,
+  .app-topbar-v2-language,
+  .app-header-zone-right .app-header-divider {
     display: none;
   }
 
@@ -1241,9 +1388,12 @@
   }
 
   /* Inside the drawer, force the sidebar to full-drawer width and
-     override the icon-rail collapsed state — labels stay visible. */
+     override the icon-rail collapsed state — labels stay visible.
+     Reset top offset so the drawer sidebar starts flush with the
+     drawer's top edge (desktop rule pushes it down by --header-h). */
   .app-shell-v2-mobile-drawer .app-sidebar-v2 {
     position: relative;
+    top: 0;
     width: 100%;
     height: 100vh;
     box-shadow: none;

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 export function VerifyFinalCta() {
@@ -41,8 +40,7 @@ export function VerifyFinalCta() {
               Start reviewing a verification record.
             </h2>
             <p className="mt-3 max-w-[640px] text-[15px] leading-[1.7] text-white/85">
-              Review a PROOVRA verification token online or inspect a
-              verification package locally.
+              Review a PROOVRA verification token online.
             </p>
           </div>
 
@@ -54,13 +52,6 @@ export function VerifyFinalCta() {
               Open Verification
               <ArrowRight size={14} />
             </a>
-            <Link
-              href="/offline-verifier"
-              className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-[14px] border border-white/40 bg-transparent px-6 text-[14px] font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white/10"
-            >
-              Offline Verifier
-              <ArrowRight size={14} />
-            </Link>
           </div>
         </div>
       </div>

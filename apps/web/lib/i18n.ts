@@ -36,18 +36,22 @@ export function resolveInitialLocale(): { locale: Locale; mode: LocaleMode } {
   if (typeof localStorage !== "undefined") {
     const storedMode = localStorage.getItem("proovra-locale-mode") as LocaleMode | null;
     const storedLocale = localStorage.getItem("proovra-locale");
-    
-    // If manual mode and valid locale stored, use it
+
+    // Honour a persisted MANUAL choice (the only way to leave English).
     if (storedMode === "manual" && storedLocale && supportedLocales.includes(storedLocale as Locale)) {
       return { locale: storedLocale as Locale, mode: "manual" };
     }
-    
-    // If auto mode or no valid stored locale, resolve device language
+
+    // Honour a previously, EXPLICITLY chosen "auto" mode (device
+    // language). This is only ever set when a user opts into Auto in the
+    // authenticated app switcher — it is never the first-visit default.
     if (storedMode === "auto") {
       return { locale: getDeviceLocale(), mode: "auto" };
     }
   }
-  
-  // Default to auto mode with device language
-  return { locale: getDeviceLocale(), mode: "auto" };
+
+  // First visit / no stored preference → ENGLISH. PROOVRA does NOT
+  // auto-detect the browser language and never auto-switches away from
+  // EN. Any other language is an explicit, persisted user choice.
+  return { locale: defaultLocale, mode: "manual" };
 }

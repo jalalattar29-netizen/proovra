@@ -91,12 +91,6 @@ export function VerifyInstantly() {
               Try live verification
               <ArrowRight size={15} />
             </Link>
-            <Link
-              href={MARKETING_LINKS.offlineVerifier}
-              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] px-5 py-3 text-[14px] font-semibold text-[#0F172A] hover:border-[var(--proovra-border-warm-hover)]"
-            >
-              Offline verifier
-            </Link>
           </div>
         </div>
 
