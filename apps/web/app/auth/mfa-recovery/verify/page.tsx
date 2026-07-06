@@ -139,7 +139,10 @@ function MfaRecoveryVerifyBody() {
         setState({ kind: "verified", sessionPresent });
       } catch (err) {
         if (err instanceof ApiError) {
-          // Disambiguate the bounded backend reasons.
+          // Disambiguate the bounded backend reasons. This reads the RAW
+          // ApiError.message ON PURPOSE — it is internal control-flow that
+          // matches known reason codes ("token_expired", "wrong_user", …)
+          // and maps them to safe UI states below. It is never rendered.
           const msg = err.message ?? "";
           if (
             msg === "token_expired" ||
@@ -295,7 +298,7 @@ function errorCopy(reason: VerifyErrorReason): {
       return {
         title: "Could not verify recovery link",
         message:
-          "Something went wrong while confirming your recovery link.",
+          "We couldn't confirm your recovery link. Please try again.",
         next: "Please try again, or contact your administrator if the problem persists.",
       };
   }

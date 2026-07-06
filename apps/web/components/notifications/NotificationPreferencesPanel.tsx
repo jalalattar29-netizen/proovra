@@ -21,6 +21,7 @@
  *     enforced by the G3.1 test suite.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -104,7 +105,7 @@ export function NotificationPreferencesPanel({
       setData(json);
     } catch (err) {
       const e = err as { message?: string };
-      setError(e.message ?? "Could not load notification preferences.");
+      setError(toSafeUserError(e, { message: "Could not load notification preferences." }).message);
     } finally {
       setLoading(false);
     }
@@ -148,7 +149,7 @@ export function NotificationPreferencesPanel({
         });
       } catch (err) {
         const e = err as { message?: string };
-        setError(e.message ?? "Could not save preference.");
+        setError(toSafeUserError(e, { message: "Could not save preference." }).message);
         // Rollback by reloading.
         void load();
       } finally {

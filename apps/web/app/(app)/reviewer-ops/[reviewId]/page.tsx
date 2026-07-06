@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 /**
  * Phase 25 — Review Workspace (single review).
@@ -183,7 +184,7 @@ function ReviewWorkspacePageInner() {
         setInitialSignature((prev) => prev ?? deriveSignature(r));
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load workspace."),
+        setError(toSafeUserError(err, { message: "Could not load workspace." }).message),
       );
   }, [teamId, workflowId]);
 
@@ -209,8 +210,7 @@ function ReviewWorkspacePageInner() {
         load();
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ??
-            `Action "${label}" failed.`,
+          toSafeUserError(err, { message: `Action "${label}" failed.` }).message,
         );
       } finally {
         setBusy(null);
@@ -791,7 +791,7 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
       if (resp.url) {
         window.open(resp.url, "_blank", "noopener,noreferrer");
       } else if (resp.code === "verification_package_pending") {
-        setError(resp.message ?? "Package is still generating.");
+        setError("Package is still generating.");
       } else {
         setError(
           kind === "report"
@@ -812,9 +812,9 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
       } else if (e.statusCode === 404) {
         setError("Artifact not found for this evidence.");
       } else if (e.statusCode === 409) {
-        setError(e.message ?? "Download blocked by workspace policy.");
+        setError(toSafeUserError(e, { message: "Download blocked by workspace policy." }).message);
       } else {
-        setError(e.message ?? "Could not start download.");
+        setError(toSafeUserError(e, { message: "Could not start download." }).message);
       }
     } finally {
       setBusy(null);
@@ -1033,7 +1033,7 @@ function ReviewerNotesPanel({
           ? ((err as { statusCode: number }).statusCode)
           : 0;
       const message =
-        err instanceof Error ? err.message : "Could not load notes.";
+        toSafeUserError(err, { message: "Could not load notes." }).message;
       setState({ kind: "error", status, message });
     }
   }, [workflowId, teamId]);
@@ -1079,7 +1079,7 @@ function ReviewerNotesPanel({
         );
       } else {
         const message =
-          err instanceof Error ? err.message : "Could not create note.";
+          toSafeUserError(err, { message: "Could not create note." }).message;
         setComposeError(message);
       }
     } finally {
@@ -1653,7 +1653,7 @@ function ReviewerDecisionLineagePanel({
           ? ((err as { statusCode: number }).statusCode)
           : 0;
       const message =
-        err instanceof Error ? err.message : "Could not load decisions.";
+        toSafeUserError(err, { message: "Could not load decisions." }).message;
       setState({ kind: "error", status, message });
     }
   }, [workflowId, teamId]);
@@ -1710,9 +1710,9 @@ function ReviewerDecisionLineagePanel({
           "This review is already resolved; no further decisions are accepted.",
         );
       } else if (status === 400) {
-        setSubmitError(reason ?? e.message ?? "Request rejected.");
+        setSubmitError(reason ?? toSafeUserError(e, { message: "Request rejected." }).message);
       } else {
-        setSubmitError(e.message ?? "Submit failed.");
+        setSubmitError(toSafeUserError(e, { message: "Submit failed." }).message);
       }
     } finally {
       setSubmitting(false);

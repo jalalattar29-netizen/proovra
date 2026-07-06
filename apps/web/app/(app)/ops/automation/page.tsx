@@ -27,6 +27,7 @@
  * for the trigger dispatcher to land safely.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -120,7 +121,7 @@ function AutomationPageInner(): JSX.Element {
         } else {
           setState({
             status: "unavailable",
-            message: e.message ?? "Unable to load automation.",
+            message: toSafeUserError(e, { message: "Unable to load automation." }).message,
           });
         }
       }

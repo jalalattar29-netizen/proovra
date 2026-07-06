@@ -36,6 +36,7 @@
  *   * Bounded health states with operator-safe copy.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -245,7 +246,7 @@ function OperationsSignersContent() {
         );
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load signer governance."),
+        setError(toSafeUserError(err, { message: "Could not load signer governance." }).message),
       );
   }, [teamId]);
 
@@ -272,7 +273,7 @@ function OperationsSignersContent() {
         setVerifyResult(r.report);
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ?? "Verification failed.",
+          toSafeUserError(err, { message: "Verification failed." }).message,
         );
       } finally {
         setBusy(null);
@@ -311,7 +312,7 @@ function OperationsSignersContent() {
         setError("Step-up cancelled — backfill did not run.");
       } else {
         setError(
-          (err as { message?: string })?.message ?? "Backfill failed.",
+          toSafeUserError(err, { message: "Backfill failed." }).message,
         );
       }
     } finally {
@@ -545,7 +546,7 @@ function SignerDetailDrawer({
     )
       .then((r: { signer: SignerRecord }) => setSigner(r.signer))
       .catch((err: { message?: string }) =>
-        onError(err?.message ?? "Could not load signer."),
+        onError(toSafeUserError(err, { message: "Could not load signer." }).message),
       );
     apiFetch(
       `/v1/operations/signers/${encodeURIComponent(
@@ -568,7 +569,7 @@ function SignerDetailDrawer({
       )) as { snapshot: SignerHealthSnapshot };
       setHealth(r.snapshot);
     } catch (err) {
-      onError((err as { message?: string })?.message ?? "Health probe failed.");
+      onError(toSafeUserError(err, { message: "Health probe failed." }).message);
     } finally {
       setBusy(null);
     }
@@ -587,7 +588,7 @@ function SignerDetailDrawer({
       )) as { preview: RotationPreview };
       setPreview(r.preview);
     } catch (err) {
-      onError((err as { message?: string })?.message ?? "Preview failed.");
+      onError(toSafeUserError(err, { message: "Preview failed." }).message);
     } finally {
       setBusy(null);
     }
@@ -621,7 +622,7 @@ function SignerDetailDrawer({
         if (code === "STEP_UP_CANCEL") {
           onError(`Step-up cancelled — no ${action} performed.`);
         } else {
-          onError((err as { message?: string })?.message ?? `${action} failed.`);
+          onError(toSafeUserError(err, { message: `${action} failed.` }).message);
         }
       } finally {
         setBusy(null);

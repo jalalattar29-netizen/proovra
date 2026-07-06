@@ -13,6 +13,7 @@
  * of the disclosure banner; the operator must copy them out themselves.
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -326,7 +327,7 @@ useEffect(() => {
         setError("INTEGRATIONS_DISABLED");
         setErrorCode(null);
       } else {
-        setError(e?.message ?? "Could not load integrations.");
+        setError(toSafeUserError(e, { message: "Could not load integrations." }).message);
         // PHASE 7 — captured for the admin-only chip; never rendered to
         // non-admins. Never includes the body.
         setErrorCode(typeof e?.code === "string" ? e.code : null);
@@ -363,7 +364,7 @@ useEffect(() => {
       setShowCreateKey(false);
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not create API key.");
+      alert(toSafeUserError(e, { message: "Could not create API key." }).message);
     }
   }
 
@@ -391,7 +392,7 @@ useEffect(() => {
       setRevokeReasonForId(null);
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not revoke key.");
+      alert(toSafeUserError(e, { message: "Could not revoke key." }).message);
     }
   }
 
@@ -425,7 +426,7 @@ useEffect(() => {
       setRotateForId(null);
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not rotate key.");
+      alert(toSafeUserError(e, { message: "Could not rotate key." }).message);
     }
   }
 
@@ -452,7 +453,7 @@ useEffect(() => {
       setExpiryForId(null);
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not update expiry.");
+      alert(toSafeUserError(e, { message: "Could not update expiry." }).message);
     }
   }
 
@@ -472,7 +473,7 @@ useEffect(() => {
       setUsageRows(res.usage ?? []);
     } catch (err) {
       const e = err as { message?: string };
-      setUsageError(e?.message ?? "Could not load usage.");
+      setUsageError(toSafeUserError(e, { message: "Could not load usage." }).message);
     }
   }
 
@@ -505,7 +506,7 @@ useEffect(() => {
       setShowCreateWebhook(false);
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not create webhook.");
+      alert(toSafeUserError(e, { message: "Could not create webhook." }).message);
     }
   }
 
@@ -544,7 +545,7 @@ useEffect(() => {
       setRotateWebhookForId(null);
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not rotate secret.");
+      alert(toSafeUserError(e, { message: "Could not rotate secret." }).message);
     }
   }
 
@@ -573,7 +574,7 @@ useEffect(() => {
       );
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not disable webhook.");
+      alert(toSafeUserError(e, { message: "Could not disable webhook." }).message);
     }
   }
 
@@ -606,7 +607,7 @@ useEffect(() => {
       );
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not enable webhook.");
+      alert(toSafeUserError(e, { message: "Could not enable webhook." }).message);
     }
   }
 
@@ -633,7 +634,7 @@ useEffect(() => {
       const e = err as { message?: string };
       setDeliveriesErrorByEndpoint((prev) => ({
         ...prev,
-        [id]: e?.message ?? "Could not load deliveries.",
+        [id]: toSafeUserError(e, { message: "Could not load deliveries." }).message,
       }));
     } finally {
       setDeliveriesLoadingFor((cur) => (cur === id ? null : cur));
@@ -675,7 +676,7 @@ useEffect(() => {
       });
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not retry delivery.");
+      alert(toSafeUserError(e, { message: "Could not retry delivery." }).message);
     } finally {
       setRetryingDeliveryId((cur) => (cur === deliveryId ? null : cur));
     }
@@ -707,7 +708,7 @@ useEffect(() => {
       void res.eventId;
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not send test event.");
+      alert(toSafeUserError(e, { message: "Could not send test event." }).message);
     } finally {
       setSendingTestForId((cur) => (cur === id ? null : cur));
     }
@@ -1150,7 +1151,7 @@ function HealthSummary({ teamId }: { teamId: string }) {
         // refresh failure — flicker-free dashboard. A one-line muted
         // hint replaces the chrome until the next interval succeeds.
         const e = err as { message?: string };
-        setLoadError(e?.message ?? "Could not refresh health metrics.");
+        setLoadError(toSafeUserError(e, { message: "Could not refresh health metrics." }).message);
       } finally {
         if (!cancelled) setHasLoadedOnce(true);
       }

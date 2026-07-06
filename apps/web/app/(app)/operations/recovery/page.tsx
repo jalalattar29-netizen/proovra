@@ -27,6 +27,7 @@
  *     surfaces the modal via `useStepUpAction`.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -135,7 +136,7 @@ function OperationsRecoveryContent() {
     )
       .then((r: ReadinessOverview) => setOverview(r))
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load recovery overview."),
+        setError(toSafeUserError(err, { message: "Could not load recovery overview." }).message),
       );
   }, [teamId]);
 
@@ -161,7 +162,7 @@ function OperationsRecoveryContent() {
       load();
     } catch (err) {
       setError(
-        (err as { message?: string })?.message ?? "Backup validation failed.",
+        toSafeUserError(err, { message: "Backup validation failed." }).message,
       );
     } finally {
       setBusy(null);
@@ -192,8 +193,7 @@ function OperationsRecoveryContent() {
         setError("Step-up cancelled — restore validation did not run.");
       } else {
         setError(
-          (err as { message?: string })?.message ??
-            "Restore validation failed.",
+          toSafeUserError(err, { message: "Restore validation failed." }).message,
         );
       }
     } finally {
@@ -214,7 +214,7 @@ function OperationsRecoveryContent() {
         setSelectedReport(r.report);
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ?? "Could not load report.",
+          toSafeUserError(err, { message: "Could not load report." }).message,
         );
       }
     },

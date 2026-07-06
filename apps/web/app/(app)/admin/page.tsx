@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -183,7 +184,7 @@ export default function AdminPage() {
         setBundle(data ?? null);
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : "Failed to load admin console";
+          toSafeUserError(err, { message: "Failed to load admin console" }).message;
         addToast(message, "error");
         setBundle(null);
       } finally {

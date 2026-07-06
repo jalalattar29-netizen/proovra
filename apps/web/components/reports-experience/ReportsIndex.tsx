@@ -21,6 +21,7 @@
  *     authenticity, or "court-ready" claims.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -212,7 +213,7 @@ export function ReportsIndex() {
         } else {
           setState({
             status: "unavailable",
-            message: e.message ?? "Unable to load artifacts.",
+            message: toSafeUserError(e, { message: "Unable to load artifacts." }).message,
           });
         }
       }
@@ -611,10 +612,10 @@ function ArtifactRowActions({
         setError("You don't have permission to download this report.");
       } else if (e.statusCode === 409) {
         setError(
-          e.message ?? "Report download blocked by workspace policy.",
+          toSafeUserError(e, { message: "Report download blocked by workspace policy." }).message,
         );
       } else {
-        setError(e.message ?? "Could not start download.");
+        setError(toSafeUserError(e, { message: "Could not start download." }).message);
       }
     } finally {
       setBusy(null);
@@ -635,7 +636,7 @@ function ArtifactRowActions({
       if (resp.url) {
         window.open(resp.url, "_blank", "noopener,noreferrer");
       } else if (resp.code === "verification_package_pending") {
-        setError(resp.message ?? "Package is still generating.");
+        setError("Package is still generating.");
       } else {
         setError("Package URL is unavailable.");
       }
@@ -646,9 +647,9 @@ function ArtifactRowActions({
       } else if (e.statusCode === 403) {
         setError("You don't have permission to download this package.");
       } else if (e.statusCode === 409) {
-        setError(e.message ?? "Package blocked by workspace policy.");
+        setError(toSafeUserError(e, { message: "Package blocked by workspace policy." }).message);
       } else {
-        setError(e.message ?? "Could not start download.");
+        setError(toSafeUserError(e, { message: "Could not start download." }).message);
       }
     } finally {
       setBusy(null);
@@ -676,8 +677,7 @@ function ArtifactRowActions({
       )) as { enqueued?: boolean; message?: string; reason?: string | null };
       if (resp.enqueued) {
         setRegenNotice(
-          resp.message ??
-            "Report regeneration enqueued. Refresh shortly for updated state.",
+          "Report regeneration enqueued. Refresh shortly for updated state.",
         );
       } else {
         setRegenNotice(
@@ -696,7 +696,7 @@ function ArtifactRowActions({
       } else if (e.statusCode === 404) {
         setError("Evidence not found.");
       } else {
-        setError(e.message ?? "Could not enqueue regeneration.");
+        setError(toSafeUserError(e, { message: "Could not enqueue regeneration." }).message);
       }
     } finally {
       setBusy(null);

@@ -11,6 +11,7 @@
  * charts, no legal admissibility claims.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -81,7 +82,7 @@ export function GovernanceControlPlane() {
       else
         setState({
           status: "unavailable",
-          message: e.message ?? "Unable to load governance control plane.",
+          message: toSafeUserError(e, { message: "Unable to load governance control plane." }).message,
         });
     }
   }, [teamId]);

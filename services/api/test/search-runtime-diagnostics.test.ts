@@ -151,9 +151,21 @@ describe("Search-runtime-diagnostics — frontend empty-state branches", () => {
     expect(src).toMatch(/data-search-health-evidence-indexed=/);
   });
 
-  it("legacy error branch — apiFetch failure still lands in the bounded error state, not the no-match branch", () => {
-    // The .catch handler must continue to set both `error` AND clear
-    // `rows` so the empty-state surface picks the `error` variant.
-    expect(src).toMatch(/setError\(err\?\.message \?\? "Search failed\."\)/);
+  it("legacy error branch — apiFetch failure lands in the bounded error state via the safe-feedback path (no raw message), and clears rows", () => {
+    // PROOVRA Feedback System — the .catch handler must NOT render the raw
+    // backend `err.message`. It routes through toSafeUserError(), which maps
+    // known codes/status to safe copy and otherwise uses the "Search failed."
+    // section fallback. It must still (a) set `error` and (b) clear `rows`
+    // so the empty-state surface picks the `error` variant, not no-match.
+    expect(src).toMatch(
+      /setError\(\s*toSafeUserError\(err, \{ message: "Search failed\." \}\)\.message\s*\)/,
+    );
+    // The pre-migration raw passthrough must be gone.
+    expect(src).not.toMatch(/setError\(err\?\.message \?\? "Search failed\."\)/);
+    // The primary catch still clears `rows` so a failure never renders as
+    // "0 results".
+    expect(src).toMatch(
+      /setError\(toSafeUserError\(err, \{ message: "Search failed\." \}\)\.message\);\s*setResults\(\{\s*rows:\s*\[\],/,
+    );
   });
 });

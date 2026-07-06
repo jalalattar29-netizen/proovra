@@ -31,6 +31,7 @@
  *     displayed here.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
@@ -190,7 +191,7 @@ function WorkflowInstancePageInner() {
       setExportSummary(summary?.summary ?? null);
       setError(null);
     } catch (err) {
-      setError((err as { message?: string })?.message ?? "Could not load workflow.");
+      setError(toSafeUserError(err, { message: "Could not load workflow." }).message);
     }
   }
 
@@ -240,7 +241,7 @@ function WorkflowInstancePageInner() {
       if (e.body?.error?.code) {
         handleEngineError(e.body.error.code, e.body.error.reason ?? null);
       } else {
-        alert((err as { message?: string })?.message ?? "Action failed.");
+        alert(toSafeUserError(err, { message: "Action failed." }).message);
       }
     } finally {
       setBusy(false);

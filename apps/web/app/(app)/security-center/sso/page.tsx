@@ -28,6 +28,7 @@
  *   - ACS URL is derived from window.location, not hard-coded
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -139,7 +140,7 @@ function SsoAdminContent() {
       })
       .catch((err: { message?: string }) => {
         if (cancelled) return;
-        setLoadError(err?.message ?? "Could not load SSO providers.");
+        setLoadError(toSafeUserError(err, { message: "Could not load SSO providers." }).message);
       });
     return () => {
       cancelled = true;
@@ -207,7 +208,7 @@ function SsoAdminContent() {
     } catch (err) {
       setTestError((prev) => ({
         ...prev,
-        [connectionId]: (err as { message?: string })?.message ?? "Test-connection failed.",
+        [connectionId]: toSafeUserError(err, { message: "Test-connection failed." }).message,
       }));
     } finally {
       setTestBusy((prev) => ({ ...prev, [connectionId]: false }));
@@ -247,7 +248,7 @@ function SsoAdminContent() {
     } catch (err) {
       setCertError((prev) => ({
         ...prev,
-        [connectionId]: (err as { message?: string })?.message ?? "Failed to add next certificate.",
+        [connectionId]: toSafeUserError(err, { message: "Failed to add next certificate." }).message,
       }));
     } finally {
       setCertBusy((prev) => ({ ...prev, [connectionId]: false }));
@@ -300,7 +301,7 @@ function SsoAdminContent() {
         [connectionId]:
           code === "STEP_UP_CANCEL"
             ? "Step-up cancelled — certificate was not promoted."
-            : (err as { message?: string })?.message ?? "Failed to promote certificate.",
+            : toSafeUserError(err, { message: "Failed to promote certificate." }).message,
       }));
     } finally {
       setCertBusy((prev) => ({ ...prev, [connectionId]: false }));
@@ -326,7 +327,7 @@ function SsoAdminContent() {
     } catch (err) {
       setIngestError((prev) => ({
         ...prev,
-        [connectionId]: (err as { message?: string })?.message ?? "Metadata ingest failed.",
+        [connectionId]: toSafeUserError(err, { message: "Metadata ingest failed." }).message,
       }));
     } finally {
       setBusy((prev) => ({ ...prev, [connectionId]: false }));

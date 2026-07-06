@@ -1,5 +1,4 @@
 "use client";
-
 /**
  * Phase 31.18 — Graph Navigation Explorer (workspace-wide).
  *

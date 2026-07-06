@@ -13,6 +13,7 @@
  * No raw IPs / coordinates / private notes.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -133,7 +134,7 @@ const load = useCallback(() => {
         load();
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ?? "Quarantine failed.",
+          toSafeUserError(err, { message: "Quarantine failed." }).message,
         );
       } finally {
         setBusy(null);
@@ -159,7 +160,7 @@ const load = useCallback(() => {
         load();
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ?? "Release failed.",
+          toSafeUserError(err, { message: "Release failed." }).message,
         );
       } finally {
         setBusy(null);
@@ -185,7 +186,7 @@ const load = useCallback(() => {
         load();
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ?? "Score-now failed.",
+          toSafeUserError(err, { message: "Score-now failed." }).message,
         );
       } finally {
         setBusy(null);
@@ -227,8 +228,7 @@ const load = useCallback(() => {
       load();
     } catch (err) {
       setError(
-        (err as { message?: string })?.message ??
-          "Emergency revoke failed (step-up required?).",
+        toSafeUserError(err, { message: "Emergency revoke failed (step-up required?)." }).message,
       );
     } finally {
       setBusy(null);

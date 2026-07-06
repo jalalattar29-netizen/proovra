@@ -1,3 +1,4 @@
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientCaptureEnvironment } from "./captureEnvironmentClient";
@@ -435,7 +436,7 @@ export function useCaptureSessionOrchestration({
       const storageMessage = buildStorageLimitMessage(err);
       const message =
         storageMessage ||
-        (err instanceof Error ? err.message : "Failed to add items to session");
+        (toSafeUserError(err, { message: "Failed to add items to session" }).message);
 
       setError(message);
       addToast(message, "error");
@@ -718,7 +719,9 @@ export function useCaptureSessionOrchestration({
             // next item rather than falling back to legacy for THIS
             // file (forbidden by the non-negotiables). The capture
             // page must surface the failure and let the user retry.
-            const msg = err instanceof Error ? err.message : "upload_failed";
+            const msg = toSafeUserError(err, {
+              message: "We couldn't upload this file. Please retry.",
+            }).message;
             setSessionItems((prev) =>
               prev.map((current) =>
                 current.id === item.id
@@ -917,16 +920,12 @@ export function useCaptureSessionOrchestration({
 
       const storageMessage = buildStorageLimitMessage(err);
       const baseMsg =
-        storageMessage || (err instanceof Error ? err.message : "Evidence intake failed");
+        storageMessage || (toSafeUserError(err, { message: "Evidence intake failed" }).message);
 
       const reqId = (err as { requestId?: string }).requestId;
-      const msg =
-        reqId && typeof baseMsg === "string" && !baseMsg.includes("requestId:")
-          ? `${baseMsg} (requestId: ${reqId})`
-          : baseMsg;
-
-      setError(msg);
-      addToast(msg, "error");
+      // Request id goes to a copyable support reference — never inline.
+      setError(baseMsg);
+      addToast(baseMsg, "error", undefined, reqId ? { supportReference: reqId } : undefined);
 
       if (storageMessage) {
         setSessionStatus("Storage limit reached");

@@ -48,6 +48,7 @@
  * attribute so the Phase Final contract test can pin the mount.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -206,7 +207,7 @@ export function CaseRiskPanel({ caseId }: { caseId: string }) {
         } else if (e?.status === 404) {
           setErr("Matter not found.");
         } else {
-          setErr(e?.message ?? "Could not load risk snapshot.");
+          setErr(toSafeUserError(e, { message: "Could not load risk snapshot." }).message);
         }
       });
     return () => {
@@ -343,7 +344,7 @@ export function EvidenceAiCategorizationCard({
         } else if (e?.status === 404) {
           setErr("Evidence not found.");
         } else {
-          setErr(e?.message ?? "Could not load categorization.");
+          setErr(toSafeUserError(e, { message: "Could not load categorization." }).message);
         }
       });
     return () => {
@@ -485,7 +486,7 @@ export function ImmutableStorageDriftSection({
         if (e?.status === 403) {
           setErr("You do not have permission to view storage drift.");
         } else {
-          setErr(e?.message ?? "Could not load storage drift.");
+          setErr(toSafeUserError(e, { message: "Could not load storage drift." }).message);
         }
       });
     return () => {
@@ -634,7 +635,7 @@ export function MfaRecoveryApprovalHistoryBlock({
         } else if (e?.status === 404) {
           setErr("Request not found.");
         } else {
-          setErr(e?.message ?? "Could not load approvals.");
+          setErr(toSafeUserError(e, { message: "Could not load approvals." }).message);
         }
       });
     return () => {
@@ -711,7 +712,7 @@ export function EvidenceRequestEventsTab({
         } else if (e?.status === 404) {
           setErr("Request not found.");
         } else {
-          setErr(e?.message ?? "Could not load events.");
+          setErr(toSafeUserError(e, { message: "Could not load events." }).message);
         }
       });
     return () => {
@@ -814,7 +815,7 @@ export function WorkspacePersonaProfileCard({ teamId }: { teamId: string }) {
         } else if (e?.status === 404) {
           setErr("Workspace not found.");
         } else {
-          setErr(e?.message ?? "Could not load persona.");
+          setErr(toSafeUserError(e, { message: "Could not load persona." }).message);
         }
       });
     return () => {
@@ -892,7 +893,7 @@ export function OrgHealthSnapshotCard({ teamId }: { teamId: string }) {
         } else if (e?.status === 404) {
           setErr("Workspace not found.");
         } else {
-          setErr(e?.message ?? "Could not load health snapshot.");
+          setErr(toSafeUserError(e, { message: "Could not load health snapshot." }).message);
         }
       });
     return () => {
@@ -978,7 +979,7 @@ export function ReviewerRoutingRecommendationsPane({
         if (e?.status === 403) {
           setErr("You do not have permission to view routing recommendations.");
         } else {
-          setErr(e?.message ?? "Could not load recommendations.");
+          setErr(toSafeUserError(e, { message: "Could not load recommendations." }).message);
         }
       });
   }, [teamId]);
@@ -1078,7 +1079,7 @@ export function AccessAnomaliesCard({ teamId }: { teamId: string }) {
         if (e?.status === 403) {
           setErr("You do not have permission to view access anomalies.");
         } else {
-          setErr(e?.message ?? "Could not load anomalies.");
+          setErr(toSafeUserError(e, { message: "Could not load anomalies." }).message);
         }
       });
     return () => {

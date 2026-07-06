@@ -15,6 +15,7 @@
  * included. IP/UA/device telemetry is omitted from the timeline.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -102,7 +103,7 @@ export default function SessionsPage() {
         setError(null);
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load sessions."),
+        setError(toSafeUserError(err, { message: "Could not load sessions." }).message),
       );
   }, [teamId, includeRevoked, includeExpired]);
 
@@ -138,7 +139,7 @@ export default function SessionsPage() {
         load();
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ?? "Revoke failed.",
+          toSafeUserError(err, { message: "Revoke failed." }).message,
         );
       } finally {
         setBusy(null);
@@ -176,8 +177,7 @@ export default function SessionsPage() {
         load();
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ??
-            "Bulk revoke failed (step-up required?).",
+          toSafeUserError(err, { message: "Bulk revoke failed (step-up required?)." }).message,
         );
       } finally {
         setBusy(null);
@@ -387,7 +387,7 @@ function SessionTimelineDrawer({
         setTimeline(r.timeline),
       )
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load timeline."),
+        setError(toSafeUserError(err, { message: "Could not load timeline." }).message),
       );
   }, [teamId, sessionId]);
 

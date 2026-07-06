@@ -21,6 +21,7 @@
  * raw evidence content.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -260,7 +261,7 @@ function ObservabilityDashboardPageInner() {
         setError(null);
       } catch (err) {
         if (cancelled) return;
-        setError((err as { message?: string })?.message ?? "Unable to load.");
+        setError(toSafeUserError(err, { message: "Unable to load." }).message);
       }
       // Runtime readiness — used by the summary rollup. Failure here
       // sets a flag so the rollup shows "Unknown" rather than implying

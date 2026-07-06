@@ -18,6 +18,7 @@
  *     URL is held in component state ONLY while the dialog is open.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -137,7 +138,7 @@ export default function EvidenceRequestPanel({
           setRequests([]);
           return;
         }
-        setError(err?.message ?? "Unable to load evidence requests.");
+        setError(toSafeUserError(err, { message: "Unable to load evidence requests." }).message);
       });
     return () => {
       cancelled = true;
@@ -163,7 +164,7 @@ export default function EvidenceRequestPanel({
       await reload();
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not send request.");
+      alert(toSafeUserError(e, { message: "Could not send request." }).message);
     }
   }
 
@@ -185,7 +186,7 @@ export default function EvidenceRequestPanel({
       await reload();
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not update response.");
+      alert(toSafeUserError(e, { message: "Could not update response." }).message);
     }
   }
 
@@ -225,7 +226,7 @@ export default function EvidenceRequestPanel({
       await reload();
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not complete action.");
+      alert(toSafeUserError(e, { message: "Could not complete action." }).message);
     }
   }
 
@@ -565,7 +566,7 @@ function CreateRequestDialog({
       onCreated();
     } catch (err) {
       const e = err as { message?: string };
-      setError(e?.message ?? "Could not create request.");
+      setError(toSafeUserError(e, { message: "Could not create request." }).message);
     } finally {
       setBusy(false);
     }
@@ -1078,7 +1079,7 @@ function ActivityTimelineDrawer({
       })
       .catch((err: { message?: string }) => {
         if (cancelled) return;
-        setError(err?.message ?? "Unable to load activity timeline.");
+        setError(toSafeUserError(err, { message: "Unable to load activity timeline." }).message);
       });
     return () => {
       cancelled = true;

@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Button, Card, useToast } from "../../components/ui";
@@ -292,7 +293,7 @@ export function CheckoutPanel({
       });
 
       const message =
-        err instanceof Error ? err.message : "Failed to create checkout session";
+        toSafeUserError(err, { message: "Failed to create checkout session" }).message;
       addToast(message, "error");
     } finally {
       setBusy(false);

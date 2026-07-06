@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -120,7 +121,7 @@ function BillingPageInner() {
       });
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to load billing overview";
+        toSafeUserError(err, { message: "Failed to load billing overview" }).message;
       setError(message);
       captureException(err, { feature: "billing_overview_page" });
     } finally {
@@ -160,7 +161,7 @@ function BillingPageInner() {
           teamId,
         });
         const message =
-          err instanceof Error ? err.message : "Failed to cancel team subscription";
+          toSafeUserError(err, { message: "Failed to cancel team subscription" }).message;
         addToast(message, "error");
       } finally {
         setCancelBusyTeamId(null);
@@ -188,7 +189,7 @@ function BillingPageInner() {
           addonId,
         });
         const message =
-          err instanceof Error ? err.message : "Failed to cancel storage add-on";
+          toSafeUserError(err, { message: "Failed to cancel storage add-on" }).message;
         addToast(message, "error");
       } finally {
         setCancelBusyAddonId(null);

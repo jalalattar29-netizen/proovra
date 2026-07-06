@@ -29,6 +29,7 @@
  *     there's no pre-flight read to perform.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useState } from "react";
 import { Modal } from "../../../../../components/cases-experience/matter-modals/Modal";
 import { Button } from "../../../../../components/ui";
@@ -87,8 +88,7 @@ export function DangerConfirmModal({
       await onConfirm();
     } catch (err) {
       const msg =
-        (err as { message?: string })?.message ??
-        "Could not complete the action. Try again.";
+        toSafeUserError(err, { message: "Could not complete the action. Try again." }).message;
       setError(msg);
     } finally {
       setPending(false);

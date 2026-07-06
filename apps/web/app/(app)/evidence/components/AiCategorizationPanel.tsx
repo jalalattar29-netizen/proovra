@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useState } from "react";
 import { Button } from "../../../../components/ui";
@@ -31,7 +32,7 @@ export function AiCategorizationPanel({ evidenceId }: { evidenceId: string }) {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "AI categorization unavailable");
+          setError(toSafeUserError(loadError, { message: "AI categorization unavailable" }).message);
         }
       } finally {
         if (!cancelled) {
@@ -56,7 +57,7 @@ export function AiCategorizationPanel({ evidenceId }: { evidenceId: string }) {
       })) as EvidenceAiCategorizationResponse;
       setData(response.categorization ?? null);
     } catch (runError) {
-      setError(runError instanceof Error ? runError.message : "AI categorization failed");
+      setError(toSafeUserError(runError, { message: "AI categorization failed" }).message);
     } finally {
       setRunning(false);
     }

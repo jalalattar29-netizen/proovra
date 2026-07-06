@@ -29,6 +29,7 @@
  * structure is unchanged; we only mount the component once.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -337,7 +338,7 @@ function ActiveSessionsCard() {
       setSessions(res.sessions ?? []);
     } catch (err) {
       setError(
-        (err as { message?: string })?.message ?? "Could not load sessions.",
+        toSafeUserError(err, { message: "Could not load sessions." }).message,
       );
     }
   }, []);
@@ -371,7 +372,7 @@ function ActiveSessionsCard() {
       await load();
     } catch (err) {
       setError(
-        (err as { message?: string })?.message ?? "Could not revoke sessions.",
+        toSafeUserError(err, { message: "Could not revoke sessions." }).message,
       );
     } finally {
       setBusy(false);
@@ -521,8 +522,7 @@ function SecurityEventsCard() {
         setEvents(res.events ?? []);
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ??
-            "Could not load security events.",
+          toSafeUserError(err, { message: "Could not load security events." }).message,
         );
       }
     })();

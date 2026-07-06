@@ -33,6 +33,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../lib/api";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDate } from "../../../../lib/date";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
@@ -179,10 +180,9 @@ function Shell() {
       setTransitions(list);
     } else {
       setTransitions([]);
-      const msg =
-        tRes.reason && typeof tRes.reason === "object" && "message" in tRes.reason
-          ? String((tRes.reason as { message: unknown }).message ?? "Could not load transitions")
-          : "Could not load transitions";
+      const msg = toSafeUserError(tRes.reason, {
+        message: "Could not load transitions",
+      }).message;
       setTransitionsError(msg);
     }
     // Costs branch — backend returns `{costs: Record<tier, bucket>}`.
@@ -206,10 +206,9 @@ function Shell() {
       setCosts(buckets);
     } else {
       setCosts({});
-      const msg =
-        cRes.reason && typeof cRes.reason === "object" && "message" in cRes.reason
-          ? String((cRes.reason as { message: unknown }).message ?? "Could not load tier cost data")
-          : "Could not load tier cost data";
+      const msg = toSafeUserError(cRes.reason, {
+        message: "Could not load tier cost data",
+      }).message;
       setCostsError(msg);
     }
     // If both rejected with a 403 entitlement denial, show the denial banner.

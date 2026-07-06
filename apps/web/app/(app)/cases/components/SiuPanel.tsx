@@ -18,7 +18,6 @@
  *   * No PII rendering when the API returns redacted placeholders.
  *   * Loading / error / empty / blocked states are explicit.
  */
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -195,7 +194,9 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
       // bounded "couldn't load" sentence for every other error
       // shape. Raw payloads never reach the DOM.
       if (e instanceof Error) {
-        const msg = e.message ?? "";
+        // Internal error-kind detection only — raw message is regex-tested
+        // to spot the empty-state code, never rendered.
+        const msg = e.message;
         if (/404/.test(msg) || /siu_profile_not_found/.test(msg)) {
           setProfile(null);
           return;

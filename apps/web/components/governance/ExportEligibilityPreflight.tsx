@@ -20,6 +20,7 @@
  *     never invents either.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -92,7 +93,7 @@ export function ExportEligibilityPreflight({
       setData(json);
     } catch (err) {
       const e = err as { message?: string };
-      setError(e.message ?? "Could not check export eligibility.");
+      setError(toSafeUserError(e, { message: "Could not check export eligibility." }).message);
     } finally {
       setLoading(false);
     }

@@ -8,6 +8,7 @@
 
 "use client";
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -61,7 +62,7 @@ export function IntakeLinkDeliveryDrawer({
       setRows(res.messages ?? []);
     } catch (err) {
       const e = err as { message?: string };
-      setError(e?.message ?? "Could not load delivery history.");
+      setError(toSafeUserError(e, { message: "Could not load delivery history." }).message);
       setRows([]);
     }
   }, [linkId, teamId]);
@@ -84,7 +85,7 @@ export function IntakeLinkDeliveryDrawer({
       await reload();
     } catch (err) {
       const e = err as { message?: string };
-      setError(e?.message ?? "Retry failed.");
+      setError(toSafeUserError(e, { message: "Retry failed." }).message);
     } finally {
       setRetryBusy(null);
     }

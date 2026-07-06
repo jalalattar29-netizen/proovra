@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 
 // Admin detail route for a single contact-sales inquiry.
 //
@@ -186,7 +187,7 @@ export default function AdminContactSalesDetailPage({
       }
       setState({
         kind: "error",
-        message: err instanceof Error ? err.message : "Failed to load record",
+        message: toSafeUserError(err, { message: "Failed to load record" }).message,
       });
     }
   }, [id]);
@@ -213,7 +214,7 @@ export default function AdminContactSalesDetailPage({
       }
     } catch (err) {
       addToast(
-        err instanceof Error ? err.message : "Failed to update",
+        toSafeUserError(err, { message: "Failed to update" }).message,
         "error"
       );
     } finally {

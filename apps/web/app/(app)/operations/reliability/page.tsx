@@ -21,6 +21,7 @@
  * Public verify, external intake, and report-v2 do NOT read these.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -132,7 +133,7 @@ useEffect(() => {
       )
       .catch((err: { message?: string }) => {
         if (cancelled) return;
-        setError(err?.message ?? "Could not load reliability data.");
+        setError(toSafeUserError(err, { message: "Could not load reliability data." }).message);
       });
     return () => {
       cancelled = true;
@@ -165,7 +166,7 @@ useEffect(() => {
       );
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not mark abandoned.");
+      alert(toSafeUserError(e, { message: "Could not mark abandoned." }).message);
     } finally {
       setBusyEvidenceId(null);
     }
@@ -188,7 +189,7 @@ useEffect(() => {
       );
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not request review.");
+      alert(toSafeUserError(e, { message: "Could not request review." }).message);
     } finally {
       setBusyEvidenceId(null);
     }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, Button, Skeleton } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
+import { notifyApiError } from "../../../../lib/feedback/notify";
 import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import { dashboardStyles } from "../../../../components/dashboard/styles";
 import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
@@ -133,8 +134,7 @@ export default function AdminAuditPage() {
       const data = await apiFetch("/v1/admin/audit-log?limit=25");
       setItems(Array.isArray(data?.items) ? data.items : []);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load admin audit log";
-      addToast(message, "error");
+      notifyApiError(addToast, err, { message: "We couldn't load the admin audit log." });
     } finally {
       setLoading(false);
     }
@@ -147,8 +147,7 @@ export default function AdminAuditPage() {
       setVerify(data ?? null);
       addToast("Audit chain verification completed", "success");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to verify audit chain";
-      addToast(message, "error");
+      notifyApiError(addToast, err, { message: "We couldn't verify the audit chain." });
     } finally {
       setVerifying(false);
     }

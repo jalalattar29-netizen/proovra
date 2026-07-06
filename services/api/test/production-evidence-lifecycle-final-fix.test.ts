@@ -122,7 +122,13 @@ describe("Evidence Lifecycle Final Fix — segment chrome", () => {
     const globalErrorPath = resolve(REPO_ROOT, "apps/web/app/error.tsx");
     expect(existsSync(globalErrorPath)).toBe(true);
     const src = readFileSync(globalErrorPath, "utf8");
-    expect(src).toMatch(/Something went wrong/);
+    // PROOVRA Feedback System — the boundary is now branded via
+    // ProovraErrorState: calm reassurance + retry/escape + the trace id as a
+    // copyable support reference. It must NOT regress to the old vague
+    // "Something went wrong" copy.
+    expect(src).toMatch(/ProovraErrorState/);
+    expect(src).toMatch(/supportReference=/);
+    expect(src).not.toMatch(/Something went wrong/);
   });
 });
 

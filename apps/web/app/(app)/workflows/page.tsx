@@ -64,6 +64,7 @@
  * out of scope for this phase.
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
@@ -158,7 +159,7 @@ function WorkflowsTemplatesPageInner() {
         // Non-blocking error banner; still render the page chrome so
         // the operator can retry by changing the sector filter.
         setTemplates([]);
-        setError(err?.message ?? "Could not load workflow templates.");
+        setError(toSafeUserError(err, { message: "Could not load workflow templates." }).message);
       });
     return () => {
       cancelled = true;

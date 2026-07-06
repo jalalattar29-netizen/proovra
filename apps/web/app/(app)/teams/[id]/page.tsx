@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -515,7 +516,7 @@ function TeamDetailPageBody() {
       setActivities(activitiesRes?.activities ?? []);
       setTeamName(teamRes?.name ?? "");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load team";
+      const message = toSafeUserError(err, { message: "Failed to load team" }).message;
       setError(message);
       setTeam(null);
       setInvites([]);
@@ -607,7 +608,7 @@ function TeamDetailPageBody() {
       addToast("Team name updated", "success");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to update team name";
+        toSafeUserError(err, { message: "Failed to update team name" }).message;
       captureException(err, { feature: "team_name_update", teamId });
       addToast(message, "error");
     } finally {
@@ -654,10 +655,10 @@ function TeamDetailPageBody() {
 
       setInviteEmail("");
       setInviteRole("MEMBER");
-      addToast(data?.message || "Invitation created successfully", "success");
+      addToast("Invitation created successfully", "success");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to invite member";
+        toSafeUserError(err, { message: "Failed to invite member" }).message;
       captureException(err, { feature: "team_invite_create", teamId });
       addToast(message, "error");
     } finally {
@@ -695,7 +696,7 @@ function TeamDetailPageBody() {
 
       addToast("Member role updated", "success");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to update role";
+      const message = toSafeUserError(err, { message: "Failed to update role" }).message;
       captureException(err, {
         feature: "team_member_role_update",
         teamId,
@@ -777,7 +778,7 @@ function TeamDetailPageBody() {
       setPendingInviteDelete(null);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to delete invite";
+        toSafeUserError(err, { message: "Failed to delete invite" }).message;
       captureException(err, { feature: "team_invite_delete", teamId, inviteId });
       // Re-throw so DangerConfirmModal can surface the error inline.
       throw new Error(message);
@@ -801,7 +802,7 @@ function TeamDetailPageBody() {
         router.push("/teams");
       }, 300);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to delete team";
+      const message = toSafeUserError(err, { message: "Failed to delete team" }).message;
       captureException(err, { feature: "team_delete", teamId });
       addToast(message, "error");
     } finally {
@@ -839,7 +840,7 @@ function TeamDetailPageBody() {
       addToast("Team case created successfully", "success");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to create team case";
+        toSafeUserError(err, { message: "Failed to create team case" }).message;
       captureException(err, { feature: "team_case_create", teamId });
       addToast(message, "error");
     }
@@ -861,7 +862,7 @@ function TeamDetailPageBody() {
       setAvailableCases(available);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to load available cases";
+        toSafeUserError(err, { message: "Failed to load available cases" }).message;
       captureException(err, { feature: "team_available_cases_load", teamId });
       addToast(message, "error");
     } finally {
@@ -888,7 +889,7 @@ function TeamDetailPageBody() {
 
       addToast("Case linked successfully", "success");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to link case";
+      const message = toSafeUserError(err, { message: "Failed to link case" }).message;
       captureException(err, { feature: "team_case_link", teamId, caseId });
       addToast(message, "error");
     } finally {
@@ -931,7 +932,7 @@ function TeamDetailPageBody() {
       setPendingCaseUnlink(null);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to remove case from team";
+        toSafeUserError(err, { message: "Failed to remove case from team" }).message;
       captureException(err, { feature: "team_case_unlink", teamId, caseId });
       throw new Error(message);
     } finally {

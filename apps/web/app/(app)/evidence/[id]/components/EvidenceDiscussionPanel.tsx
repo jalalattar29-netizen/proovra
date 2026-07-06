@@ -29,6 +29,7 @@
  * coordination". It is NOT a chat product.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import {
   useCallback,
   useEffect,
@@ -202,7 +203,7 @@ export default function EvidenceDiscussionPanel({
       setThreads(data.threads ?? []);
     } catch (err) {
       const e = err as { message?: string };
-      setError(e.message ?? "Could not load discussion threads.");
+      setError(toSafeUserError(e, { message: "Could not load discussion threads." }).message);
       setThreads([]);
     } finally {
       setLoadingThreads(false);
@@ -231,7 +232,7 @@ export default function EvidenceDiscussionPanel({
         setMessages(data.messages ?? []);
       } catch (err) {
         const e = err as { message?: string };
-        setError(e.message ?? "Could not load messages.");
+        setError(toSafeUserError(e, { message: "Could not load messages." }).message);
         setMessages([]);
       } finally {
         setLoadingMessages(false);
@@ -291,7 +292,7 @@ export default function EvidenceDiscussionPanel({
         await loadMessages(selectedThreadId);
       } catch (err) {
         const e2 = err as { message?: string };
-        setError(e2.message ?? "Could not post message.");
+        setError(toSafeUserError(e2, { message: "Could not post message." }).message);
       } finally {
         setPosting(false);
       }

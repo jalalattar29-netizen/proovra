@@ -37,6 +37,7 @@
  *     the code; focus is trapped while open.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import {
   useCallback,
   useEffect,
@@ -194,7 +195,7 @@ export function useStepUpAction({
         const e = err as { message?: string };
         setState({
           kind: "failed",
-          reason: e.message ?? "Could not start step-up challenge.",
+          reason: toSafeUserError(e, { message: "Could not start step-up challenge." }).message,
         });
       }
     },
@@ -252,8 +253,7 @@ export function useStepUpAction({
           setState({
             kind: "failed",
             reason:
-              (err as { message?: string }).message ??
-              "Action failed after step-up.",
+              toSafeUserError(err, { message: "Action failed after step-up." }).message,
           });
           if (onFail) onFail(err);
         }
@@ -261,7 +261,7 @@ export function useStepUpAction({
         const e = err as { message?: string };
         setState({
           kind: "failed",
-          reason: e.message ?? "Could not verify step-up code.",
+          reason: toSafeUserError(e, { message: "Could not verify step-up code." }).message,
         });
       }
     },

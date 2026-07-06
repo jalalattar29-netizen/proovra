@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -51,7 +52,7 @@ export default function InviteAcceptPage() {
           }, 2000);
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
+        const message = toSafeUserError(err, { message: "Unknown error" }).message;
 
         if (message.includes("already accepted")) {
           setState("already_accepted");

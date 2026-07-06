@@ -25,6 +25,7 @@
  *     the operator sees.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -258,7 +259,7 @@ function TokensTab({ teamId }: { teamId: string }) {
         setError(null);
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load tokens."),
+        setError(toSafeUserError(err, { message: "Could not load tokens." }).message),
       );
   }, [teamId]);
 
@@ -294,7 +295,7 @@ function TokensTab({ teamId }: { teamId: string }) {
         setError("Step-up cancelled — token was not created.");
       } else {
         setError(
-          (err as { message?: string })?.message ?? "Could not create token.",
+          toSafeUserError(err, { message: "Could not create token." }).message,
         );
       }
     } finally {
@@ -334,7 +335,7 @@ function TokensTab({ teamId }: { teamId: string }) {
         if (code === "STEP_UP_CANCEL") {
           setError("Step-up cancelled — token remains active.");
         } else {
-          setError((err as { message?: string })?.message ?? "Revoke failed.");
+          setError(toSafeUserError(err, { message: "Revoke failed." }).message);
         }
       } finally {
         setBusy(null);
@@ -587,7 +588,7 @@ function DriftTab({ teamId }: { teamId: string }) {
       setReport(r.report);
     } catch (err) {
       setError(
-        (err as { message?: string })?.message ?? "Drift scan failed.",
+        toSafeUserError(err, { message: "Drift scan failed." }).message,
       );
     } finally {
       setScanning(false);
@@ -645,7 +646,7 @@ function DriftTab({ teamId }: { teamId: string }) {
         setError("Step-up cancelled — no rows were reconciled.");
       } else {
         setError(
-          (err as { message?: string })?.message ?? "Reconciliation failed.",
+          toSafeUserError(err, { message: "Reconciliation failed." }).message,
         );
       }
     } finally {
@@ -861,7 +862,7 @@ function ReplayTab({ teamId }: { teamId: string }) {
         setError(null);
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load sync failures."),
+        setError(toSafeUserError(err, { message: "Could not load sync failures." }).message),
       );
   }, [teamId]);
 
@@ -889,7 +890,7 @@ function ReplayTab({ teamId }: { teamId: string }) {
         load();
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ?? "Replay failed.",
+          toSafeUserError(err, { message: "Replay failed." }).message,
         );
       } finally {
         setBusy(null);

@@ -34,6 +34,7 @@
  *     existing utility classes so the component is portable.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -395,7 +396,7 @@ export function MatterWorkspace({
       setEnvelope(result);
     } catch (err) {
       const e = err as { message?: string; statusCode?: number };
-      setError(e.message ?? "Matter workspace unavailable.");
+      setError(toSafeUserError(e, { message: "Matter workspace unavailable." }).message);
     } finally {
       setLoading(false);
     }
@@ -850,7 +851,7 @@ function EvidenceTab({
       } catch (err) {
         const e = err as { message?: string };
         if (alive)
-          setRequests({ error: e.message ?? "Could not load requests." });
+          setRequests({ error: toSafeUserError(e, { message: "Could not load requests." }).message });
       }
     })();
     return () => {
@@ -1292,7 +1293,7 @@ function CommunicationsTab({
       } catch (err) {
         const e = err as { message?: string };
         if (alive)
-          setThreads({ error: e.message ?? "Could not load threads." });
+          setThreads({ error: toSafeUserError(e, { message: "Could not load threads." }).message });
       }
     })();
     return () => {

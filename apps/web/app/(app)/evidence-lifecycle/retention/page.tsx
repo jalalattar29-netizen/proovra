@@ -18,6 +18,7 @@
  *          sections, not in place of the page.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
@@ -149,7 +150,7 @@ function Shell() {
       // Render the create error inline — don't conflate with the load denial.
       const message =
         err && typeof err === "object" && "message" in err
-          ? String((err as { message: unknown }).message ?? "Could not create policy")
+          ? String(toSafeUserError(err, { message: "Could not create policy" }).message)
           : "Could not create policy";
       setCreateError(message);
     } finally {

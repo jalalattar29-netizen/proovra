@@ -14,6 +14,7 @@
  *   - Saving / transitioning may trigger a step-up challenge.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -109,7 +110,7 @@ const load = useCallback(() => {
         setError(null);
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load providers."),
+        setError(toSafeUserError(err, { message: "Could not load providers." }).message),
       );
   }, [teamId]);
 
@@ -147,8 +148,7 @@ const load = useCallback(() => {
       load();
     } catch (err) {
       setError(
-        (err as { message?: string })?.message ??
-          "Could not create connection.",
+        toSafeUserError(err, { message: "Could not create connection." }).message,
       );
     } finally {
       setBusy(null);
@@ -171,7 +171,7 @@ const load = useCallback(() => {
         load();
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ?? "Transition failed.",
+          toSafeUserError(err, { message: "Transition failed." }).message,
         );
       } finally {
         setBusy(null);

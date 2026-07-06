@@ -26,6 +26,7 @@ import { useEffect, useRef, useState } from "react";
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { useToast } from "../../../../../../components/ui";
 import { ApiError } from "../../../../../../lib/api";
+import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { acceptInvite } from "../../../../../../lib/api/collaboration-teams";
 import {
   COLLABORATION_TEAM_BILLING_UPGRADE_CTA,
@@ -114,7 +115,7 @@ function AcceptTeamInvite() {
     } catch (err) {
       if (err instanceof ApiError) {
         setRequestId(err.requestId);
-        setErrorMessage(err.message);
+        setErrorMessage(toSafeUserError(err).message);
         // Map backend codes to safe surface states. We DO NOT show team
         // metadata for invalid tokens — only a generic safe message.
         if (err.statusCode === 401) setStatus("auth_required");
@@ -146,7 +147,7 @@ function AcceptTeamInvite() {
         else setStatus("error");
       } else {
         setStatus("error");
-        setErrorMessage("Something went wrong.");
+        setErrorMessage("We couldn't complete that action. Please try again.");
       }
     }
   }

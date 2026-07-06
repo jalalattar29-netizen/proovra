@@ -26,6 +26,7 @@
  *     no deliverables, no responses yet).
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -137,7 +138,7 @@ function Inner() {
       setData(json.request);
     } catch (err) {
       const e = err as { message?: string; statusCode?: number };
-      setError(e.message ?? "Could not load this evidence request.");
+      setError(toSafeUserError(e, { message: "Could not load this evidence request." }).message);
     } finally {
       setLoading(false);
     }
@@ -165,7 +166,7 @@ function Inner() {
       await load();
     } catch (err) {
       const e = err as { message?: string };
-      setError(e.message ?? "Could not mark request as needing more info.");
+      setError(toSafeUserError(e, { message: "Could not mark request as needing more info." }).message);
     } finally {
       setActionBusy(null);
     }
@@ -193,7 +194,7 @@ function Inner() {
         await load();
       } catch (err) {
         const e = err as { message?: string };
-        setError(e.message ?? "Could not waive deliverable.");
+        setError(toSafeUserError(e, { message: "Could not waive deliverable." }).message);
       } finally {
         setActionBusy(null);
       }
@@ -245,7 +246,7 @@ function Inner() {
         await load();
       } catch (err) {
         const e = err as { message?: string };
-        setError(e.message ?? "Could not record review decision.");
+        setError(toSafeUserError(e, { message: "Could not record review decision." }).message);
       } finally {
         setActionBusy(null);
       }
@@ -305,7 +306,7 @@ function Inner() {
         await load();
       } catch (err) {
         const e = err as { message?: string };
-        setError(e.message ?? "Could not create follow-up link.");
+        setError(toSafeUserError(e, { message: "Could not create follow-up link." }).message);
       } finally {
         setActionBusy(null);
       }

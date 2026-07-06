@@ -22,6 +22,7 @@
  * ARCHIVE — explicit verbs.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -119,7 +120,7 @@ function RetentionPoliciesPageInner() {
       })
       .catch((err: { message?: string }) => {
         if (cancelled) return;
-        setError(err?.message ?? "Unable to load policies.");
+        setError(toSafeUserError(err, { message: "Unable to load policies." }).message);
       });
     return () => {
       cancelled = true;
@@ -148,7 +149,7 @@ function RetentionPoliciesPageInner() {
       setVersions(res.versions);
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not load policy versions.");
+      alert(toSafeUserError(e, { message: "Could not load policy versions." }).message);
       setSelectedVersionsFor(null);
     }
   }
@@ -178,7 +179,7 @@ function RetentionPoliciesPageInner() {
       await refresh();
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? `Could not transition policy to ${nextStatus}.`);
+      alert(toSafeUserError(e, { message: `Could not transition policy to ${nextStatus}.` }).message);
     }
   }
 
@@ -514,7 +515,7 @@ function CreatePolicyModal({
       await onCreated();
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not create policy.");
+      alert(toSafeUserError(e, { message: "Could not create policy." }).message);
     } finally {
       setBusy(false);
     }

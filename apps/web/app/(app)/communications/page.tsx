@@ -15,6 +15,7 @@
  * provider-reported via webhook.
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
@@ -135,7 +136,7 @@ function CommunicationsPageInner() {
       })
       .catch((err: { message?: string }) => {
         if (cancelled) return;
-        setError(err?.message ?? "Could not load communications data.");
+        setError(toSafeUserError(err, { message: "Could not load communications data." }).message);
       });
     return () => {
       cancelled = true;
@@ -159,7 +160,7 @@ function CommunicationsPageInner() {
       });
       await refreshMessages();
     } catch (err) {
-      alert((err as { message?: string })?.message ?? "Action failed.");
+      alert(toSafeUserError(err, { message: "Action failed." }).message);
     } finally {
       setBusy(false);
     }
@@ -176,7 +177,7 @@ function CommunicationsPageInner() {
       });
       await refreshMessages();
     } catch (err) {
-      alert((err as { message?: string })?.message ?? "Action failed.");
+      alert(toSafeUserError(err, { message: "Action failed." }).message);
     } finally {
       setBusy(false);
     }

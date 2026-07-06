@@ -1,5 +1,4 @@
 "use client";
-
 /**
  * Phase 31.12 — Investigation Intelligence Overview dashboard.
  *
@@ -291,6 +290,8 @@ function InvestigationOverviewPageInner() {
       )) as { enqueued: number; scanned: number };
       setRefreshResult({ enqueued: res.enqueued, scanned: res.scanned });
     } catch (err) {
+      // Internal error-kind detection only — reads raw message to branch
+      // on 403; the msg itself is never rendered.
       const msg = err instanceof Error ? err.message : "";
       setRefreshError(
         /403|forbidden/i.test(msg)

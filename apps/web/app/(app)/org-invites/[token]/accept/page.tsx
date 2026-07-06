@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 
 /**
  * Phase 2.7X Stage 4 — Organization invite acceptance page.
@@ -72,7 +73,7 @@ function OrgInviteAcceptPageInner() {
       });
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Failed to accept invite.";
+        toSafeUserError(err, { message: "Failed to accept invite." }).message;
       const status =
         typeof (err as { statusCode?: number }).statusCode === "number"
           ? ((err as { statusCode: number }).statusCode)

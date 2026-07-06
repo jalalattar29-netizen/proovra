@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
 import {
   Suspense,
@@ -568,7 +569,7 @@ function RegisterPageContent() {
 
       router.push(currentReturnUrl);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Registration failed";
+      const msg = toSafeUserError(err, { message: "Registration failed" }).message;
       const requestId = err instanceof ApiError ? err.requestId : undefined;
       const errCode = err instanceof ApiError ? err.code : undefined;
 
@@ -584,10 +585,11 @@ function RegisterPageContent() {
           "An account already exists for this email. Sign in or reset your password instead."
         );
       } else {
-        setError(requestId ? `${msg} (requestId: ${requestId})` : msg);
+        setError(msg);
       }
       setStatus("Sign in failed.");
-      addToast(requestId ? `${msg} (requestId: ${requestId})` : msg, "error", 6000);
+      // Request id goes to a copyable support reference — never inline.
+      addToast(msg, "error", 6000, requestId ? { supportReference: requestId } : undefined);
       if (isEmailRegisterFlow) {
         setRegisterStep(0);
         setRegisterSuccess(false);
@@ -730,7 +732,7 @@ function RegisterPageContent() {
 
       await handleAuth("/v1/auth/apple", idToken, code);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Apple sign-up failed";
+      const msg = toSafeUserError(err, { message: "Apple sign-up failed" }).message;
       setError(msg);
       addToast(msg, "error");
     }

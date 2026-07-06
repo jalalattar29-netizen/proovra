@@ -18,6 +18,7 @@
  *   - Backend remains authoritative; this modal is UI only.
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
@@ -123,7 +124,7 @@ export function EvidenceLinkModal({
         const e = err as { message?: string };
         setState({
           status: "error",
-          message: e?.message ?? "Unable to load evidence.",
+          message: toSafeUserError(e, { message: "Unable to load evidence." }).message,
         });
       }
     },
@@ -157,7 +158,7 @@ export function EvidenceLinkModal({
       const e = err as { message?: string };
       setState({
         status: "error",
-        message: e?.message ?? "Unable to load more evidence.",
+        message: toSafeUserError(e, { message: "Unable to load more evidence." }).message,
       });
     }
   }, [state, search, caseId]);

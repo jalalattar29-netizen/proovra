@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
 import {
   Suspense,
@@ -359,7 +360,7 @@ function LoginPageContent() {
     } catch (err) {
       if (!isMountedRef.current) return;
 
-      const msg = err instanceof Error ? err.message : "Login failed";
+      const msg = toSafeUserError(err, { message: "Login failed" }).message;
       const requestId = err instanceof ApiError ? err.requestId : undefined;
       const errCode = err instanceof ApiError ? err.code : undefined;
 
@@ -384,7 +385,8 @@ function LoginPageContent() {
 
       setError(displayMsg);
       setStatus("Sign in failed.");
-      addToast(requestId ? `${displayMsg} (requestId: ${requestId})` : displayMsg, "error", 6000);
+      // Request id goes to a copyable support reference — never inline.
+      addToast(displayMsg, "error", 6000, requestId ? { supportReference: requestId } : undefined);
     } finally {
       if (isMountedRef.current) setBusy(false);
       inFlightRef.current = false;
@@ -530,7 +532,7 @@ function LoginPageContent() {
 
       await handleAuth("/v1/auth/apple", idToken, code);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Apple sign-in failed";
+      const msg = toSafeUserError(err, { message: "Apple sign-in failed" }).message;
       setError(msg);
       addToast(msg, "error");
     }

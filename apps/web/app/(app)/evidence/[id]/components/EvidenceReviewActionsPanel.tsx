@@ -13,6 +13,7 @@
  * admissibility, or proven truth.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -151,7 +152,7 @@ export function EvidenceReviewActionsPanel({
       onChanged?.();
     } catch (err) {
       const e = err as { message?: string };
-      setError(e?.message ?? "Could not claim.");
+      setError(toSafeUserError(e, { message: "Could not claim." }).message);
     } finally {
       setBusy(false);
     }
@@ -196,7 +197,7 @@ export function EvidenceReviewActionsPanel({
       onChanged?.();
     } catch (err) {
       const e = err as { message?: string };
-      setError(e?.message ?? "Decision failed.");
+      setError(toSafeUserError(e, { message: "Decision failed." }).message);
     } finally {
       setBusy(false);
     }

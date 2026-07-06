@@ -21,6 +21,7 @@
  *   * Read-only.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -71,7 +72,7 @@ export function RetentionInheritanceSummary({
       setData(json.resolution);
     } catch (err) {
       const e = err as { message?: string };
-      setError(e.message ?? "Could not resolve retention inheritance.");
+      setError(toSafeUserError(e, { message: "Could not resolve retention inheritance." }).message);
     } finally {
       setLoading(false);
     }

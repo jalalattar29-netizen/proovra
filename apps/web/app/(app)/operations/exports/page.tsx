@@ -28,6 +28,7 @@
  *     bounded colour + copy.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -202,7 +203,7 @@ function OperationsExportsContent() {
         setObjectLock((lockRes as { status: ObjectLockStatus }).status);
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load exports."),
+        setError(toSafeUserError(err, { message: "Could not load exports." }).message),
       )
       .finally(() => setLoading(false));
   }, [teamId]);
@@ -523,7 +524,7 @@ function ExportDrawer({
     )
       .then((r: { envelope: ExportManifestEnvelope }) => setEnvelope(r.envelope))
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load manifest."),
+        setError(toSafeUserError(err, { message: "Could not load manifest." }).message),
       );
   }, [teamId, exportId]);
 
@@ -541,7 +542,7 @@ function ExportDrawer({
       )) as { report: ReproducibilityReport };
       setReport(r.report);
     } catch (err) {
-      setError((err as { message?: string })?.message ?? "Verification failed.");
+      setError(toSafeUserError(err, { message: "Verification failed." }).message);
     } finally {
       setVerifying(false);
     }

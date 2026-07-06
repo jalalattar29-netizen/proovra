@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 /**
  * Phase CASE-DETAIL-PERSONAL-UX — simplified Case Detail page for
@@ -594,7 +595,7 @@ function EvidenceTab({
         await onReload();
       } catch (err) {
         addToast(
-          err instanceof Error ? err.message : "Could not remove evidence.",
+          toSafeUserError(err, { message: "Could not remove evidence." }).message,
           "error",
         );
       } finally {
@@ -1308,7 +1309,7 @@ function NotesTab({
       addToast("Note added.", "success");
     } catch (err) {
       addToast(
-        err instanceof Error ? err.message : "Could not add note.",
+        toSafeUserError(err, { message: "Could not add note." }).message,
         "error",
       );
     } finally {
@@ -1328,7 +1329,7 @@ function NotesTab({
         addToast("Note marked as resolved.", "success");
       } catch (err) {
         addToast(
-          err instanceof Error ? err.message : "Could not resolve note.",
+          toSafeUserError(err, { message: "Could not resolve note." }).message,
           "error",
         );
       } finally {
@@ -1364,7 +1365,7 @@ function NotesTab({
         addToast("Note deleted.", "success");
       } catch (err) {
         addToast(
-          err instanceof Error ? err.message : "Could not delete note.",
+          toSafeUserError(err, { message: "Could not delete note." }).message,
           "error",
         );
       } finally {
@@ -1553,7 +1554,7 @@ function SettingsTab({
       addToast("Case name updated.", "success");
     } catch (err) {
       addToast(
-        err instanceof Error ? err.message : "Could not rename case.",
+        toSafeUserError(err, { message: "Could not rename case." }).message,
         "error",
       );
     } finally {
@@ -1595,7 +1596,7 @@ function SettingsTab({
         return true;
       } catch (err) {
         addToast(
-          err instanceof Error ? err.message : "Could not change status.",
+          toSafeUserError(err, { message: "Could not change status." }).message,
           "error",
         );
         return false;
@@ -1627,7 +1628,7 @@ function SettingsTab({
       onDeleted();
     } catch (err) {
       addToast(
-        err instanceof Error ? err.message : "Could not delete case.",
+        toSafeUserError(err, { message: "Could not delete case." }).message,
         "error",
       );
     } finally {

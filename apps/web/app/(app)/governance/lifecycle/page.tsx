@@ -19,6 +19,7 @@
  * privileged legal text. All labels are catalog-bound.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -97,7 +98,7 @@ function GovernanceLifecycleDashboardInner() {
         })
         .catch((err: { message?: string }) => {
           if (cancelled) return;
-          setError(err?.message ?? "Unable to load governance dashboard.");
+          setError(toSafeUserError(err, { message: "Unable to load governance dashboard." }).message);
         });
     };
     tick();

@@ -23,6 +23,7 @@
  * it never simulates permission.
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
@@ -103,7 +104,7 @@ export function CreateCaseModal({
       } else {
         setErrorState({
           kind: "message",
-          message: e.message ?? "Could not create case",
+          message: toSafeUserError(e, { message: "Could not create case" }).message,
           requestId: e.body?.requestId,
         });
       }

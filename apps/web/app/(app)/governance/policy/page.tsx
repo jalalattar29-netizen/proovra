@@ -18,6 +18,7 @@
  * neutral home. We import them by relative path until then.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -101,7 +102,7 @@ function GovernancePolicyPageInner() {
         setError(null);
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load policy."),
+        setError(toSafeUserError(err, { message: "Could not load policy." }).message),
       );
   }, [teamId]);
 
@@ -135,7 +136,7 @@ function GovernancePolicyPageInner() {
       setNotice("Policy saved.");
     } catch (err) {
       setError(
-        (err as { message?: string })?.message ?? "Could not save policy.",
+        toSafeUserError(err, { message: "Could not save policy." }).message,
       );
     } finally {
       setBusy(false);

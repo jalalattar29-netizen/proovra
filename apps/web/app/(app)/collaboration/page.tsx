@@ -10,6 +10,7 @@
  * truth. The page surfaces operator coordination state only.
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -113,7 +114,7 @@ useEffect(() => {
       )
       .catch((err: { message?: string }) => {
         if (cancelled) return;
-        setError(err?.message ?? "Could not load discussions.");
+        setError(toSafeUserError(err, { message: "Could not load discussions." }).message);
       });
     return () => {
       cancelled = true;
@@ -155,7 +156,7 @@ useEffect(() => {
       setDraft("");
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not post reply.");
+      alert(toSafeUserError(e, { message: "Could not post reply." }).message);
     } finally {
       setBusy(false);
     }
@@ -192,7 +193,7 @@ useEffect(() => {
       );
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Action failed.");
+      alert(toSafeUserError(e, { message: "Action failed." }).message);
     } finally {
       setBusy(false);
     }

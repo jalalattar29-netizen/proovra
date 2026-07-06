@@ -1,5 +1,4 @@
 "use client";
-
 /**
  * Phase 32.14 — Investigation Timeline Visualization.
  *

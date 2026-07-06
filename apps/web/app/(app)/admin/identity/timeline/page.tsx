@@ -12,6 +12,7 @@
  * No private notes, no raw IPs, no secrets.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -138,7 +139,7 @@ const load = useCallback(() => {
         setError(null);
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load timeline."),
+        setError(toSafeUserError(err, { message: "Could not load timeline." }).message),
       );
   }, [teamId, filterIdx, severityFilter]);
 

@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -338,7 +339,7 @@ export default function AdminDemoRequestsPage() {
       );
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to load demo requests";
+        toSafeUserError(err, { message: "Failed to load demo requests" }).message;
       addToast(message, "error");
     } finally {
       setLoading(false);
@@ -366,7 +367,7 @@ export default function AdminDemoRequestsPage() {
       }
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to load demo request";
+        toSafeUserError(err, { message: "Failed to load demo request" }).message;
       addToast(message, "error");
     }
   }
@@ -394,7 +395,7 @@ export default function AdminDemoRequestsPage() {
       await Promise.all([loadList(), loadDetails(selectedId)]);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to update demo request";
+        toSafeUserError(err, { message: "Failed to update demo request" }).message;
       addToast(message, "error");
     } finally {
       setSaving(false);
@@ -419,7 +420,7 @@ export default function AdminDemoRequestsPage() {
       await Promise.all([loadList(), loadDetails(selectedId)]);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to update routing";
+        toSafeUserError(err, { message: "Failed to update routing" }).message;
       addToast(message, "error");
     } finally {
       setRouting(false);
@@ -445,7 +446,7 @@ export default function AdminDemoRequestsPage() {
       await Promise.all([loadList(), loadDetails(selectedId)]);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to send follow-up";
+        toSafeUserError(err, { message: "Failed to send follow-up" }).message;
       addToast(message, "error");
     } finally {
       setSendingFollowUp(false);
@@ -473,7 +474,7 @@ export default function AdminDemoRequestsPage() {
       }
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to run due follow-ups";
+        toSafeUserError(err, { message: "Failed to run due follow-ups" }).message;
       addToast(message, "error");
     } finally {
       setRunningDue(false);

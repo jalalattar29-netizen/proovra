@@ -36,6 +36,7 @@
  *     second redaction layer here.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { Card } from "../../../../../components/ui";
@@ -184,7 +185,7 @@ export function TeamAccessReviewCard({ teamId }: { teamId: string }) {
       } else {
         setState({
           kind: "error",
-          message: e.message ?? "Could not load access review.",
+          message: toSafeUserError(e, { message: "Could not load access review." }).message,
         });
       }
     }

@@ -16,6 +16,7 @@
  *     text.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -117,7 +118,7 @@ export function RuntimeStatusBanner({
         if (!cancelled) {
           setReport(null);
           const e = err as { message?: string };
-          setError(e?.message ?? "readiness_unavailable");
+          setError(toSafeUserError(e, { message: "readiness_unavailable" }).message);
         }
       }
     }

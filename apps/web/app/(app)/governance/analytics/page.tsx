@@ -15,6 +15,7 @@
  * `services/api/src/services/governance-lifecycle/governance-analytics.service.ts`.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -103,7 +104,7 @@ function GovernanceAnalyticsPageInner() {
         })
         .catch((err: { message?: string }) => {
           if (cancelled) return;
-          setError(err?.message ?? "Unable to load analytics.");
+          setError(toSafeUserError(err, { message: "Unable to load analytics." }).message);
         });
     };
     tick();

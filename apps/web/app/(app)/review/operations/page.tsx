@@ -15,6 +15,7 @@
  * authenticity, admissibility, or proven truth.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -129,7 +130,7 @@ useEffect(() => {
       )
       .catch((err: { message?: string }) => {
         if (cancelled) return;
-        setError(err?.message ?? "Could not load review queue.");
+        setError(toSafeUserError(err, { message: "Could not load review queue." }).message);
       });
     return () => {
       cancelled = true;
@@ -168,7 +169,7 @@ useEffect(() => {
       setSelected({});
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not claim.");
+      alert(toSafeUserError(e, { message: "Could not claim." }).message);
     } finally {
       setBusy(false);
     }
@@ -213,7 +214,7 @@ useEffect(() => {
       setSelected({});
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Bulk action failed.");
+      alert(toSafeUserError(e, { message: "Bulk action failed." }).message);
     } finally {
       setBusy(false);
     }

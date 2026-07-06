@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
@@ -145,7 +146,7 @@ export function ComparisonPanel({ evidenceId }: { evidenceId: string }) {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Comparison unavailable");
+          setError(toSafeUserError(loadError, { message: "Comparison unavailable" }).message);
         }
       } finally {
         if (!cancelled) {

@@ -13,6 +13,7 @@
  * "verdict", "forensic conclusion".
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
@@ -257,7 +258,7 @@ function OpsPageInner() {
       );
       setIncidentsPanel({ status: "ready", data: fresh.incidents ?? [] });
     } catch (err) {
-      alert((err as { message?: string })?.message ?? "Action failed.");
+      alert(toSafeUserError(err, { message: "Action failed." }).message);
     } finally {
       setBusy(false);
     }

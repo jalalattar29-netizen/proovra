@@ -17,6 +17,7 @@
  *   - Backend remains authoritative; this modal is UI only.
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
@@ -124,7 +125,7 @@ export function AssignmentPickerModal({
         const e = err as { message?: string };
         setState({
           status: "error",
-          message: e?.message ?? "Unable to load assignment candidates.",
+          message: toSafeUserError(e, { message: "Unable to load assignment candidates." }).message,
         });
       }
     },
@@ -163,7 +164,7 @@ export function AssignmentPickerModal({
       const e = err as { message?: string };
       setState({
         status: "error",
-        message: e?.message ?? "Unable to load more candidates.",
+        message: toSafeUserError(e, { message: "Unable to load more candidates." }).message,
       });
     }
   }, [state, search, caseId]);

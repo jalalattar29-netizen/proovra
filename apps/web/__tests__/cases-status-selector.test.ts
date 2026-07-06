@@ -203,9 +203,20 @@ test("Same-status pick is a no-op (early return before confirm fires)", () => {
 });
 
 test("Error path surfaces a bounded toast (no raw JSON / no stack trace)", () => {
+  // PROOVRA Feedback System — the status-change error path routes through
+  // toSafeUserError(), which maps known codes/status to safe copy and, for
+  // anything unmapped, uses the section fallback WITHOUT ever echoing the
+  // raw backend message. The pre-migration raw `err.message` passthrough
+  // must be gone.
   assert.match(
     SIMPLE_DETAIL,
-    /addToast\(\s*\n?\s*err instanceof Error \? err\.message : "Could not change status\.",\s*\n?\s*"error",\s*\n?\s*\);/,
+    /addToast\(\s*\n?\s*toSafeUserError\(err, \{ message: "Could not change status\." \}\)\.message,\s*\n?\s*"error",\s*\n?\s*\);/,
+  );
+  assert.ok(
+    !/err instanceof Error \? err\.message : "Could not change status\."/.test(
+      SIMPLE_DETAIL,
+    ),
+    "raw err.message passthrough must be removed from the status-change path",
   );
 });
 

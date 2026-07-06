@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 /**
  * Phase A.1B — Organization detail (operational console).
@@ -261,7 +262,7 @@ function OrganizationDetailInner() {
         const data = (await apiFetch(path)) as T;
         return { kind: "ready", data };
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Failed to load.";
+        const message = toSafeUserError(err, { message: "Failed to load." }).message;
         const status =
           typeof (err as { statusCode?: number }).statusCode === "number"
             ? ((err as { statusCode: number }).statusCode)
@@ -365,7 +366,7 @@ function OrganizationDetailInner() {
       await fetchAll();
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Failed to send invite.";
+        toSafeUserError(err, { message: "Failed to send invite." }).message;
       setInviteError(message);
     } finally {
       setInviteBusy(false);
@@ -385,7 +386,7 @@ function OrganizationDetailInner() {
         await fetchAll();
       } catch (err: unknown) {
         const message =
-          err instanceof Error ? err.message : "Failed to change role.";
+          toSafeUserError(err, { message: "Failed to change role." }).message;
         setMemberError((s) => ({ ...s, [membershipId]: message }));
       } finally {
         setMemberBusy((s) => ({ ...s, [membershipId]: false }));
@@ -405,7 +406,7 @@ function OrganizationDetailInner() {
         await fetchAll();
       } catch (err: unknown) {
         const message =
-          err instanceof Error ? err.message : "Failed to remove member.";
+          toSafeUserError(err, { message: "Failed to remove member." }).message;
         setMemberError((s) => ({ ...s, [membershipId]: message }));
       } finally {
         setMemberBusy((s) => ({ ...s, [membershipId]: false }));
@@ -425,7 +426,7 @@ function OrganizationDetailInner() {
         await fetchAll();
       } catch (err: unknown) {
         const message =
-          err instanceof Error ? err.message : "Failed to revoke invite.";
+          toSafeUserError(err, { message: "Failed to revoke invite." }).message;
         setInviteRowError((s) => ({ ...s, [inviteId]: message }));
       } finally {
         setInviteBusyMap((s) => ({ ...s, [inviteId]: false }));
@@ -445,7 +446,7 @@ function OrganizationDetailInner() {
         await fetchAll();
       } catch (err: unknown) {
         const message =
-          err instanceof Error ? err.message : "Failed to resend invite.";
+          toSafeUserError(err, { message: "Failed to resend invite." }).message;
         setInviteRowError((s) => ({ ...s, [inviteId]: message }));
       } finally {
         setInviteBusyMap((s) => ({ ...s, [inviteId]: false }));
@@ -480,7 +481,7 @@ function OrganizationDetailInner() {
       await fetchAll();
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Failed to save settings.";
+        toSafeUserError(err, { message: "Failed to save settings." }).message;
       setSettingsError(message);
     } finally {
       setSettingsBusy(false);

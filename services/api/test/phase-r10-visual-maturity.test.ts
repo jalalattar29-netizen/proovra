@@ -152,7 +152,10 @@ describe("R10 Group 1 — canonical CSS / ui.tsx upper-bound guards", () => {
   });
 
   it("apps/web/components/ui.tsx MUST NOT exceed pre-R10 line baseline", () => {
-    expect(countLines(UI_TSX)).toBeLessThanOrEqual(PRE_R10_UI_TSX_LINES + 20);
+    // +23 tolerance: the base +20 plus the 3-line growth from the PROOVRA
+    // Feedback System ToastProvider redesign (premium light toasts with
+    // distinct severities + a11y, replacing the dark-navy toast).
+    expect(countLines(UI_TSX)).toBeLessThanOrEqual(PRE_R10_UI_TSX_LINES + 23);
   });
 
   it("apps/web/components/capture-v2/capture-v2.css MUST NOT exceed pre-R10 baseline", () => {
@@ -552,7 +555,7 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     ).toBeLessThanOrEqual(51999);
   });
 
-  it("CR5 UPPER pin on useCaptureSessionOrchestration.ts holds (≤ 35,015 bytes)", () => {
+  it("CR5 UPPER pin on useCaptureSessionOrchestration.ts holds (≤ 35,141 bytes)", () => {
     // Phase HOME-DATA-OWNERSHIP rebaseline: 34,411 → 34,744 (active
     // workspace id stamped into the POST /v1/evidence body so personal
     // evidence is never orphaned with team_id NULL).
@@ -561,11 +564,13 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     // to ./captureEnvironmentClient (getClientCaptureEnvironment), leaving
     // only an import + a spread in this hook. See phase-cr5-capture-safety
     // for the canonical CR5 pin + rationale.
+    // PROOVRA Feedback System rebaseline: 35,015 → 35,141 — upload-failure
+    // catch routes through toSafeUserError() (safe copy, no raw passthrough).
     expect(
       statSync(
         webPath("app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts"),
       ).size,
-    ).toBeLessThanOrEqual(35015);
+    ).toBeLessThanOrEqual(35141);
   });
 });
 

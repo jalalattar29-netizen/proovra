@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 /**
  * Phase C — Operational Inbox.
@@ -371,7 +372,7 @@ function InboxPageInner() {
           ? ((err as { statusCode: number }).statusCode)
           : 0;
       const message =
-        err instanceof Error ? err.message : "Could not load inbox.";
+        toSafeUserError(err, { message: "Could not load inbox." }).message;
       setState({ kind: "error", status, message });
     }
   }, [buildUrl]);
@@ -391,7 +392,7 @@ function InboxPageInner() {
       );
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Could not load more.";
+        toSafeUserError(err, { message: "Could not load more." }).message;
       // Keep the prior state — Load More failure shouldn't blow away
       // what the user is already looking at. Surface a one-shot error
       // alert via state.error? Simpler: log + leave UI unchanged.

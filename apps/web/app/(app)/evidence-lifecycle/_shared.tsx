@@ -134,7 +134,7 @@ export function resolveLifecycleError(err: unknown): LifecycleDenial | null {
       return {
         denial: "VALIDATION_FAILED",
         title: "Request was rejected",
-        detail: err.message || "The request body did not pass validation.",
+        detail: "The request body did not pass validation.",
       };
     }
     // 503 SCHEMA_NOT_READY → degraded (admin-safe wording, no Prisma leak)
@@ -150,7 +150,7 @@ export function resolveLifecycleError(err: unknown): LifecycleDenial | null {
     return {
       denial: "UNKNOWN_ERROR",
       title: "Could not load this section",
-      detail: err.message || "An unexpected backend response was returned.",
+      detail: "An unexpected backend response was returned.",
     };
   }
 

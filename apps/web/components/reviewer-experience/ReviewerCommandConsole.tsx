@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
 /**
  * Phase 32.8E — Reviewer Orchestration & Escalation Command.
@@ -80,7 +81,7 @@ export function ReviewerCommandConsole() {
       else
         setState({
           status: "unavailable",
-          message: e.message ?? "Unable to load reviewer command center.",
+          message: toSafeUserError(e, { message: "Unable to load reviewer command center." }).message,
         });
     }
   }, [teamId]);
@@ -302,7 +303,7 @@ function MultiStageReviewSummaryCard({ teamId }: { teamId: string }) {
           ? ((err as { statusCode: number }).statusCode)
           : 0;
       const message =
-        err instanceof Error ? err.message : "Could not load review summary.";
+        toSafeUserError(err, { message: "Could not load review summary." }).message;
       setState({ kind: "error", status, message });
     }
   }, [teamId]);
@@ -936,7 +937,7 @@ function QueuePeekWithBulkOps({
       } catch (err) {
         const e = err as { statusCode?: number; message?: string };
         if (e.statusCode === 400) {
-          setError(e.message ?? "Bulk request was rejected. Check the action + note.");
+          setError(toSafeUserError(e, { message: "Bulk request was rejected. Check the action + note." }).message);
         } else if (e.statusCode === 403) {
           setError(
             "Permission denied. Bulk mutation requires REVIEWER_OPS_ACT in this team.",
@@ -944,7 +945,7 @@ function QueuePeekWithBulkOps({
         } else if (e.statusCode === 429) {
           setError("Rate-limited. Slow down and retry shortly.");
         } else {
-          setError(e.message ?? "Bulk submit failed.");
+          setError(toSafeUserError(e, { message: "Bulk submit failed." }).message);
         }
       } finally {
         setSubmitting(false);

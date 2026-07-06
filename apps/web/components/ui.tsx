@@ -9,48 +9,91 @@ import type {
 } from "react";
 import Link from "next/link";
 import { createContext, useContext, useState, useCallback } from "react";
+import { ProovraToast, type ProovraToastData } from "./feedback/ProovraToast";
 
 /* =========================
    Toast Context and Provider
+
+   The PROOVRA Feedback System toast. The visual surface lives in
+   `components/feedback/ProovraToast.tsx` (premium light card, severity
+   accent, icon, a11y). This provider owns the queue, backward-compatible
+   `addToast(message, type, duration?)` API, de-duplication, and
+   severity-aware default durations.
    ========================= */
 
 type ToastType = "success" | "error" | "info" | "warning";
 
-interface Toast {
-  id: string;
-  message: string;
+/** Optional richer options — old call sites keep working without them. */
+export interface ToastOptions {
+  title?: string;
+  supportReference?: string;
+  action?: { label: string; href?: string; onClick?: () => void };
+}
+
+interface Toast extends ProovraToastData {
+  /** Back-compat alias for `severity`. */
   type: ToastType;
-  duration?: number;
 }
 
 interface ToastContextType {
   toasts: Toast[];
-  addToast: (message: string, type: ToastType, duration?: number) => void;
+  addToast: (
+    message: string,
+    type?: ToastType,
+    duration?: number,
+    options?: ToastOptions,
+  ) => void;
   removeToast: (id: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
+// Errors/warnings need reading time; success/info are quick confirmations.
+function defaultDurationFor(type: ToastType): number {
+  return type === "error" || type === "warning" ? 7000 : 4500;
+}
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-
-  const addToast = useCallback(
-    (message: string, type: ToastType = "info", duration = 4000) => {
-      const id = Math.random().toString(36).slice(2, 11);
-      setToasts((prev) => [...prev, { id, message, type, duration }]);
-
-      if (duration > 0) {
-        setTimeout(() => {
-          setToasts((prev) => prev.filter((t) => t.id !== id));
-        }, duration);
-      }
-    },
-    []
-  );
 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  const addToast = useCallback(
+    (
+      message: string,
+      type: ToastType = "info",
+      duration?: number,
+      options?: ToastOptions,
+    ) => {
+      const resolvedDuration =
+        typeof duration === "number" ? duration : defaultDurationFor(type);
+      setToasts((prev) => {
+        // De-dupe: identical message + severity already on screen → no spam.
+        if (
+          prev.some(
+            (t) => t.message === message && t.type === type && t.title === options?.title,
+          )
+        ) {
+          return prev;
+        }
+        const id = Math.random().toString(36).slice(2, 11);
+        const next: Toast = {
+          id,
+          message,
+          type,
+          severity: type,
+          duration: resolvedDuration,
+          title: options?.title,
+          supportReference: options?.supportReference,
+          action: options?.action,
+        };
+        return [...prev, next];
+      });
+    },
+    [],
+  );
 
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
@@ -76,35 +119,14 @@ function ToastContainer({
   onRemove: (id: string) => void;
 }) {
   return (
-    <div className="toast-container">
+    <div className="toast-container" role="region" aria-label="Notifications">
       {toasts.map((toast) => (
-        <ToastItem
+        <ProovraToast
           key={toast.id}
           toast={toast}
           onClose={() => onRemove(toast.id)}
         />
       ))}
-    </div>
-  );
-}
-
-function ToastItem({
-  toast,
-  onClose,
-}: {
-  toast: Toast;
-  onClose: () => void;
-}) {
-  return (
-    <div className={`toast-item toast-${toast.type}`}>
-      <span className="toast-message">{toast.message}</span>
-      <button
-        onClick={onClose}
-        className="toast-close"
-        aria-label="Close notification"
-      >
-        ×
-      </button>
     </div>
   );
 }

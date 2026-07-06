@@ -26,6 +26,7 @@
  *     step-up. This component is preview-only.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -126,7 +127,7 @@ export function DestructionImpactPreview({
       setData(json);
     } catch (err) {
       const e = err as { message?: string };
-      setError(e.message ?? "Could not load destruction impact preview.");
+      setError(toSafeUserError(e, { message: "Could not load destruction impact preview." }).message);
     } finally {
       setLoading(false);
     }

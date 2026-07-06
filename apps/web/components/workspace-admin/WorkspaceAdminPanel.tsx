@@ -20,6 +20,7 @@
  *   - Backend authorization remains authoritative.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -81,7 +82,7 @@ export function WorkspaceAdminPanel() {
       else
         setState({
           status: "unavailable",
-          message: e.message ?? "Unable to load workspace administration.",
+          message: toSafeUserError(e, { message: "Unable to load workspace administration." }).message,
         });
     }
   }, [teamId]);

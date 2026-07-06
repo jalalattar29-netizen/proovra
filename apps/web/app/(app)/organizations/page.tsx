@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 /**
  * Phase A.1B — Organizations & Workspace operational surface.
@@ -126,7 +127,7 @@ function OrganizationsListPageInner() {
       setState({ kind: "ready", data });
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Failed to load organizations.";
+        toSafeUserError(err, { message: "Failed to load organizations." }).message;
       const status =
         typeof (err as { statusCode?: number }).statusCode === "number"
           ? ((err as { statusCode: number }).statusCode)
@@ -162,7 +163,7 @@ function OrganizationsListPageInner() {
       }
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Failed to create organization.";
+        toSafeUserError(err, { message: "Failed to create organization." }).message;
       setCreateError(message);
     } finally {
       setCreateBusy(false);
@@ -195,7 +196,7 @@ function OrganizationsListPageInner() {
           ? ((err as { statusCode: number }).statusCode)
           : 0;
       const baseMsg =
-        err instanceof Error ? err.message : "Failed to accept invite.";
+        toSafeUserError(err, { message: "Failed to accept invite." }).message;
       const friendly =
         status === 410
           ? "This invite is expired, revoked, or already accepted."

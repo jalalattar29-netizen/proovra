@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../../providers";
@@ -241,7 +242,7 @@ export default function AppleCallbackPage() {
           } catch (legalErr) {
             authLogger.logError(
               "callback_legal_acceptance_failed",
-              legalErr instanceof Error ? legalErr.message : "unknown error"
+              toSafeUserError(legalErr, { message: "unknown error" }).message
             );
           }
         }
@@ -291,7 +292,7 @@ export default function AppleCallbackPage() {
         clearPendingOAuthLegalAcceptance();
         window.location.replace(target);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Sign-in failed";
+        const msg = toSafeUserError(err, { message: "Sign-in failed" }).message;
         authLogger.logError("callback_error", msg);
         authLogger.log("AUTH_SESSION_FAILED", "error", { code: "callback_error", message: msg }, provider);
         if (!isMountedRef.current) return;

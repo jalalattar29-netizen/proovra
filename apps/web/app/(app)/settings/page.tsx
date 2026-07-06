@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -331,7 +332,7 @@ function SettingsPageInner() {
     } catch (err: unknown) {
       captureException(err, { feature: "web_settings_profile_save" });
       const msg =
-        err instanceof Error ? err.message : "Could not save profile. Please try again.";
+        toSafeUserError(err, { message: "Could not save profile. Please try again." }).message;
       addToast(
         msg.includes("404") ? "Profile endpoint not deployed yet (API 404)." : msg,
         "error"

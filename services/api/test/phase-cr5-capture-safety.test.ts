@@ -201,7 +201,12 @@ const PRE_CR5_PAGE_BYTES = 51999;
 // this hook decomposed — the residual here is just one import + a spread
 // of the helper result into the request body. Real behaviour change
 // (capture-environment metadata), minimal in-file footprint.
-const PRE_CR5_ORCH_BYTES = 35015;
+// PROOVRA Feedback System rebaseline: 35,015 → 35,141. The upload-failure
+// catch now routes through toSafeUserError() (safe-feedback wiring: one
+// import + the mapper call + a user-facing fallback sentence that replaces
+// the raw `err.message` passthrough). Safe copy only — no capture behaviour
+// change.
+const PRE_CR5_ORCH_BYTES = 35141;
 const PRE_CR5_RESUMABLE_BYTES = 13423;
 const PRE_CR5_CAMERA_BYTES = 12473;
 const PRE_CR5_AUDIO_BYTES = 8978;

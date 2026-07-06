@@ -193,14 +193,11 @@ export function RequestDemoForm({
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        const upstreamMessage =
-          data?.error?.message || data?.error || data?.message;
-        const errorMessage =
-          typeof upstreamMessage === "string" && upstreamMessage.trim()
-            ? upstreamMessage
-            : "We couldn't submit your demo request right now. Please try again or contact support@proovra.com.";
-
-        addToast(errorMessage, "error");
+        // Never surface the raw upstream message — always a safe, friendly line.
+        addToast(
+          "We couldn't submit your demo request right now. Please try again, or email support@proovra.com.",
+          "error",
+        );
         return;
       }
 

@@ -58,6 +58,7 @@
  *     are explicitly absent.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import {
   useCallback,
   useEffect,
@@ -381,8 +382,7 @@ export function ReviewerConsole({
           setActionError("Step-up cancelled — assignment not saved.");
         } else {
           setActionError(
-            (err as { message?: string }).message ??
-              "Could not assign reviewer.",
+            toSafeUserError(err, { message: "Could not assign reviewer." }).message,
           );
         }
       } finally {
@@ -418,8 +418,7 @@ export function ReviewerConsole({
           setActionError("Step-up cancelled — request not sent.");
         } else {
           setActionError(
-            (err as { message?: string }).message ??
-              "Could not request information.",
+            toSafeUserError(err, { message: "Could not request information." }).message,
           );
         }
       } finally {
@@ -463,8 +462,7 @@ export function ReviewerConsole({
           setActionError("Step-up cancelled — escalation not raised.");
         } else {
           setActionError(
-            (err as { message?: string }).message ??
-              "Could not raise escalation.",
+            toSafeUserError(err, { message: "Could not raise escalation." }).message,
           );
         }
       } finally {
@@ -535,8 +533,7 @@ export function ReviewerConsole({
             ...p[tab],
             loading: false,
             error:
-              (err as { message?: string }).message ??
-              "Could not load more rows.",
+              toSafeUserError(err, { message: "Could not load more rows." }).message,
           },
         }));
       }
@@ -588,8 +585,7 @@ export function ReviewerConsole({
           setActionError("Step-up cancelled — acknowledgement not saved.");
         } else {
           setActionError(
-            (err as { message?: string }).message ??
-              "Could not acknowledge escalation.",
+            toSafeUserError(err, { message: "Could not acknowledge escalation." }).message,
           );
         }
       } finally {
@@ -1501,7 +1497,7 @@ function SavedViewsPanel({
       onChanged();
     } catch (err) {
       setError(
-        (err as { message?: string }).message ?? "Could not create saved view.",
+        toSafeUserError(err, { message: "Could not create saved view." }).message,
       );
     } finally {
       setBusy(false);
@@ -1520,7 +1516,7 @@ function SavedViewsPanel({
         onChanged();
       } catch (err) {
         setError(
-          (err as { message?: string }).message ?? "Could not delete saved view.",
+          toSafeUserError(err, { message: "Could not delete saved view." }).message,
         );
       } finally {
         setDeletingId(null);

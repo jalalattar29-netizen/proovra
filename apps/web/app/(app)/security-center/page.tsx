@@ -14,6 +14,7 @@
  * proof", or "impossible to bypass".
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -209,7 +210,7 @@ function SecurityCenterPageInner() {
       )
       .catch((err: { message?: string }) => {
         if (cancelled) return;
-        setError(err?.message ?? "Could not load security data.");
+        setError(toSafeUserError(err, { message: "Could not load security data." }).message);
       });
     return () => {
       cancelled = true;
@@ -239,7 +240,7 @@ function SecurityCenterPageInner() {
       }
       if (res.policy) setPolicy(res.policy);
     } catch (err) {
-      alert((err as { message?: string })?.message ?? "Policy change failed.");
+      alert(toSafeUserError(err, { message: "Policy change failed." }).message);
     } finally {
       setBusy(false);
     }
@@ -262,7 +263,7 @@ function SecurityCenterPageInner() {
       );
       setDevices(fresh.devices ?? []);
     } catch (err) {
-      alert((err as { message?: string })?.message ?? "Revoke failed.");
+      alert(toSafeUserError(err, { message: "Revoke failed." }).message);
     } finally {
       setBusy(false);
     }
@@ -292,7 +293,7 @@ function SecurityCenterPageInner() {
       );
       setRevocations(fresh.revoked ?? []);
     } catch (err) {
-      alert((err as { message?: string })?.message ?? "Revoke-all failed.");
+      alert(toSafeUserError(err, { message: "Revoke-all failed." }).message);
     } finally {
       setBusy(false);
     }

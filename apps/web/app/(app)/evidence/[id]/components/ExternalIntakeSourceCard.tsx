@@ -26,6 +26,7 @@
  *     claims.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -181,7 +182,7 @@ export default function ExternalIntakeSourceCard({
       setTimeout(() => setSavedFlashStatus(null), 2400);
     } catch (err) {
       const e = err as { message?: string };
-      setReviewError(e?.message ?? "Could not update review status.");
+      setReviewError(toSafeUserError(e, { message: "Could not update review status." }).message);
     } finally {
       setReviewBusy(false);
     }

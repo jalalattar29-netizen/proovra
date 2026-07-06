@@ -10,6 +10,7 @@
  * `buildPermissionSnapshot`.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -80,7 +81,7 @@ const load = useCallback(async () => {
       setSnapshot(res.snapshot as Snapshot);
     } catch (err) {
       setError(
-        (err as { message?: string })?.message ?? "Could not load snapshot.",
+        toSafeUserError(err, { message: "Could not load snapshot." }).message,
       );
       setSnapshot(null);
     } finally {

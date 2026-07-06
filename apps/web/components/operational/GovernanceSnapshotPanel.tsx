@@ -18,6 +18,7 @@
  *     The snapshot endpoint already strips those.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -154,7 +155,7 @@ export function GovernanceSnapshotPanel({
         if (!cancelled) {
           setSnapshot(null);
           const e = err as { message?: string; requestId?: string };
-          setError(e?.message ?? "governance_snapshot_unavailable");
+          setError(toSafeUserError(e, { message: "governance_snapshot_unavailable" }).message);
           setRequestId(e?.requestId);
         }
       } finally {

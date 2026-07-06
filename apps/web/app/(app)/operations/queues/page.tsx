@@ -27,6 +27,7 @@
  *   * Step-up modal handled via `useStepUpAction`.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -165,7 +166,7 @@ function OperationsQueuesContent() {
         setMatrix((mRes as { matrix: MatrixEntry[] }).matrix ?? []);
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load queue operations."),
+        setError(toSafeUserError(err, { message: "Could not load queue operations." }).message),
       );
   }, [teamId]);
 
@@ -181,7 +182,7 @@ function OperationsQueuesContent() {
       )
         .then((r: { jobs: FailedJobItem[] }) => setFailedJobs(r.jobs ?? []))
         .catch((err: { message?: string }) =>
-          setError(err?.message ?? "Could not load failed jobs."),
+          setError(toSafeUserError(err, { message: "Could not load failed jobs." }).message),
         );
     },
     [teamId],
@@ -264,7 +265,7 @@ function OperationsQueuesContent() {
           setError("Step-up cancelled — no replay was performed.");
         } else {
           setError(
-            (err as { message?: string })?.message ?? `${action} failed.`,
+            toSafeUserError(err, { message: `${action} failed.` }).message,
           );
         }
       } finally {

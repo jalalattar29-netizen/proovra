@@ -54,6 +54,7 @@
  *      no-ops when `window` is undefined).
  */
 
+import { toSafeUserError } from "../feedback/toSafeUserError";
 import React, {
   createContext,
   useCallback,
@@ -108,7 +109,7 @@ function classifyError(
         : "PERMISSION_DENIED";
     return {
       code,
-      message: e?.message ?? "You do not have permission for this workspace.",
+      message: toSafeUserError(e, { message: "You do not have permission for this workspace." }).message,
       requestId: e.requestId ?? null,
     };
   }
@@ -128,7 +129,7 @@ function classifyError(
   }
   return {
     code: fallback,
-    message: e?.message ?? "Unable to load platform context.",
+    message: toSafeUserError(e, { message: "Unable to load platform context." }).message,
     requestId: e?.requestId ?? null,
   };
 }

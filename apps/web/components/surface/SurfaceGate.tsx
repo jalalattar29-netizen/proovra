@@ -29,6 +29,7 @@ import { useEffect, type ReactNode } from "react";
 
 import { getDirectAccessDecision } from "../../lib/surface/access";
 import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
+import { ProovraErrorState } from "../feedback/ProovraErrorState";
 
 export type SurfaceGateProps = {
   children: ReactNode;
@@ -71,11 +72,20 @@ export function SurfaceGate({
   }
   if (decision.kind === "forbidden") {
     if (forbiddenFallback) return <>{forbiddenFallback}</>;
+    // Branded access-denied — never a bare "Forbidden" heading.
     return (
-      <div role="alert" style={{ padding: 32, textAlign: "center" }}>
-        <h1>Forbidden</h1>
-        <p>You don&apos;t have access to this surface on your current plan.</p>
-      </div>
+      <ProovraErrorState
+        severity="warning"
+        showLogo={false}
+        minHeight="60vh"
+        title="You don't have access to this area"
+        message="This workspace or feature may require additional permissions, or isn't included on your current plan. Ask a workspace admin for access, or head back to the dashboard."
+        actions={[
+          { label: "Back to dashboard", href: "/home", variant: "primary" },
+          { label: "View plans", href: "/billing", variant: "secondary" },
+          { label: "Contact support", href: "/support", variant: "secondary" },
+        ]}
+      />
     );
   }
   // redirect case — render nothing while router.replace runs.

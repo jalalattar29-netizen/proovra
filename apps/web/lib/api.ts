@@ -242,9 +242,10 @@ export async function apiFetch(
 
     const requestId = requestIdFromBody ?? headerReqId;
 
-    const error: GenericApiError = new Error(
-      requestId ? `${message} (requestId: ${requestId})` : message
-    );
+    // Do NOT inline the requestId into the message (it read like a stack
+    // trace). It stays on `error.requestId` for `toSafeUserError` to
+    // surface as a copyable support reference.
+    const error: GenericApiError = new Error(message);
 
     error.code =
       codeFromBody ||

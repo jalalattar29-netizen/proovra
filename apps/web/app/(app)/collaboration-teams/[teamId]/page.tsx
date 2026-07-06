@@ -19,6 +19,8 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { useToast } from "../../../../components/ui";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { ApiError } from "../../../../lib/api";
+import { notifyApiError } from "../../../../lib/feedback/notify";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import {
   type CollaborationTeamActivityItem,
@@ -116,11 +118,8 @@ function TeamDetail() {
       const detail = await getTeam(teamId);
       setTeam(detail);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError({ message: err.message, requestId: err.requestId });
-      } else {
-        setError({ message: "Couldn't load Team." });
-      }
+      const safe = toSafeUserError(err, { message: "We couldn't load the team." });
+      setError({ message: safe.message, requestId: safe.supportReference });
     } finally {
       setLoading(false);
     }
@@ -160,7 +159,7 @@ function TeamDetail() {
             <div className="cc-kicker">Teams</div>
             <h1 className="cc-title">Couldn't load Team</h1>
             <p className="cc-subtitle">
-              {error?.message ?? "Something went wrong."}
+              {toSafeUserError(error, { message: "We couldn't load this page. Please try again." }).message}
             </p>
             {error?.requestId ? (
               <p
@@ -584,7 +583,7 @@ function MembersTab({
                 await onRefresh();
               }}
               onError={(err) =>
-                addToast(err.message, "error")
+                notifyApiError(addToast, err)
               }
             />
           ))}
@@ -887,7 +886,7 @@ function InvitesTab({
     useState<CollaborationTeamLinkInviteSecret | null>(null);
 
   const onError = (err: { message: string; requestId?: string }) =>
-    addToast(`${err.message}${err.requestId ? ` (req ${err.requestId})` : ""}`, "error");
+    notifyApiError(addToast, err);
 
   return (
     <section data-testid="tab-invites-content">
@@ -1755,7 +1754,7 @@ function AssignmentsTab({
       setItems(rows);
     } catch (err) {
       if (err instanceof ApiError) {
-        addToast(`Couldn't load assignments (${err.requestId ?? "—"})`, "error");
+        addToast("Couldn't load assignments", "error", undefined, err.requestId ? { supportReference: err.requestId } : undefined);
       }
     } finally {
       setLoading(false);
@@ -1833,8 +1832,10 @@ function AssignmentsTab({
               }}
               onError={(err) =>
                 addToast(
-                  `${err.message}${err.requestId ? ` (req ${err.requestId})` : ""}`,
+                  err.message,
                   "error",
+                  undefined,
+                  err.requestId ? { supportReference: err.requestId } : undefined,
                 )
               }
             />
@@ -2024,7 +2025,7 @@ function CreateAssignmentModal({
       await onCreated();
     } catch (err) {
       if (err instanceof ApiError) {
-        addToast(`${err.message} (req ${err.requestId ?? "—"})`, "error");
+        notifyApiError(addToast, err);
       } else {
         addToast("Couldn't create assignment.", "error");
       }
@@ -2191,11 +2192,8 @@ function ActivityTab({ team }: { team: CollaborationTeamDetail }) {
         const res = await listActivity(team.id, { limit: 100 });
         setItems(res.items);
       } catch (err) {
-        if (err instanceof ApiError) {
-          setError({ message: err.message, requestId: err.requestId });
-        } else {
-          setError({ message: "Couldn't load activity." });
-        }
+        const safe = toSafeUserError(err, { message: "We couldn't load activity." });
+        setError({ message: safe.message, requestId: safe.supportReference });
       } finally {
         setLoading(false);
       }
@@ -2207,7 +2205,6 @@ function ActivityTab({ team }: { team: CollaborationTeamDetail }) {
     return (
       <p style={{ color: "#7c2d2d" }} data-testid="activity-error">
         {error.message}
-        {error.requestId ? ` (req ${error.requestId})` : ""}
       </p>
     );
   if (items.length === 0)
@@ -2331,7 +2328,7 @@ function SettingsTab({
       await onChange();
     } catch (err) {
       if (err instanceof ApiError) {
-        addToast(`${err.message} (req ${err.requestId ?? "—"})`, "error");
+        notifyApiError(addToast, err);
       } else {
         addToast("Couldn't save settings.", "error");
       }
@@ -2357,7 +2354,7 @@ function SettingsTab({
       router.push("/collaboration-teams");
     } catch (err) {
       if (err instanceof ApiError) {
-        addToast(`${err.message} (req ${err.requestId ?? "—"})`, "error");
+        notifyApiError(addToast, err);
       } else {
         addToast("Couldn't archive team.", "error");
       }

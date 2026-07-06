@@ -8,6 +8,7 @@
  * pressure. Operator-readable only — no per-reviewer private text.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -130,7 +131,7 @@ function SlaDashboardPageInner() {
         setError(null);
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load dashboard."),
+        setError(toSafeUserError(err, { message: "Could not load dashboard." }).message),
       );
   }, [teamId]);
 

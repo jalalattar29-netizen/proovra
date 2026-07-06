@@ -19,6 +19,7 @@
  *      the next visit resumes from the same step.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -173,7 +174,7 @@ function PersonaWizardPageInner() {
         setSaved(true);
       } catch (err) {
         const e = err as { message?: string };
-        setSaveError(e.message ?? "Could not save persona profile.");
+        setSaveError(toSafeUserError(e, { message: "Could not save persona profile." }).message);
       } finally {
         setSaving(false);
       }

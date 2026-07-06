@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useCallback, useEffect, useState } from "react";
 
@@ -98,7 +99,7 @@ export function useCaptureDraftList() {
       setDrafts(list.map(summarize));
     } catch (err) {
       logCaptureClientError("web_capture_drafts_list", err, {});
-      setError(err instanceof Error ? err.message : "Failed to load drafts");
+      setError(toSafeUserError(err, { message: "Failed to load drafts" }).message);
     } finally {
       setLoading(false);
     }

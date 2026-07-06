@@ -28,6 +28,7 @@
  *     callback per click.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 export type ReviewerReasonKind =
@@ -189,7 +190,7 @@ export function ReviewerReasonModal({
       // its own state — the modal stays open. We only surface a
       // fallback for synchronous throws (rare).
       setError(
-        (err as { message?: string })?.message ?? "Could not submit.",
+        toSafeUserError(err, { message: "Could not submit." }).message,
       );
     } finally {
       setSubmitting(false);

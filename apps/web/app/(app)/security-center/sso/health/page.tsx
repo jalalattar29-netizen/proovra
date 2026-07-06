@@ -20,6 +20,7 @@
  *     /security-center/sso page); this dashboard is read-only.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -146,7 +147,7 @@ function SsoHealthContent() {
     })
       .then((r: { snapshot: SsoHealthSnapshot }) => setSnapshot(r.snapshot))
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load SSO health."),
+        setError(toSafeUserError(err, { message: "Could not load SSO health." }).message),
       )
       .finally(() => setLoading(false));
   }, [teamId]);

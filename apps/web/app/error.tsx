@@ -1,12 +1,18 @@
 "use client";
 
 import { useEffect } from "react";
-import { Button } from "../components/ui";
+
+import { ProovraErrorState } from "../components/feedback/ProovraErrorState";
 import { captureException } from "../lib/sentry";
 
+/**
+ * Branded route/page error boundary (PROOVRA Feedback System). Reassures
+ * that data is unchanged, offers retry + escape, and surfaces the trace
+ * id only as a copyable support reference — never a raw message/stack.
+ */
 export default function GlobalError({
   error,
-  reset
+  reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
@@ -16,16 +22,16 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <div className="page">
-      <div className="section" style={{ textAlign: "center" }}>
-        <h1 style={{ marginBottom: 8 }}>Something went wrong</h1>
-        <p style={{ color: "#64748b" }}>
-          An unexpected error occurred. You can try reloading the page.
-        </p>
-        <div style={{ marginTop: 16 }}>
-          <Button onClick={reset}>Try again</Button>
-        </div>
-      </div>
-    </div>
+    <ProovraErrorState
+      severity="error"
+      title="We couldn't load this page"
+      message="Your evidence data has not been changed. Try again, or head back — and contact support if the problem continues."
+      supportReference={error.digest}
+      actions={[
+        { label: "Try again", onClick: reset, variant: "primary" },
+        { label: "Back to home", href: "/", variant: "secondary" },
+        { label: "Contact support", href: "/support", variant: "secondary" },
+      ]}
+    />
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 
 /**
  * Phase 8 — Org admin / Members tab.
@@ -151,14 +152,16 @@ function MembersTab() {
       return { kind: "ready", data };
     } catch (err) {
       if (err instanceof ApiError) {
+        // Sanitize the rendered message (no raw backend passthrough); keep
+        // status for the 403 branch and requestId for support reference.
         return {
           kind: "error",
-          message: err.message,
+          message: toSafeUserError(err, { message: "Failed to load." }).message,
           status: err.statusCode ?? 0,
           requestId: err.requestId,
         };
       }
-      const message = err instanceof Error ? err.message : "Failed to load.";
+      const message = toSafeUserError(err, { message: "Failed to load." }).message;
       return { kind: "error", message, status: 0 };
     }
   }, []);
@@ -204,17 +207,9 @@ function MembersTab() {
       setInviteEmail("");
       await refresh();
     } catch (err) {
-      if (err instanceof ApiError) {
-        setInviteFormError(
-          err.requestId
-            ? `${err.message} (request ${err.requestId})`
-            : err.message,
-        );
-      } else {
-        setInviteFormError(
-          err instanceof Error ? err.message : "Failed to send invite.",
-        );
-      }
+      setInviteFormError(
+        toSafeUserError(err, { message: "Failed to send invite." }).message,
+      );
     } finally {
       setInviteFormBusy(false);
     }
@@ -233,14 +228,9 @@ function MembersTab() {
         });
         await refresh();
       } catch (err) {
-        const message =
-          err instanceof ApiError
-            ? err.requestId
-              ? `${err.message} (request ${err.requestId})`
-              : err.message
-            : err instanceof Error
-              ? err.message
-              : "Failed to change role.";
+        const message = toSafeUserError(err, {
+          message: "Failed to change role.",
+        }).message;
         setMemberError((s) => ({ ...s, [m.membershipId]: message }));
       } finally {
         setMemberBusy((s) => ({ ...s, [m.membershipId]: false }));
@@ -275,14 +265,9 @@ function MembersTab() {
         });
         await refresh();
       } catch (err) {
-        const message =
-          err instanceof ApiError
-            ? err.requestId
-              ? `${err.message} (request ${err.requestId})`
-              : err.message
-            : err instanceof Error
-              ? err.message
-              : "Failed to remove member.";
+        const message = toSafeUserError(err, {
+          message: "Failed to remove member.",
+        }).message;
         setMemberError((s) => ({ ...s, [m.membershipId]: message }));
       } finally {
         setMemberBusy((s) => ({ ...s, [m.membershipId]: false }));
@@ -301,14 +286,9 @@ function MembersTab() {
         });
         await refresh();
       } catch (err) {
-        const message =
-          err instanceof ApiError
-            ? err.requestId
-              ? `${err.message} (request ${err.requestId})`
-              : err.message
-            : err instanceof Error
-              ? err.message
-              : "Failed to resend invite.";
+        const message = toSafeUserError(err, {
+          message: "Failed to resend invite.",
+        }).message;
         setInviteError((s) => ({ ...s, [i.inviteId]: message }));
       } finally {
         setInviteBusy((s) => ({ ...s, [i.inviteId]: false }));
@@ -341,14 +321,9 @@ function MembersTab() {
         });
         await refresh();
       } catch (err) {
-        const message =
-          err instanceof ApiError
-            ? err.requestId
-              ? `${err.message} (request ${err.requestId})`
-              : err.message
-            : err instanceof Error
-              ? err.message
-              : "Failed to revoke invite.";
+        const message = toSafeUserError(err, {
+          message: "Failed to revoke invite.",
+        }).message;
         setInviteError((s) => ({ ...s, [i.inviteId]: message }));
       } finally {
         setInviteBusy((s) => ({ ...s, [i.inviteId]: false }));

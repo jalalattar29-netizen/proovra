@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 // Minimal read-only admin surface for Contact Sales submissions.
 // Mirrors /admin/demo-requests structure but intentionally focused:
@@ -154,7 +155,7 @@ export default function AdminContactSalesPage() {
       }
     } catch (err) {
       addToast(
-        err instanceof Error ? err.message : "Failed to load",
+        toSafeUserError(err, { message: "Failed to load" }).message,
         "error"
       );
     } finally {
@@ -177,7 +178,7 @@ export default function AdminContactSalesPage() {
       if (res.ok) setDetails(res.data);
     } catch (err) {
       addToast(
-        err instanceof Error ? err.message : "Failed to load record",
+        toSafeUserError(err, { message: "Failed to load record" }).message,
         "error"
       );
     } finally {
@@ -203,7 +204,7 @@ export default function AdminContactSalesPage() {
       }
     } catch (err) {
       addToast(
-        err instanceof Error ? err.message : "Failed to update",
+        toSafeUserError(err, { message: "Failed to update" }).message,
         "error"
       );
     } finally {

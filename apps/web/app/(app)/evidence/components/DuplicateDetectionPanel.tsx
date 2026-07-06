@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 /**
  * Phase EVIDENCE-DUPLICATES-GROUPING — Duplicate Detection panel.
@@ -207,7 +208,7 @@ export function DuplicateDetectionPanel({ evidenceId }: { evidenceId: string }) 
       } catch (loadError) {
         if (!cancelled) {
           setError(
-            loadError instanceof Error ? loadError.message : "Duplicate detection unavailable",
+            toSafeUserError(loadError, { message: "Duplicate detection unavailable" }).message,
           );
         }
       } finally {

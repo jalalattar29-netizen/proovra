@@ -29,6 +29,7 @@
  *     and we surface that.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "../../../../../components/cases-experience/matter-modals/Modal";
 import { Button } from "../../../../../components/ui";
@@ -135,7 +136,7 @@ export function MemberRemovalDialog({
           );
         } else {
           setLoadError(
-            e.message ?? "Failed to load removal impact. Try again.",
+            toSafeUserError(e, { message: "Failed to load removal impact. Try again." }).message,
           );
         }
       } finally {
@@ -211,7 +212,7 @@ export function MemberRemovalDialog({
           "You don't have permission to remove members from this team.",
         );
       } else {
-        setSubmitError(e.message ?? "Failed to remove member.");
+        setSubmitError(toSafeUserError(e, { message: "Failed to remove member." }).message);
       }
     } finally {
       setSubmitting(false);

@@ -12,6 +12,7 @@
  * gives operators a denser inspector.
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -78,7 +79,7 @@ const load = useCallback(() => {
         },
       )
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load access reviews."),
+        setError(toSafeUserError(err, { message: "Could not load access reviews." }).message),
       );
   }, [teamId, statusFilter]);
 
@@ -111,8 +112,7 @@ const load = useCallback(() => {
         load();
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ??
-            "Could not record decision.",
+          toSafeUserError(err, { message: "Could not record decision." }).message,
         );
       } finally {
         setBusy(null);

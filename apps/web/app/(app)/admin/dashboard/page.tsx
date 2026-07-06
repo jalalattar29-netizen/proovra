@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useMemo, useState } from "react";
 import { Card, Skeleton } from "../../../../components/ui";
@@ -186,7 +187,7 @@ export default function AdminDashboardPage() {
         setBundle(data ?? null);
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : "Failed to load admin dashboard";
+          toSafeUserError(err, { message: "Failed to load admin dashboard" }).message;
         addToast(message, "error");
       } finally {
         setLoading(false);

@@ -290,11 +290,16 @@ describe("Phase R15 — Stages 4-12: page content", () => {
     expect(detail).toMatch(/data-testid="settings-archive"/);
   });
 
-  it("detail page surfaces requestId in error messages", () => {
-    // The Members + Invites + Assignments + Activity + Settings handlers
-    // all funnel through `addToast` with `req ${requestId}` formatting.
+  it("detail page surfaces requestId ONLY as a support reference (never inline)", () => {
+    // PROOVRA Feedback System — the Members + Invites + Assignments +
+    // Activity + Settings handlers funnel through notifyApiError / addToast
+    // with the trace id carried as `supportReference` metadata (rendered by
+    // ProovraSupportReference), NOT interpolated inline into the sentence.
+    // "Do not restore inline requestId" — the old `req ${requestId}` string
+    // formatting is intentionally gone.
     expect(detail).toMatch(/requestId/);
-    expect(detail).toMatch(/req \$\{/);
+    expect(detail).toMatch(/supportReference/);
+    expect(detail).not.toMatch(/req \$\{/);
   });
 
   it("detail page never says 'Team Workspace' (rule 9)", () => {

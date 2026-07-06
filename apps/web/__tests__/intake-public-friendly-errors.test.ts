@@ -4,8 +4,8 @@
  * Pins that:
  *   - the page has a centralised `friendlyIntakeError` helper that
  *     covers every error code the public route can emit
- *   - the helper STRIPS raw JSON-shaped strings ({…} / […]) before
- *     rendering (recipients must never see raw API JSON)
+ *   - the helper NEVER returns the raw backend message — unmapped codes
+ *     resolve to a hardcoded safe line (recipients never see raw API JSON)
  *   - every `.catch(...)` site uses the helper (no inline ternary
  *     fallbacks to `err.message ?? "default"` left behind)
  */
@@ -50,14 +50,22 @@ test("friendlyIntakeError helper exists and covers every audit-mandatory error c
   }
 });
 
-test("friendlyIntakeError STRIPS raw JSON-shaped messages so recipients never see `{...}`", () => {
+test("friendlyIntakeError NEVER echoes the raw backend message — unmapped codes fall back to a hardcoded safe line", () => {
   const src = read(PAGE);
-  // The guard against JSON strings is the key safety net: even if the
-  // backend ships a malformed message, the helper degrades to a
-  // generic safe line instead of rendering JSON.
+  // Strongest form of the JSON-safety net: the helper no longer returns
+  // `err.message` at all. Any code not in the map resolves to a static
+  // string literal, so a malformed or raw-JSON backend message can never
+  // reach a recipient.
+  const m = src.match(/function friendlyIntakeError\([\s\S]*?\n\}\r?\n/);
+  const fnBody = m ? m[0] : "";
+  assert.ok(fnBody.length > 0, "could not locate friendlyIntakeError body");
+  assert.ok(
+    !/return\s+msg\b/.test(fnBody) && !/return\s+\w+\??\.message/.test(fnBody),
+    "friendlyIntakeError must not return the raw backend message",
+  );
   assert.match(
-    src,
-    /if \(msg\.startsWith\("\{"\) \|\| msg\.startsWith\("\["\)\) \{\s*\n?\s*return "Something went wrong/,
+    fnBody,
+    /if \(code && map\[code\]\) return map\[code\];[\s\S]*?return "We couldn't complete that\./,
   );
 });
 

@@ -45,15 +45,10 @@ export function buildTeamPlanRequiredDetails(
   error: unknown
 ): TeamPlanRequiredDetails | null {
   if (!isTeamPlanRequiredError(error)) return null;
-  const generic = error as GenericApiErrorShape & {
-    target?: unknown;
-    requiredPlan?: unknown;
-  };
   return {
+    // Curated, user-safe message — never the raw backend message.
     message:
-      typeof generic.message === "string" && generic.message
-        ? generic.message
-        : "Team workspace evidence creation requires an active TEAM plan.",
+      "Creating evidence in a team workspace requires an active Team plan.",
     target: "TEAM",
     requiredPlan: "TEAM",
   };

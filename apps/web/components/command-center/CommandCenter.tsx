@@ -29,6 +29,7 @@
  *     authoritative.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 
@@ -160,7 +161,7 @@ export function CommandCenter() {
         if (cancelled) return;
         setState({
           status: "unavailable",
-          message: err?.message ?? "Unable to load command center.",
+          message: toSafeUserError(err, { message: "Unable to load command center." }).message,
           requestId: err?.requestId ?? null,
         });
       });

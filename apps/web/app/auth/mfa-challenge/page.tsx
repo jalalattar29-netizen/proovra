@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * PHASE R8.1.2 — Login-time MFA challenge page.
  *
@@ -18,14 +20,13 @@
  *     fetch /v1/auth/me and route to the safe `next` target.
  */
 
-"use client";
-
 import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "../../../components/ui";
 import { apiFetch, ApiError } from "../../../lib/api";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 type ChallengeMode = "totp" | "recovery_code";
 
@@ -153,6 +154,8 @@ function MfaChallengeBody() {
           // `mfa_challenge_already_used` need the operator to re-
           // start primary login; `mfa_invalid` is a retryable
           // "wrong code" state.
+          // Reads the RAW ApiError.message ON PURPOSE — internal control
+          // flow matching bounded reason codes, never rendered.
           const msg = err.message ?? "";
           if (msg === "mfa_challenge_expired") {
             setChallengeExpired(true);
@@ -177,10 +180,14 @@ function MfaChallengeBody() {
             );
           }
         } else {
-          setError(err.message || "Could not verify the second factor.");
+          setError(
+            toSafeUserError(err, {
+              message: "Could not verify the second factor.",
+            }).message,
+          );
         }
       } else {
-        const msg = err instanceof Error ? err.message : "Verification failed.";
+        const msg = toSafeUserError(err, { message: "Verification failed." }).message;
         setError(msg);
       }
       setStatus(null);

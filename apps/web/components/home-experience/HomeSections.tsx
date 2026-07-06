@@ -12,6 +12,7 @@
 
 "use client";
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
@@ -727,7 +728,7 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
       if (resp?.url) {
         window.open(resp.url, "_blank", "noopener,noreferrer");
       } else if (resp?.code === "verification_package_pending") {
-        setError(resp.message ?? "Package is still generating.");
+        setError("Package is still generating.");
       } else {
         setError(kind === "pdf" ? "Report URL is unavailable." : "Package URL is unavailable.");
       }
@@ -738,11 +739,11 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
       } else if (err.statusCode === 403) {
         setError("You don't have permission to download this.");
       } else if (err.statusCode === 409) {
-        setError(err.message ?? "Download blocked by workspace policy.");
+        setError(toSafeUserError(err, { message: "Download blocked by workspace policy." }).message);
       } else if (err.statusCode === 404) {
         setError("File not found.");
       } else {
-        setError(err.message ?? "Could not start download.");
+        setError(toSafeUserError(err, { message: "Could not start download." }).message);
       }
     } finally {
       setBusy(null);

@@ -20,6 +20,7 @@
  * understated; the state-machine flow is explicit in the action set.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -143,7 +144,7 @@ function DestructionQueuePageInner() {
       })
       .catch((err: { message?: string }) => {
         if (cancelled) return;
-        setError(err?.message ?? "Unable to load destruction queue.");
+        setError(toSafeUserError(err, { message: "Unable to load destruction queue." }).message);
       });
     return () => {
       cancelled = true;
@@ -227,7 +228,7 @@ function DestructionQueuePageInner() {
       await refresh();
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? `Could not transition review to ${nextStatus}.`);
+      alert(toSafeUserError(e, { message: `Could not transition review to ${nextStatus}.` }).message);
     }
   }
 
@@ -243,7 +244,7 @@ function DestructionQueuePageInner() {
       setTimeline(res.events);
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not load lifecycle timeline.");
+      alert(toSafeUserError(e, { message: "Could not load lifecycle timeline." }).message);
       setTimelineFor(null);
     }
   }

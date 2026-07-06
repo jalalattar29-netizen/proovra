@@ -77,12 +77,12 @@ function friendlyIntakeError(err: {
     SUBMISSION_NOT_READY:
       "Your submission isn't quite ready yet. Make sure every required file is uploaded, then try again.",
     INTERNAL_ERROR:
-      "Something went wrong on our side. Please try again in a moment. If the problem persists, contact the sender.",
+      "We hit a problem on our side. Please try again in a moment. If the problem persists, contact the sender.",
     // Forensic P0 fix — TRANSITION_NOT_ALLOWED was the 409 root cause
     // (state machine missing UPLOAD_STARTED → SUBMITTED). Even after
     // the fix, this code can still appear for legitimate double-Submit
-    // clicks or stale tabs. Friendly recovery copy beats the generic
-    // "Something went wrong".
+    // clicks or stale tabs. Friendly recovery copy beats a generic
+    // catch-all line.
     TRANSITION_NOT_ALLOWED:
       "This step can't be completed right now. Refresh the page and try again, or contact the sender if it keeps happening.",
     SESSION_NOT_FOUND:
@@ -97,15 +97,9 @@ function friendlyIntakeError(err: {
       "This upload link has already been used. Your earlier submission was received — there is nothing more for you to do here. Contact the sender if you need to send additional files.",
   };
   if (code && map[code]) return map[code];
-  // Backend `message` (user-safe by contract) wins over a raw fallback.
-  // If the message string looks like raw JSON (legacy responses
-  // pre-deploy), strip to a generic line — never echo `{` to a
-  // recipient.
-  const msg = (err?.message ?? "").trim();
-  if (msg.startsWith("{") || msg.startsWith("[")) {
-    return "Something went wrong. Please try again or contact the sender.";
-  }
-  return msg || "Something went wrong. Please try again or contact the sender.";
+  // Never echo the raw backend `message` to an external recipient — an
+  // unmapped code always resolves to a safe, generic recovery line.
+  return "We couldn't complete that. Please try again, or contact the sender.";
 }
 import {
   IntakeCompletionProgress,

@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 /**
  * Phase EVIDENCE-IA — Evidence Detail page orchestrator.
@@ -293,7 +294,7 @@ function EvidenceDetailPageInner() {
       }
     } catch (loadError) {
       const message =
-        loadError instanceof Error ? loadError.message : "Failed to load evidence review workspace";
+        toSafeUserError(loadError, { message: "Failed to load evidence review workspace" }).message;
       setError(message);
       captureException(loadError, {
         feature: "web_evidence_review_workspace_load",
@@ -530,7 +531,7 @@ function EvidenceDetailPageInner() {
         evidenceId,
       });
       addToast(
-        saveError instanceof Error ? saveError.message : "Failed to update workflow",
+        toSafeUserError(saveError, { message: "Failed to update workflow" }).message,
         "error",
       );
     } finally {
@@ -562,7 +563,7 @@ function EvidenceDetailPageInner() {
         evidenceId,
       });
       addToast(
-        saveError instanceof Error ? saveError.message : "Failed to create relationship",
+        toSafeUserError(saveError, { message: "Failed to create relationship" }).message,
         "error",
       );
     } finally {
@@ -586,7 +587,7 @@ function EvidenceDetailPageInner() {
         relationshipId,
       });
       addToast(
-        deleteError instanceof Error ? deleteError.message : "Failed to remove relationship",
+        toSafeUserError(deleteError, { message: "Failed to remove relationship" }).message,
         "error",
       );
     } finally {
@@ -611,7 +612,7 @@ function EvidenceDetailPageInner() {
         evidenceId,
       });
       addToast(
-        updateError instanceof Error ? updateError.message : "Failed to update label",
+        toSafeUserError(updateError, { message: "Failed to update label" }).message,
         "error",
       );
     } finally {
@@ -864,7 +865,7 @@ function EvidenceDetailPageInner() {
       await loadWorkspace();
       options?.onSuccess?.();
     } catch (runError) {
-      addToast(runError instanceof Error ? runError.message : "Action failed", "error");
+      addToast(toSafeUserError(runError, { message: "Action failed" }).message, "error");
       captureException(runError, {
         feature: "web_evidence_record_action",
         evidenceId,
@@ -884,7 +885,7 @@ function EvidenceDetailPageInner() {
       await loadWorkspace();
       options?.onSuccess?.();
     } catch (runError) {
-      addToast(runError instanceof Error ? runError.message : "Delete failed", "error");
+      addToast(toSafeUserError(runError, { message: "Delete failed" }).message, "error");
       captureException(runError, { feature: "web_evidence_move_to_trash", evidenceId });
     } finally {
       setActionBusy(false);
@@ -902,7 +903,7 @@ function EvidenceDetailPageInner() {
       addToast("Evidence restored from trash", "success");
       await loadWorkspace();
     } catch (runError) {
-      addToast(runError instanceof Error ? runError.message : "Restore failed", "error");
+      addToast(toSafeUserError(runError, { message: "Restore failed" }).message, "error");
       captureException(runError, { feature: "web_evidence_restore_trash", evidenceId });
     } finally {
       setActionBusy(false);
@@ -922,7 +923,7 @@ function EvidenceDetailPageInner() {
       await loadWorkspace();
     } catch (runError) {
       addToast(
-        runError instanceof Error ? runError.message : "Assignment failed",
+        toSafeUserError(runError, { message: "Assignment failed" }).message,
         "error",
       );
       captureException(runError, { feature: "web_evidence_assign_case", evidenceId });
@@ -941,7 +942,7 @@ function EvidenceDetailPageInner() {
       addToast("Evidence removed from case", "success");
       await loadWorkspace();
     } catch (runError) {
-      addToast(runError instanceof Error ? runError.message : "Remove failed", "error");
+      addToast(toSafeUserError(runError, { message: "Remove failed" }).message, "error");
       captureException(runError, { feature: "web_evidence_remove_case", evidenceId });
     } finally {
       setActionBusy(false);

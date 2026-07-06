@@ -39,6 +39,7 @@
  *     and explain why.
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useCallback, useState } from "react";
 import Link from "next/link";
 
@@ -142,7 +143,7 @@ function VerifyWorkspaceInner() {
         setState({
           status: "error",
           evidenceId: id,
-          message: e.message ?? "Lookup failed.",
+          message: toSafeUserError(e, { message: "Lookup failed." }).message,
         });
       }
     }

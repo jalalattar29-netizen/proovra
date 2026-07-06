@@ -23,6 +23,7 @@
  *     "feature disabled" state in that case so admins know to enable it.
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -525,7 +526,7 @@ function IntakeLinksPageInner() {
           setItems([]);
           return;
         }
-        setError(e?.message ?? "Unable to load intake links.");
+        setError(toSafeUserError(e, { message: "Unable to load intake links." }).message);
       }
     },
     [],
@@ -592,7 +593,7 @@ function IntakeLinksPageInner() {
       if (currentTeam) await refreshLinks(currentTeam.id);
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Unable to revoke link.");
+      alert(toSafeUserError(e, { message: "Unable to revoke link." }).message);
     }
   }
 
@@ -1474,7 +1475,7 @@ function SubmissionsDrawer({
       })
       .catch((err: { message?: string }) => {
         if (!cancelled) {
-          setError(err?.message ?? "Unable to load submissions.");
+          setError(toSafeUserError(err, { message: "Unable to load submissions." }).message);
         }
       });
     return () => {
@@ -2411,7 +2412,7 @@ function RawTokenRevealModal({
         provider_unconfigured:
           "Messaging isn't configured for this deployment. Copy the link instead.",
       };
-      setSendError(codeMap[e?.code ?? ""] ?? e?.message ?? "Could not send the link.");
+      setSendError(codeMap[e?.code ?? ""] ?? toSafeUserError(e, { message: "Could not send the link." }).message);
     } finally {
       setSendBusy(null);
     }

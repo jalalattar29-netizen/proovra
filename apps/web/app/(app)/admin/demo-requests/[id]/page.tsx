@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 
 // Admin detail route for a single demo request.
 //
@@ -181,7 +182,7 @@ export default function AdminDemoRequestDetailPage({
       setState({
         kind: "error",
         message:
-          err instanceof Error ? err.message : "Failed to load demo request",
+          toSafeUserError(err, { message: "Failed to load demo request" }).message,
       });
     }
   }, [id]);

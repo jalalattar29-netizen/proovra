@@ -22,6 +22,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { useToast } from "../../../components/ui";
 import { ApiError } from "../../../lib/api";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { formatUserDate } from "../../../lib/date";
 import {
   createTeam,
@@ -713,12 +714,16 @@ function CreateTeamModal({
       });
       onCreated(id);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError({ message: err.message, requestId: err.requestId });
-        addToast(err.message || "Couldn't create Team.", "error");
-      } else {
-        setError({ message: "Couldn't create Team. Try again." });
-      }
+      const safe = toSafeUserError(err, {
+        message: "We couldn't create the team. Please try again.",
+      });
+      setError({ message: safe.message, requestId: safe.supportReference });
+      addToast(
+        safe.message,
+        safe.severity,
+        undefined,
+        safe.supportReference ? { supportReference: safe.supportReference } : undefined,
+      );
     } finally {
       setSubmitting(false);
     }

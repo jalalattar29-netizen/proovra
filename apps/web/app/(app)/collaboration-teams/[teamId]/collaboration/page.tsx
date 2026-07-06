@@ -23,7 +23,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { useToast } from "../../../../../components/ui";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
-import { ApiError } from "../../../../../lib/api";
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { notifyApiError } from "../../../../../lib/feedback/notify";
 import { formatUserDate, formatUserDateTime } from "../../../../../lib/date";
 import { getTeam, type CollaborationTeamDetail } from "../../../../../lib/api/collaboration-teams";
 import {
@@ -81,8 +82,7 @@ function CollaborationHub() {
       try {
         setTeam(await getTeam(teamId));
       } catch (err) {
-        if (err instanceof ApiError) setError(err.message);
-        else setError("Couldn't load team.");
+        setError(toSafeUserError(err, { message: "We couldn't load the team." }).message);
       }
     })();
   }, [teamId]);
@@ -106,14 +106,7 @@ function CollaborationHub() {
   }
 
   const onError = (err: unknown) => {
-    if (err instanceof ApiError) {
-      addToast(
-        `${err.message}${err.requestId ? ` (req ${err.requestId})` : ""}`,
-        "error",
-      );
-    } else {
-      addToast("Something went wrong.", "error");
-    }
+    notifyApiError(addToast, err);
   };
 
   return (

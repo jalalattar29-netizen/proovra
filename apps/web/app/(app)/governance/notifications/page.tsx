@@ -12,6 +12,7 @@
  * this page simply renders the bounded-catalog payload.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -94,7 +95,7 @@ function GovernanceNotificationsPageInner() {
       )
       .catch((err: { message?: string }) => {
         if (cancelled) return;
-        setError(err?.message ?? "Unable to load notifications.");
+        setError(toSafeUserError(err, { message: "Unable to load notifications." }).message);
       });
     return () => {
       cancelled = true;
@@ -118,7 +119,7 @@ function GovernanceNotificationsPageInner() {
       setCounts(res.counts);
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not acknowledge notification.");
+      alert(toSafeUserError(e, { message: "Could not acknowledge notification." }).message);
     }
   }
 

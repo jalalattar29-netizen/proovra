@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../../providers";
@@ -116,7 +117,7 @@ function BatchAnalysisPageInner() {
       }
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to create batch job";
+        toSafeUserError(err, { message: "Failed to create batch job" }).message;
       addToast(message, "error");
     }
   };
@@ -142,7 +143,7 @@ function BatchAnalysisPageInner() {
       addToast("Batch job cancelled", "success");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to cancel batch job";
+        toSafeUserError(err, { message: "Failed to cancel batch job" }).message;
       addToast(message, "error");
     }
   };
@@ -181,7 +182,7 @@ function BatchAnalysisPageInner() {
       addToast("Results exported successfully", "success");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to export results";
+        toSafeUserError(err, { message: "Failed to export results" }).message;
       addToast(message, "error");
     }
   };

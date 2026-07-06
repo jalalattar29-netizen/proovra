@@ -20,6 +20,7 @@
  *     admissibility, or compliance attestation.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -78,7 +79,7 @@ export function DestructionCertificate({
           "Destruction certificates are only generated once a review is EXECUTED.",
         );
       } else {
-        setError(e.message ?? "Could not load destruction certificate.");
+        setError(toSafeUserError(e, { message: "Could not load destruction certificate." }).message);
       }
     } finally {
       setLoading(false);

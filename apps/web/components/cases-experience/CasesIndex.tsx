@@ -31,6 +31,7 @@
  *      server is the only authority on which rows are visible.
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -221,7 +222,7 @@ export function CasesIndex() {
       } else {
         setState({
           status: "unavailable",
-          message: e.message ?? "Unable to load matter queue.",
+          message: toSafeUserError(e, { message: "Unable to load matter queue." }).message,
         });
       }
     }

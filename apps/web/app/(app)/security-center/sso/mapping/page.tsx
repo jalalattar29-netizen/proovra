@@ -20,6 +20,7 @@
  *     connection (mapping changes are inert).
  */
 
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -151,7 +152,7 @@ function SamlMappingContent() {
     apiFetch("/v1/saml/mapping/schema", { method: "GET" })
       .then((r: { schema: SamlMappingSchema }) => setSchema(r.schema))
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load mapping schema."),
+        setError(toSafeUserError(err, { message: "Could not load mapping schema." }).message),
       );
   }, []);
 
@@ -197,7 +198,7 @@ function SamlMappingContent() {
         setSuccess(null);
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load current mapping."),
+        setError(toSafeUserError(err, { message: "Could not load current mapping." }).message),
       );
   }, [teamId, connectionId]);
 
@@ -249,7 +250,7 @@ function SamlMappingContent() {
       setPreview(r.preview);
     } catch (err) {
       setError(
-        (err as { message?: string })?.message ?? "Preview failed.",
+        toSafeUserError(err, { message: "Preview failed." }).message,
       );
     } finally {
       setPreviewing(false);
@@ -291,7 +292,7 @@ function SamlMappingContent() {
       if (code === "STEP_UP_CANCEL") {
         setError("Step-up cancelled — mapping was not saved.");
       } else {
-        setError((err as { message?: string })?.message ?? "Save failed.");
+        setError(toSafeUserError(err, { message: "Save failed." }).message);
       }
     } finally {
       setSaving(false);

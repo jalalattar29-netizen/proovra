@@ -17,6 +17,7 @@
  * verbatim outside the input box.
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
@@ -631,7 +632,7 @@ function SearchInner() {
       })
       .catch((err: { message?: string }) => {
         if (cancelled) return;
-        setError(err?.message ?? "Search failed.");
+        setError(toSafeUserError(err, { message: "Search failed." }).message);
         setResults({
           rows: [],
           nextCursor: null,
@@ -877,7 +878,7 @@ function SearchInner() {
         );
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Search failed.")
+        setError(toSafeUserError(err, { message: "Search failed." }).message)
       )
       .finally(() => setLoading(false));
   }, [filter, results?.nextCursor]);
@@ -908,7 +909,7 @@ function SearchInner() {
       }
     } catch (err) {
       setError(
-        (err as { message?: string })?.message ?? "Could not save view."
+        toSafeUserError(err, { message: "Could not save view." }).message
       );
     } finally {
       setSavingView(false);
@@ -938,7 +939,7 @@ function SearchInner() {
         );
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ?? "Could not delete view."
+          toSafeUserError(err, { message: "Could not delete view." }).message
         );
       }
     },
@@ -973,7 +974,7 @@ function SearchInner() {
         );
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ?? "Could not rename view.",
+          toSafeUserError(err, { message: "Could not rename view." }).message,
         );
       }
     },
@@ -1045,8 +1046,7 @@ function SearchInner() {
       });
     } catch (err) {
       setBackfillError(
-        (err as { message?: string })?.message ??
-          "Could not run dry run. The semantic backfill endpoint may not be available on this deployment.",
+        toSafeUserError(err, { message: "Could not run dry run. The semantic backfill endpoint may not be available on this deployment." }).message,
       );
     } finally {
       setBackfillRunning(false);

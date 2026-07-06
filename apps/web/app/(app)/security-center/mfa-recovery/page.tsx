@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * PHASE R8.1.5 — MFA recovery admin SPA.
  *
@@ -19,12 +21,11 @@
  *     disabled until verification is recorded.
  */
 
-"use client";
-
 import { useEffect, useState, type CSSProperties } from "react";
 
 import { useTeamId } from "../../../../lib/platform-context";
 import { apiFetch, ApiError } from "../../../../lib/api";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime, formatUtcAuditDateTime } from "../../../../lib/date";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { MfaRecoveryApprovalHistoryBlock } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
@@ -133,7 +134,7 @@ function MfaRecoveryAdminBody() {
         setRequests([]);
         return;
       }
-      const msg = err instanceof Error ? err.message : "Could not load requests.";
+      const msg = toSafeUserError(err, { message: "Could not load requests." }).message;
       setError(msg);
       setRequests([]);
     }
@@ -203,7 +204,7 @@ function MfaRecoveryAdminBody() {
       await reloadPreview(previewIncludeSuppressed);
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : "Could not snooze digest.";
+        toSafeUserError(err, { message: "Could not snooze digest." }).message;
       setError(msg);
     } finally {
       setPrefsBusy(false);
@@ -230,7 +231,7 @@ function MfaRecoveryAdminBody() {
       await reloadPreview(previewIncludeSuppressed);
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : "Could not resume digest.";
+        toSafeUserError(err, { message: "Could not resume digest." }).message;
       setError(msg);
     } finally {
       setPrefsBusy(false);
@@ -259,7 +260,7 @@ function MfaRecoveryAdminBody() {
       await reloadPreview(previewIncludeSuppressed);
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : "Could not update digest.";
+        toSafeUserError(err, { message: "Could not update digest." }).message;
       setError(msg);
     } finally {
       setPrefsBusy(false);
@@ -285,7 +286,7 @@ function MfaRecoveryAdminBody() {
       );
       setSelected(r.detail);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Could not load detail.";
+      const msg = toSafeUserError(err, { message: "Could not load detail." }).message;
       setError(msg);
     }
   };
@@ -303,7 +304,7 @@ function MfaRecoveryAdminBody() {
       setPendingAction(null);
       setSelected(null);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Approve failed.";
+      const msg = toSafeUserError(err, { message: "Approve failed." }).message;
       setError(msg);
     } finally {
       setBusy(false);
@@ -329,7 +330,7 @@ function MfaRecoveryAdminBody() {
       setRejectReason("");
       setSelected(null);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Reject failed.";
+      const msg = toSafeUserError(err, { message: "Reject failed." }).message;
       setError(msg);
     } finally {
       setBusy(false);

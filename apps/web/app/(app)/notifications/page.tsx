@@ -15,6 +15,7 @@
  * raw token bytes, IP/UA, or any workspace-internal field.
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
@@ -110,7 +111,7 @@ const queryString = useMemo(() => {
       setError(null);
     } catch (err) {
       const e = err as { message?: string };
-      setError(e?.message ?? "Unable to load notification log.");
+      setError(toSafeUserError(e, { message: "Unable to load notification log." }).message);
     }
   }
 
@@ -131,7 +132,7 @@ const queryString = useMemo(() => {
       await reload();
     } catch (err) {
       const e = err as { message?: string };
-      alert(e?.message ?? "Could not resend.");
+      alert(toSafeUserError(e, { message: "Could not resend." }).message);
     } finally {
       setResendBusyId(null);
     }

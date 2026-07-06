@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
 /**
  * FP5 — `/reset-password?token=...` complete rewrite.
@@ -214,7 +215,7 @@ function ResetPasswordPageContent() {
       );
       setDone(true);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Reset failed";
+      const msg = toSafeUserError(err, { message: "Reset failed" }).message;
       const code = err instanceof ApiError ? err.code : undefined;
       if (
         code === "INVALID_OR_EXPIRED" ||

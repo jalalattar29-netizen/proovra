@@ -10,6 +10,7 @@
  *   - Optional link to the Phase 21 operational incident
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -124,7 +125,7 @@ function EscalationsConsolePageInner() {
         setError(null);
       })
       .catch((err: { message?: string }) =>
-        setError(err?.message ?? "Could not load escalations."),
+        setError(toSafeUserError(err, { message: "Could not load escalations." }).message),
       );
   }, [teamId, status, severity]);
 
@@ -153,7 +154,7 @@ function EscalationsConsolePageInner() {
         load();
       } catch (err) {
         setError(
-          (err as { message?: string })?.message ?? `Action "${label}" failed.`,
+          toSafeUserError(err, { message: `Action "${label}" failed.` }).message,
         );
       } finally {
         setBusy(null);

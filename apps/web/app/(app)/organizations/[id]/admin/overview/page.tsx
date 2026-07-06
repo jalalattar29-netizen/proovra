@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 
 /**
  * Phase 8 — Org admin / Overview tab.
@@ -108,7 +109,7 @@ function Overview() {
           requestId: err.requestId,
         };
       }
-      const message = err instanceof Error ? err.message : "Failed to load.";
+      const message = toSafeUserError(err, { message: "Failed to load." }).message;
       return { kind: "error", message, status: 0 };
     }
   }, []);

@@ -22,6 +22,7 @@
  *   - Read-only. No mutations. No new root nav item.
  */
 
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -258,7 +259,7 @@ function AnalyticsPageInner(): JSX.Element {
         } else {
           setState({
             status: "unavailable",
-            message: e.message ?? "Unable to load analytics.",
+            message: toSafeUserError(e, { message: "Unable to load analytics." }).message,
           });
         }
       }

@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -473,7 +474,7 @@ function EvidenceLibraryPageInner() {
         }
 
         const message =
-          loadError instanceof Error ? loadError.message : "Failed to load evidence library";
+          toSafeUserError(loadError, { message: "Failed to load evidence library" }).message;
         setError(message);
         setLibrary((current) => ({
           ...current,
@@ -549,7 +550,7 @@ function EvidenceLibraryPageInner() {
         setSelectedDetail(detail);
       } catch (loadError) {
         const message =
-          loadError instanceof Error ? loadError.message : "Failed to load review workspace";
+          toSafeUserError(loadError, { message: "Failed to load review workspace" }).message;
         setDetailError(message);
         captureException(loadError, {
           feature: "web_evidence_library_detail_load",

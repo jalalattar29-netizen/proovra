@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../../providers";
@@ -67,7 +68,7 @@ function QuotasPageInner() {
       setStats(statsData?.data ?? null);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to load usage and quota data";
+        toSafeUserError(err, { message: "Failed to load usage and quota data" }).message;
       addToast(message, "error");
       setQuotas(null);
       setStats(null);

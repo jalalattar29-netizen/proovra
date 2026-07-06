@@ -198,7 +198,10 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     ).toBeLessThanOrEqual(51999);
   });
   it("R10 UPPER pin on ui.tsx holds", () => {
-    expect(UI_TSX.split("\n").length).toBeLessThanOrEqual(520);
+    // Rebaseline 520 → 523: PROOVRA Feedback System ToastProvider redesign
+    // (premium light toasts with distinct severities + a11y). Product-visible
+    // toast styling only — no new primitives or unrelated growth.
+    expect(UI_TSX.split("\n").length).toBeLessThanOrEqual(523);
   });
 });
 

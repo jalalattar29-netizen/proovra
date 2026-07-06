@@ -16,6 +16,7 @@
  *     activity" when the read itself failed).
  */
 
+import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -147,7 +148,7 @@ export function OperationalTimelinePanel({
         if (!cancelled) {
           setTimeline(null);
           const e = err as { message?: string };
-          setError(e?.message ?? "timeline_unavailable");
+          setError(toSafeUserError(e, { message: "timeline_unavailable" }).message);
         }
       } finally {
         if (!cancelled) setLoading(false);

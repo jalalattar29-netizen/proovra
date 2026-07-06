@@ -1,4 +1,5 @@
 "use client";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useParams } from "next/navigation";
@@ -3355,7 +3356,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
 
         if (!background) {
           const message =
-            err instanceof Error ? err.message : "Verification failed";
+            toSafeUserError(err, { message: "Verification failed" }).message;
           setError(message);
           addToast(message, "error");
         } else {
