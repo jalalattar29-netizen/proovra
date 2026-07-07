@@ -210,6 +210,14 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // Governance / Compliance
   { pathPrefix: "/governance-platform", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "governance platform (org admin)" },
   { pathPrefix: "/governance", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "governance lifecycle + policy" },
+  // Phase 1 (leakage fix) — Audit / Compliance transparency center. This
+  // route (id `workspace.audit_transparency`) was previously unclassified
+  // and fell through to the CORE default, so a FREE/PRO user could reach
+  // the org-activity audit surface via Command Palette / All Tools /
+  // direct URL. Audit is an ENTERPRISE compliance surface (sibling of
+  // /governance, /executive, /budget-center) and must never appear for
+  // self-serve plans.
+  { pathPrefix: "/audit-transparency", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "audit / compliance transparency center (ENTERPRISE)" },
 
   // Enterprise Identity / Admin
   // Phase IA-surface-tier-pricing — explicit admin/organizations entry

@@ -876,9 +876,13 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "DEGRADED",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
-    // PHASE 4 — page does not exist (no app/(app)/dashboard/quotas/page.tsx).
-    // Constitutional rule 11: no visible route may lead to Page Not Found.
-    // Hide everywhere until the surface ships.
+    // Phase 1 (frontend consolidation) — the page DOES exist
+    // (app/(app)/dashboard/quotas/page.tsx, a live quota console). The
+    // prior "page does not exist" comment was stale. It is kept out of all
+    // nav surfaces pending the /dashboard ↔ /operations canonical-location
+    // decision (Constitution Phase 3); it is PROFESSIONAL-tier so FREE
+    // users never see it regardless. Do not flip visibility until the
+    // canonical URL is chosen, to avoid churn.
     commandPaletteVisible: false,
     allToolsVisible: false,
     sidebarEligible: false,
@@ -902,7 +906,11 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "DEGRADED",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
-    // PHASE 4 — page does not exist; hide everywhere (rule 11).
+    // Phase 1 (frontend consolidation) — the page DOES exist
+    // (app/(app)/dashboard/batch-analysis/page.tsx, a live batch console).
+    // The prior "page does not exist" comment was stale. Kept out of nav
+    // pending the /dashboard ↔ /operations canonical-location decision
+    // (Constitution Phase 3); PROFESSIONAL-tier so FREE users never see it.
     commandPaletteVisible: false,
     allToolsVisible: false,
     sidebarEligible: false,

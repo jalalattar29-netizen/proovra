@@ -333,8 +333,31 @@ export function pillarForRoute(routeId: string): ProovraPillar {
 // their capability map permits.
 // =============================================================================
 
-/** Pillars visible to every persona — non-negotiable. */
-const UNIVERSAL_PILLARS: ReadonlyArray<ProovraPillar> = ["HOME", "TRUST"];
+/**
+ * Pillars visible to every persona — non-negotiable.
+ *
+ * Phase 1 (frontend consolidation) — CAPTURE, CASES and ADMIN are pinned
+ * universal so the CORE self-serve product (Home, Capture, Evidence,
+ * Cases, Reports, Search, Settings, Billing) is ALWAYS visible in the
+ * sidebar for every persona once the persona-visibility overlay is wired
+ * into `AppSidebarV2`. Without this, the `ENTERPRISE_COMPLIANCE` overlay
+ * (which omits CAPTURE) would hide the Capture surface — a core-product
+ * regression. CASES + ADMIN are already present in all seven overlays;
+ * pinning them here makes "core is always visible" a structural invariant
+ * rather than a property that each overlay must remember to preserve.
+ *
+ * This is a PRESENTATION filter only — capabilities and the surface-tier
+ * gate remain the authoritative access decision, and any pillar hidden by
+ * persona is still reachable via Command Palette / All Tools when the
+ * user's capabilities permit.
+ */
+const UNIVERSAL_PILLARS: ReadonlyArray<ProovraPillar> = [
+  "HOME",
+  "TRUST",
+  "CAPTURE",
+  "CASES",
+  "ADMIN",
+];
 
 /** Persona → visible pillars (excluding the universal set). */
 const PERSONA_PILLAR_OVERLAY: Readonly<

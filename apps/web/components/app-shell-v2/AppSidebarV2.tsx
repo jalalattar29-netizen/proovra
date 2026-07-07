@@ -664,10 +664,30 @@ const teamId =
     });
   }
 
-  const { groups } = resolveNavigationGroups({
-    primaryItems: disclosure.primaryItems,
-    secondaryItems: disclosure.secondaryItems,
-  });
+  // Phase 1 (frontend consolidation) — wire the persona-visibility
+  // overlay. Previously this call omitted `persona`, leaving the
+  // `PERSONA_PILLAR_VISIBILITY` overlay dormant: saving a persona changed
+  // ordering but never sidebar composition, so "Save persona" appeared to
+  // do nothing. Passing the active persona lets the resolver declutter the
+  // sidebar to the persona's pillar set.
+  //
+  // This is SAFE BY CONSTRUCTION and is NOT a capability gate:
+  //   * The surface-tier gate (`tierFilteredRegistry`, above) and the
+  //     capability/active-space resolver have already run, so the persona
+  //     filter can only SUBTRACT from what plan + role + workspace already
+  //     permit — it can never expose an enterprise/internal surface.
+  //   * CORE self-serve pillars are pinned universal (see
+  //     `UNIVERSAL_PILLARS` in pillarRegistry.ts), so no core product
+  //     surface can be hidden for any persona.
+  //   * Persona-hidden pillars remain reachable via Command Palette /
+  //     All Tools when capabilities permit (presentation-only).
+  const { groups } = resolveNavigationGroups(
+    {
+      primaryItems: disclosure.primaryItems,
+      secondaryItems: disclosure.secondaryItems,
+    },
+    { persona: persona.primaryProfile },
+  );
 
   // R5 — compute the disclosure tier per visible route. Pure
   // presentation hint; drives `data-disclosure-tier` so CSS / R10
