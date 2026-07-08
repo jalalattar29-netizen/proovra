@@ -329,7 +329,7 @@ function OperationsSignersContent() {
           headline="Switch to a team workspace to manage signers"
           reason="Signer governance is workspace-attributed for audit."
           actions={[
-            { label: "Open team workspaces", href: "/teams", variant: "primary" },
+            { label: "Open team workspaces", href: "/workspaces", variant: "primary" },
           ]}
           testid="signer-governance-no-workspace"
         />

@@ -230,7 +230,7 @@ function OperationsRecoveryContent() {
           headline="Switch to a team workspace to view recovery readiness"
           reason="Recovery validation is workspace-scoped."
           actions={[
-            { label: "Open team workspaces", href: "/teams", variant: "primary" },
+            { label: "Open team workspaces", href: "/workspaces", variant: "primary" },
           ]}
           testid="recovery-no-workspace"
         />

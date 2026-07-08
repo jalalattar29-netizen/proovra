@@ -963,7 +963,7 @@ function ReportsNoWorkspace() {
           headline="Workspace setup pending"
           reason="We're finishing workspace setup, or you haven't picked one yet. Reports + verification packages are scoped to a workspace — pick one to continue."
           actions={[
-            { label: "Open workspaces", href: "/teams", variant: "primary" },
+            { label: "Open workspaces", href: "/workspaces", variant: "primary" },
             { label: "Open settings", href: "/settings", variant: "secondary" },
           ]}
           testid="reports-access-gate-no-workspace"
@@ -1011,7 +1011,7 @@ function ReportsAuthError({
             headline="You don't have access to this workspace's reports"
             reason="Your role doesn't include report and verification-package access for this workspace. An admin can grant it, or you can switch to a workspace you have access to."
             actions={[
-              { label: "Switch workspace", href: "/teams", variant: "primary" },
+              { label: "Switch workspace", href: "/workspaces", variant: "primary" },
               { label: "Open settings", href: "/settings", variant: "secondary" },
             ]}
             testid="reports-access-gate-permission"

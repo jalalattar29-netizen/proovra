@@ -178,18 +178,18 @@ describe("Phase IA-self-serve-completion — Settings tree gates /security-cente
     );
   });
 
-  it("gates the Identity & Security card body on canSeeWorkspaceSecurity", () => {
-    // The card MUST render the workspace deep link ONLY when the surface
-    // is accessible. Self-serve users see an Account Security fallback
-    // pointing at /settings/security.
+  it("gates the Identity & Security card on canSeeWorkspaceSecurity", () => {
+    // Phase 1 (settings de-dup) — the workspace "Identity & Security" card
+    // renders ONLY when the Security Center surface is accessible
+    // (enterprise). Its previous self-serve fallback re-linked
+    // /settings/security, duplicating the dedicated "Account security"
+    // card directly above it, so the fallback was removed.
     expect(SETTINGS).toMatch(
       /\{canSeeWorkspaceSecurity \?\s*\([\s\S]{0,2000}<Link href="\/security-center"/,
     );
-    // The fallback branch links to the account-security page, which is
-    // an ACCOUNT-tier surface available to every authenticated user.
-    expect(SETTINGS).toMatch(
-      /\) :\s*\([\s\S]{0,2000}<Link href="\/settings\/security">/,
-    );
+    // Self-serve account security remains available via the dedicated
+    // "Account security" card (an ACCOUNT-tier surface for every user).
+    expect(SETTINGS).toMatch(/<Link href="\/settings\/security">/);
   });
 });
 
@@ -259,7 +259,6 @@ describe("Phase IA-self-serve-completion — core pages have no leaked enterpris
     "/review",
     "/reviewer-ops",
     "/intelligence",
-    "/intelligence-platform",
     "/intelligence-quality",
     "/investigation",
     "/executive",

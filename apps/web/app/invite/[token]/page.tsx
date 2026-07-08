@@ -48,7 +48,7 @@ export default function InviteAcceptPage() {
           setState("success");
           addToast("Invitation accepted! Redirecting to your team...", "success");
           setTimeout(() => {
-            router.push("/teams");
+            router.push("/collaboration-teams");
           }, 2000);
         }
       } catch (err) {
@@ -127,7 +127,7 @@ export default function InviteAcceptPage() {
               You have successfully accepted the invitation and joined the team.
             </p>
             <div className="mt-6">
-              <Button onClick={() => router.push("/teams")}>Go to Teams</Button>
+              <Button onClick={() => router.push("/collaboration-teams")}>Go to Teams</Button>
             </div>
           </div>
         </Card>
@@ -165,7 +165,7 @@ export default function InviteAcceptPage() {
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/teams" style={{ textDecoration: "none" }}>
+            <Link href="/collaboration-teams" style={{ textDecoration: "none" }}>
               <Button>Go to Teams</Button>
             </Link>
 

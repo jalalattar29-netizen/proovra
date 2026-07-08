@@ -389,7 +389,7 @@ function SsoAdminContent() {
           headline="Switch to a team workspace to manage SSO"
           reason="SAML connections are per-workspace. Open a team workspace you administer to configure or test SSO."
           actions={[
-            { label: "Open team workspaces", href: "/teams", variant: "primary" },
+            { label: "Open team workspaces", href: "/workspaces", variant: "primary" },
             { label: "Review plans", href: "/billing", variant: "secondary" },
           ]}
           testid="sso-access-gate-no-workspace"

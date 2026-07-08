@@ -66,13 +66,13 @@ const DEFAULTS: Record<EmptyStateSurface, PersonaEmptyState> = {
     title: "Reviewer Operations not yet active",
     body: "Switch into a team workspace to coordinate review assignments and SLAs.",
     primaryCtaLabel: "Switch workspace",
-    primaryCtaHref: "/teams",
+    primaryCtaHref: "/workspaces",
   },
   governance: {
     title: "Governance posture inactive",
     body: "Governance controls activate inside organization workspaces.",
     primaryCtaLabel: "Manage organizations",
-    primaryCtaHref: "/teams",
+    primaryCtaHref: "/organizations",
   },
   ops: {
     title: "No active operational incidents",

@@ -235,7 +235,6 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // export-ready snapshots.
       "workspace.exchange",
       "workspace.executive",
-      "workspace.intelligence_platform",
       "workspace.packaging",
       "workspace.budget_center",
     ],

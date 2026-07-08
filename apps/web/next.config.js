@@ -170,16 +170,33 @@ const nextConfig = {
         destination: "/admin/identity/timeline",
         permanent: true,
       },
-      // Phase HOME-DATA-OWNERSHIP — the `/teams` → `/workspaces`
-      // redirect (Phase Final-Closure-Remediation) is REMOVED. Phase
-      // IA-self-serve-completion later shipped a real self-serve
-      // landing page at app/(app)/teams/page.tsx, but this server
-      // redirect fired first, so the page was unreachable: Home's
-      // "Invite a teammate" → /teams → /workspaces → PageRouteGate
-      // (admin.teams, TEAM_VIEW) → BLANK page for every personal-space
-      // user. /teams is now canonical for self-serve team management;
-      // the reverse mapping (/workspaces → /teams for self-serve) is
-      // handled by the surface-tier rule in lib/surface/tiers.ts.
+      // Phase 2B (Teams/Workspace consolidation) — the parallel
+      // self-serve `/teams` landing page (app/(app)/teams/page.tsx) was
+      // DELETED. It duplicated the canonical Teams product at
+      // `/collaboration-teams`. The bare `/teams` URL now 308s to that
+      // canonical Teams surface so old bookmarks / "Invite a teammate"
+      // deep links keep working. This is an EXACT match: `/teams/[id]`
+      // (the legacy team-detail on `/v1/teams`, deferred to the backend
+      // migration phase) is NOT matched and continues to render. The
+      // `/workspaces` self-serve redirect target was repointed from
+      // `/teams` to `/collaboration-teams` (lib/surface/tiers.ts) so no
+      // redirect loop can form.
+      {
+        source: "/teams",
+        destination: "/collaboration-teams",
+        permanent: true,
+      },
+      // Phase 2B (Intelligence consolidation) — the standalone
+      // `/intelligence-platform` page was DELETED and its provider /
+      // cost / budget content merged into the canonical `/intelligence`
+      // surface (components/intelligence/ProviderBudgetPanel.tsx). The
+      // backend `intelligence-platform.routes.ts` is unchanged. Old deep
+      // links 308 to the canonical Intelligence surface.
+      {
+        source: "/intelligence-platform",
+        destination: "/intelligence",
+        permanent: true,
+      },
       {
         source: "/identity",
         destination: "/admin/identity",

@@ -154,7 +154,7 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // standalone product pages. The bounded redirect targets surface
   // operators inside the canonical Settings location instead of a
   // hard 404.
-  { pathPrefix: "/workspaces", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/teams", reason: "workspace switcher → /teams (self-serve)" },
+  { pathPrefix: "/workspaces", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/collaboration-teams", reason: "Phase 2B — workspace switcher is ENTERPRISE; self-serve users are sent to the canonical Teams product (/collaboration-teams), NOT the deleted /teams landing (which would loop)" },
   { pathPrefix: "/notifications", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/settings", reason: "notifications → /settings (self-serve)" },
   // Phase IA-surface-tier-pricing — Organizations are ENTERPRISE_ONLY
   // per the pricing page. Self-serve TEAM users manage collaboration
@@ -232,7 +232,6 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // Enterprise Analytics / Ops
   { pathPrefix: "/executive", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "executive dashboard" },
   { pathPrefix: "/intelligence-quality", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "intelligence quality" },
-  { pathPrefix: "/intelligence-platform", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "intelligence platform admin" },
   { pathPrefix: "/intelligence", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "intelligence enterprise layer" },
   { pathPrefix: "/budget-center", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "intelligence budget center" },
 

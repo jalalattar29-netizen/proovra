@@ -1,18 +1,17 @@
 "use client";
 
 /**
- * PROOVRA Phase 3B — Enterprise Intelligence Platform landing.
+ * PROOVRA Phase 2B (Intelligence consolidation) — Provider / cost / budget
+ * panel.
  *
- * Bounded operator surface for the intelligence layer. Surfaces:
+ * Extracted verbatim from the former `/intelligence-platform` page
+ * (`IntelligencePlatformShell`) so its useful enterprise content — provider
+ * health ribbon, 7-day cost summary, budgets list, and the inline
+ * quick-provider-run form — lives inside the canonical `/intelligence`
+ * surface. The standalone `/intelligence-platform` route was deleted; this
+ * component is the single canonical home for that content.
  *
- *   * Provider health ribbon (bound providers + bounded states).
- *   * Cost summary tiles (7-day usage + bounded cost).
- *   * Budgets list with bounded scope / period / consumption.
- *   * Bounded form to spin up a quick provider operation on an
- *     evidence id (operator inline workflow before the full
- *     viewer ships in Phase 3B.1).
- *
- * Hard rules:
+ * Hard rules (unchanged from the original surface):
  *   * All writes round-trip through the bounded API.
  *   * NEVER raw provider payloads — counts + bands only.
  */
@@ -28,18 +27,9 @@ import {
   type ProviderBudgetProjection,
 } from "@proovra/shared";
 
-import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-import { apiFetch } from "../../../lib/api";
+import { apiFetch } from "../../lib/api";
 
-export default function IntelligencePlatformPage() {
-  return (
-    <PageRouteGate routeId="workspace.intelligence_platform">
-      <IntelligencePlatformShell />
-    </PageRouteGate>
-  );
-}
-
-function IntelligencePlatformShell() {
+export function ProviderBudgetPanel() {
   const [probes, setProbes] = useState<ProviderAdapterProbe[]>([]);
   const [budgets, setBudgets] = useState<ProviderBudgetProjection[]>([]);
   const [usageSummary, setUsageSummary] = useState<
@@ -120,22 +110,19 @@ function IntelligencePlatformShell() {
     <div
       data-intelligence-platform-page
       style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
+        marginTop: 12,
         color: "#0f172a",
         fontFamily: "Inter, system-ui, sans-serif",
       }}
     >
       <header style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, marginTop: 0 }}>
-          Enterprise Intelligence Platform
-        </h1>
+        <h2 style={{ fontSize: 18, marginTop: 0 }}>
+          Provider platform · cost &amp; budgets
+        </h2>
         <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-          Single canonical surface over Azure Document Intelligence,
-          Deepgram, AWS Rekognition, and OpenAI. Provider abstraction,
-          confidence banding, reviewer corrections, cost controls,
-          and an executive audit trail.
+          Provider health across Azure Document Intelligence, Deepgram, AWS
+          Rekognition, and OpenAI, with confidence banding, cost controls, and
+          an inline quick-run for ad-hoc reviewer use.
         </p>
       </header>
 
@@ -154,18 +141,10 @@ function IntelligencePlatformShell() {
         </div>
       ) : null}
 
-      <section
-        data-intelligence-provider-health
-        style={panelStyle}
-      >
+      <section data-intelligence-provider-health style={panelStyle}>
         <strong style={{ fontSize: 13 }}>Provider health</strong>
         <div
-          style={{
-            display: "flex",
-            gap: 6,
-            marginTop: 6,
-            flexWrap: "wrap",
-          }}
+          style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}
         >
           {probes.map((p) => (
             <span
@@ -181,10 +160,7 @@ function IntelligencePlatformShell() {
         </div>
       </section>
 
-      <section
-        data-intelligence-cost-summary
-        style={panelStyle}
-      >
+      <section data-intelligence-cost-summary style={panelStyle}>
         <strong style={{ fontSize: 13 }}>Cost summary · last 7d</strong>
         <p style={{ color: "#475569", fontSize: 12 }}>
           Total est. spend:{" "}
@@ -225,10 +201,7 @@ function IntelligencePlatformShell() {
         </table>
       </section>
 
-      <section
-        data-intelligence-budgets
-        style={panelStyle}
-      >
+      <section data-intelligence-budgets style={panelStyle}>
         <strong style={{ fontSize: 13 }}>Budgets</strong>
         {budgets.length === 0 ? (
           <p style={{ color: "#475569", fontSize: 12 }}>
@@ -274,10 +247,7 @@ function IntelligencePlatformShell() {
                     ${(b.hardLimitUsdMicros / 1_000_000).toFixed(2)}
                   </td>
                   <td style={td}>
-                    $
-                    {(
-                      b.consumedUsdMicrosThisPeriod / 1_000_000
-                    ).toFixed(4)}
+                    ${(b.consumedUsdMicrosThisPeriod / 1_000_000).toFixed(4)}
                   </td>
                   <td style={td}>{b.state}</td>
                 </tr>
@@ -287,17 +257,12 @@ function IntelligencePlatformShell() {
         )}
       </section>
 
-      <section
-        data-intelligence-quick-run
-        style={panelStyle}
-      >
-        <strong style={{ fontSize: 13 }}>
-          Quick provider run · inline text
-        </strong>
+      <section data-intelligence-quick-run style={panelStyle}>
+        <strong style={{ fontSize: 13 }}>Quick provider run · inline text</strong>
         <p style={{ color: "#475569", fontSize: 11 }}>
-          For ad-hoc reviewer use. Paste OCR / transcript / document text
-          to trigger an EXTRACT_ENTITIES or SUMMARISE_DOCUMENT call;
-          inserted records appear in the evidence's record list.
+          For ad-hoc reviewer use. Paste OCR / transcript / document text to
+          trigger an EXTRACT_ENTITIES or SUMMARISE_DOCUMENT call; inserted
+          records appear in the evidence&apos;s record list.
         </p>
         <div
           style={{
@@ -373,10 +338,7 @@ function IntelligencePlatformShell() {
           data-intelligence-run-submit
           onClick={onRunText}
           disabled={!evidenceId || !text.trim()}
-          style={{
-            ...primaryButton,
-            marginTop: 6,
-          }}
+          style={{ ...primaryButton, marginTop: 6 }}
         >
           Run provider
         </button>

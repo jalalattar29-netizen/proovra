@@ -129,8 +129,11 @@ const UI_EXEC = readSource(
 const UI_AUDIT = readSource(
   "../../../apps/web/app/(app)/audit-transparency/page.tsx",
 );
+// Phase 2B — the standalone /intelligence-platform page was deleted and
+// its provider/cost/budget UI merged into the canonical /intelligence
+// surface via this shared component.
 const UI_PLATFORM = readSource(
-  "../../../apps/web/app/(app)/intelligence-platform/page.tsx",
+  "../../../apps/web/components/intelligence/ProviderBudgetPanel.tsx",
 );
 
 // ===========================================================================
@@ -618,6 +621,12 @@ describe("Phase 3B — UI + nav", () => {
   });
 
   it("navigation registry binds the 3 new Phase 3B nav entries", () => {
+    // Phase 2B note: NAV here is the BACKEND navigation-registry
+    // (services/api/src/services/platform-context). The FRONTEND
+    // `/intelligence-platform` page + its frontend routeRegistry entry
+    // were removed in Phase 2B (content merged into `/intelligence`), but
+    // this backend nav-registry entry is intentionally left untouched
+    // (frontend-only phase) and should be retired in the backend phase.
     expect(NAV).toMatch(/id:\s*"workspace\.intelligence_platform"/);
     expect(NAV).toMatch(/id:\s*"workspace\.executive"/);
     expect(NAV).toMatch(/id:\s*"workspace\.audit_transparency"/);

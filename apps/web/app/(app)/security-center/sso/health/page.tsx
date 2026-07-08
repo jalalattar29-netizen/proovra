@@ -165,7 +165,7 @@ function SsoHealthContent() {
           headline="Switch to a team workspace to view SSO health"
           reason="SSO health is per-workspace. Open a team workspace you administer to diagnose connection health."
           actions={[
-            { label: "Open team workspaces", href: "/teams", variant: "primary" },
+            { label: "Open team workspaces", href: "/workspaces", variant: "primary" },
           ]}
           testid="sso-health-access-gate-no-workspace"
         />

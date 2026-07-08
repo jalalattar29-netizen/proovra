@@ -250,7 +250,7 @@ export function CasesIndex() {
             alternatives={[
               { label: "View your evidence", href: "/evidence" },
               { label: "Generate a report", href: "/reports" },
-              { label: "Switch or create a workspace", href: "/teams" },
+              { label: "Switch or create a workspace", href: "/workspaces" },
             ]}
           />
         </main>

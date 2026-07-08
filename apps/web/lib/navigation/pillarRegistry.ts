@@ -293,7 +293,6 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["workspace.budget_center", "ADMIN"],
   ["workspace.exchange", "ADMIN"],
   ["workspace.executive", "ADMIN"],
-  ["workspace.intelligence_platform", "ADMIN"],
   ["workspace.packaging", "ADMIN"],
   // Phase 5 / 6 / 7 — Collaboration Teams (the constitutional Team
   // product). Lives under CASES pillar because Team work is daily

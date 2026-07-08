@@ -1437,38 +1437,6 @@ export const ROUTE_REGISTRY = [
         sidebarEligible: false,
     },
     {
-        id: "workspace.intelligence_platform",
-        href: "/intelligence-platform",
-        // -------------------------------------------------------------------------
-        // workspace-surface audit — label clarification:
-        // Renamed from "Intelligence Platform" to "Intelligence" per Section 6
-        // of the audit. The "Platform" suffix added enterprise noise without
-        // operator value; the surface is the enterprise intelligence console.
-        // The personal-tier `workspace.intelligence` route uses the same
-        // operator-facing label but is gated to PERSONAL_OR_ORG + EVIDENCE_VIEW
-        // so the two never appear in the same persona's sidebar simultaneously.
-        // -------------------------------------------------------------------------
-        label: "Intelligence",
-        description: "Enterprise intelligence layer — provider health, cost summary, budgets, bounded operator workflows.",
-        domain: "ORGANIZATION_WORKSPACE",
-        requiredCapabilities: ["GOVERNANCE_VIEW"],
-        requiredActiveSpace: "ORGANIZATION_ONLY",
-        fallbackBehavior: "REQUEST_ACCESS",
-        workflowTags: [],
-        advancedByDefault: true,
-        commandPaletteVisible: true,
-        allToolsVisible: true,
-        // -------------------------------------------------------------------------
-        // workspace-surface audit — persona rationale:
-        // Enterprise intelligence dashboards were buried in cmd-K only; org
-        // governance actors (ORG + GOVERNANCE_VIEW) had no sidebar pathway to
-        // them. Flipping sidebarEligible to true exposes the surface in the
-        // Governance pillar for capable actors. Backend gating
-        // (GOVERNANCE_VIEW + ORGANIZATION_ONLY) is unchanged.
-        // -------------------------------------------------------------------------
-        sidebarEligible: true,
-    },
-    {
         id: "workspace.packaging",
         href: "/packaging",
         label: "Packaging",

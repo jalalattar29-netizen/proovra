@@ -1186,13 +1186,15 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: false,
   },
   // Phase G0 (B0.5) — canonical frontend route is now `/workspaces`.
-  // The legacy `/teams` page file continues to render the same
-  // `WorkspaceAdministrationHome` component as a backward-compatible
-  // alias so deep links + old bookmarks never break. Backend
-  // `/v1/teams/*` endpoints are unchanged; that migration belongs in
-  // a separate backend phase. The route id remains `admin.teams`
-  // because tests + capability mappings key off the literal — only
-  // the user-facing href flipped.
+  // Phase 2B — the parallel self-serve `/teams` landing page was
+  // DELETED (it duplicated the canonical Teams product at
+  // `/collaboration-teams`). The bare `/teams` URL now 308s to
+  // `/collaboration-teams` (next.config.js); `/teams/[id]` (legacy
+  // team detail on `/v1/teams`) still renders and is deferred to the
+  // backend migration phase. Backend `/v1/teams/*` endpoints are
+  // unchanged. The route id remains `admin.teams` because tests +
+  // capability mappings key off the literal — the canonical href is
+  // `/workspaces`.
   //
   // Phase 9 audit note: route id is historical; canonical href is /workspaces;
   // this is workspace-admin tenancy, NOT the constitutional Team product
@@ -1583,39 +1585,6 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     commandPaletteVisible: true,
     allToolsVisible: true,
     sidebarEligible: false,
-  },
-  {
-    id: "workspace.intelligence_platform",
-    href: "/intelligence-platform",
-    // -------------------------------------------------------------------------
-    // workspace-surface audit — label clarification:
-    // Renamed from "Intelligence Platform" to "Intelligence" per Section 6
-    // of the audit. The "Platform" suffix added enterprise noise without
-    // operator value; the surface is the enterprise intelligence console.
-    // The personal-tier `workspace.intelligence` route uses the same
-    // operator-facing label but is gated to PERSONAL_OR_ORG + EVIDENCE_VIEW
-    // so the two never appear in the same persona's sidebar simultaneously.
-    // -------------------------------------------------------------------------
-    label: "Intelligence",
-    description:
-      "Enterprise intelligence layer — provider health, cost summary, budgets, bounded operator workflows.",
-    domain: "ORGANIZATION_WORKSPACE",
-    requiredCapabilities: ["GOVERNANCE_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
-    fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: [],
-    advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
-    // -------------------------------------------------------------------------
-    // workspace-surface audit — persona rationale:
-    // Enterprise intelligence dashboards were buried in cmd-K only; org
-    // governance actors (ORG + GOVERNANCE_VIEW) had no sidebar pathway to
-    // them. Flipping sidebarEligible to true exposes the surface in the
-    // Governance pillar for capable actors. Backend gating
-    // (GOVERNANCE_VIEW + ORGANIZATION_ONLY) is unchanged.
-    // -------------------------------------------------------------------------
-    sidebarEligible: true,
   },
   {
     id: "workspace.packaging",

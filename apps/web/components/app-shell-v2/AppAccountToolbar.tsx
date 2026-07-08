@@ -116,7 +116,7 @@ return { name: "Personal Space", scopeLine: "Personal • Owner" };
 // billing + pricing paths from the menu.
 const CROSS_SURFACE_SIDEBAR_HREFS: ReadonlySet<string> = new Set([
   "/billing",
-  "/teams",
+  "/workspaces",
   "/pricing",
 ]);
 

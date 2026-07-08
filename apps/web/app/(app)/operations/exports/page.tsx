@@ -221,7 +221,7 @@ function OperationsExportsContent() {
           headline="Switch to a team workspace to inspect exports"
           reason="Export history is per-workspace. Open a team workspace that produced exports."
           actions={[
-            { label: "Open team workspaces", href: "/teams", variant: "primary" },
+            { label: "Open team workspaces", href: "/workspaces", variant: "primary" },
           ]}
           testid="operations-exports-no-workspace"
         />

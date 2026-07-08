@@ -284,7 +284,7 @@ function OperationsQueuesContent() {
           headline="Switch to a team workspace to operate queues"
           reason="Queue operations are audit-attributed to the workspace you operate from."
           actions={[
-            { label: "Open team workspaces", href: "/teams", variant: "primary" },
+            { label: "Open team workspaces", href: "/workspaces", variant: "primary" },
           ]}
           testid="queue-ops-no-workspace"
         />
