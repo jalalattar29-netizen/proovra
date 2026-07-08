@@ -111,6 +111,7 @@ import {
   adminIdentityRoutes,
   adminIdentityRuntimeRoutes,
 } from "./routes/admin-identity.routes.js";
+import { adminProvisioningRoutes } from "./routes/admin-provisioning.routes.js";
 import { scimRoutes } from "./routes/scim.routes.js";
 import { ssoAuthRoutes } from "./routes/sso-auth.routes.js";
 // R8.2 — Real SAML SP routes (HTTP-Redirect + HTTP-POST ACS + SP metadata).
@@ -118,7 +119,6 @@ import { ssoAuthRoutes } from "./routes/sso-auth.routes.js";
 import { samlAuthRoutes } from "./routes/saml-auth.routes.js";
 import { aiRoutes } from "./routes/ai.routes.js";
 import { enterpriseRoutes } from "./routes/enterprise.routes.js";
-import { teamManagementRoutes } from "./routes/team-management.routes.js";
 // CR1 Phase B — legacy `webhookRoutes` (per-org in-memory webhooks) deleted.
 // Canonical webhook management lives in `integrations.routes.ts` +
 // `services/integrations/webhooks.service.ts`.
@@ -1006,6 +1006,7 @@ allowedHeaders: [
   await app.register(graphRoutes);
   await app.register(adminIdentityRoutes);
   await app.register(adminIdentityRuntimeRoutes);
+  await app.register(adminProvisioningRoutes);
   await app.register(scimRoutes);
   await app.register(ssoAuthRoutes);
   // R8.2 — SAML SP routes alongside the OIDC routes. Same canonical session
@@ -1013,7 +1014,6 @@ allowedHeaders: [
   await app.register(samlAuthRoutes);
   await app.register(aiRoutes);
   await app.register(enterpriseRoutes);
-  await app.register(teamManagementRoutes);
   // CR1 Phase B — legacy `webhookRoutes` registration removed.
   await app.register(analyticsRoutes);
   await app.register(demoRequestsRoutes);

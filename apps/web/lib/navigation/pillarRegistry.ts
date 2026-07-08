@@ -258,6 +258,8 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["admin.teams", "ADMIN"],
   ["account.organizations", "ADMIN"],
   ["account.organization-detail", "ADMIN"],
+  ["account.organization-setup", "ADMIN"],
+  ["platform.provisioning", "ADMIN"],
   ["account.org-invite-accept", "ADMIN"],
   // Phase 8 — Organization Admin shell (tabbed surface at
   // /organizations/:id/admin). Org-admin tabs are administrative

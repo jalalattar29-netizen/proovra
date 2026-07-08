@@ -102,7 +102,7 @@ describe("Phase 32.8 Foundation — types module", () => {
   });
 
   it("declares the bounded WORKSPACE_PLANS vocabulary matching Prisma PlanType", () => {
-    expect(WORKSPACE_PLANS).toEqual(["FREE", "PAYG", "PRO", "TEAM"]);
+    expect(WORKSPACE_PLANS).toEqual(["FREE", "PAYG", "PRO", "TEAM", "ENTERPRISE"]);
   });
 
   it("exports authority/capability/navigation schema versions as numeric constants", () => {

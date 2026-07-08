@@ -56,13 +56,22 @@ import {
 import { ensurePersonalWorkspace } from "./workspace-bootstrap.service.js";
 import { readWorkspacePersonaProfile } from "./persona-profile.service.js";
 
-const ENTERPRISE_PLAN_KEYS: ReadonlySet<WorkspacePlan> = new Set(["TEAM"]);
+const ENTERPRISE_PLAN_KEYS: ReadonlySet<WorkspacePlan> = new Set([
+  "TEAM",
+  "ENTERPRISE",
+]);
 const PRO_PLAN_KEYS: ReadonlySet<WorkspacePlan> = new Set(["PRO", "TEAM"]);
 
 function coercePlan(raw: string | null | undefined): WorkspacePlan | null {
   if (!raw) return null;
   const upper = String(raw).toUpperCase();
-  if (upper === "FREE" || upper === "PAYG" || upper === "PRO" || upper === "TEAM") {
+  if (
+    upper === "FREE" ||
+    upper === "PAYG" ||
+    upper === "PRO" ||
+    upper === "TEAM" ||
+    upper === "ENTERPRISE"
+  ) {
     return upper;
   }
   return null;

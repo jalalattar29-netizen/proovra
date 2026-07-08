@@ -176,7 +176,13 @@ export type PlatformContextPersonaProfile = {
 // Bounded plan vocabulary (mirrors Prisma PlanType)
 // =============================================================================
 
-export const WORKSPACE_PLANS = ["FREE", "PAYG", "PRO", "TEAM"] as const;
+export const WORKSPACE_PLANS = [
+  "FREE",
+  "PAYG",
+  "PRO",
+  "TEAM",
+  "ENTERPRISE",
+] as const;
 export type WorkspacePlan = (typeof WORKSPACE_PLANS)[number];
 
 // =============================================================================

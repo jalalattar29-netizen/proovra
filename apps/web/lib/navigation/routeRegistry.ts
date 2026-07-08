@@ -199,6 +199,29 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: false,
   },
   {
+    // Enterprise onboarding wizard (owner-facing). Mirrors
+    // account.organization-detail: ACCOUNT domain, no capability gate here
+    // (ORG_OWNER/ORG_ADMIN is enforced server-side by the /v1/orgs/:id
+    // endpoints the wizard reuses; the ENTERPRISE tier gate is inherited
+    // from organizations/layout.tsx). Reachable by deep link from the org
+    // detail page; kept out of sidebar / command palette / All Tools like
+    // the detail route.
+    id: "account.organization-setup",
+    href: "/organizations/:id/setup",
+    label: "Organization setup",
+    description:
+      "Guided enterprise onboarding — company profile, workspace, invites, security, retention, first capture.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+  {
     id: "account.org-invite-accept",
     href: "/org-invites/:token/accept",
     label: "Accept organization invite",
@@ -1224,6 +1247,29 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     href: "/admin",
     label: "Platform admin",
     description: "Platform-level administration (PLATFORM_ADMIN only).",
+    domain: "PLATFORM_ADMIN",
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+
+  // Enterprise provisioning — platform-admin only. Mirrors platform.admin
+  // gating exactly (PLATFORM_ADMIN capability + PLATFORM_ADMIN active
+  // space). The page (/admin/provisioning) additionally inherits the
+  // `platform.admin` gate from admin/layout.tsx; this entry exists so the
+  // route is a first-class registry citizen (PageRouteGate can resolve it,
+  // route-consistency test can pin its page, nav surfaces stay honest).
+  {
+    id: "platform.provisioning",
+    href: "/admin/provisioning",
+    label: "Provision enterprise customer",
+    description:
+      "Activate an enterprise customer end-to-end (PLATFORM_ADMIN only): create the enterprise workspace + owner, or grant ENTERPRISE to an existing org. Step-up gated.",
     domain: "PLATFORM_ADMIN",
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",

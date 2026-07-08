@@ -678,6 +678,8 @@ describe("Phase R10 — registry-page-existence invariant", () => {
     // Dynamic / parameterized routes are served by `[param]/page.tsx`
     // segments that don't match `<href>/page.tsx` literally.
     "/organizations/:id",
+
+    "/organizations/:id/setup",
     "/org-invites/:token/accept",
     "/reviewer-ops/[reviewId]",
     // Evidence requests is reached only via a per-id detail page
