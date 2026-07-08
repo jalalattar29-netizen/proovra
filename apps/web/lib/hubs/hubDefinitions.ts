@@ -157,13 +157,13 @@ export const HUB_DEFINITIONS: Readonly<Record<string, HubDefinition>> = {
       {
         id: "operations.observability",
         label: "Open observability",
-        href: "/ops/observability",
+        href: "/operations/observability",
         intent: "primary",
       },
       {
         id: "operations.runbooks",
         label: "Open runbooks",
-        href: "/ops/runbooks",
+        href: "/operations/runbooks",
         intent: "primary",
       },
       {

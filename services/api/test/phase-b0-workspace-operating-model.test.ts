@@ -226,7 +226,13 @@ describe("Phase B0 — sidebar vocabulary", () => {
     expect(NAV_REGISTRY).not.toMatch(/label:\s*"Teams"\s*,/);
   });
 
-  it("URL /teams is preserved (no breaking redirect)", () => {
-    expect(NAV_REGISTRY).toMatch(/href:\s*"\/teams"/);
+  it("workspace-admin nav uses the canonical /workspaces URL (Phase 3: /teams canonicalized away)", () => {
+    // Phase 2B/3 — the parallel /teams landing was deleted. The
+    // workspace-admin nav entries (admin.teams / account.teams) now point at
+    // the canonical /workspaces surface; the collaboration nav entry points
+    // at /collaboration-teams. No backend nav href points at the deleted
+    // bare /teams route anymore.
+    expect(NAV_REGISTRY).toMatch(/href:\s*"\/workspaces"/);
+    expect(NAV_REGISTRY).not.toMatch(/href:\s*"\/teams"/);
   });
 });

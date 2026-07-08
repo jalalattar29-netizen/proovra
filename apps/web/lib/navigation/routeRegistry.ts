@@ -478,7 +478,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "platform.runbooks",
-    href: "/ops/runbooks",
+    href: "/operations/runbooks",
     label: "Runbooks",
     description: "Operator runbook catalog for incidents and recovery.",
     domain: "OPS",
@@ -586,7 +586,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "platform.observability",
-    href: "/ops/observability",
+    href: "/operations/observability",
     label: "Observability",
     description: "Runtime metrics + firing alerts.",
     domain: "OPS",
@@ -737,7 +737,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "platform.media_graph",
-    href: "/ops/media-graph",
+    href: "/operations/media-graph",
     label: "Media intelligence ops",
     description: "Media intelligence + investigation graph operational metrics.",
     domain: "OPS",
@@ -1129,7 +1129,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "platform.ops_center",
-    href: "/ops",
+    href: "/operations",
     label: "Operations Center",
     description: "Operational pressure, queue health, incidents.",
     domain: "OPS",
@@ -1144,12 +1144,12 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: true,
   },
   // Phase E3 — Operational Automation Foundation. Lives UNDER the
-  // Operations Center hub (`/ops/automation`), NOT as a root nav item.
+  // Operations Center hub (`/operations/automation`), NOT as a root nav item.
   // No new root entries are introduced — the 32.8 canonical primaries
   // remain bounded at 6.
   {
     id: "platform.automation",
-    href: "/ops/automation",
+    href: "/operations/automation",
     label: "Automation rules",
     description:
       "Bounded operational automation: trigger + action rules with audit history.",
@@ -1165,12 +1165,12 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: false,
   },
   // Phase E4 — Bounded operational analytics. Lives UNDER the Operations
-  // Center hub (`/ops/analytics`), NOT as a root nav item. The 32.8
+  // Center hub (`/operations/analytics`), NOT as a root nav item. The 32.8
   // canonical primaries remain bounded at 6. Read-only surface; every
   // metric is source-traceable to a real Prisma model, never fabricated.
   {
     id: "platform.analytics",
-    href: "/ops/analytics",
+    href: "/operations/analytics",
     label: "Operational analytics",
     description:
       "Bounded operational analytics: real counts from real tables. No fake metrics, no AI predictions, no legal/admissibility scores.",

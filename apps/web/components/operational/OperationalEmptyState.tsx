@@ -412,7 +412,7 @@ export function NoEscalationsEmptyState() {
       actions={[
         { label: "Check reviewer ops queue", href: "/reviewer-ops" },
         { label: "View SLA policy", href: "/reviewer-ops/policy" },
-        { label: "Open observability dashboard", href: "/ops/observability" },
+        { label: "Open observability dashboard", href: "/operations/observability" },
       ]}
     />
   );
@@ -428,7 +428,7 @@ export function NoWorkloadSnapshotsEmptyState() {
       runtimeDependency="Reviewer reconciliation worker. Assignments via /reviewer-ops/reviews/:id/assign."
       actions={[
         { label: "Assign reviewers", href: "/reviewer-ops" },
-        { label: "Open Operations Center", href: "/ops" },
+        { label: "Open Operations Center", href: "/operations" },
       ]}
     />
   );
@@ -443,8 +443,8 @@ export function NoGovernanceIncidentsEmptyState() {
       reason="No drift, hold conflict, retention conflict, or escalation storm has been detected. New incidents appear here automatically when the canonical engines flag them."
       runtimeDependency="Immutable-storage reconciliation worker + reviewer reconciliation worker. Both write incidents on detected conflicts."
       actions={[
-        { label: "Open Operations Center", href: "/ops" },
-        { label: "View runbooks", href: "/ops/runbooks" },
+        { label: "Open Operations Center", href: "/operations" },
+        { label: "View runbooks", href: "/operations/runbooks" },
       ]}
     />
   );
@@ -493,8 +493,8 @@ export function RuntimeDegradedNotice({
       runtimeDependency={`Failing subsystems: ${failingSubsystems.join(", ")}.`}
       variant="degraded"
       actions={[
-        { label: "Open Observability dashboard", href: "/ops/observability" },
-        { label: "Review runbooks", href: "/ops/runbooks" },
+        { label: "Open Observability dashboard", href: "/operations/observability" },
+        { label: "Review runbooks", href: "/operations/runbooks" },
       ]}
     />
   );
@@ -518,10 +518,10 @@ export function GovernanceSnapshotUnavailableNotice({
           ? [
               {
                 label: `Reference request ${requestId.slice(0, 12)}`,
-                href: "/ops/observability",
+                href: "/operations/observability",
               },
             ]
-          : [{ label: "Open Observability dashboard", href: "/ops/observability" }]
+          : [{ label: "Open Observability dashboard", href: "/operations/observability" }]
       }
     />
   );

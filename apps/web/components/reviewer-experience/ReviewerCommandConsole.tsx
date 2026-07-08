@@ -1588,7 +1588,7 @@ function ReconciliationSection({ env }: { env: ReviewerCommandEnvelope }) {
       {canObservability ? (
         <div className="cc-section-foot">
           Worker health + cron status live at{" "}
-          <Link href="/ops/observability">Operations · Observability</Link>.
+          <Link href="/operations/observability">Operations · Observability</Link>.
         </div>
       ) : null}
     </section>

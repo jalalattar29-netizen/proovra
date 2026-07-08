@@ -31,7 +31,13 @@ const nextConfig = {
         destination: "/evidence?filter=locked",
         permanent: true,
       },
-      { source: "/operations", destination: "/ops", permanent: true },
+      // Phase 3 (ops canonicalization) — /operations is now the ONE
+      // canonical operations namespace. The 6 real /ops/* impls were moved
+      // into /operations/*, /ops was deleted, and the bare /ops hub URL
+      // 308s here. Combined with the /ops/*→/operations/* subtree redirects
+      // below, every /ops* source now points one-way to /operations* — no
+      // loop (no source is also a destination).
+      { source: "/ops", destination: "/operations", permanent: true },
       // Phase B — removed the legacy `/review → /reviewer-ops` redirect.
       // Phase C0 made `/review` the canonical reviewer console, but the
       // legacy redirect was intercepting navigation and bouncing

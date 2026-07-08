@@ -794,11 +794,11 @@ function IncidentsTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
             <div className="cc-incident-summary">{row.safeSummary}</div>
             <div className="cc-incident-row-foot">
               {row.runbookSlug && canRunbooks ? (
-                <Link href={`/ops/runbooks#${row.runbookSlug}`}>
+                <Link href={`/operations/runbooks#${row.runbookSlug}`}>
                   Runbook → {row.runbookSlug}
                 </Link>
               ) : !row.runbookSlug && canObservability ? (
-                <Link href="/ops/observability">Open observability</Link>
+                <Link href="/operations/observability">Open observability</Link>
               ) : null}
               <time dateTime={row.lastSeenAtUtc}>
                 Seen {relTime(row.lastSeenAtUtc)}
@@ -810,7 +810,7 @@ function IncidentsTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
       {canOpsCenter ? (
         <div className="cc-section-foot">
           Detailed platform health lives under{" "}
-          <Link href="/ops">Operations Center</Link>.
+          <Link href="/operations">Operations Center</Link>.
         </div>
       ) : null}
     </section>

@@ -160,7 +160,7 @@ const WORKSPACE_GROUP: NavRegistryGroup = {
     {
       id: "workspace.team_governance",
       label: "Workspace",
-      href: "/teams",
+      href: "/collaboration-teams",
       iconKey: "teams",
       domain: "WORKSPACE",
       badgeKey: null,
@@ -242,7 +242,7 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
     {
       id: "review.queue",
       label: "Reviewer Ops",
-      href: "/reviewer-ops",
+      href: "/review",
       iconKey: "reviewer_ops",
       domain: "REVIEW_GOVERNANCE",
       badgeKey: null,
@@ -346,15 +346,6 @@ const REVIEW_GOVERNANCE_GROUP: NavRegistryGroup = {
     // compat. The new ids point at the Phase 3B pages on disk.
     // -------------------------------------------------------------------
     {
-      id: "workspace.intelligence_platform",
-      label: "Intelligence Platform",
-      href: "/intelligence",
-      iconKey: "intelligence",
-      domain: "REVIEW_GOVERNANCE",
-      badgeKey: null,
-      requiresCapability: "EVIDENCE_VIEW",
-    },
-    {
       id: "workspace.executive",
       label: "Executive Dashboard",
       href: "/executive",
@@ -449,7 +440,7 @@ const PLATFORM_HEALTH_GROUP: NavRegistryGroup = {
     {
       id: "platform.ops_center",
       label: "Operations Center",
-      href: "/ops",
+      href: "/operations",
       iconKey: "ops_center",
       domain: "PLATFORM_HEALTH",
       badgeKey: "ops_center_runtime",
@@ -458,7 +449,7 @@ const PLATFORM_HEALTH_GROUP: NavRegistryGroup = {
     {
       id: "platform.observability",
       label: "Observability",
-      href: "/ops/observability",
+      href: "/operations/observability",
       iconKey: "observability",
       domain: "PLATFORM_HEALTH",
       badgeKey: "observability_runtime",
@@ -467,7 +458,7 @@ const PLATFORM_HEALTH_GROUP: NavRegistryGroup = {
     {
       id: "platform.runbooks",
       label: "Runbooks",
-      href: "/ops/runbooks",
+      href: "/operations/runbooks",
       iconKey: "runbooks",
       domain: "PLATFORM_HEALTH",
       badgeKey: null,
@@ -524,7 +515,7 @@ const ADMINISTRATION_GROUP: NavRegistryGroup = {
       // to the same controllers). A future migration can flip the
       // URL once every consumer is on the v3 envelope.
       label: "Workspaces",
-      href: "/teams",
+      href: "/workspaces",
       iconKey: "teams",
       domain: "ADMINISTRATION",
       badgeKey: null,
@@ -687,7 +678,7 @@ const ACCOUNT_GROUP: NavRegistryGroup = {
       id: "account.teams",
       // Phase B0 — operational vocabulary is "Workspaces".
       label: "Workspaces",
-      href: "/teams",
+      href: "/workspaces",
       iconKey: "teams",
       domain: "ACCOUNT",
       badgeKey: null,

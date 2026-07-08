@@ -397,7 +397,7 @@ export const ROUTE_REGISTRY = [
     },
     {
         id: "platform.runbooks",
-        href: "/ops/runbooks",
+        href: "/operations/runbooks",
         label: "Runbooks",
         description: "Operator runbook catalog for incidents and recovery.",
         domain: "OPS",
@@ -505,7 +505,7 @@ export const ROUTE_REGISTRY = [
     },
     {
         id: "platform.observability",
-        href: "/ops/observability",
+        href: "/operations/observability",
         label: "Observability",
         description: "Runtime metrics + firing alerts.",
         domain: "OPS",
@@ -649,7 +649,7 @@ export const ROUTE_REGISTRY = [
     },
     {
         id: "platform.media_graph",
-        href: "/ops/media-graph",
+        href: "/operations/media-graph",
         label: "Media intelligence ops",
         description: "Media intelligence + investigation graph operational metrics.",
         domain: "OPS",
@@ -1013,7 +1013,7 @@ export const ROUTE_REGISTRY = [
     },
     {
         id: "platform.ops_center",
-        href: "/ops",
+        href: "/operations",
         label: "Operations Center",
         description: "Operational pressure, queue health, incidents.",
         domain: "OPS",
@@ -1033,7 +1033,7 @@ export const ROUTE_REGISTRY = [
     // remain bounded at 6.
     {
         id: "platform.automation",
-        href: "/ops/automation",
+        href: "/operations/automation",
         label: "Automation rules",
         description: "Bounded operational automation: trigger + action rules with audit history.",
         domain: "OPS",
@@ -1053,7 +1053,7 @@ export const ROUTE_REGISTRY = [
     // metric is source-traceable to a real Prisma model, never fabricated.
     {
         id: "platform.analytics",
-        href: "/ops/analytics",
+        href: "/operations/analytics",
         label: "Operational analytics",
         description: "Bounded operational analytics: real counts from real tables. No fake metrics, no AI predictions, no legal/admissibility scores.",
         domain: "OPS",

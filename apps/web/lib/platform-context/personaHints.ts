@@ -166,7 +166,7 @@ const HINTS: Record<
       body:
         "Queue pressure, incidents, and reviewer saturation update here every refresh cycle. Drill into operational pressure for details.",
       ctaLabel: "Open ops center",
-      ctaHref: "/ops",
+      ctaHref: "/operations",
       capabilityKey: "OPS_CENTER_VIEW",
     },
     "reviewer-ops": {

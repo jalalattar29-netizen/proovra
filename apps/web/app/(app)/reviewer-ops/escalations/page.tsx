@@ -281,7 +281,7 @@ function EscalationsConsolePageInner() {
                     </div>
                     {e.incidentId ? (
                       <a
-                        href={`/ops`}
+                        href={`/operations`}
                         style={{ ...mutedStyle, color: TOKENS.link }}
                       >
                         incident {e.incidentId.slice(0, 8)}…

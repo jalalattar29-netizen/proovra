@@ -510,7 +510,7 @@ const PLATFORM_HEALTH_GROUP: NavGroup = {
     {
       id: "platform.ops_center",
       label: "Operations Center",
-      href: "/ops",
+      href: "/operations",
       iconKey: "ops_center",
       domain: "PLATFORM_HEALTH",
       workspaceScope: "BOTH",
@@ -524,7 +524,7 @@ const PLATFORM_HEALTH_GROUP: NavGroup = {
     {
       id: "platform.observability",
       label: "Observability",
-      href: "/ops/observability",
+      href: "/operations/observability",
       iconKey: "observability",
       domain: "PLATFORM_HEALTH",
       workspaceScope: "BOTH",
@@ -538,7 +538,7 @@ const PLATFORM_HEALTH_GROUP: NavGroup = {
     {
       id: "platform.runbooks",
       label: "Runbooks",
-      href: "/ops/runbooks",
+      href: "/operations/runbooks",
       iconKey: "runbooks",
       domain: "PLATFORM_HEALTH",
       workspaceScope: "BOTH",
@@ -728,9 +728,10 @@ export const ACCOUNT_MENU_ITEMS: ReadonlyArray<AccountMenuItem> = [
  *      a hub page links to it).
  */
 export const DEPRECATED_ROUTE_REDIRECTS = {
+  // NOTE: this file is DEAD (no live importers; retained for legacy tests).
+  // Phase 3 — kept consistent with canonical architecture (/ops→/operations).
   "/dashboard": "/home",
-  "/review": "/reviewer-ops",
-  "/operations": "/ops",
+  "/ops": "/operations",
   "/security": "/security-center",
   "/locked": "/evidence?filter=locked",
   "/deleted": "/evidence?filter=deleted",

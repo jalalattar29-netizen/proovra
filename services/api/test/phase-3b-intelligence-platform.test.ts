@@ -620,14 +620,15 @@ describe("Phase 3B — UI + nav", () => {
     expect(UI_PLATFORM).toMatch(/data-intelligence-run-submit/);
   });
 
-  it("navigation registry binds the 3 new Phase 3B nav entries", () => {
-    // Phase 2B note: NAV here is the BACKEND navigation-registry
-    // (services/api/src/services/platform-context). The FRONTEND
-    // `/intelligence-platform` page + its frontend routeRegistry entry
-    // were removed in Phase 2B (content merged into `/intelligence`), but
-    // this backend nav-registry entry is intentionally left untouched
-    // (frontend-only phase) and should be retired in the backend phase.
-    expect(NAV).toMatch(/id:\s*"workspace\.intelligence_platform"/);
+  it("navigation registry binds the Phase 3B nav entries (intelligence merged in Phase 3)", () => {
+    // Phase 3 (backend nav cleanup): the duplicate backend
+    // `workspace.intelligence_platform` entry was REMOVED from
+    // navigation-registry.ts (its href `/intelligence` is already served by
+    // `review.intelligence`; the frontend `/intelligence-platform` page was
+    // deleted in Phase 2B and merged into `/intelligence`). The canonical
+    // intelligence surface is `review.intelligence` (href `/intelligence`).
+    expect(NAV).toMatch(/id:\s*"review\.intelligence"/);
+    expect(NAV).not.toMatch(/id:\s*"workspace\.intelligence_platform"/);
     expect(NAV).toMatch(/id:\s*"workspace\.executive"/);
     expect(NAV).toMatch(/id:\s*"workspace\.audit_transparency"/);
   });
