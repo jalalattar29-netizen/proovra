@@ -1,3 +1,27 @@
+/**
+ * PROOVRA — Workspace / Tenancy / Billing API (mounted at `/v1/teams`).
+ *
+ * CANONICAL CLASSIFICATION (final product model):
+ *   This file is the WORKSPACE / TENANCY / BILLING API. It operates on the
+ *   tenancy `Team` model and its `TeamMember` / `TeamInvite` rows — which are
+ *   WORKSPACE members and WORKSPACE invites, tied to seats, billing plan,
+ *   subscriptions, storage, evidence ownership (`Evidence.teamId`), and
+ *   `CaseAccess` governance. It is NOT the user-facing collaboration Teams
+ *   product.
+ *
+ *   The user-facing collaboration Teams product is `/v1/collaboration-teams`
+ *   (+ `/v1/collaboration-team-invites`), which operates on the SEPARATE
+ *   `CollaborationTeam*` models and NEVER mutates subscription/billing or
+ *   evidence ownership. The two surfaces are model-disjoint by design.
+ *
+ * RULES (locked by phase-final-teams-collaboration-separation.test.ts):
+ *   - This file MUST NOT reference `CollaborationTeam*`. Workspace-member
+ *     management here is TENANCY, not collaboration — it must NOT be
+ *     "migrated" to /v1/collaboration-teams, because that would move
+ *     seat/billing/evidence-coupled behaviour off the tenancy model.
+ *   - `/v1/workspaces/*` is an onRequest alias onto these handlers
+ *     (workspace-alias.plugin.ts), so every endpoint here must stay stable.
+ */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";

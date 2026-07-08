@@ -1,4 +1,20 @@
 "use client";
+/**
+ * WORKSPACE-ADMIN DETAIL (INTENTIONAL — final product model classification).
+ *
+ * This page is the per-WORKSPACE administration detail: workspace profile,
+ * billing/seats/storage, WORKSPACE members + invites (TeamMember/TeamInvite),
+ * case linkage, and access review — all via the `/v1/teams/*` (workspace /
+ * tenancy) API. It is gated by `admin.teams` (capability TEAM_VIEW).
+ *
+ * It is NOT the user-facing collaboration Teams product and is NOT a
+ * duplicate of `/collaboration-teams/[teamId]` (which manages CollaborationTeam
+ * groups via `/v1/collaboration-teams`). It is retained because it is the
+ * unique per-workspace admin surface; the workspace overview at `/workspaces`
+ * delegates here / to `/organizations/[id]/admin` for detail. Backend
+ * migration of `/v1/teams` (tenancy) is out of scope — it backs billing,
+ * seats, and evidence ownership.
+ */
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
