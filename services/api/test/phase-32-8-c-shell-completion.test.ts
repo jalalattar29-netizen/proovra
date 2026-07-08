@@ -223,7 +223,7 @@ describe("Phase 32.8C FINAL-4 — bulk actions toolbar", () => {
   });
 
   it("disabled chips render a clear reason ('Requires team workspace' / 'Requires ADMIN or OWNER')", () => {
-    expect(CC_TSX).toMatch(/"Requires team workspace"/);
+    expect(CC_TSX).toMatch(/"Requires workspace"/);
     expect(CC_TSX).toMatch(/"Requires ADMIN or OWNER"/);
   });
 

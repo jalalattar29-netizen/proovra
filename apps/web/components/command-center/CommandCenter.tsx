@@ -4838,8 +4838,8 @@ function PersonalNote({ subsystem }: { subsystem: "reviewer" | "governance" }) {
     >
       Personal workspace uses basic evidence controls.{" "}
       {subsystem === "reviewer"
-        ? "Reviewer orchestration is a team workspace feature."
-        : "Governance posture is a team workspace feature."}
+        ? "Reviewer orchestration is a workspace feature."
+        : "Governance posture is a workspace feature."}
     </div>
   );
 }
@@ -5294,7 +5294,7 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
@@ -5306,7 +5306,7 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
@@ -5318,7 +5318,7 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
@@ -5330,7 +5330,7 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.incidentActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
@@ -5342,7 +5342,7 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.incidentActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
@@ -5354,7 +5354,7 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? "Records retry intent only — never invokes the queue."
             : "Requires ADMIN or OWNER",
@@ -5366,7 +5366,7 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
@@ -5378,7 +5378,7 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
@@ -5400,7 +5400,7 @@ function BulkActionsToolbar({
           {anyAvailable
             ? `${actions.filter((a) => a.canAct).length} actions available`
             : scope === "PERSONAL"
-              ? "Switch to a team workspace to unlock bulk actions"
+              ? "Switch to a workspace to unlock bulk actions"
               : "Requires ADMIN or OWNER role"}
         </span>
       </div>

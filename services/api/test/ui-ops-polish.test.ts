@@ -36,30 +36,31 @@ function readSource(rel: string): string {
 // Sidebar navigation
 // =============================================================================
 
-describe("App sidebar — Platform Health group (Phase 32.8B)", () => {
-  // Phase 32.8B — sidebar items live in lib/navigation-config.ts.
-  // The runtime/observability surfaces moved out of the merged
-  // "Operations" group into a dedicated Platform Health group per
-  // the Phase 32.8A information architecture.
-  const navConfig = readSource("../../../apps/web/lib/navigation-config.ts");
+describe("App sidebar — operations surfaces (Phase 38.6 routeRegistry)", () => {
+  // Phase 38.6 — the canonical navigation source of truth is the route
+  // registry (`lib/navigation/routeRegistry.ts`); the legacy
+  // `lib/navigation-config.ts` (which modeled the "Platform Health"
+  // NavGroup) was deleted. Route-href invariants are re-pointed here.
+  const navConfig = readSource(
+    "../../../apps/web/lib/navigation/routeRegistry.ts",
+  );
   const src = readSource(
     "../../../apps/web/components/app-shell-v2/AppSidebarV2.tsx",
   );
 
-  it("Phase 32.8B routes /operations, /operations/observability, /operations/runbooks under Platform Health", () => {
+  it("registers /operations, /operations/observability, /operations/runbooks", () => {
     expect(navConfig).toMatch(/href: "\/operations"/);
     expect(navConfig).toMatch(/href: "\/operations\/observability"/);
     expect(navConfig).toMatch(/href: "\/operations\/runbooks"/);
   });
 
-  it("places Platform Health between Review & Governance and Administration (Phase 32.8B canonical order)", () => {
-    const review = navConfig.indexOf('title: "Review & Governance"');
-    const platform = navConfig.indexOf('title: "Platform Health"');
-    const admin = navConfig.indexOf('title: "Administration"');
-    expect(review).toBeGreaterThan(0);
-    expect(platform).toBeGreaterThan(review);
-    expect(admin).toBeGreaterThan(platform);
-  });
+  // OBSOLETE — Phase 38.6 removed navigation-config, which was the only
+  // source that modeled sidebar GROUP headings ("Review & Governance" /
+  // "Platform Health" / "Administration") and their order. The flat
+  // routeRegistry has no NavGroup titles, so this ordering assertion no
+  // longer has a source to read. Group ordering is a rendering concern
+  // in AppSidebarV2 + the disclosure resolver.
+  it.skip("places Platform Health between Review & Governance and Administration (removed with navigation-config)", () => {});
 
   it("never points at the broken /docs/runbooks", () => {
     expect(navConfig).not.toContain("/docs/runbooks");

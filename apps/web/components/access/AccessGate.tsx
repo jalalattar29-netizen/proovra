@@ -12,7 +12,7 @@
  *   * a feature requires admin help (user lacks a capability their
  *     admin can grant)
  *   * a feature requires workspace scope (action only works in a
- *     team workspace, current scope is personal)
+ *     workspace, current scope is personal)
  *
  * Pair with `<AccessGateInline>` for in-flow lock indicators (e.g.
  * inside a button row) and `<AccessGate>` for full-panel takeovers.
@@ -126,11 +126,11 @@ function defaultsFor(kind: AccessGateKind): {
       };
     case "WORKSPACE_REQUIRED":
       return {
-        headline: "Switch or create a team workspace",
+        headline: "Switch or create a workspace",
         reason:
-          "This feature is only available in team workspaces. Create one, or switch into a team you already belong to.",
+          "This feature is only available in workspaces. Create one, or switch into a workspace you already belong to.",
         actions: [
-          { label: "Open team workspaces", href: "/workspaces", variant: "primary" },
+          { label: "Open workspaces", href: "/workspaces", variant: "primary" },
           { label: "Review plans", href: "/billing", variant: "secondary" },
         ],
       };

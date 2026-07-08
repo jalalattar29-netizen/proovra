@@ -131,7 +131,7 @@ export function WorkspaceAdminPanel() {
             <span data-workspace-scope={env.workspace.scope}>
               {env.workspace.scope === "PERSONAL"
                 ? "Personal workspace"
-                : `Team workspace · ${env.workspace.memberCount} members · ${env.workspace.adminCount} admins`}
+                : `Workspace · ${env.workspace.memberCount} members · ${env.workspace.adminCount} admins`}
             </span>
             {" · "}
             <span data-workspace-role={env.workspace.role}>

@@ -104,7 +104,7 @@ export function ReviewerCommandConsole() {
         <CapabilityDegradedPanel
           surface="Reviewer Ops"
           requiredCapability="REVIEWER_OPS_VIEW"
-          reason="Reviewer Ops coordinates work across a team — queue triage, SLA pressure, escalations, and reviewer capacity. It activates when you switch into a team workspace."
+          reason="Reviewer Ops coordinates work across a team — queue triage, SLA pressure, escalations, and reviewer capacity. It activates when you switch into a workspace."
           alternatives={[
             { label: "Manage your evidence", href: "/evidence" },
             { label: "Open your cases", href: "/cases" },
@@ -165,7 +165,7 @@ export function ReviewerCommandConsole() {
           <span data-reviewer-scope={env.workspace.scope}>
             {env.workspace.scope === "PERSONAL"
               ? "Personal workspace"
-              : "Team workspace"}
+              : "Workspace"}
           </span>
           <span data-reviewer-role={env.workspace.role}>
             Role: {env.workspace.role}
@@ -191,7 +191,7 @@ export function ReviewerCommandConsole() {
 
       {/* Phase 32.8C FINAL-3 — capability degradation rather than page
           hiding. Personal workspace renders the same surface; team-only
-          sections render disabled with a clear "Requires team workspace"
+          sections render disabled with a clear "Requires workspace"
           label. The page never early-returns a plain text fallback. */}
       {!isTeam ? (
         <div
@@ -203,7 +203,7 @@ export function ReviewerCommandConsole() {
           Personal workspace — reviewer orchestration sections render in
           read-only enterprise-lite mode. Team-only actions (escalation
           ownership, reviewer policy editing, bulk reassignment) are
-          disabled with clear labels. Switch to a team workspace to enable
+          disabled with clear labels. Switch to a workspace to enable
           the full reviewer command surface.
         </div>
       ) : null}
@@ -866,7 +866,7 @@ function QueuePeekWithBulkOps({
   const submitBulk = useCallback(
     async (action: BulkAction, note?: string) => {
       if (bulkDisabled) {
-        setError("Bulk operations require a team workspace.");
+        setError("Bulk operations require a workspace.");
         return;
       }
       if (selection.size === 0) {
@@ -976,13 +976,13 @@ function QueuePeekWithBulkOps({
           {selection.size > 0
             ? `${selection.size} selected`
             : bulkDisabled
-              ? "Bulk ops require a team workspace"
+              ? "Bulk ops require a workspace"
               : "Select workflows to bulk-act"}
         </span>
       </header>
 
       {/* Bulk action bar — visible whenever any selection exists OR
-          the operator is in a team workspace and explicitly opens the
+          the operator is in a workspace and explicitly opens the
           note action. */}
       {!bulkDisabled && (someSelected || noteAction) && (
         <div
@@ -1175,7 +1175,7 @@ function QueuePeekWithBulkOps({
           className="cc-section-note"
           style={{ fontSize: 12 }}
         >
-          Bulk reviewer operations require a team workspace. In personal
+          Bulk reviewer operations require a workspace. In personal
           space, open each workflow individually from the queue below.
         </div>
       ) : null}

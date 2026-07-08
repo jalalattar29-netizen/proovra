@@ -163,16 +163,24 @@ describe("Phase 32.8E — /reviewer-ops main console workspace wiring", () => {
     expect(src).toContain("ShellUnavailable");
   });
 
-  it("never short-circuits to a bare 'Switch to a workspace' string outside its bounded Shell", () => {
+  it("keeps the 'Switch to a workspace' guidance inside the bounded read-only banner (no bare short-circuit)", () => {
     const live = src
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/\/\/[^\n]*/g, "");
-    const matches = live.match(/Switch to a workspace[^<]*</);
-    if (matches) {
-      throw new Error(
-        "Main /reviewer-ops console has an inline 'Switch to a workspace' render outside the bounded Shell.",
-      );
-    }
+    // Personal-mode reviewers get a bounded read-only status banner
+    // (data-cc-section-status="not_applicable") that guides them to
+    // switch workspaces — NOT a bare early-return short-circuit that
+    // replaces the console. The console's real short-circuits are the
+    // Shell states (ShellLoading / ShellAuthError / ShellUnavailable).
+    const banner = live.match(
+      /data-cc-section-status="not_applicable"[\s\S]{0,600}?Switch to a workspace to enable/,
+    );
+    expect(
+      banner,
+      "the 'Switch to a workspace' guidance must live inside the bounded read-only status banner",
+    ).not.toBeNull();
+    // No standalone early-return short-circuit to a bare switch prompt.
+    expect(live).not.toMatch(/return\s*\(?\s*<[A-Za-z][^>]*>\s*Switch to a workspace/);
   });
 });
 

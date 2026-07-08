@@ -93,7 +93,7 @@ const CODE_MAP: Record<
   },
   TEAM_PLAN_REQUIRED: {
     title: "This action needs a Team plan",
-    message: "Creating evidence in a team workspace requires an active Team plan.",
+    message: "Creating evidence in a workspace requires an active Team plan.",
     severity: "warning",
     actionLabel: "View plans",
     actionHref: "/billing",

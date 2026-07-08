@@ -273,7 +273,7 @@ export default function AdminDashboardPage() {
         accent: "#965757",
       },
       {
-        label: "Team Workspaces",
+        label: "Workspaces",
         value: bundle.summary.teams.total,
         sub: `${bundle.summary.teams.active} active · ${bundle.summary.teams.pastDue} past due`,
         accent: "#4c6d70",

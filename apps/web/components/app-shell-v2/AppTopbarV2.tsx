@@ -97,8 +97,8 @@ function getInitials(envelope: ReturnType<typeof usePlatformContext>["envelope"]
  * Canonical workspace label. NEVER displays the raw workspace UUID.
  *
  *   - If the workspace has a name, use it.
- *   - Otherwise use the bounded scope label ("Personal workspace" /
- *     "Team workspace").
+ *   - Otherwise use the bounded scope label ("Personal Space" /
+ *     "Organization workspace").
  *   - While loading, render a quiet placeholder — not "Member".
  */
 function getWorkspaceLabels(

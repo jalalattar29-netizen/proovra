@@ -306,7 +306,7 @@ describe("Phase IA-self-serve-audit-fixes — Billing copy", () => {
       /PAYG, PRO, and TEAM apply to your personal account\./,
     );
     expect(CHECKOUT).toMatch(
-      /Each team workspace you own can also have its own dedicated TEAM subscription\./,
+      /Each workspace you own can also have its own dedicated TEAM subscription./,
     );
   });
 });

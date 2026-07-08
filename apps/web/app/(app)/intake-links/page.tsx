@@ -482,7 +482,7 @@ function IntakeLinksPageInner() {
       const name =
         active.type === "PERSONAL"
           ? "Personal Space"
-          : active.displayName ?? "Team workspace";
+          : active.displayName ?? "Workspace";
       setCurrentTeam({ id: active.id, name });
       return;
     }
@@ -491,7 +491,7 @@ function IntakeLinksPageInner() {
       const name =
         ws.scope === "PERSONAL"
           ? "Personal Space"
-          : ws.name ?? "Team workspace";
+          : ws.name ?? "Workspace";
       setCurrentTeam({ id: ws.id, name });
       return;
     }

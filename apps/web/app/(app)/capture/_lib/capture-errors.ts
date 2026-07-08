@@ -48,7 +48,7 @@ export function buildTeamPlanRequiredDetails(
   return {
     // Curated, user-safe message — never the raw backend message.
     message:
-      "Creating evidence in a team workspace requires an active Team plan.",
+      "Creating evidence in a workspace requires an active Team plan.",
     target: "TEAM",
     requiredPlan: "TEAM",
   };

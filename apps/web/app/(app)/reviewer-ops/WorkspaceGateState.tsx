@@ -69,14 +69,14 @@ type GateSurface =
 
 const REASON_BY_SURFACE: Record<GateSurface, string> = {
   "Reviewer Ops":
-    "Reviewer Ops coordinates work across a team — queue triage, SLA pressure, escalations, and reviewer capacity. It activates when you switch into a team workspace.",
-  SLA: "SLA tracking measures reviewer performance and overdue pressure across a team. It activates when you switch into a team workspace.",
+    "Reviewer Ops coordinates work across a team — queue triage, SLA pressure, escalations, and reviewer capacity. It activates when you switch into a workspace.",
+  SLA: "SLA tracking measures reviewer performance and overdue pressure across a team. It activates when you switch into a workspace.",
   Escalations:
-    "Escalations route reviewer-flagged risk to the right responder across a team. They activate when you switch into a team workspace.",
+    "Escalations route reviewer-flagged risk to the right responder across a team. They activate when you switch into a workspace.",
   "Review Policy":
-    "Review policy editing controls reviewer routing, SLA thresholds, and escalation rules for a team. It activates in a team workspace.",
+    "Review policy editing controls reviewer routing, SLA thresholds, and escalation rules for a team. It activates in a workspace.",
   "Governance Policy":
-    "Governance policy editing controls preservation, retention, destruction, and export gates for a team. It activates in a team workspace.",
+    "Governance policy editing controls preservation, retention, destruction, and export gates for a team. It activates in a workspace.",
 };
 
 export function WorkspaceGateState({

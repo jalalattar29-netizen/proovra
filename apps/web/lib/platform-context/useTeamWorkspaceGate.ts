@@ -51,7 +51,7 @@ export type TeamWorkspaceGateState =
     };
 
 /**
- * Convenience reader — returns just the team workspace id (or null
+ * Convenience reader — returns just the workspace id (or null
  * when the active workspace is personal / unavailable). Pages that
  * scope their team-only API calls by `teamId` query parameter
  * should consume THIS hook, NOT a hand-rolled `/v1/users/me` fetch.

@@ -128,7 +128,7 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // users see neither, matching the PAYG sidebar in the pricing brief:
   // Home, Capture, Evidence, Cases, Search, Reports, Trust, Settings,
   // Billing.
-  { pathPrefix: "/teams", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "team workspace (PRO/TEAM)" },
+  { pathPrefix: "/teams", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "workspace (PRO/TEAM)" },
   { pathPrefix: "/intake-links", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "intake links (PRO/TEAM)" },
   { pathPrefix: "/inbox", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "operational inbox (PRO/TEAM)" },
   // CORE alias for the canonical `/trust-center` URL — pinned by the

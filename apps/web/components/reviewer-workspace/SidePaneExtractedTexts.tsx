@@ -50,7 +50,7 @@ export function SidePaneExtractedTexts({
   if (!result.ok) {
     const message =
       result.reason === "NO_TEAM"
-        ? `${mode} projection is only available for team workspaces.`
+        ? `${mode} projection is only available for workspaces.`
         : result.reason === "FORBIDDEN"
           ? `${mode} projection is not available — you do not have access.`
           : result.reason === "NOT_FOUND"

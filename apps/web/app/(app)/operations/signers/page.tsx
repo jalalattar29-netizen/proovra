@@ -326,10 +326,10 @@ function OperationsSignersContent() {
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="Signer Governance"
-          headline="Switch to a team workspace to manage signers"
+          headline="Switch to a workspace to manage signers"
           reason="Signer governance is workspace-attributed for audit."
           actions={[
-            { label: "Open team workspaces", href: "/workspaces", variant: "primary" },
+            { label: "Open workspaces", href: "/workspaces", variant: "primary" },
           ]}
           testid="signer-governance-no-workspace"
         />

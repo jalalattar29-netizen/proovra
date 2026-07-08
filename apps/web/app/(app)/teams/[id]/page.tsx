@@ -532,7 +532,7 @@ function TeamDetailPageBody() {
       setActivities(activitiesRes?.activities ?? []);
       setTeamName(teamRes?.name ?? "");
     } catch (err) {
-      const message = toSafeUserError(err, { message: "Failed to load team" }).message;
+      const message = toSafeUserError(err, { message: "Failed to load workspace" }).message;
       setError(message);
       setTeam(null);
       setInvites([]);
@@ -621,10 +621,10 @@ function TeamDetailPageBody() {
       );
 
       setIsEditingName(false);
-      addToast("Team name updated", "success");
+      addToast("Workspace name updated", "success");
     } catch (err) {
       const message =
-        toSafeUserError(err, { message: "Failed to update team name" }).message;
+        toSafeUserError(err, { message: "Failed to update workspace name" }).message;
       captureException(err, { feature: "team_name_update", teamId });
       addToast(message, "error");
     } finally {
@@ -813,12 +813,12 @@ function TeamDetailPageBody() {
         method: "DELETE",
       });
 
-      addToast("Team deleted successfully", "success");
+      addToast("Workspace deleted successfully", "success");
       setTimeout(() => {
-        router.push("/teams");
+        router.push("/workspaces");
       }, 300);
     } catch (err) {
-      const message = toSafeUserError(err, { message: "Failed to delete team" }).message;
+      const message = toSafeUserError(err, { message: "Failed to delete workspace" }).message;
       captureException(err, { feature: "team_delete", teamId });
       addToast(message, "error");
     } finally {
@@ -853,10 +853,10 @@ function TeamDetailPageBody() {
         ...prev,
       ]);
 
-      addToast("Team case created successfully", "success");
+      addToast("Case created successfully", "success");
     } catch (err) {
       const message =
-        toSafeUserError(err, { message: "Failed to create team case" }).message;
+        toSafeUserError(err, { message: "Failed to create case" }).message;
       captureException(err, { feature: "team_case_create", teamId });
       addToast(message, "error");
     }
@@ -944,11 +944,11 @@ function TeamDetailPageBody() {
         });
       }
 
-      addToast("Case removed from team", "success");
+      addToast("Case removed from workspace", "success");
       setPendingCaseUnlink(null);
     } catch (err) {
       const message =
-        toSafeUserError(err, { message: "Failed to remove case from team" }).message;
+        toSafeUserError(err, { message: "Failed to remove case from workspace" }).message;
       captureException(err, { feature: "team_case_unlink", teamId, caseId });
       throw new Error(message);
     } finally {
@@ -1095,14 +1095,14 @@ function TeamDetailPageBody() {
                   flexShrink: 0,
                 }}
               />
-              Team
+              Workspace
             </div>
 
             <h1
               className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
               style={{ margin: "20px 0 0" }}
             >
-              Loading <span style={{ color: "#c3ebe2" }}>team</span>.
+              Loading <span style={{ color: "#c3ebe2" }}>workspace</span>.
             </h1>
 
             <p
@@ -1115,7 +1115,7 @@ function TeamDetailPageBody() {
                 color: "#aab5b2",
               }}
             >
-              Preparing members, invites, linked team cases, and billing context.
+              Preparing members, invites, linked workspace cases, and billing context.
             </p>
           </div>
         </div>
@@ -1172,14 +1172,14 @@ function TeamDetailPageBody() {
                   flexShrink: 0,
                 }}
               />
-              Team
+              Workspace
             </div>
 
             <h1
               className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
               style={{ margin: "20px 0 0" }}
             >
-              Team details <span style={{ color: "#c3ebe2" }}>could not load</span>.
+              Workspace details <span style={{ color: "#c3ebe2" }}>could not load</span>.
             </h1>
           </div>
         </div>
@@ -1545,7 +1545,7 @@ function TeamDetailPageBody() {
                     flexShrink: 0,
                   }}
                 />
-                Team
+                Workspace
               </div>
 
               {!isEditingName ? (
@@ -1554,7 +1554,7 @@ function TeamDetailPageBody() {
                     className="max-w-[820px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
                     style={{ margin: 0 }}
                   >
-                    <span style={{ color: "#c3ebe2" }}>{team.name ?? "Team"}</span>
+                    <span style={{ color: "#c3ebe2" }}>{team.name ?? "Workspace"}</span>
                   </h1>
 
                   {canManageTeam && (
@@ -1611,8 +1611,8 @@ function TeamDetailPageBody() {
                 Manage <span style={{ color: "#cfd8d5" }}>ownership</span>,{" "}
                 <span style={{ color: "#bbc7c3" }}>members</span>,{" "}
                 <span style={{ color: "#d2dcd8" }}>pending invites</span>, linked{" "}
-                <span style={{ color: "#d9ccbf" }}>team cases</span>, and open the{" "}
-                <span style={{ color: "#c3ebe2" }}>team billing workflow</span>{" "}
+                <span style={{ color: "#d9ccbf" }}>workspace cases</span>, and open the{" "}
+                <span style={{ color: "#c3ebe2" }}>workspace billing workflow</span>{" "}
                 from the same workspace.
               </p>
 
@@ -2410,7 +2410,7 @@ function TeamDetailPageBody() {
                             >
                               {unlinkingCaseId === item.id
                                 ? "Removing..."
-                                : "Remove from Team"}
+                                : "Remove from Workspace"}
                             </Button>
                           )}
                         </div>
@@ -2584,7 +2584,7 @@ function TeamDetailPageBody() {
             : ""
         }
         caveat="Existing case access grants stay on the case. To revoke individual members, manage access on the case itself."
-        confirmLabel="Remove from team"
+        confirmLabel="Remove from workspace"
         testid="case-unlink-confirm"
         onCancel={() => setPendingCaseUnlink(null)}
         onConfirm={handleConfirmUnlinkCase}

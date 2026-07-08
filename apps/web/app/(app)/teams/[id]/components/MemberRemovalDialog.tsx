@@ -3,7 +3,7 @@
 /**
  * Phase 2.2 — Team member offboarding dialog.
  *
- * Replaces the bare `window.confirm("Remove this member from the team?")`
+ * Replaces the bare `window.confirm("Remove this member from the workspace?")`
  * (read-only audit P0) with a real dialog that:
  *
  *   1. Calls `GET /v1/teams/:id/members/:memberId/removal-impact` to
@@ -132,7 +132,7 @@ export function MemberRemovalDialog({
           );
         } else if (e.statusCode === 404) {
           setLoadError(
-            "This member is no longer in the team — refresh the page.",
+            "This member is no longer in the workspace — refresh the page.",
           );
         } else {
           setLoadError(
@@ -209,7 +209,7 @@ export function MemberRemovalDialog({
         );
       } else if (e.statusCode === 403) {
         setSubmitError(
-          "You don't have permission to remove members from this team.",
+          "You don't have permission to remove members from this workspace.",
         );
       } else {
         setSubmitError(toSafeUserError(e, { message: "Failed to remove member." }).message);
@@ -267,7 +267,7 @@ export function MemberRemovalDialog({
         >
           You're about to remove{" "}
           <strong data-member-removal-target>{member.label}</strong> (
-          <code style={{ opacity: 0.85 }}>{member.role}</code>) from the team.
+          <code style={{ opacity: 0.85 }}>{member.role}</code>) from the workspace.
         </p>
 
         {loading ? (
@@ -400,7 +400,7 @@ export function MemberRemovalDialog({
                 >
                   <strong>Removal blocked — no eligible transfer target.</strong>
                   <p style={{ margin: "6px 0 0" }}>
-                    This member owns active records but the team has no
+                    This member owns active records but the workspace has no
                     other ADMIN or OWNER to receive them. Promote another
                     member to ADMIN first, then re-open this dialog.
                   </p>

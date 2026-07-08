@@ -255,7 +255,7 @@ export function AssignmentPickerModal({
         >
           {state.status === "ready" && state.reason
             ? state.reason
-            : "Personal cases do not support assignments. Switch to a team workspace."}
+            : "Personal cases do not support assignments. Switch to a workspace."}
         </div>
       ) : (
         <>

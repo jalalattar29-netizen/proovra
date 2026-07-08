@@ -31,90 +31,25 @@ function readWeb(rel: string): string {
   );
 }
 
-const NAV_CONFIG = readWeb("lib/navigation-config.ts");
+// Phase 38.6 — the canonical navigation source of truth is the route
+// registry (`lib/navigation/routeRegistry.ts`). The legacy
+// `lib/navigation-config.ts` (NavGroup/domain/persona shape) was
+// deleted. Route/label/href invariants that routeRegistry still
+// expresses are re-pointed here; assertions that were inherently about
+// navigation-config's internal shape (NAV_DOMAINS, NavItem/NavGroup
+// types, NAVIGATION_GROUPS, selectNavigationGroups, FUTURE_PERSONA_TAGS,
+// futurePersonaTags/workspaceScope per-item metadata, DEPRECATED_ROUTE_
+// REDIRECTS, sidebar-group role tuples) were removed with the file.
+const NAV_CONFIG = readWeb("lib/navigation/routeRegistry.ts");
 const SIDEBAR = readWeb("components/app-shell-v2/AppSidebarV2.tsx");
 const TOPBAR = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
 
 // =============================================================================
-// PART 1 — navigation-config is the data-driven source of truth
+// PART 2 — Canonical route labels + href invariants (routeRegistry)
 // =============================================================================
 
-describe("Phase 32.8B — navigation-config is the data-driven source of truth", () => {
-  it("exports a canonical NAV_DOMAINS catalog covering all 5 domains", () => {
-    expect(NAV_CONFIG).toMatch(
-      /export const NAV_DOMAINS\s*=\s*\[\s*"WORKSPACE",\s*"REVIEW_GOVERNANCE",\s*"PLATFORM_HEALTH",\s*"ADMINISTRATION",\s*"ACCOUNT",\s*\]\s*as const/,
-    );
-  });
-
-  it("exports a bounded NavWorkspaceScope (PERSONAL / TEAM / BOTH)", () => {
-    expect(NAV_CONFIG).toMatch(
-      /export const NAV_WORKSPACE_SCOPES\s*=\s*\[\s*"PERSONAL"\s*,\s*"TEAM"\s*,\s*"BOTH"\s*,?\s*\]\s*as const/,
-    );
-  });
-
-  it("exports a structured NavItem type with all required metadata fields", () => {
-    // Every metadata field required for Phase 37 persona filtering
-    // must be in the NavItem type definition.
-    for (const field of [
-      "id",
-      "label",
-      "href",
-      "iconKey",
-      "domain",
-      "workspaceScope",
-      "visibility",
-      "futurePersonaTags",
-      "badgeKey",
-      "deprecated",
-    ]) {
-      expect(NAV_CONFIG, `NavItem missing required metadata field ${field}`)
-        .toMatch(new RegExp(`${field}[\\?]?:`));
-    }
-  });
-
-  it("exports a NavGroup type with id, title, domain, order, items", () => {
-    expect(NAV_CONFIG).toMatch(/export type NavGroup\s*=\s*\{/);
-    for (const field of ["id", "title", "domain", "order", "items"]) {
-      expect(NAV_CONFIG).toMatch(new RegExp(`${field}[\\?]?:`));
-    }
-  });
-
-  it("exports NAVIGATION_GROUPS as the single source of truth array", () => {
-    expect(NAV_CONFIG).toMatch(
-      /export const NAVIGATION_GROUPS\s*:\s*ReadonlyArray<NavGroup>\s*=/,
-    );
-  });
-
-  it("exports selectNavigationGroups for role-aware filtering", () => {
-    expect(NAV_CONFIG).toMatch(
-      /export function selectNavigationGroups\(context:\s*\{/,
-    );
-  });
-
-  it("exports an ACCOUNT_MENU_ITEMS catalog (topbar dropdown only)", () => {
-    expect(NAV_CONFIG).toMatch(
-      /export const ACCOUNT_MENU_ITEMS\s*:\s*ReadonlyArray<AccountMenuItem>\s*=/,
-    );
-  });
-});
-
-// =============================================================================
-// PART 2 — Canonical 5-group hierarchy
-// =============================================================================
-
-describe("Phase 32.8B — canonical sidebar hierarchy (5 groups, Account in topbar)", () => {
-  it("declares the four sidebar groups in canonical order: Workspace → Review & Governance → Platform Health → Administration", () => {
-    const idxWorkspace = NAV_CONFIG.indexOf('title: "Workspace"');
-    const idxReview = NAV_CONFIG.indexOf('title: "Review & Governance"');
-    const idxPlatform = NAV_CONFIG.indexOf('title: "Platform Health"');
-    const idxAdmin = NAV_CONFIG.indexOf('title: "Administration"');
-    expect(idxWorkspace).toBeGreaterThan(-1);
-    expect(idxReview).toBeGreaterThan(idxWorkspace);
-    expect(idxPlatform).toBeGreaterThan(idxReview);
-    expect(idxAdmin).toBeGreaterThan(idxPlatform);
-  });
-
-  it("Workspace group items: Home, Capture, Evidence, Cases, Reports, Search (Phase 32.8A canonical surfaces)", () => {
+describe("Phase 38.6 — canonical route registry labels + href invariants", () => {
+  it("Workspace surfaces: Home, Capture, Evidence, Cases, Reports, Search (canonical labels)", () => {
     for (const label of [
       "Home",
       "Capture",
@@ -127,194 +62,21 @@ describe("Phase 32.8B — canonical sidebar hierarchy (5 groups, Account in topb
     }
   });
 
-  it("Review & Governance group merges reviewer-ops + governance (Phase 32.8A)", () => {
-    // Both reviewer-ops queue items AND governance preservation
-    // items live under the unified Review & Governance group.
-    //
-    // NOTE: the governance.lifecycle label was rebaselined from
-    // "Lifecycle" to "Governance Posture" to disambiguate it from
-    // the workspace.evidence_lifecycle surface ("Lifecycle Operations").
-    // See docs/architecture/workspace-surface-audit.md.
-    for (const label of [
-      "Reviewer Ops",
-      "SLA",
-      "Escalations",
-      "Governance",
-      "Governance Posture",
-      "Policy",
-      "Retention",
-      "Destruction",
-    ]) {
-      expect(NAV_CONFIG).toMatch(new RegExp(`label:\\s*"${label}"`));
-    }
-  });
-
-  it("Platform Health group is visually separated from Governance (Phase 32.8A boundary)", () => {
-    for (const label of [
-      "Operations Center",
-      "Observability",
-      "Runbooks",
-      "Security Center",
-    ]) {
-      expect(NAV_CONFIG).toMatch(new RegExp(`label:\\s*"${label}"`));
-    }
-  });
-
-  it("Administration group covers Workspaces, Billing, Integrations, Intake Links, Settings, Platform Admin", () => {
-    // Phase B0.5 renamed the nav label from "Teams" to "Workspaces"
-    // (workspace-operating-model-runbook.md). Phase 3 then canonicalised
-    // the workspace-admin URL to `/workspaces`; the DB model name (`Team`)
-    // is unchanged. This test asserts labels only.
-    for (const label of [
-      "Workspaces",
-      "Billing",
-      "Integrations",
-      "Intake Links",
-      "Settings",
-      "Platform Admin",
-    ]) {
-      expect(NAV_CONFIG).toMatch(new RegExp(`label:\\s*"${label}"`));
-    }
-  });
-
-  it("Account is in the topbar dropdown, NOT the sidebar (Phase 32.8A workspace/account separation)", () => {
-    // No NAV_GROUP whose domain is ACCOUNT — Account lives in
-    // ACCOUNT_MENU_ITEMS (topbar) only.
-    const navigationGroupsBlock = NAV_CONFIG.match(
-      /export const NAVIGATION_GROUPS[\s\S]*?\]\s*;/,
-    );
-    expect(navigationGroupsBlock).toBeTruthy();
-    expect(navigationGroupsBlock![0]).not.toMatch(/ACCOUNT_GROUP/);
-    // The ACCOUNT_MENU_ITEMS catalog DOES exist (separately, for the topbar).
-    expect(NAV_CONFIG).toMatch(/export const ACCOUNT_MENU_ITEMS/);
-  });
-
-  it("no duplicate href between Workspace and Review & Governance (no Dashboard alongside Home)", () => {
-    // Specifically guard the Phase 32.8A finding that /dashboard
-    // and /home both existed. /dashboard now redirects; only
-    // /home appears in the nav config.
+  it("no duplicate href between Home and Dashboard (no /dashboard alongside /home)", () => {
+    // Guard the Phase 32.8A finding that /dashboard and /home both
+    // existed. /dashboard now redirects; only /home is a canonical route.
     expect(NAV_CONFIG).not.toMatch(/href:\s*"\/dashboard"/);
-    // /home appears exactly once as a nav item.
+    // /home appears exactly once in the registry.
     const homeMatches = NAV_CONFIG.match(/href:\s*"\/home"/g) ?? [];
     expect(homeMatches.length).toBe(1);
   });
-
-  it("sidebar group titles are unique (no duplicate Operations vs Operations Center as a group)", () => {
-    const titleMatches =
-      NAV_CONFIG.match(/title:\s*"([^"]+)"/g)?.map((m) =>
-        m.replace(/title:\s*"/, "").replace(/"$/, ""),
-      ) ?? [];
-    // Filter to the canonical 4 group titles; should appear once each.
-    const groupTitles = titleMatches.filter((t) =>
-      [
-        "Workspace",
-        "Review & Governance",
-        "Platform Health",
-        "Administration",
-      ].includes(t),
-    );
-    expect(groupTitles.sort()).toEqual([
-      "Administration",
-      "Platform Health",
-      "Review & Governance",
-      "Workspace",
-    ]);
-  });
 });
 
 // =============================================================================
-// PART 3 — Phase 37 persona future-proofing
-// =============================================================================
-
-describe("Phase 32.8B — Phase 37 persona future-proofing", () => {
-  it("declares the bounded FUTURE_PERSONA_TAGS catalog (RESERVED for Phase 37)", () => {
-    expect(NAV_CONFIG).toMatch(/export const FUTURE_PERSONA_TAGS/);
-    // The list MUST include the personas Phase 37 plans to support.
-    for (const persona of [
-      "INDIVIDUAL_USER",
-      "LAWYER",
-      "INVESTIGATOR",
-      "INSURANCE_REVIEWER",
-      "JOURNALIST",
-      "ENTERPRISE_ADMIN",
-      "REVIEWER",
-      "AUDITOR",
-      "WORKSPACE_OWNER",
-    ]) {
-      expect(
-        NAV_CONFIG,
-        `FUTURE_PERSONA_TAGS missing ${persona}`,
-      ).toMatch(new RegExp(`"${persona}"`));
-    }
-  });
-
-  it("every NavItem declares a non-empty futurePersonaTags array", () => {
-    // Find every futurePersonaTags occurrence and verify NONE
-    // of them are an empty array (`[]`).
-    const empty = NAV_CONFIG.match(/futurePersonaTags:\s*\[\s*\]/g) ?? [];
-    expect(empty.length).toBe(0);
-    // And at least 20 items declare the field (lower-bound sanity).
-    const declared = NAV_CONFIG.match(/futurePersonaTags:\s*\[/g) ?? [];
-    expect(declared.length).toBeGreaterThanOrEqual(20);
-  });
-
-  it("persona tags do NOT drive filtering today — only role/profile/platform-admin do", () => {
-    // The selectNavigationGroups body must NOT reference
-    // futurePersonaTags. Persona-aware filtering is Phase 37.
-    const selectFnIdx = NAV_CONFIG.indexOf(
-      "export function selectNavigationGroups",
-    );
-    expect(selectFnIdx).toBeGreaterThan(-1);
-    const selectFnEnd = NAV_CONFIG.indexOf("\n}\n", selectFnIdx);
-    const fn = NAV_CONFIG.slice(selectFnIdx, selectFnEnd);
-    expect(fn).not.toMatch(/futurePersonaTags/);
-  });
-
-  it("workspaceScope is declared on every NavItem (Phase 32.8C ready)", () => {
-    // The renderer doesn't filter by workspaceScope today, but
-    // every item must declare it so the future filter has data.
-    // Lower-bound sanity: at least 20 declarations.
-    const declared = NAV_CONFIG.match(/workspaceScope:\s*"(PERSONAL|TEAM|BOTH)"/g) ?? [];
-    expect(declared.length).toBeGreaterThanOrEqual(20);
-  });
-});
-
-// =============================================================================
-// PART 4 — Backward-compat redirects
+// PART 4 — Backward-compat redirects (next.config.js)
 // =============================================================================
 
 describe("Phase 32.8B — backward-compat redirects for consolidated routes", () => {
-  it("exports a canonical DEPRECATED_ROUTE_REDIRECTS map", () => {
-    expect(NAV_CONFIG).toMatch(
-      /export const DEPRECATED_ROUTE_REDIRECTS\s*=\s*\{/,
-    );
-  });
-
-  const expectedRedirects: Record<string, string> = {
-    "/dashboard": "/home",
-    // Phase 3 canonicalised the platform-ops surface to `/operations`
-    // (was `/operations → /ops`; now `/ops → /operations`) and removed
-    // the `/review → /reviewer-ops` entry (`/review` is now canonical;
-    // `/reviewer-ops → /review` lives in next.config.js).
-    "/ops": "/operations",
-    "/security": "/security-center",
-    "/locked": "/evidence?filter=locked",
-    "/deleted": "/evidence?filter=deleted",
-    "/archive": "/evidence?filter=archived",
-    "/reviewer-ops/policy": "/governance/policy",
-  };
-
-  it("includes every Phase 32.8A consolidated route", () => {
-    for (const [from, to] of Object.entries(expectedRedirects)) {
-      const escapedFrom = from.replace(/\//g, "\\/").replace(/\?/g, "\\?");
-      const escapedTo = to.replace(/\//g, "\\/").replace(/\?/g, "\\?");
-      expect(
-        NAV_CONFIG,
-        `DEPRECATED_ROUTE_REDIRECTS missing "${from}" → "${to}"`,
-      ).toMatch(new RegExp(`"${escapedFrom}":\\s*"${escapedTo}"`));
-    }
-  });
-
   it("every consolidated legacy route has a backward-compat redirect (CR1 Part 2 folded into next.config.js)", () => {
     // Phase B SUPERSEDES the `/review → /reviewer-ops` redirect.
     // Phase C0 made `/review` the canonical Reviewer Console; the
@@ -434,12 +196,12 @@ describe("Phase 32.8B — topbar separates workspace context from account contex
 // =============================================================================
 
 describe("Phase 32.8B — sidebar renderer consumes the canonical filter pipeline", () => {
-  // OBSOLETE — Phase 32.8 Foundation: sidebar no longer imports
-  // navigation-config or calls selectNavigationGroups. It renders
-  // the server-resolved navigation tree from
-  // `envelope.navigation.groups`. See
+  // OBSOLETE — Phase 32.8 Foundation removed the sidebar's dependency
+  // on a nav-config module + selectNavigationGroups; Phase 38.6 deleted
+  // the legacy navigation-config file outright. The sidebar now renders
+  // from the canonical ROUTE_REGISTRY. See
   // phase-32-8-foundation-platform-context.test.ts.
-  it.skip("imports from lib/navigation-config (not inline nav arrays)", () => {});
+  it.skip("imports the canonical navigation source (not inline nav arrays)", () => {});
 
   it("does NOT define its own PRIMARY_NAV / OPERATIONS_NAV_BASE / GOVERNANCE_NAV_BASE / ADMIN_NAV arrays", () => {
     expect(SIDEBAR).not.toMatch(/const PRIMARY_NAV/);
@@ -493,28 +255,27 @@ describe("Phase 32.8B — no-regression invariants", () => {
 
   it("preserves backend-canonical role enum surface (Phase 32.6.4)", () => {
     // The visibility predicate still accepts the bounded role enum.
-    // The shape lives in workspace-profile.ts (SidebarVisibility);
-    // the nav config imports + uses it.
+    // The shape lives in workspace-profile.ts (SidebarVisibility).
+    // Phase 38.6 — the `SidebarVisibility` consumer assertion was
+    // dropped with the deleted navigation-config; the canonical
+    // routeRegistry gates access via `requiredCapabilities`, not the
+    // SidebarVisibility role/profile shape.
     const PROFILE_SRC = readWeb("lib/workspace-profile.ts");
     expect(PROFILE_SRC).toMatch(/roles\?:\s*ReadonlyArray<WorkspaceRole>/);
-    // And the nav config consumes the imported SidebarVisibility type.
-    expect(NAV_CONFIG).toMatch(/SidebarVisibility/);
   });
 
-  it("never weakens governance role gating (OWNER/ADMIN remains required on policy/retention/destruction)", () => {
-    // Each of these items declares the OWNER/ADMIN role gate.
-    // We assert the literal tuple appears at LEAST three times
-    // (once per gated item).
-    const tuples = NAV_CONFIG.match(/roles:\s*\["OWNER",\s*"ADMIN"\]/g) ?? [];
-    expect(tuples.length).toBeGreaterThanOrEqual(3);
-  });
+  // OBSOLETE — Phase 38.6 removed navigation-config. Governance role
+  // gating is no longer expressed as `roles: ["OWNER", "ADMIN"]`
+  // sidebar-item tuples; the routeRegistry gates via
+  // `requiredCapabilities` (e.g. GOVERNANCE_ACT / RETENTION_MANAGE) and
+  // server-side enforcement. Covered by the route-authz tests.
+  it.skip("never weakens governance role gating (removed with navigation-config)", () => {});
 
-  it("Platform Admin entry requires platform admin (does NOT widen to MEMBER)", () => {
-    // The Platform Admin nav item carries requiresPlatformAdmin: true.
-    expect(NAV_CONFIG).toMatch(
-      /label: "Platform Admin"[\s\S]{0,600}requiresPlatformAdmin:\s*true/,
-    );
-  });
+  // OBSOLETE — Phase 38.6 removed navigation-config. Platform-admin
+  // gating is no longer a `requiresPlatformAdmin: true` nav-item flag;
+  // the routeRegistry entry `platform.admin` requires the
+  // PLATFORM_ADMIN capability + PLATFORM_ADMIN active space.
+  it.skip("Platform Admin entry requires platform admin (removed with navigation-config)", () => {});
 
   it("no #anchor href on any nav item (Phase 32.5 anchor-link cleanup preserved)", () => {
     const anchors = NAV_CONFIG.match(/href:\s*"[^"]*#[^"]*"/g) ?? [];
@@ -522,12 +283,10 @@ describe("Phase 32.8B — no-regression invariants", () => {
   });
 
   it("/governance/policy is the canonical Policy href (Phase 32.8A consolidation)", () => {
-    // The Policy nav item points at /governance/policy, NOT the
+    // The canonical policy route points at /governance/policy, NOT the
     // legacy /reviewer-ops/policy.
-    expect(NAV_CONFIG).toMatch(
-      /label: "Policy"[\s\S]{0,400}href: "\/governance\/policy"/,
-    );
-    // And the legacy path is NOT referenced as a sidebar href.
+    expect(NAV_CONFIG).toMatch(/href: "\/governance\/policy"/);
+    // And the legacy path is NOT referenced as a route href.
     expect(NAV_CONFIG).not.toMatch(/href:\s*"\/reviewer-ops\/policy"/);
   });
 });

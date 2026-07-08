@@ -386,10 +386,10 @@ function SsoAdminContent() {
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="SSO"
-          headline="Switch to a team workspace to manage SSO"
-          reason="SAML connections are per-workspace. Open a team workspace you administer to configure or test SSO."
+          headline="Switch to a workspace to manage SSO"
+          reason="SAML connections are per-workspace. Open a workspace you administer to configure or test SSO."
           actions={[
-            { label: "Open team workspaces", href: "/workspaces", variant: "primary" },
+            { label: "Open workspaces", href: "/workspaces", variant: "primary" },
             { label: "Review plans", href: "/billing", variant: "secondary" },
           ]}
           testid="sso-access-gate-no-workspace"

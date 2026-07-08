@@ -124,14 +124,14 @@ describe("Phase 32.8C FINAL-3 — header workspace display", () => {
   it("topbar NEVER falls back to workspace.workspaceId in the display", () => {
     // The previous broken pattern wrote `: workspace.workspaceId` as the
     // last fallback. The new code uses a scope-derived label
-    // ("Personal workspace" / "Workspace") instead.
+    // ("Personal Space" / "Workspace") instead.
     const block = TOPBAR_TSX.match(/strong data-workspace-name>[\s\S]*?<\/strong>/);
     expect(block).not.toBeNull();
     expect(block![0]).not.toMatch(/workspace\.workspaceId/);
   });
 
   it("topbar renders scope-derived label when name is missing", () => {
-    expect(TOPBAR_TSX).toMatch(/"Personal workspace"/);
+    expect(TOPBAR_TSX).toMatch(/"Personal Space"/);
     expect(TOPBAR_TSX).toMatch(/"Workspace"/);
   });
 

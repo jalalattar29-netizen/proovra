@@ -227,7 +227,7 @@ function BillingPageInner() {
         value: personalPlan,
       },
       {
-        label: "Team workspaces",
+        label: "Workspaces",
         value: String(totalTeams),
       },
       {
@@ -298,7 +298,7 @@ function BillingPageInner() {
                 }}
               >
                 Review storage, members, subscriptions, add-ons, and payment
-                history in one place. Team workspaces remain visible here even when
+                history in one place. Workspaces remain visible here even when
                 their dedicated TEAM subscription is canceled or inactive, so the
                 operator can still review and reactivate them from the same console.
               </p>
@@ -422,9 +422,9 @@ function BillingPageInner() {
                       table; advertising workflow features to a
                       self-serve user on the Billing page misleads them
                       about what's included. */}
-                  No team workspaces yet. Create one to share cases and
+                  No workspaces yet. Create one to share cases and
                   evidence with collaborators, or activate a dedicated TEAM
-                  subscription later to raise your owned-team limit.
+                  subscription later to raise your owned-workspace limit.
                 </div>
               )}
 

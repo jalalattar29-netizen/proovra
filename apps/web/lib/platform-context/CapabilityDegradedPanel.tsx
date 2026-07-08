@@ -118,7 +118,7 @@ export function CapabilityDegradedPanel({
             fontSize: 13,
           }}
         >
-          Switch or create a team workspace
+          Switch or create a workspace
         </Link>
         <Link
           href="/billing"

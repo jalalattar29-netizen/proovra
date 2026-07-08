@@ -64,7 +64,7 @@ const DEFAULTS: Record<EmptyStateSurface, PersonaEmptyState> = {
   },
   "reviewer-ops": {
     title: "Reviewer Operations not yet active",
-    body: "Switch into a team workspace to coordinate review assignments and SLAs.",
+    body: "Switch into a workspace to coordinate review assignments and SLAs.",
     primaryCtaLabel: "Switch workspace",
     primaryCtaHref: "/workspaces",
   },
