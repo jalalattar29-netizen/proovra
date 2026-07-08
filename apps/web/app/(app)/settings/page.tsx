@@ -969,18 +969,27 @@ onClick={(e) => {
                 </div>
               </Card>
 
-              <Card
-                className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={cardShellStyle()}
-                data-cc-security-link-card
-              >
-                <div className="settings-silver-card__bg" />
-                <div className="settings-silver-card__overlay" />
+              {/* Phase 1 (frontend consolidation) — de-duplicate the
+                  account-security entry point. The workspace "Identity &
+                  Security" card renders ONLY for enterprise workspaces (it
+                  links to the Security Center). Self-serve users are already
+                  covered by the "Account security" card above, so the prior
+                  self-serve fallback here — which re-linked /settings/security
+                  — was a duplicate entry point and is removed. The
+                  `data-cc-security-link-card` marker and the `/security-center`
+                  link are preserved (Phase Final-D5-PT2 contract). */}
+              {canSeeWorkspaceSecurity ? (
+                <Card
+                  className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                  style={cardShellStyle()}
+                  data-cc-security-link-card
+                >
+                  <div className="settings-silver-card__bg" />
+                  <div className="settings-silver-card__overlay" />
 
-                <div className="settings-silver-card__content p-6 md:p-7">
-                  {sectionHeader(<Icons.Security />, "Identity & Security")}
+                  <div className="settings-silver-card__content p-6 md:p-7">
+                    {sectionHeader(<Icons.Security />, "Identity & Security")}
 
-                  {canSeeWorkspaceSecurity ? (
                     <div className="grid gap-4">
                       <p className="m-0 text-[13px] text-[#5d6d71]">
                         Workspace identity operations: MFA policy, trusted
@@ -997,27 +1006,9 @@ onClick={(e) => {
                         </Button>
                       </Link>
                     </div>
-                  ) : (
-                    /* Phase IA-self-serve-simplification — self-serve
-                       users see Account Security instead. The workspace
-                       Security Center surface is ENTERPRISE_ONLY. */
-                    <div className="grid gap-4">
-                      <p className="m-0 text-[13px] text-[#5d6d71]">
-                        Personal account controls: password, sessions,
-                        and identity events tied to your account.
-                      </p>
-                      <Link href="/settings/security">
-                        <Button
-                          variant="secondary"
-                          className={`${velvetButtonClass()} settings-primary-btn`}
-                        >
-                          Open Account Security
-                        </Button>
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </Card>
+                  </div>
+                </Card>
+              ) : null}
 
               <Card
                 className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"

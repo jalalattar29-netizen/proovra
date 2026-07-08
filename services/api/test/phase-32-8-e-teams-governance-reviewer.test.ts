@@ -678,7 +678,7 @@ describe("Phase 32.8E — /review canonical reviewer console mount", () => {
     expect(REVIEWER_PANEL).toMatch(/href="\/reviewer-ops\/sla"/);
     expect(REVIEWER_PANEL).toMatch(/href=\{`\/reviewer-ops\/escalations`\}/);
     expect(REVIEWER_PANEL).toMatch(/href="\/governance\/policy"/);
-    expect(REVIEWER_PANEL).toMatch(/href="\/ops\/observability"/);
+    expect(REVIEWER_PANEL).toMatch(/href="\/operations\/observability"/);
   });
 
   it("renders distinct loading / auth-error / unavailable shells", () => {

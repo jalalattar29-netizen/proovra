@@ -258,6 +258,8 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["admin.teams", "ADMIN"],
   ["account.organizations", "ADMIN"],
   ["account.organization-detail", "ADMIN"],
+  ["account.organization-setup", "ADMIN"],
+  ["platform.provisioning", "ADMIN"],
   ["account.org-invite-accept", "ADMIN"],
   // Phase 8 — Organization Admin shell (tabbed surface at
   // /organizations/:id/admin). Org-admin tabs are administrative
@@ -293,7 +295,6 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["workspace.budget_center", "ADMIN"],
   ["workspace.exchange", "ADMIN"],
   ["workspace.executive", "ADMIN"],
-  ["workspace.intelligence_platform", "ADMIN"],
   ["workspace.packaging", "ADMIN"],
   // Phase 5 / 6 / 7 — Collaboration Teams (the constitutional Team
   // product). Lives under CASES pillar because Team work is daily
@@ -333,8 +334,31 @@ export function pillarForRoute(routeId: string): ProovraPillar {
 // their capability map permits.
 // =============================================================================
 
-/** Pillars visible to every persona — non-negotiable. */
-const UNIVERSAL_PILLARS: ReadonlyArray<ProovraPillar> = ["HOME", "TRUST"];
+/**
+ * Pillars visible to every persona — non-negotiable.
+ *
+ * Phase 1 (frontend consolidation) — CAPTURE, CASES and ADMIN are pinned
+ * universal so the CORE self-serve product (Home, Capture, Evidence,
+ * Cases, Reports, Search, Settings, Billing) is ALWAYS visible in the
+ * sidebar for every persona once the persona-visibility overlay is wired
+ * into `AppSidebarV2`. Without this, the `ENTERPRISE_COMPLIANCE` overlay
+ * (which omits CAPTURE) would hide the Capture surface — a core-product
+ * regression. CASES + ADMIN are already present in all seven overlays;
+ * pinning them here makes "core is always visible" a structural invariant
+ * rather than a property that each overlay must remember to preserve.
+ *
+ * This is a PRESENTATION filter only — capabilities and the surface-tier
+ * gate remain the authoritative access decision, and any pillar hidden by
+ * persona is still reachable via Command Palette / All Tools when the
+ * user's capabilities permit.
+ */
+const UNIVERSAL_PILLARS: ReadonlyArray<ProovraPillar> = [
+  "HOME",
+  "TRUST",
+  "CAPTURE",
+  "CASES",
+  "ADMIN",
+];
 
 /** Persona → visible pillars (excluding the universal set). */
 const PERSONA_PILLAR_OVERLAY: Readonly<

@@ -313,8 +313,11 @@ describe("Phase R10 — Stage 2: hardcoded /ops links sit behind useCan() checks
   for (const rel of STAGE_2_FILES) {
     it(`${rel} gates /ops links behind a useCan() capability check`, () => {
       const src = readWeb(rel);
-      // Hardcoded /ops/* href somewhere in the file.
-      expect(src).toMatch(/href=["']\/ops/);
+      // Hardcoded operations deep-link somewhere in the file. Phase 3
+      // canonicalized /ops → /operations, so these operator deep-links now
+      // point at /operations/* (the useCan() gating relationship is
+      // unchanged — operator links stay behind a capability check).
+      expect(src).toMatch(/href=["']\/operations/);
       // useCan() call somewhere in the file — the relationship is
       // structural (a capability is read and a link is conditionally
       // rendered against it). Pairing the two is enforced by code
@@ -359,28 +362,33 @@ describe("Phase R10 — Stage 2/3: next.config.js redirect cleanliness", () => {
     return out;
   }
 
-  it("for every /ops/* page on disk, no /ops/* -> /operations/* redirect exists (unless the destination also exists on disk)", () => {
-    const pages = opsPagesOnDisk();
-    expect(pages.length).toBeGreaterThan(0);
-    for (const page of pages) {
-      // Look for any redirect with source = this /ops path.
-      const sourceRe = new RegExp(
-        `source:\\s*["']${page.replace(/\//g, "\\/")}["']`,
-      );
-      if (!sourceRe.test(NEXT_CONFIG_SRC)) continue;
-      // If a redirect exists, its destination MUST exist on disk.
-      // Find the corresponding destination string near the source.
-      const sourceIdx = NEXT_CONFIG_SRC.search(sourceRe);
+  it("Phase 3 — /ops is fully canonicalized to /operations (no /ops pages; every /ops* redirect destination exists on disk)", () => {
+    // Phase 3: the 6 real /ops/* impls were moved into /operations/* and the
+    // /ops directory was deleted. /operations is the ONE canonical
+    // operations namespace; /ops* URLs 308 one-way to /operations*.
+    expect(
+      opsPagesOnDisk(),
+      "/ops/* pages must be gone (moved to /operations/* in Phase 3)",
+    ).toEqual([]);
+
+    // Every /ops* redirect source (back-compat) must point at a real
+    // /operations* page on disk — no redirect into a 404.
+    const opsSources = [
+      ...NEXT_CONFIG_SRC.matchAll(/source:\s*["'](\/ops(?:\/[a-z-]+)?)["']/g),
+    ].map((m) => m[1]);
+    expect(opsSources.length).toBeGreaterThan(0);
+    for (const src of opsSources) {
+      const idxDq = NEXT_CONFIG_SRC.indexOf(`"${src}"`);
+      const idxSq = NEXT_CONFIG_SRC.indexOf(`'${src}'`);
+      const sourceIdx = idxDq >= 0 ? idxDq : idxSq;
       const block = NEXT_CONFIG_SRC.slice(sourceIdx, sourceIdx + 300);
       const destMatch = block.match(/destination:\s*["']([^"']+)["']/);
-      expect(destMatch, `redirect for ${page} missing destination`).not.toBeNull();
-      const dest = destMatch![1];
-      // Strip query/fragment, walk to a page.tsx on disk.
-      const cleaned = dest.split("?")[0].split("#")[0];
-      const destPath = webPath(`app/(app)${cleaned}/page.tsx`);
+      expect(destMatch, `redirect for ${src} missing destination`).not.toBeNull();
+      const dest = destMatch![1].split("?")[0].split("#")[0];
+      const destPath = webPath(`app/(app)${dest}/page.tsx`);
       expect(
         existsSync(destPath),
-        `redirect ${page} -> ${dest} but ${destPath} does not exist`,
+        `redirect ${src} -> ${dest} but ${destPath} does not exist`,
       ).toBe(true);
     }
   });
@@ -555,9 +563,6 @@ describe("Phase R10 — behavioural: resolveRouteAccess persona matrix", () => {
     { href: "/evidence", space: "PERSONAL_OR_ORG", cap: "EVIDENCE_VIEW" },
     { href: "/reports", space: "PERSONAL_OR_ORG", cap: "REPORTS_VIEW" },
     { href: "/search", space: "PERSONAL_OR_ORG", cap: "SEARCH_VIEW" },
-    // /verify-references is a public verification surface — not
-    // workspace-gated. Modelled as NONE for the resolver matrix.
-    { href: "/verify-references", space: "NONE" },
     { href: "/settings", space: "NONE", cap: "ACCOUNT_SETTINGS_VIEW" },
     { href: "/billing", space: "NONE", cap: "ACCOUNT_BILLING_VIEW" },
   ];
@@ -673,6 +678,8 @@ describe("Phase R10 — registry-page-existence invariant", () => {
     // Dynamic / parameterized routes are served by `[param]/page.tsx`
     // segments that don't match `<href>/page.tsx` literally.
     "/organizations/:id",
+
+    "/organizations/:id/setup",
     "/org-invites/:token/accept",
     "/reviewer-ops/[reviewId]",
     // Evidence requests is reached only via a per-id detail page

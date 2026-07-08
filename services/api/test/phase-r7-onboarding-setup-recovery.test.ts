@@ -170,13 +170,14 @@ describe("R7 Part 5 — every step href references an existing route", () => {
     );
     expect(hrefs.length).toBeGreaterThanOrEqual(15);
     // Phase B0 introduced canonical operator vocabulary
-    // ("Workspaces" / "/organizations"), but legacy `/teams` URL
-    // is preserved as a backward-compat alias and is declared in
-    // `lib/navigation-config.ts`. Treat declared-but-not-in-
-    // routeRegistry aliases as valid for the onboarding step
-    // contract — the test only protects against invented routes.
+    // ("Workspaces" / "/organizations"), but the legacy `/teams` URL
+    // is preserved as a backward-compat alias (it 308-redirects to
+    // `/collaboration-teams` via next.config.js) rather than being a
+    // registered routeRegistry entry. Treat such redirect aliases as
+    // valid for the onboarding step contract — the test only protects
+    // against invented routes.
     const ALIAS_HREFS = new Set<string>([
-      "/teams", // alias for /organizations, declared in navigation-config
+      "/teams", // backward-compat alias; redirects to /collaboration-teams
     ]);
     for (const href of hrefs) {
       if (ALIAS_HREFS.has(href)) continue;

@@ -139,9 +139,6 @@ const NON_OPERATIONAL_ROUTES = new Set([
     // authenticated user). The lookup of teamMembers / entitlements is
     // scoped by userId from the session.
     "enterprise.routes.ts",
-    // Legacy team-management uses the separate Organization model; it
-    // scopes by organizationId, which is its tenant key.
-    "team-management.routes.ts",
     // Test-only rate-limit reset endpoint. Gated three ways: refuses
     // when NODE_ENV === "production", requires E2E_AUTH_BYPASS_SECRET
     // (>=32 chars), and is gated by a bypass header. Holds no tenant

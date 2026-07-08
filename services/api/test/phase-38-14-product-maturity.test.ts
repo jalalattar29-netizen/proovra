@@ -263,7 +263,7 @@ describe("Phase 38.14 — cumulative <PageRouteGate> adoption", () => {
       // `/review/page.tsx`; the legacy `/reviewer-ops/page.tsx` was
       // deleted and the URL redirects via `next.config.js`.
       "app/(app)/review/page.tsx",
-      "app/(app)/ops/page.tsx",
+      "app/(app)/operations/page.tsx",
       // Phase Final-Closure-Remediation — canonical surface is
       // `/workspaces`; the duplicate `/teams/page.tsx` was deleted.
       "app/(app)/workspaces/page.tsx",
@@ -280,7 +280,7 @@ describe("Phase 38.14 — cumulative <PageRouteGate> adoption", () => {
       "app/(app)/workflows/page.tsx",
       "app/(app)/intake-links/page.tsx",
       "app/(app)/security-center/page.tsx",
-      "app/(app)/ops/runbooks/page.tsx",
+      "app/(app)/operations/runbooks/page.tsx",
       "app/(app)/reviewer-ops/escalations/page.tsx",
       // Phase 38.11
       "app/(app)/governance/policy/page.tsx",
@@ -288,7 +288,7 @@ describe("Phase 38.14 — cumulative <PageRouteGate> adoption", () => {
       "app/(app)/governance/lifecycle/page.tsx",
       "app/(app)/governance/destruction/page.tsx",
       "app/(app)/governance/notifications/page.tsx",
-      "app/(app)/ops/observability/page.tsx",
+      "app/(app)/operations/observability/page.tsx",
       "app/(app)/reviewer-ops/sla/page.tsx",
       "app/(app)/investigation/page.tsx",
       // Phase 38.12

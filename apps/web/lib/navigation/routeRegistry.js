@@ -146,6 +146,21 @@ export const ROUTE_REGISTRY = [
         sidebarEligible: false,
     },
     {
+        id: "account.organization-setup",
+        href: "/organizations/:id/setup",
+        label: "Organization setup",
+        description: "Guided enterprise onboarding — company profile, workspace, invites, security, retention, first capture.",
+        domain: "ACCOUNT",
+        requiredCapabilities: [],
+        requiredActiveSpace: "NONE",
+        fallbackBehavior: "LOAD",
+        workflowTags: [],
+        advancedByDefault: true,
+        commandPaletteVisible: false,
+        allToolsVisible: false,
+        sidebarEligible: false,
+    },
+    {
         id: "account.org-invite-accept",
         href: "/org-invites/:token/accept",
         label: "Accept organization invite",
@@ -397,7 +412,7 @@ export const ROUTE_REGISTRY = [
     },
     {
         id: "platform.runbooks",
-        href: "/ops/runbooks",
+        href: "/operations/runbooks",
         label: "Runbooks",
         description: "Operator runbook catalog for incidents and recovery.",
         domain: "OPS",
@@ -505,7 +520,7 @@ export const ROUTE_REGISTRY = [
     },
     {
         id: "platform.observability",
-        href: "/ops/observability",
+        href: "/operations/observability",
         label: "Observability",
         description: "Runtime metrics + firing alerts.",
         domain: "OPS",
@@ -649,7 +664,7 @@ export const ROUTE_REGISTRY = [
     },
     {
         id: "platform.media_graph",
-        href: "/ops/media-graph",
+        href: "/operations/media-graph",
         label: "Media intelligence ops",
         description: "Media intelligence + investigation graph operational metrics.",
         domain: "OPS",
@@ -1013,7 +1028,7 @@ export const ROUTE_REGISTRY = [
     },
     {
         id: "platform.ops_center",
-        href: "/ops",
+        href: "/operations",
         label: "Operations Center",
         description: "Operational pressure, queue health, incidents.",
         domain: "OPS",
@@ -1033,7 +1048,7 @@ export const ROUTE_REGISTRY = [
     // remain bounded at 6.
     {
         id: "platform.automation",
-        href: "/ops/automation",
+        href: "/operations/automation",
         label: "Automation rules",
         description: "Bounded operational automation: trigger + action rules with audit history.",
         domain: "OPS",
@@ -1053,7 +1068,7 @@ export const ROUTE_REGISTRY = [
     // metric is source-traceable to a real Prisma model, never fabricated.
     {
         id: "platform.analytics",
-        href: "/ops/analytics",
+        href: "/operations/analytics",
         label: "Operational analytics",
         description: "Bounded operational analytics: real counts from real tables. No fake metrics, no AI predictions, no legal/admissibility scores.",
         domain: "OPS",
@@ -1102,6 +1117,23 @@ export const ROUTE_REGISTRY = [
         href: "/admin",
         label: "Platform admin",
         description: "Platform-level administration (PLATFORM_ADMIN only).",
+        domain: "PLATFORM_ADMIN",
+        requiredCapabilities: ["PLATFORM_ADMIN"],
+        requiredActiveSpace: "PLATFORM_ADMIN",
+        fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+        workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+        advancedByDefault: true,
+        commandPaletteVisible: false,
+        allToolsVisible: false,
+        sidebarEligible: false,
+    },
+    // Enterprise provisioning — platform-admin only. Mirrors platform.admin
+    // gating exactly. Keep in sync with routeRegistry.ts.
+    {
+        id: "platform.provisioning",
+        href: "/admin/provisioning",
+        label: "Provision enterprise customer",
+        description: "Activate an enterprise customer end-to-end (PLATFORM_ADMIN only): create the enterprise workspace + owner, or grant ENTERPRISE to an existing org. Step-up gated.",
         domain: "PLATFORM_ADMIN",
         requiredCapabilities: ["PLATFORM_ADMIN"],
         requiredActiveSpace: "PLATFORM_ADMIN",
@@ -1435,38 +1467,6 @@ export const ROUTE_REGISTRY = [
         commandPaletteVisible: true,
         allToolsVisible: true,
         sidebarEligible: false,
-    },
-    {
-        id: "workspace.intelligence_platform",
-        href: "/intelligence-platform",
-        // -------------------------------------------------------------------------
-        // workspace-surface audit — label clarification:
-        // Renamed from "Intelligence Platform" to "Intelligence" per Section 6
-        // of the audit. The "Platform" suffix added enterprise noise without
-        // operator value; the surface is the enterprise intelligence console.
-        // The personal-tier `workspace.intelligence` route uses the same
-        // operator-facing label but is gated to PERSONAL_OR_ORG + EVIDENCE_VIEW
-        // so the two never appear in the same persona's sidebar simultaneously.
-        // -------------------------------------------------------------------------
-        label: "Intelligence",
-        description: "Enterprise intelligence layer — provider health, cost summary, budgets, bounded operator workflows.",
-        domain: "ORGANIZATION_WORKSPACE",
-        requiredCapabilities: ["GOVERNANCE_VIEW"],
-        requiredActiveSpace: "ORGANIZATION_ONLY",
-        fallbackBehavior: "REQUEST_ACCESS",
-        workflowTags: [],
-        advancedByDefault: true,
-        commandPaletteVisible: true,
-        allToolsVisible: true,
-        // -------------------------------------------------------------------------
-        // workspace-surface audit — persona rationale:
-        // Enterprise intelligence dashboards were buried in cmd-K only; org
-        // governance actors (ORG + GOVERNANCE_VIEW) had no sidebar pathway to
-        // them. Flipping sidebarEligible to true exposes the surface in the
-        // Governance pillar for capable actors. Backend gating
-        // (GOVERNANCE_VIEW + ORGANIZATION_ONLY) is unchanged.
-        // -------------------------------------------------------------------------
-        sidebarEligible: true,
     },
     {
         id: "workspace.packaging",

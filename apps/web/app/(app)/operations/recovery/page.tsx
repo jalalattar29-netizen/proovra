@@ -227,10 +227,10 @@ function OperationsRecoveryContent() {
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="Recovery"
-          headline="Switch to a team workspace to view recovery readiness"
+          headline="Switch to a workspace to view recovery readiness"
           reason="Recovery validation is workspace-scoped."
           actions={[
-            { label: "Open team workspaces", href: "/teams", variant: "primary" },
+            { label: "Open workspaces", href: "/workspaces", variant: "primary" },
           ]}
           testid="recovery-no-workspace"
         />

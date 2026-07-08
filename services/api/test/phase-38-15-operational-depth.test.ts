@@ -174,7 +174,7 @@ describe("Phase 38.15 — GovernanceControlPlane migrated to useActiveSpaceId", 
 describe("Phase 38.15 — long-tail operator-route migrations", () => {
   const NEW_ROUTES: Array<{ id: string; href: string }> = [
     { id: "platform.reliability", href: "/operations/reliability" },
-    { id: "platform.media_graph", href: "/ops/media-graph" },
+    { id: "platform.media_graph", href: "/operations/media-graph" },
     { id: "workspace.collaboration", href: "/collaboration" },
   ];
 
@@ -195,7 +195,7 @@ describe("Phase 38.15 — long-tail operator-route migrations", () => {
       routeId: "platform.reliability",
     },
     {
-      page: "app/(app)/ops/media-graph/page.tsx",
+      page: "app/(app)/operations/media-graph/page.tsx",
       routeId: "platform.media_graph",
     },
     {
@@ -234,7 +234,7 @@ describe("Phase 38.15 — cumulative <PageRouteGate> adoption", () => {
       // `/review/page.tsx`; the legacy `/reviewer-ops/page.tsx` was
       // deleted and the URL redirects via `next.config.js`.
       "app/(app)/review/page.tsx",
-      "app/(app)/ops/page.tsx",
+      "app/(app)/operations/page.tsx",
       // Phase Final-Closure-Remediation — canonical surface is
       // `/workspaces`; the duplicate `/teams/page.tsx` was deleted.
       "app/(app)/workspaces/page.tsx",
@@ -251,7 +251,7 @@ describe("Phase 38.15 — cumulative <PageRouteGate> adoption", () => {
       "app/(app)/workflows/page.tsx",
       "app/(app)/intake-links/page.tsx",
       "app/(app)/security-center/page.tsx",
-      "app/(app)/ops/runbooks/page.tsx",
+      "app/(app)/operations/runbooks/page.tsx",
       "app/(app)/reviewer-ops/escalations/page.tsx",
       // Phase 38.11
       "app/(app)/governance/policy/page.tsx",
@@ -259,7 +259,7 @@ describe("Phase 38.15 — cumulative <PageRouteGate> adoption", () => {
       "app/(app)/governance/lifecycle/page.tsx",
       "app/(app)/governance/destruction/page.tsx",
       "app/(app)/governance/notifications/page.tsx",
-      "app/(app)/ops/observability/page.tsx",
+      "app/(app)/operations/observability/page.tsx",
       "app/(app)/reviewer-ops/sla/page.tsx",
       "app/(app)/investigation/page.tsx",
       // Phase 38.12
@@ -282,7 +282,7 @@ describe("Phase 38.15 — cumulative <PageRouteGate> adoption", () => {
       "app/(app)/dashboard/batch-analysis/page.tsx",
       // Phase 38.15
       "app/(app)/operations/reliability/page.tsx",
-      "app/(app)/ops/media-graph/page.tsx",
+      "app/(app)/operations/media-graph/page.tsx",
       "app/(app)/collaboration/page.tsx",
       // Final Closure Remediation Part A — four additional pages
       // received PageRouteGate wraps this session so the cumulative
@@ -315,7 +315,7 @@ describe("Phase 38.15 — copy safety locks", () => {
     "app/(app)/capture/_lib/CaptureSuggestionsPanel.tsx",
     "components/governance-experience/GovernanceControlPlane.tsx",
     "app/(app)/operations/reliability/page.tsx",
-    "app/(app)/ops/media-graph/page.tsx",
+    "app/(app)/operations/media-graph/page.tsx",
     "app/(app)/collaboration/page.tsx",
   ];
 

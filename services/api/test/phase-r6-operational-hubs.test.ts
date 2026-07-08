@@ -50,7 +50,7 @@ const GOVERNANCE_PAGE = readWeb("app/(app)/governance/page.tsx");
 // consolidated queue) instead of the HubQuickActionsBar wrapper used
 // by the other hubs. The PageRouteGate invariant still applies.
 const REVIEWER_PAGE = readWeb("app/(app)/review/page.tsx");
-const OPS_PAGE = readWeb("app/(app)/ops/page.tsx");
+const OPS_PAGE = readWeb("app/(app)/operations/page.tsx");
 const REGISTRY = readWeb("lib/navigation/routeRegistry.ts");
 
 // =============================================================================

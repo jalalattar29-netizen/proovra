@@ -1,4 +1,11 @@
 /**
+ * INTENTIONAL COMPATIBILITY ROUTE (Phase 2B classification) — KEEP.
+ * Not dead code: `/settings/security/saml` is a documented procurement
+ * deep-link path that server-redirects to the canonical SAML console at
+ * `/security-center/sso`. The admin/identity page references it as a
+ * `canonicalPath` and phase-final-d5-pt2 asserts it "maps to a real route",
+ * so it must remain a real route (not merely a next.config rewrite).
+ *
  * Phase P1.1 — SAML Admin Console (canonical path).
  *
  * The procurement-grade SAML admin console ships at the existing

@@ -262,11 +262,12 @@ describe("Phase 32.5 — workspace profile + sidebar visibility", () => {
   const SIDEBAR_SRC = readSource(
     "../../../apps/web/components/app-shell-v2/AppSidebarV2.tsx",
   );
-  // Phase 32.8B — sidebar items now live in the data-driven nav
-  // config. Tests that previously read structure out of the sidebar
-  // source should look here instead.
+  // Phase 38.6 — the canonical navigation source of truth is the
+  // route registry (`lib/navigation/routeRegistry.ts`). The legacy
+  // `lib/navigation-config.ts` was deleted; route/href invariants
+  // that used to be asserted against it are re-pointed here.
   const NAV_CONFIG_SRC = readSource(
-    "../../../apps/web/lib/navigation-config.ts",
+    "../../../apps/web/lib/navigation/routeRegistry.ts",
   );
 
   it("workspace profile catalog has 6 bounded values including INDIVIDUAL and ENTERPRISE_ADMIN", () => {
@@ -308,45 +309,29 @@ describe("Phase 32.5 — workspace profile + sidebar visibility", () => {
 
   it("sidebar removes the duplicate /governance#... anchor links", () => {
     // The old sidebar had /governance#retention and /governance#legal-holds.
-    // Phase 32.8B keeps this invariant — the data-driven nav config
-    // never reintroduces those anchor links.
+    // The canonical route registry keeps this invariant — it never
+    // reintroduces those anchor links.
     expect(NAV_CONFIG_SRC).not.toMatch(/href: "\/governance#retention"/);
     expect(NAV_CONFIG_SRC).not.toMatch(/href: "\/governance#legal-holds"/);
   });
 
-  it("sidebar links Governance items to real sub-pages (Phase 32.8B nav config)", () => {
-    // Phase 32.8B — sidebar items are declared in lib/navigation-config.ts.
+  it("nav links Governance items to real sub-pages (routeRegistry)", () => {
+    // Phase 38.6 — governance sub-routes are declared in the canonical
+    // route registry (lib/navigation/routeRegistry.ts).
     expect(NAV_CONFIG_SRC).toMatch(/href: "\/governance\/lifecycle"/);
     expect(NAV_CONFIG_SRC).toMatch(/href: "\/governance\/retention"/);
     expect(NAV_CONFIG_SRC).toMatch(/href: "\/governance\/destruction"/);
   });
 
-  it("administration items gate visibility on OWNER/ADMIN role (Phase 32.8B nav config)", () => {
-    // Phase 32.8B — Administration group lives in navigation-config.
-    // Teams, Billing, Integrations, Intake Links must require admin
-    // roles. Settings + Platform Admin have their own gates.
-    //
-    // NOTE: we deliberately do NOT call stripComments() here — the
-    // file contains line-comments referencing `/v1/workspaces/*`,
-    // which the block-comment regex inside stripComments would
-    // misread as an opening block comment and consume the body. The
-    // assertion is robust without comment stripping because the
-    // `roles: ["OWNER", "ADMIN"]` literal appears nowhere in any
-    // comment text.
-    const code = NAV_CONFIG_SRC;
-    // The Administration group block contains role-gated entries.
-    const adminGroupIdx = code.indexOf(
-      "const ADMINISTRATION_GROUP: NavGroup",
-    );
-    expect(adminGroupIdx).toBeGreaterThan(-1);
-    // Match the canonical closing for an exported `const FOO: T = { ... };`.
-    // The body contains nested `{...}` (per-item objects) but the
-    // top-level group object terminates with `\n};` at column 0.
-    const adminGroupEnd = code.indexOf("\n};", adminGroupIdx);
-    const adminGroupBody = code.slice(adminGroupIdx, adminGroupEnd);
-    // At least one admin-only item with the bounded role tuple.
-    expect(adminGroupBody).toMatch(/roles:\s*\["OWNER",\s*"ADMIN"\]/);
-  });
+  // OBSOLETE — Phase 38.6 removed `lib/navigation-config.ts` and its
+  // NavGroup/domain shape entirely. The Administration-group role
+  // tuple (`roles: ["OWNER", "ADMIN"]`) was an internal property of
+  // that deleted file; the canonical routeRegistry gates access via
+  // `requiredCapabilities`, not sidebar-group role tuples, so this
+  // structural assertion no longer has a source to read. Role gating
+  // is now enforced server-side and covered by the platform-context
+  // + route-authz tests.
+  it.skip("administration items gate visibility on OWNER/ADMIN role (removed with navigation-config)", () => {});
 
   // OBSOLETE — Phase 32.8 Foundation removed `selectNavigationGroups`
   // from the sidebar entirely. The server pre-filters navigation via

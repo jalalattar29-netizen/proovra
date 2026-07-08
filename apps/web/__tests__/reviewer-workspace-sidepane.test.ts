@@ -378,7 +378,7 @@ test("SidePaneExtractedTexts carries honest empty / error copy", () => {
   );
   assert.match(
     TEXTS_PANE_SOURCE,
-    /only available for team workspaces/,
+    /only available for workspaces/,
     "SidePaneExtractedTexts must surface NO_TEAM copy for personal-mode workspaces.",
   );
 });

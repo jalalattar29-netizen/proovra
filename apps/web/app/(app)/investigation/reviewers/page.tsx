@@ -462,7 +462,7 @@ useEffect(() => {
                       label: "Open SLA policy",
                       href: "/reviewer-ops/policy",
                     }}
-                    diagnosticsLink="/ops/observability"
+                    diagnosticsLink="/operations/observability"
                     isAdmin={canDiagnostics}
                   />
                 </div>
@@ -516,7 +516,7 @@ useEffect(() => {
                       label: "Open SLA policy",
                       href: "/reviewer-ops/policy",
                     }}
-                    diagnosticsLink="/ops/observability"
+                    diagnosticsLink="/operations/observability"
                     isAdmin={canDiagnostics}
                   />
                 </div>
@@ -558,7 +558,7 @@ useEffect(() => {
                       label: "Open external review settings",
                       href: "/reviewer-ops/external",
                     }}
-                    diagnosticsLink="/ops/observability"
+                    diagnosticsLink="/operations/observability"
                     isAdmin={canDiagnostics}
                   />
                 </div>

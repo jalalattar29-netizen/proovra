@@ -313,10 +313,10 @@ function SamlMappingContent() {
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="SAML Mapping"
-          headline="Switch to a team workspace to configure SAML attribute mapping"
-          reason="SAML attribute mappings are per-connection. Open a team workspace that owns a SAML SSO connection."
+          headline="Switch to a workspace to configure SAML attribute mapping"
+          reason="SAML attribute mappings are per-connection. Open a workspace that owns a SAML SSO connection."
           actions={[
-            { label: "Open team workspaces", href: "/teams", variant: "primary" },
+            { label: "Open workspaces", href: "/workspaces", variant: "primary" },
           ]}
           testid="saml-mapping-access-gate-no-workspace"
         />

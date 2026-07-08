@@ -121,7 +121,7 @@ type LoadState =
 export function CasesIndex() {
   const ctx = usePlatformContext();
   // STAGE 3 — personal-aware workspace id. Resolves to the active
-  // team workspace OR the personal-space id, so personal users with
+  // workspace OR the personal-space id, so personal users with
   // CASES_VIEW + CASES_MANAGE can actually load the queue instead of
   // being locked out behind a CapabilityDegradedPanel. The server is
   // still the authority on visibility / capabilities.
@@ -237,7 +237,7 @@ export function CasesIndex() {
   // active personalSpace fall through to the queue UI (the server is
   // the authority on capability + visibility). The structured
   // CapabilityDegradedPanel is reserved for the case where BOTH the
-  // team workspace and the personal space are unavailable.
+  // workspace and the personal space are unavailable.
   if (!workspaceId) {
     const hasHealthyPersonalSpace = personalSpace?.status === "active";
     if (!hasHealthyPersonalSpace) {
@@ -250,7 +250,7 @@ export function CasesIndex() {
             alternatives={[
               { label: "View your evidence", href: "/evidence" },
               { label: "Generate a report", href: "/reports" },
-              { label: "Switch or create a workspace", href: "/teams" },
+              { label: "Switch or create a workspace", href: "/workspaces" },
             ]}
           />
         </main>
@@ -273,7 +273,7 @@ export function CasesIndex() {
 
   const { envelope, isReloading } = state;
   // Phase 32.8D + R9 personal-first rescue: when the active workspace
-  // is the personal space (no team workspace), the queue still renders
+  // is the personal space (no workspace), the queue still renders
   // the full matter view (personal users have CASES_VIEW). We mark the
   // container with `data-cases-personal-mode` so observability + e2e
   // can distinguish the personal-view rendering path from the team

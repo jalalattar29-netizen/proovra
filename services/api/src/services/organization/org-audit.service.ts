@@ -57,6 +57,13 @@ export const ORG_AUDIT_EVENT_TYPES = [
   // retention policy ships; the catalog reserves slots for future
   // governance policies so the audit feed has stable categories.
   "ORG_POLICY_RETENTION_PUBLISHED",
+  // Phase 2 — Enterprise activation & provisioning (platform-admin only).
+  //   ORG_PLAN_GRANTED: a platform admin granted a billing plan
+  //     (ENTERPRISE) to every workspace of an org.
+  //   ENTERPRISE_PROVISIONED: a platform admin provisioned a new
+  //     enterprise customer (org + owner [+ workspace]).
+  "ORG_PLAN_GRANTED",
+  "ENTERPRISE_PROVISIONED",
 ] as const;
 
 export type OrgAuditEventType = (typeof ORG_AUDIT_EVENT_TYPES)[number];

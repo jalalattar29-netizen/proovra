@@ -29,7 +29,7 @@ type ReadinessStatus = "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
 /**
  * Phase 32.7 — bounded operational domain enum mirrored from the
  * api-side `OPERATIONAL_DOMAINS` catalog in
- * packages/shared-runtime/src/ops/canonical-events.ts. Pages bind a
+ * packages/shared-runtime/src/operations/canonical-events.ts. Pages bind a
  * banner instance to one or more domains; the banner ONLY renders
  * when at least one failing subsystem maps to a relevant domain.
  */
@@ -231,7 +231,7 @@ export function RuntimeStatusBanner({
             {" "}
             Open the{" "}
             <a
-              href="/ops/observability"
+              href="/operations/observability"
               style={{
                 color: OPS_TONES.warning.link,
                 fontWeight: 700,
@@ -286,7 +286,7 @@ export function RuntimeStatusBanner({
             {" "}
             Review the{" "}
             <a
-              href="/ops/runbooks"
+              href="/operations/runbooks"
               style={{
                 color: OPS_TONES.critical.link,
                 fontWeight: 700,

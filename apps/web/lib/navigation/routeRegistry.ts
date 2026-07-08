@@ -199,6 +199,29 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: false,
   },
   {
+    // Enterprise onboarding wizard (owner-facing). Mirrors
+    // account.organization-detail: ACCOUNT domain, no capability gate here
+    // (ORG_OWNER/ORG_ADMIN is enforced server-side by the /v1/orgs/:id
+    // endpoints the wizard reuses; the ENTERPRISE tier gate is inherited
+    // from organizations/layout.tsx). Reachable by deep link from the org
+    // detail page; kept out of sidebar / command palette / All Tools like
+    // the detail route.
+    id: "account.organization-setup",
+    href: "/organizations/:id/setup",
+    label: "Organization setup",
+    description:
+      "Guided enterprise onboarding — company profile, workspace, invites, security, retention, first capture.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+  {
     id: "account.org-invite-accept",
     href: "/org-invites/:token/accept",
     label: "Accept organization invite",
@@ -478,7 +501,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "platform.runbooks",
-    href: "/ops/runbooks",
+    href: "/operations/runbooks",
     label: "Runbooks",
     description: "Operator runbook catalog for incidents and recovery.",
     domain: "OPS",
@@ -586,7 +609,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "platform.observability",
-    href: "/ops/observability",
+    href: "/operations/observability",
     label: "Observability",
     description: "Runtime metrics + firing alerts.",
     domain: "OPS",
@@ -737,7 +760,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "platform.media_graph",
-    href: "/ops/media-graph",
+    href: "/operations/media-graph",
     label: "Media intelligence ops",
     description: "Media intelligence + investigation graph operational metrics.",
     domain: "OPS",
@@ -876,9 +899,13 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "DEGRADED",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
-    // PHASE 4 — page does not exist (no app/(app)/dashboard/quotas/page.tsx).
-    // Constitutional rule 11: no visible route may lead to Page Not Found.
-    // Hide everywhere until the surface ships.
+    // Phase 1 (frontend consolidation) — the page DOES exist
+    // (app/(app)/dashboard/quotas/page.tsx, a live quota console). The
+    // prior "page does not exist" comment was stale. It is kept out of all
+    // nav surfaces pending the /dashboard ↔ /operations canonical-location
+    // decision (Constitution Phase 3); it is PROFESSIONAL-tier so FREE
+    // users never see it regardless. Do not flip visibility until the
+    // canonical URL is chosen, to avoid churn.
     commandPaletteVisible: false,
     allToolsVisible: false,
     sidebarEligible: false,
@@ -902,7 +929,11 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "DEGRADED",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
-    // PHASE 4 — page does not exist; hide everywhere (rule 11).
+    // Phase 1 (frontend consolidation) — the page DOES exist
+    // (app/(app)/dashboard/batch-analysis/page.tsx, a live batch console).
+    // The prior "page does not exist" comment was stale. Kept out of nav
+    // pending the /dashboard ↔ /operations canonical-location decision
+    // (Constitution Phase 3); PROFESSIONAL-tier so FREE users never see it.
     commandPaletteVisible: false,
     allToolsVisible: false,
     sidebarEligible: false,
@@ -1121,7 +1152,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "platform.ops_center",
-    href: "/ops",
+    href: "/operations",
     label: "Operations Center",
     description: "Operational pressure, queue health, incidents.",
     domain: "OPS",
@@ -1136,12 +1167,12 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: true,
   },
   // Phase E3 — Operational Automation Foundation. Lives UNDER the
-  // Operations Center hub (`/ops/automation`), NOT as a root nav item.
+  // Operations Center hub (`/operations/automation`), NOT as a root nav item.
   // No new root entries are introduced — the 32.8 canonical primaries
   // remain bounded at 6.
   {
     id: "platform.automation",
-    href: "/ops/automation",
+    href: "/operations/automation",
     label: "Automation rules",
     description:
       "Bounded operational automation: trigger + action rules with audit history.",
@@ -1157,12 +1188,12 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: false,
   },
   // Phase E4 — Bounded operational analytics. Lives UNDER the Operations
-  // Center hub (`/ops/analytics`), NOT as a root nav item. The 32.8
+  // Center hub (`/operations/analytics`), NOT as a root nav item. The 32.8
   // canonical primaries remain bounded at 6. Read-only surface; every
   // metric is source-traceable to a real Prisma model, never fabricated.
   {
     id: "platform.analytics",
-    href: "/ops/analytics",
+    href: "/operations/analytics",
     label: "Operational analytics",
     description:
       "Bounded operational analytics: real counts from real tables. No fake metrics, no AI predictions, no legal/admissibility scores.",
@@ -1178,13 +1209,15 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: false,
   },
   // Phase G0 (B0.5) — canonical frontend route is now `/workspaces`.
-  // The legacy `/teams` page file continues to render the same
-  // `WorkspaceAdministrationHome` component as a backward-compatible
-  // alias so deep links + old bookmarks never break. Backend
-  // `/v1/teams/*` endpoints are unchanged; that migration belongs in
-  // a separate backend phase. The route id remains `admin.teams`
-  // because tests + capability mappings key off the literal — only
-  // the user-facing href flipped.
+  // Phase 2B — the parallel self-serve `/teams` landing page was
+  // DELETED (it duplicated the canonical Teams product at
+  // `/collaboration-teams`). The bare `/teams` URL now 308s to
+  // `/collaboration-teams` (next.config.js); `/teams/[id]` (legacy
+  // team detail on `/v1/teams`) still renders and is deferred to the
+  // backend migration phase. Backend `/v1/teams/*` endpoints are
+  // unchanged. The route id remains `admin.teams` because tests +
+  // capability mappings key off the literal — the canonical href is
+  // `/workspaces`.
   //
   // Phase 9 audit note: route id is historical; canonical href is /workspaces;
   // this is workspace-admin tenancy, NOT the constitutional Team product
@@ -1214,6 +1247,29 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     href: "/admin",
     label: "Platform admin",
     description: "Platform-level administration (PLATFORM_ADMIN only).",
+    domain: "PLATFORM_ADMIN",
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+
+  // Enterprise provisioning — platform-admin only. Mirrors platform.admin
+  // gating exactly (PLATFORM_ADMIN capability + PLATFORM_ADMIN active
+  // space). The page (/admin/provisioning) additionally inherits the
+  // `platform.admin` gate from admin/layout.tsx; this entry exists so the
+  // route is a first-class registry citizen (PageRouteGate can resolve it,
+  // route-consistency test can pin its page, nav surfaces stay honest).
+  {
+    id: "platform.provisioning",
+    href: "/admin/provisioning",
+    label: "Provision enterprise customer",
+    description:
+      "Activate an enterprise customer end-to-end (PLATFORM_ADMIN only): create the enterprise workspace + owner, or grant ENTERPRISE to an existing org. Step-up gated.",
     domain: "PLATFORM_ADMIN",
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
@@ -1575,39 +1631,6 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     commandPaletteVisible: true,
     allToolsVisible: true,
     sidebarEligible: false,
-  },
-  {
-    id: "workspace.intelligence_platform",
-    href: "/intelligence-platform",
-    // -------------------------------------------------------------------------
-    // workspace-surface audit — label clarification:
-    // Renamed from "Intelligence Platform" to "Intelligence" per Section 6
-    // of the audit. The "Platform" suffix added enterprise noise without
-    // operator value; the surface is the enterprise intelligence console.
-    // The personal-tier `workspace.intelligence` route uses the same
-    // operator-facing label but is gated to PERSONAL_OR_ORG + EVIDENCE_VIEW
-    // so the two never appear in the same persona's sidebar simultaneously.
-    // -------------------------------------------------------------------------
-    label: "Intelligence",
-    description:
-      "Enterprise intelligence layer — provider health, cost summary, budgets, bounded operator workflows.",
-    domain: "ORGANIZATION_WORKSPACE",
-    requiredCapabilities: ["GOVERNANCE_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
-    fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: [],
-    advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
-    // -------------------------------------------------------------------------
-    // workspace-surface audit — persona rationale:
-    // Enterprise intelligence dashboards were buried in cmd-K only; org
-    // governance actors (ORG + GOVERNANCE_VIEW) had no sidebar pathway to
-    // them. Flipping sidebarEligible to true exposes the surface in the
-    // Governance pillar for capable actors. Backend gating
-    // (GOVERNANCE_VIEW + ORGANIZATION_ONLY) is unchanged.
-    // -------------------------------------------------------------------------
-    sidebarEligible: true,
   },
   {
     id: "workspace.packaging",

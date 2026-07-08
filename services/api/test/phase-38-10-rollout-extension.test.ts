@@ -44,7 +44,7 @@ describe("Phase 38.10 — route registry expansion (5 new routes)", () => {
     { id: "workspace.intake_links", href: "/intake-links" },
     { id: "workspace.workflows", href: "/workflows" },
     { id: "workspace.security_center", href: "/security-center" },
-    { id: "platform.runbooks", href: "/ops/runbooks" },
+    { id: "platform.runbooks", href: "/operations/runbooks" },
     { id: "review.escalations", href: "/reviewer-ops/escalations" },
   ];
 
@@ -131,7 +131,7 @@ describe("Phase 38.10 — additional PageRouteGate migrations", () => {
       routeId: "workspace.security_center",
     },
     {
-      page: "app/(app)/ops/runbooks/page.tsx",
+      page: "app/(app)/operations/runbooks/page.tsx",
       routeId: "platform.runbooks",
     },
     {
@@ -280,7 +280,7 @@ describe("Phase 38.10 — cumulative <PageRouteGate> adoption", () => {
       // `/review/page.tsx`; the legacy `/reviewer-ops/page.tsx` was
       // deleted and the URL redirects via `next.config.js`.
       "app/(app)/review/page.tsx",
-      "app/(app)/ops/page.tsx",
+      "app/(app)/operations/page.tsx",
       // Phase Final-Closure-Remediation — canonical surface is
       // `/workspaces`; the duplicate `/teams/page.tsx` was deleted.
       "app/(app)/workspaces/page.tsx",
@@ -297,7 +297,7 @@ describe("Phase 38.10 — cumulative <PageRouteGate> adoption", () => {
       "app/(app)/workflows/page.tsx",
       "app/(app)/intake-links/page.tsx",
       "app/(app)/security-center/page.tsx",
-      "app/(app)/ops/runbooks/page.tsx",
+      "app/(app)/operations/runbooks/page.tsx",
       "app/(app)/reviewer-ops/escalations/page.tsx",
     ];
     for (const page of PAGES) {

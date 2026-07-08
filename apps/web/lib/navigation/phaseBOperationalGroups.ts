@@ -177,6 +177,7 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "governance.notifications",
       "governance.analytics",
       "account.organization-detail",
+      "account.organization-setup",
       "account.org-invite-accept",
       // Phase 8 — Organization Admin shell + 9 tab leaves. Tabbed
       // org-administration surface reached from the org detail page's
@@ -235,7 +236,6 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // export-ready snapshots.
       "workspace.exchange",
       "workspace.executive",
-      "workspace.intelligence_platform",
       "workspace.packaging",
       "workspace.budget_center",
     ],
@@ -284,6 +284,8 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "dashboard.quotas",
       // Phase 6 cleanup — dashboard.insights retired.
       "dashboard.batch_analysis",
+      "platform.provisioning",
+
       "platform.ops_center",
       "platform.observability",
       "platform.runbooks",

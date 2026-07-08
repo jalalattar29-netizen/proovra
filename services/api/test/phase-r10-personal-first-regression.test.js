@@ -410,9 +410,6 @@ describe("Phase R10 — behavioural: resolveRouteAccess persona matrix", () => {
         { href: "/evidence", space: "PERSONAL_OR_ORG", cap: "EVIDENCE_VIEW" },
         { href: "/reports", space: "PERSONAL_OR_ORG", cap: "REPORTS_VIEW" },
         { href: "/search", space: "PERSONAL_OR_ORG", cap: "SEARCH_VIEW" },
-        // /verify-references is a public verification surface — not
-        // workspace-gated. Modelled as NONE for the resolver matrix.
-        { href: "/verify-references", space: "NONE" },
         { href: "/settings", space: "NONE", cap: "ACCOUNT_SETTINGS_VIEW" },
         { href: "/billing", space: "NONE", cap: "ACCOUNT_BILLING_VIEW" },
     ];

@@ -149,7 +149,7 @@ describe("Phase 38.8 — additional PageRouteGate migrations", () => {
       page: "app/(app)/review/page.tsx",
       routeId: "review.queue",
     },
-    { page: "app/(app)/ops/page.tsx", routeId: "platform.ops_center" },
+    { page: "app/(app)/operations/page.tsx", routeId: "platform.ops_center" },
     // Phase Final-Closure-Remediation — the canonical surface for the
     // `admin.teams` route id moved to `/workspaces` (the duplicate
     // `/teams/page.tsx` was deleted; the legacy URL redirects via
@@ -188,7 +188,7 @@ describe("Phase 38.8 — cumulative <PageRouteGate> adoption", () => {
       // `/review/page.tsx`; the legacy `/reviewer-ops/page.tsx` was
       // deleted and the URL redirects via `next.config.js`.
       "app/(app)/review/page.tsx",
-      "app/(app)/ops/page.tsx",
+      "app/(app)/operations/page.tsx",
       // Phase Final-Closure-Remediation — canonical surface is
       // `/workspaces`; the duplicate `/teams/page.tsx` was deleted.
       "app/(app)/workspaces/page.tsx",

@@ -588,6 +588,17 @@ function OrganizationDetailInner() {
             )}
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {(org.data.callerRole === "ORG_OWNER" ||
+              org.data.callerRole === "ORG_ADMIN") && (
+              <Link
+                href={`/organizations/${org.data.organizationId}/setup`}
+                data-action="open-organization-setup"
+                data-org-id={org.data.organizationId}
+                style={cardLinkBtn(true)}
+              >
+                Enterprise setup →
+              </Link>
+            )}
             <Link
               href={`/organizations/${org.data.organizationId}/admin`}
               data-action="open-organization-admin"

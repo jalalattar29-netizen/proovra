@@ -261,7 +261,7 @@ export function StorageAddonsPanel({
   async function startCheckout(item: StorageAddonCatalogItem) {
     if (checkoutBusyKey) return;
     if (targetType === "TEAM" && !selectedTeamId) {
-      addToast("Select a team workspace first", "error");
+      addToast("Select a workspace first", "error");
       return;
     }
 
@@ -440,7 +440,7 @@ export function StorageAddonsPanel({
               onClick={() => setTargetType("TEAM")}
               disabled={teamOptions.length === 0}
             >
-              Team workspace
+              Workspace
             </Button>
           </div>
 
@@ -448,7 +448,7 @@ export function StorageAddonsPanel({
             <div className="mt-3">
               {teamOptions.length === 0 ? (
                 <div className="text-[0.88rem] leading-[1.7] text-[#8b3e3e]">
-                  No owned team workspace found yet. Create a team first, then
+                  No owned workspace found yet. Create a workspace first, then
                   come back to purchase TEAM storage or start a TEAM subscription.
                 </div>
               ) : (
@@ -465,7 +465,7 @@ export function StorageAddonsPanel({
                     fontSize: 14,
                   }}
                 >
-                  <option value="">Select team workspace...</option>
+                  <option value="">Select workspace...</option>
                   {teamOptions.map((team) => (
                     <option key={team.id} value={team.id}>
                       {team.name}
@@ -694,7 +694,7 @@ export function StorageAddonsPanel({
 
                       <div className="mt-2 text-[0.85rem] leading-[1.7] text-[#5d6d71]">
                         {item.teamId
-                          ? `Team workspace add-on${item.teamName ? ` · ${item.teamName}` : ""}`
+                          ? `Workspace add-on${item.teamName ? ` · ${item.teamName}` : ""}`
                           : "Personal workspace add-on"}
                         {" · "}
                         {item.paymentProvider ?? "Unknown provider"}

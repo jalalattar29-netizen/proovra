@@ -218,10 +218,10 @@ function OperationsExportsContent() {
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="Operations Exports"
-          headline="Switch to a team workspace to inspect exports"
-          reason="Export history is per-workspace. Open a team workspace that produced exports."
+          headline="Switch to a workspace to inspect exports"
+          reason="Export history is per-workspace. Open a workspace that produced exports."
           actions={[
-            { label: "Open team workspaces", href: "/teams", variant: "primary" },
+            { label: "Open workspaces", href: "/workspaces", variant: "primary" },
           ]}
           testid="operations-exports-no-workspace"
         />

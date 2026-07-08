@@ -70,7 +70,7 @@ export function BillingHistoryCard({ items }: Props) {
         </div>
 
         <div className="mb-5 text-[0.9rem] leading-[1.7] text-[#5d6d71]">
-          Review recent billing activity across personal and team workspace payments.
+          Review recent billing activity across personal and workspace payments.
         </div>
 
         {items.length === 0 ? (

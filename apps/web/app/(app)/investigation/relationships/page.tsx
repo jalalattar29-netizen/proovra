@@ -203,7 +203,7 @@ useEffect(() => {
                   label: "Open investigation overview",
                   href: "/investigation",
                 }}
-                diagnosticsLink="/ops/observability"
+                diagnosticsLink="/operations/observability"
                 isAdmin={canDiagnostics}
               />
             );
@@ -236,7 +236,7 @@ useEffect(() => {
                     label: "Open investigation overview",
                     href: "/investigation",
                   }}
-                  diagnosticsLink="/ops/observability"
+                  diagnosticsLink="/operations/observability"
                   isAdmin={canDiagnostics}
                 />
               );
@@ -285,7 +285,7 @@ useEffect(() => {
                   label: "Open investigation overview",
                   href: "/investigation",
                 }}
-                diagnosticsLink="/ops/observability"
+                diagnosticsLink="/operations/observability"
                 isAdmin={canDiagnostics}
               />
             );

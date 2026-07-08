@@ -128,10 +128,9 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // users see neither, matching the PAYG sidebar in the pricing brief:
   // Home, Capture, Evidence, Cases, Search, Reports, Trust, Settings,
   // Billing.
-  { pathPrefix: "/teams", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "team workspace (PRO/TEAM)" },
+  { pathPrefix: "/teams", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "workspace (PRO/TEAM)" },
   { pathPrefix: "/intake-links", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "intake links (PRO/TEAM)" },
   { pathPrefix: "/inbox", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "operational inbox (PRO/TEAM)" },
-  { pathPrefix: "/security/trust-center", tier: "CORE", directAccessPolicy: "allow", reason: "trust center (legacy nested path)" },
   // CORE alias for the canonical `/trust-center` URL — pinned by the
   // surface-tier wiring test (Phase IA-surface-tier-wiring).
   { pathPrefix: "/trust-center", tier: "CORE", directAccessPolicy: "allow", reason: "trust center" },
@@ -155,7 +154,7 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // standalone product pages. The bounded redirect targets surface
   // operators inside the canonical Settings location instead of a
   // hard 404.
-  { pathPrefix: "/workspaces", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/teams", reason: "workspace switcher → /teams (self-serve)" },
+  { pathPrefix: "/workspaces", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/collaboration-teams", reason: "Phase 2B — workspace switcher is ENTERPRISE; self-serve users are sent to the canonical Teams product (/collaboration-teams), NOT the deleted /teams landing (which would loop)" },
   { pathPrefix: "/notifications", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/settings", reason: "notifications → /settings (self-serve)" },
   // Phase IA-surface-tier-pricing — Organizations are ENTERPRISE_ONLY
   // per the pricing page. Self-serve TEAM users manage collaboration
@@ -210,6 +209,14 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // Governance / Compliance
   { pathPrefix: "/governance-platform", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "governance platform (org admin)" },
   { pathPrefix: "/governance", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "governance lifecycle + policy" },
+  // Phase 1 (leakage fix) — Audit / Compliance transparency center. This
+  // route (id `workspace.audit_transparency`) was previously unclassified
+  // and fell through to the CORE default, so a FREE/PRO user could reach
+  // the org-activity audit surface via Command Palette / All Tools /
+  // direct URL. Audit is an ENTERPRISE compliance surface (sibling of
+  // /governance, /executive, /budget-center) and must never appear for
+  // self-serve plans.
+  { pathPrefix: "/audit-transparency", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "audit / compliance transparency center (ENTERPRISE)" },
 
   // Enterprise Identity / Admin
   // Phase IA-surface-tier-pricing — explicit admin/organizations entry
@@ -225,7 +232,6 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // Enterprise Analytics / Ops
   { pathPrefix: "/executive", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "executive dashboard" },
   { pathPrefix: "/intelligence-quality", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "intelligence quality" },
-  { pathPrefix: "/intelligence-platform", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "intelligence platform admin" },
   { pathPrefix: "/intelligence", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "intelligence enterprise layer" },
   { pathPrefix: "/budget-center", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "intelligence budget center" },
 

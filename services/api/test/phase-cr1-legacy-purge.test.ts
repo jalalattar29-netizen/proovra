@@ -206,7 +206,9 @@ describe("CR1 Part 2 — 8 backward-compat redirect pages folded into next.confi
     "app/(app)/archive/page.tsx",
     "app/(app)/deleted/page.tsx",
     "app/(app)/locked/page.tsx",
-    "app/(app)/operations/page.tsx",
+    // Phase 3 consolidation: /operations is now the CANONICAL page
+    // (the /ops -> /operations move); it is no longer a deleted
+    // redirect stub, so it is intentionally absent from this list.
     "app/(app)/reviewer-ops/policy/page.tsx",
     "app/(app)/security/page.tsx",
   ];
@@ -229,7 +231,7 @@ describe("CR1 Part 2 — 8 backward-compat redirect pages folded into next.confi
       ["/archive", "/evidence?filter=archived"],
       ["/deleted", "/evidence?filter=deleted"],
       ["/locked", "/evidence?filter=locked"],
-      ["/operations", "/ops"],
+      ["/ops", "/operations"],
       ["/reviewer-ops/policy", "/governance/policy"],
       ["/security", "/security-center"],
     ];

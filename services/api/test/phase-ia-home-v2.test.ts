@@ -490,9 +490,13 @@ describe("Phase IA-home-v2 — cross-cut bug contracts still hold", () => {
     const SIDEBAR = readWeb("components/app-shell-v2/AppSidebarV2.tsx");
     expect(SIDEBAR).toMatch(/isPlatformAdmin \? \([\s\S]{0,800}data-sidebar-group="All Tools"/);
   });
-  it("Bug B — /teams page not wrapped in admin.teams PageRouteGate", () => {
-    const TEAMS = readWeb("app/(app)/teams/page.tsx").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-    expect(TEAMS).not.toMatch(/<\s*PageRouteGate\b/);
+  it("Bug B — canonical /workspaces landing IS wrapped in admin.teams PageRouteGate", () => {
+    // Phase 3 consolidation deleted the bare /teams landing (redirects
+    // to /collaboration-teams). The canonical workspace-admin landing
+    // is now /workspaces, which IS intentionally gated by
+    // <PageRouteGate routeId="admin.teams">.
+    const LANDING = readWeb("app/(app)/workspaces/page.tsx");
+    expect(LANDING).toMatch(/<PageRouteGate routeId="admin\.teams">/);
   });
   it("Bug C — Reports page falls back to /v1/reports", () => {
     const REP = readWeb("components/reports-experience/ReportsIndex.tsx");

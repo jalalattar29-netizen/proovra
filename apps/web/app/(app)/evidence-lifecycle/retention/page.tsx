@@ -56,10 +56,14 @@ interface RetentionPayload {
   expirations: UpcomingExpiration[];
 }
 
+// Template values must match the contract enum RETENTION_POLICY_TEMPLATES
+// validated by the retention engine (retention-engine.service.ts). Sending an
+// unknown template returns POLICY_REJECTED (409). CUSTOM requires an explicit
+// `years` value in the request body.
 const RETENTION_TEMPLATES = [
-  "STANDARD_1Y",
-  "STANDARD_3Y",
-  "LEGAL_HOLD_EXEMPT",
+  "INSURANCE_7Y",
+  "JOURNALISM_10Y",
+  "CORPORATE_5Y",
   "CUSTOM",
 ] as const;
 
@@ -125,6 +129,9 @@ function Shell() {
   // Create form state (kept inline — modal/dialog would be over-engineering).
   const [name, setName] = useState("");
   const [template, setTemplate] = useState<string>(RETENTION_TEMPLATES[0]);
+  // CUSTOM requires an explicit retention window; other templates carry
+  // their own default years server-side.
+  const [years, setYears] = useState("");
   const [scopeKind, setScopeKind] = useState("WORKSPACE");
   const [scopeTargetId, setScopeTargetId] = useState("");
   const [creating, setCreating] = useState(false);
@@ -139,11 +146,16 @@ function Shell() {
         body: JSON.stringify({
           name,
           template,
+          // CUSTOM has no server default — send the operator-entered window.
+          ...(template === "CUSTOM" && years
+            ? { years: Number.parseInt(years, 10) }
+            : {}),
           scopeKind,
           scopeTargetId: scopeTargetId || null,
         }),
       });
       setName("");
+      setYears("");
       setScopeTargetId("");
       await refresh();
     } catch (err) {
@@ -156,7 +168,7 @@ function Shell() {
     } finally {
       setCreating(false);
     }
-  }, [name, template, scopeKind, scopeTargetId, refresh]);
+  }, [name, template, years, scopeKind, scopeTargetId, refresh]);
 
   const policies = data?.policies ?? [];
   const expirations = data?.expirations ?? [];
@@ -197,9 +209,9 @@ function Shell() {
         </strong>
         <p style={{ margin: 0, fontSize: 12, color: "#475569", marginBottom: 10 }}>
           Policies apply to the chosen scope. Create one per workspace, department,
-          or case. Use <code>STANDARD_3Y</code> for most workspaces; choose{" "}
-          <code>LEGAL_HOLD_EXEMPT</code> only when the evidence is contractually
-          excluded from retention.
+          or case. Use <code>CORPORATE_5Y</code> for most workspaces, or{" "}
+          <code>CUSTOM</code> with an explicit number of years for a bespoke
+          retention window.
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <label style={labelStyle}>
@@ -225,6 +237,20 @@ function Shell() {
               ))}
             </select>
           </label>
+          {template === "CUSTOM" ? (
+            <label style={labelStyle}>
+              Years
+              <input
+                type="number"
+                min={1}
+                max={100}
+                style={inputStyle}
+                value={years}
+                onChange={(e) => setYears(e.target.value)}
+                placeholder="e.g. 4"
+              />
+            </label>
+          ) : null}
           <label style={labelStyle}>
             Scope kind
             <select
@@ -248,10 +274,16 @@ function Shell() {
           </label>
           <button
             type="button"
-            disabled={creating || !name}
+            disabled={creating || !name || (template === "CUSTOM" && !years)}
             onClick={() => void create()}
             style={primaryButton}
-            title={!name ? "Enter a policy name first" : "Create retention policy"}
+            title={
+              !name
+                ? "Enter a policy name first"
+                : template === "CUSTOM" && !years
+                  ? "Enter the number of years for a CUSTOM policy"
+                  : "Create retention policy"
+            }
           >
             {creating ? "Creating…" : "Create policy"}
           </button>

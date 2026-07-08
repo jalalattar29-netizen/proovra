@@ -445,7 +445,7 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
 
       {/* Phase 32.8C FINAL-4 — bulk action toolbar. Read-only chips
           documenting what operator actions are available; the
-          mutation routes live on /ops/observability. The toolbar is
+          mutation routes live on /operations/observability. The toolbar is
           permission-aware via the capability matrix. */}
       {capabilities ? (
         <BulkActionsToolbar
@@ -3122,7 +3122,7 @@ function SummaryStrip({
       key: "incidents",
       label: "Open incidents",
       value: d.openIncidentsCount,
-      href: "/ops/observability",
+      href: "/operations/observability",
       visible: true,
       severe: d.openIncidentsCount > 0,
     },
@@ -4422,7 +4422,7 @@ function IncidentsSection({
           body="The incident generator scans real platform conditions on every dashboard load — report/package backlog, stale review assignments, retry storms, stale telemetry, worker heartbeat staleness, unsigned aged evidence, and stale coordination backlog. A 0-result state means every one of these thresholds is currently within tolerance. Workflows and causality chains follow incidents — when there are no incidents there is nothing to orchestrate."
           hint="Detailed platform health remains accessible under Operations Center."
           actionLabel={canObservability ? "Open observability" : undefined}
-          actionHref={canObservability ? "/ops/observability" : undefined}
+          actionHref={canObservability ? "/operations/observability" : undefined}
         />
       </SectionShell>
     );
@@ -4482,9 +4482,9 @@ function IncidentsSection({
               // so the incident still shows up.
               const incidentHref =
                 i.runbookSlug && canRunbooks
-                  ? `/ops/runbooks#${i.runbookSlug}`
+                  ? `/operations/runbooks#${i.runbookSlug}`
                   : canObservability
-                    ? "/ops/observability"
+                    ? "/operations/observability"
                     : null;
               const incidentBody = (
                 <>
@@ -4526,7 +4526,7 @@ function IncidentsSection({
         <div className="ec-section-foot">
           Operator actions (acknowledge / assign / resolve / suppress, workflow
           ownership transitions) live on the{" "}
-          <Link href="/ops/observability">Operations Center</Link> incident +
+          <Link href="/operations/observability">Operations Center</Link> incident +
           workflow detail pages. The dashboard is read-only.
         </div>
       ) : (
@@ -4838,8 +4838,8 @@ function PersonalNote({ subsystem }: { subsystem: "reviewer" | "governance" }) {
     >
       Personal workspace uses basic evidence controls.{" "}
       {subsystem === "reviewer"
-        ? "Reviewer orchestration is a team workspace feature."
-        : "Governance posture is a team workspace feature."}
+        ? "Reviewer orchestration is a workspace feature."
+        : "Governance posture is a workspace feature."}
     </div>
   );
 }
@@ -5276,7 +5276,7 @@ function BulkActionsToolbar({
   >["capabilities"];
   scope: WorkspaceScope;
 }) {
-  // STAGE 2 — gate the deep-link to /ops/observability on the canonical
+  // STAGE 2 — gate the deep-link to /operations/observability on the canonical
   // capability for that route. The chips themselves remain visible
   // (they're already permission-aware via the envelope.capabilities
   // matrix and surface their own "Requires X" reason text).
@@ -5294,11 +5294,11 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/ops/observability",
+      href: "/operations/observability",
     },
     {
       key: "bulk_escalate_workflows",
@@ -5306,11 +5306,11 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/ops/observability",
+      href: "/operations/observability",
     },
     {
       key: "bulk_resolve_workflows",
@@ -5318,11 +5318,11 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/ops/observability",
+      href: "/operations/observability",
     },
     {
       key: "bulk_acknowledge_incidents",
@@ -5330,11 +5330,11 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.incidentActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/ops/observability",
+      href: "/operations/observability",
     },
     {
       key: "bulk_suppress_incidents",
@@ -5342,11 +5342,11 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.incidentActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/ops/observability",
+      href: "/operations/observability",
     },
     {
       key: "bulk_schedule_retry",
@@ -5354,11 +5354,11 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? "Records retry intent only — never invokes the queue."
             : "Requires ADMIN or OWNER",
-      href: "/ops/observability",
+      href: "/operations/observability",
     },
     {
       key: "bulk_add_mitigation",
@@ -5366,11 +5366,11 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions && capabilities.workflowActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/ops/observability",
+      href: "/operations/observability",
     },
     {
       key: "bulk_dismiss_recommendations",
@@ -5378,11 +5378,11 @@ function BulkActionsToolbar({
       canAct: capabilities.bulkActions,
       reason:
         scope === "PERSONAL"
-          ? "Requires team workspace"
+          ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/ops/observability",
+      href: "/operations/observability",
     },
   ];
   const anyAvailable = actions.some((a) => a.canAct);
@@ -5400,7 +5400,7 @@ function BulkActionsToolbar({
           {anyAvailable
             ? `${actions.filter((a) => a.canAct).length} actions available`
             : scope === "PERSONAL"
-              ? "Switch to a team workspace to unlock bulk actions"
+              ? "Switch to a workspace to unlock bulk actions"
               : "Requires ADMIN or OWNER role"}
         </span>
       </div>
@@ -5446,7 +5446,7 @@ function BulkActionsToolbar({
       {canObservability ? (
         <div className="ec-section-foot">
           Bulk actions are executed on the Operations Center page (
-          <Link href="/ops/observability">/ops/observability</Link>). The
+          <Link href="/operations/observability">/operations/observability</Link>). The
           dashboard is read-only — chips above link to the canonical surface.
           Every bulk run fans out to the underlying lifecycle service and is
           audited per-target.

@@ -20,7 +20,12 @@ interface LegalHold {
   createdAtUtc: string;
 }
 
-const HOLD_KINDS = ["LITIGATION", "REGULATORY", "INVESTIGATION", "COMPLIANCE"] as const;
+// Legal-hold `kind` is the SCOPE the hold applies to, and must match the
+// contract enum LEGAL_HOLD_KINDS validated by POST /v1/lifecycle/legal-holds.
+// The litigation basis (LITIGATION/REGULATORY/…) belongs in the free-text
+// `reason` field, not here — sending a reason value as `kind` fails the
+// route's zod enum parse.
+const HOLD_KINDS = ["EVIDENCE", "CASE", "WORKSPACE", "ORGANIZATION"] as const;
 
 function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void): void {
   const e = err as { statusCode?: number; details?: Record<string, unknown> };

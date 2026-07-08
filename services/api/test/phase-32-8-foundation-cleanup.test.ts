@@ -103,12 +103,11 @@ const LIVE_APP_FILES = listWebFiles([
   "lib",
 ]).filter((f) => {
   const rel = relative(WEB_ROOT, f).replace(/\\/g, "/");
-  // Exclude the legacy archive files that are intentionally retained
-  // for older tests AND the canonical platform-context module.
-  return (
-    !rel.startsWith("lib/navigation-config.") &&
-    !rel.startsWith("lib/workspace-profile.")
-  );
+  // Exclude the legacy workspace-profile module that is intentionally
+  // retained for older tests. (Phase 38.6 — the legacy
+  // `lib/navigation-config.ts` was DELETED, so it no longer needs an
+  // exclusion here; it simply won't be walked.)
+  return !rel.startsWith("lib/workspace-profile.");
 });
 
 // =============================================================================
@@ -167,9 +166,13 @@ describe("Phase 32.8 Foundation cleanup — legacy nav isolation", () => {
     expect(src).toMatch(/@deprecated/);
   });
 
-  it("lib/navigation-config.ts carries a @deprecated marker", () => {
-    const src = readWeb("lib/navigation-config.ts");
-    expect(src).toMatch(/@deprecated/);
+  it("lib/navigation-config.ts is deleted (no longer on disk)", () => {
+    // Phase 38.6 — the legacy navigation-config module (its NavGroup/
+    // domain/persona shape was runtime-dead) has been removed. The
+    // canonical navigation source of truth is
+    // `lib/navigation/routeRegistry.ts`.
+    const path = join(WEB_ROOT, "lib/navigation-config.ts");
+    expect(existsSync(path)).toBe(false);
   });
 
   it("no live shell file imports the legacy nav-config / workspace-profile modules", () => {

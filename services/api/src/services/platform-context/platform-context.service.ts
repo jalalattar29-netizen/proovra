@@ -56,13 +56,26 @@ import {
 import { ensurePersonalWorkspace } from "./workspace-bootstrap.service.js";
 import { readWorkspacePersonaProfile } from "./persona-profile.service.js";
 
-const ENTERPRISE_PLAN_KEYS: ReadonlySet<WorkspacePlan> = new Set(["TEAM"]);
+// Locked product model: only the ENTERPRISE plan (ORGANIZATION workspace)
+// is an enterprise workspace. TEAM is a subscription plan inside a PERSONAL
+// workspace — it is NOT enterprise and must NOT unlock ENTERPRISE-tier
+// surfaces (review ops, governance, SSO/SCIM, investigation, org admin).
+// TEAM retains its PROFESSIONAL tier + all TEAM plan capabilities via the
+// plan path (`tiersAllowedByPlan`) and `getPlanCapabilities("TEAM")`; those
+// are independent of this flag.
+const ENTERPRISE_PLAN_KEYS: ReadonlySet<WorkspacePlan> = new Set(["ENTERPRISE"]);
 const PRO_PLAN_KEYS: ReadonlySet<WorkspacePlan> = new Set(["PRO", "TEAM"]);
 
 function coercePlan(raw: string | null | undefined): WorkspacePlan | null {
   if (!raw) return null;
   const upper = String(raw).toUpperCase();
-  if (upper === "FREE" || upper === "PAYG" || upper === "PRO" || upper === "TEAM") {
+  if (
+    upper === "FREE" ||
+    upper === "PAYG" ||
+    upper === "PRO" ||
+    upper === "TEAM" ||
+    upper === "ENTERPRISE"
+  ) {
     return upper;
   }
   return null;

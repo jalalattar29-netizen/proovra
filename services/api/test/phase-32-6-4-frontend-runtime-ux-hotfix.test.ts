@@ -143,7 +143,7 @@ describe("Phase 32.6.4 — Governance page resilience (Phase 32.8E architecture)
 });
 
 describe("Phase 32.6.4 — Ops page resilience", () => {
-  const src = readWebSource("app/(app)/ops/page.tsx");
+  const src = readWebSource("app/(app)/operations/page.tsx");
 
   it("uses Promise.allSettled (NOT Promise.all)", () => {
     expect(src).toContain("Promise.allSettled");

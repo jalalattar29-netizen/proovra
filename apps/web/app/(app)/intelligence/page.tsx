@@ -23,6 +23,10 @@ import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { statusBadgeStyle } from "../../../components/ui/StatusBadge";
+// Phase 2B (Intelligence consolidation) — the former standalone
+// /intelligence-platform provider/cost/budget surface was merged here as
+// the canonical Intelligence home; its content lives in this panel.
+import { ProviderBudgetPanel } from "../../../components/intelligence/ProviderBudgetPanel";
 // Phase 14 — SearchHit type removed; the inline keyword-search
 // projection on this page has been retired in favor of a deep link
 // into the canonical /search surface. Search-result rendering and
@@ -232,6 +236,10 @@ useEffect(() => {
               <em>{catalogs.disclaimer}</em>
             </p>
           ) : null}
+
+          {/* Phase 2B — merged provider health / cost / budgets / quick-run
+              from the deleted /intelligence-platform surface. */}
+          <ProviderBudgetPanel />
         </>
       )}
     </main>

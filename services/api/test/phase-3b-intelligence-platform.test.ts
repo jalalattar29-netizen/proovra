@@ -129,8 +129,11 @@ const UI_EXEC = readSource(
 const UI_AUDIT = readSource(
   "../../../apps/web/app/(app)/audit-transparency/page.tsx",
 );
+// Phase 2B — the standalone /intelligence-platform page was deleted and
+// its provider/cost/budget UI merged into the canonical /intelligence
+// surface via this shared component.
 const UI_PLATFORM = readSource(
-  "../../../apps/web/app/(app)/intelligence-platform/page.tsx",
+  "../../../apps/web/components/intelligence/ProviderBudgetPanel.tsx",
 );
 
 // ===========================================================================
@@ -617,8 +620,15 @@ describe("Phase 3B — UI + nav", () => {
     expect(UI_PLATFORM).toMatch(/data-intelligence-run-submit/);
   });
 
-  it("navigation registry binds the 3 new Phase 3B nav entries", () => {
-    expect(NAV).toMatch(/id:\s*"workspace\.intelligence_platform"/);
+  it("navigation registry binds the Phase 3B nav entries (intelligence merged in Phase 3)", () => {
+    // Phase 3 (backend nav cleanup): the duplicate backend
+    // `workspace.intelligence_platform` entry was REMOVED from
+    // navigation-registry.ts (its href `/intelligence` is already served by
+    // `review.intelligence`; the frontend `/intelligence-platform` page was
+    // deleted in Phase 2B and merged into `/intelligence`). The canonical
+    // intelligence surface is `review.intelligence` (href `/intelligence`).
+    expect(NAV).toMatch(/id:\s*"review\.intelligence"/);
+    expect(NAV).not.toMatch(/id:\s*"workspace\.intelligence_platform"/);
     expect(NAV).toMatch(/id:\s*"workspace\.executive"/);
     expect(NAV).toMatch(/id:\s*"workspace\.audit_transparency"/);
   });

@@ -99,8 +99,8 @@ export function CheckoutPanel({
        * TEAM target here means "buy or activate a TEAM subscription
        * for this specific workspace".
        *
-       * It does NOT mean that team workspaces only exist on TEAM.
-       * A team workspace may already operate under the owner's PRO entitlement.
+       * It does NOT mean that shared workspaces only exist on TEAM.
+       * A workspace may already operate under the owner's PRO entitlement.
        */
       return ["TEAM"] as CheckoutPlan[];
     }
@@ -126,25 +126,25 @@ export function CheckoutPanel({
     }
 
     if (selectedPlan === "PRO") {
-      return "Recurring monthly subscription for your personal workspace. PRO also allows team workspaces and raises your owned team limit to 2.";
+      return "Recurring monthly subscription for your personal workspace. PRO also allows shared workspaces and raises your owned workspace limit to 2.";
     }
 
-    return "Recurring monthly TEAM subscription for the selected team workspace. TEAM raises the owned team limit to 5 while each single team still has a hard 5-member cap.";
+    return "Recurring monthly TEAM subscription for the selected workspace. TEAM raises the owned workspace limit to 5 while each single workspace still has a hard 5-member cap.";
   }, [selectedPlan]);
 
   const targetDescription = useMemo(() => {
     if (targetType === "TEAM") {
       if (!selectedTeam) {
-        return "Choose a team workspace you own before continuing.";
+        return "Choose a workspace you own before continuing.";
       }
 
       const effectivePlan =
         normalizePlanLabel(selectedTeam.effectivePlan) ||
         normalizePlanLabel(selectedTeam.plan);
 
-      return `Checkout will apply to team workspace: ${selectedTeam.name}. Current workspace plan view: ${normalizePlanLabel(
+      return `Checkout will apply to workspace: ${selectedTeam.name}. Current workspace plan view: ${normalizePlanLabel(
         selectedTeam.plan
-      )}. Effective team capability view: ${effectivePlan}.`;
+      )}. Effective capability view: ${effectivePlan}.`;
     }
 
     return `Checkout will apply to your personal workspace (current plan: ${personalPlanLabel}).`;
@@ -153,22 +153,22 @@ export function CheckoutPanel({
   const rulesSummary = useMemo(() => {
     if (targetType === "TEAM") {
       return [
-        "A team workspace may already be valid under PRO.",
+        "A workspace may already be valid under PRO.",
         "This checkout is specifically for activating or upgrading that workspace to TEAM billing.",
-        "Each single team still has a hard limit of 5 actual members.",
+        "Each single workspace still has a hard limit of 5 actual members.",
         "Invitations themselves are not the limit; actual member addition is.",
       ];
     }
 
     // Phase IA-self-serve-completion — added the first line below to
-    // make the per-user vs per-team distinction explicit. Solo lawyers
-    // / journalists evaluating "PRO allows 2 teams" could not tell
-    // whether PRO upgraded them or one team they were in.
+    // make the per-user vs per-workspace distinction explicit. Solo lawyers
+    // / journalists evaluating "PRO allows 2 workspaces" could not tell
+    // whether PRO upgraded them or one workspace they were in.
     return [
       "PAYG, PRO, and TEAM apply to your personal account.",
-      "Each team workspace you own can also have its own dedicated TEAM subscription.",
-      "PRO allows you to own up to 2 teams; TEAM raises that to 5.",
-      "Each single team still has a hard limit of 5 actual members.",
+      "Each workspace you own can also have its own dedicated TEAM subscription.",
+      "PRO allows you to own up to 2 workspaces; TEAM raises that to 5.",
+      "Each single workspace still has a hard limit of 5 actual members.",
     ];
   }, [targetType]);
 
@@ -349,7 +349,7 @@ export function CheckoutPanel({
                 onClick={() => handleTargetTypeChange("TEAM")}
                 disabled={teams.length === 0}
               >
-                Team workspace
+                Workspace
               </Button>
             </div>
 
@@ -368,7 +368,7 @@ export function CheckoutPanel({
                     fontSize: 14,
                   }}
                 >
-                  <option value="">Select team workspace...</option>
+                  <option value="">Select workspace...</option>
                   {teams.map((team) => {
                     const effectivePlan = normalizePlanLabel(team.effectivePlan);
                     const billingStatus = normalizePlanLabel(team.billingStatus);
@@ -453,7 +453,7 @@ export function CheckoutPanel({
             </div>
 
             <div className="mt-2 text-[0.9rem] leading-[1.75] text-[#5d6d71]">
-              Target: {targetType === "TEAM" ? "Team workspace" : "Personal workspace"}
+              Target: {targetType === "TEAM" ? "Workspace" : "Personal workspace"}
               <br />
               Plan: {selectedPlan}
               <br />

@@ -281,10 +281,10 @@ function OperationsQueuesContent() {
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="Queue Operations"
-          headline="Switch to a team workspace to operate queues"
+          headline="Switch to a workspace to operate queues"
           reason="Queue operations are audit-attributed to the workspace you operate from."
           actions={[
-            { label: "Open team workspaces", href: "/teams", variant: "primary" },
+            { label: "Open workspaces", href: "/workspaces", variant: "primary" },
           ]}
           testid="queue-ops-no-workspace"
         />

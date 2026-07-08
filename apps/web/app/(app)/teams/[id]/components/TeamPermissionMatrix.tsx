@@ -74,7 +74,7 @@ const CAPABILITIES: ReadonlyArray<{
         id: "evidence.view",
         label: "View evidence",
         description:
-          "Browse the workspace evidence library and open individual records. Every workspace member can read evidence scoped to the team.",
+          "Browse the workspace evidence library and open individual records. Every workspace member can read evidence scoped to the workspace.",
         roles: ["OWNER", "ADMIN", "MEMBER", "VIEWER"],
         backendNote: "EVIDENCE_VIEW capability + per-record access check.",
       },
@@ -200,13 +200,13 @@ const CAPABILITIES: ReadonlyArray<{
     ],
   },
   {
-    category: "Team governance",
+    category: "Workspace governance",
     items: [
       {
         id: "team.invite",
         label: "Invite members",
         description:
-          "Send team invites. Subject to the workspace seat limit (Phase 2.1 plan gate).",
+          "Send workspace invites. Subject to the workspace seat limit (Phase 2.1 plan gate).",
         roles: ["OWNER", "ADMIN"],
         backendNote: "POST /v1/teams/:id/invites.",
       },
@@ -228,9 +228,9 @@ const CAPABILITIES: ReadonlyArray<{
       },
       {
         id: "team.delete",
-        label: "Delete the team workspace",
+        label: "Delete the workspace",
         description:
-          "Destructive. Only the OWNER can delete the team. Existing evidence is retained per governance policy.",
+          "Destructive. Only the OWNER can delete the workspace. Existing evidence is retained per governance policy.",
         roles: ["OWNER"],
         backendNote: "DELETE /v1/teams/:id.",
       },
@@ -243,9 +243,9 @@ const CAPABILITIES: ReadonlyArray<{
         id: "billing.view",
         label: "View billing + seats",
         description:
-          "See plan, seat usage, billing owner. Granted to every authed user for their account; team-scope subject to role.",
+          "See plan, seat usage, billing owner. Granted to every authed user for their account; workspace-scope subject to role.",
         roles: ["OWNER", "ADMIN", "MEMBER", "VIEWER"],
-        backendNote: "BILLING_VIEW capability — account + team scope.",
+        backendNote: "BILLING_VIEW capability — account + workspace scope.",
       },
       {
         id: "billing.manage",
@@ -291,7 +291,7 @@ const CAPABILITIES: ReadonlyArray<{
           "Read the cross-workspace audit log with chain-of-custody verification.",
         roles: [],
         backendNote:
-          "PLATFORM_ADMIN only — not granted by team role. See /admin/audit.",
+          "PLATFORM_ADMIN only — not granted by workspace role. See /admin/audit.",
       },
     ],
   },

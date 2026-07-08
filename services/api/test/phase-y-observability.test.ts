@@ -517,7 +517,7 @@ describe("Phase Y — Sentry tag enrichment", () => {
 
 describe("Phase Y — Operational dashboard page", () => {
   const src = readSource(
-    "../../../apps/web/app/(app)/ops/observability/page.tsx",
+    "../../../apps/web/app/(app)/operations/observability/page.tsx",
   );
 
   it("polls the right endpoints", () => {

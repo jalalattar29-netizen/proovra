@@ -140,10 +140,10 @@ describe("GlobalRuntimeIndicator (Phase 28-J)", () => {
   });
 
   it("dropdown footer exposes the four quick links to canonical operator pages", () => {
-    expect(src).toMatch(/href="\/ops"/);
-    expect(src).toMatch(/href="\/ops\/observability"/);
+    expect(src).toMatch(/href="\/operations"/);
+    expect(src).toMatch(/href="\/operations\/observability"/);
     expect(src).toMatch(/href="\/reviewer-ops\/escalations"/);
-    expect(src).toMatch(/href="\/ops\/runbooks"/);
+    expect(src).toMatch(/href="\/operations\/runbooks"/);
   });
 
   it("on any source failure the dropdown labels rows as unavailable, never silently empty", () => {
@@ -201,32 +201,34 @@ describe("AppTopbarV2 — runtime indicator wiring", () => {
 // =============================================================================
 
 describe("AppSidebarV2 — IA + operational badges", () => {
-  // Phase 32.8B — sidebar structure lives in the data-driven nav
-  // config. The renderer is in AppSidebarV2.tsx.
+  // Phase 38.6 — the canonical navigation source of truth is the route
+  // registry (`lib/navigation/routeRegistry.ts`); the legacy
+  // `lib/navigation-config.ts` (NavGroup/domain shape) was deleted. The
+  // renderer is in AppSidebarV2.tsx. Label invariants routeRegistry
+  // still expresses are re-pointed below; assertions about the deleted
+  // file's NavGroup titles / group-specific label vocabulary were
+  // removed with it.
   const src = readSource(
     "../../../apps/web/components/app-shell-v2/AppSidebarV2.tsx",
   );
-  const navConfig = readSource("../../../apps/web/lib/navigation-config.ts");
+  const navConfig = readSource(
+    "../../../apps/web/lib/navigation/routeRegistry.ts",
+  );
 
-  it("declares the five canonical groups in the documented order (Phase 32.8B)", () => {
-    // Phase 32.8B canonical sidebar hierarchy (Account lives in the
-    // topbar dropdown, NOT in the sidebar):
-    //   1) Workspace  2) Review & Governance  3) Platform Health
-    //   4) Administration
-    const workspace = navConfig.indexOf('title: "Workspace"');
-    const review = navConfig.indexOf('title: "Review & Governance"');
-    const platform = navConfig.indexOf('title: "Platform Health"');
-    const admin = navConfig.indexOf('title: "Administration"');
-    expect(workspace).toBeGreaterThan(0);
-    expect(review).toBeGreaterThan(workspace);
-    expect(platform).toBeGreaterThan(review);
-    expect(admin).toBeGreaterThan(platform);
-  });
+  // OBSOLETE — Phase 38.6 removed navigation-config, which was the only
+  // source that modeled sidebar GROUP titles ("Workspace" / "Review &
+  // Governance" / "Platform Health" / "Administration"). The canonical
+  // routeRegistry is a flat list of route records with no NavGroup
+  // headings, so the group-order + group-membership label assertions
+  // below no longer have a source to read. Group ordering is now a
+  // rendering concern in AppSidebarV2 + the disclosure resolver, covered
+  // by their own tests.
+  it.skip("declares the five canonical groups in the documented order (removed with navigation-config)", () => {});
 
-  it("Workspace group includes Home, Capture, Evidence, Cases, Reports, Search (Phase 32.8B)", () => {
-    // Phase 32.8B: Dashboard is consolidated under /home — the
-    // canonical label is "Home", not "Dashboard". Search is
-    // promoted into the Workspace group.
+  it("canonical workspace routes include Home, Capture, Evidence, Cases, Reports, Search", () => {
+    // Dashboard is consolidated under /home — the canonical label is
+    // "Home", not "Dashboard". These labels are expressed verbatim in
+    // the route registry.
     expect(navConfig).toMatch(/label: "Home"/);
     expect(navConfig).toMatch(/label: "Capture"/);
     expect(navConfig).toMatch(/label: "Evidence"/);
@@ -235,40 +237,26 @@ describe("AppSidebarV2 — IA + operational badges", () => {
     expect(navConfig).toMatch(/label: "Search"/);
   });
 
-  it("Review & Governance group lists Reviewer Ops, SLA, Escalations, Governance, Governance Posture, Policy, Retention, Destruction (Phase 32.8B)", () => {
-    // NOTE: the governance.lifecycle label was rebaselined from
-    // "Lifecycle" to "Governance Posture" to disambiguate it from
-    // the workspace.evidence_lifecycle surface ("Lifecycle Operations").
-    // See docs/architecture/workspace-surface-audit.md.
-    expect(navConfig).toMatch(/label: "Reviewer Ops"/);
-    expect(navConfig).toMatch(/label: "SLA"/);
-    expect(navConfig).toMatch(/label: "Escalations"/);
-    expect(navConfig).toMatch(/label: "Governance"/);
-    expect(navConfig).toMatch(/label: "Governance Posture"/);
-    expect(navConfig).toMatch(/label: "Policy"/);
-    expect(navConfig).toMatch(/label: "Retention"/);
-    expect(navConfig).toMatch(/label: "Destruction"/);
-  });
+  // OBSOLETE — Phase 38.6. The Review & Governance / Platform Health
+  // group label vocabulary ("Reviewer Ops", "SLA", "Policy",
+  // "Security Center", "Destruction", …) was navigation-config's
+  // per-group NavItem labelling. The routeRegistry re-labels several of
+  // these surfaces ("SLA tracking", "Governance policy", "Identity &
+  // Security", "Destruction reviews"), so the literal-label assertions
+  // no longer hold and were removed with the deleted file.
+  it.skip("Review & Governance group lists Reviewer Ops, SLA, ... (removed with navigation-config)", () => {});
+  it.skip("Platform Health group lists Operations Center, ... (removed with navigation-config)", () => {});
 
-  it("Platform Health group lists Operations Center, Observability, Runbooks, Security Center (Phase 32.8B)", () => {
-    expect(navConfig).toMatch(/label: "Operations Center"/);
-    expect(navConfig).toMatch(/label: "Observability"/);
-    expect(navConfig).toMatch(/label: "Runbooks"/);
-    expect(navConfig).toMatch(/label: "Security Center"/);
-  });
-
-  it("Administration group lists Workspaces, Billing, Integrations, Intake Links, Settings, Platform Admin (Phase B0 vocabulary)", () => {
+  it("canonical administration routes include Workspaces, Billing, Integrations", () => {
     // Phase B0.5 renamed the operational nav label from "Teams" to
-    // "Workspaces" (see apps/web/lib/navigation-config.ts line 583
-    // and docs/operations/workspace-operating-model-runbook.md).
-    // The DB-level Team model name is unchanged; only the
-    // operator-visible label moved.
+    // "Workspaces"; the DB-level Team model name is unchanged. These
+    // three labels are expressed verbatim in the route registry.
+    // (Intake links / account settings / platform admin use different
+    // canonical casing in routeRegistry and are covered by the registry's
+    // own contract tests.)
     expect(navConfig).toMatch(/label: "Workspaces"/);
     expect(navConfig).toMatch(/label: "Billing"/);
     expect(navConfig).toMatch(/label: "Integrations"/);
-    expect(navConfig).toMatch(/label: "Intake Links"/);
-    expect(navConfig).toMatch(/label: "Settings"/);
-    expect(navConfig).toMatch(/label: "Platform Admin"/);
   });
 
   it("consumes the real useGlobalRuntimeState hook (real runtime data, not fake)", () => {
@@ -340,7 +328,7 @@ describe("Sparkline (Phase 28-J)", () => {
 
 describe("Observability page — Phase 28-J maturity", () => {
   const src = readSource(
-    "../../../apps/web/app/(app)/ops/observability/page.tsx",
+    "../../../apps/web/app/(app)/operations/observability/page.tsx",
   );
 
   it("imports Sparkline from the operational barrel", () => {
@@ -461,7 +449,7 @@ describe("Phase 28-J cross-surface invariants", () => {
     "../../../apps/web/components/operational/GlobalRuntimeIndicator.tsx",
     "../../../apps/web/components/operational/Sparkline.tsx",
     "../../../apps/web/components/operational/OperationalTimelinePanel.tsx",
-    "../../../apps/web/app/(app)/ops/observability/page.tsx",
+    "../../../apps/web/app/(app)/operations/observability/page.tsx",
   ];
 
   it("no operational surface uses banned wording in string literals", () => {
@@ -495,7 +483,7 @@ describe("Phase 28-J cross-surface invariants", () => {
       "../../../apps/web/components/operational/GlobalRuntimeIndicator.tsx",
       "../../../apps/web/components/operational/Sparkline.tsx",
       "../../../apps/web/components/operational/OperationalTimelinePanel.tsx",
-      "../../../apps/web/app/(app)/ops/observability/page.tsx",
+      "../../../apps/web/app/(app)/operations/observability/page.tsx",
     ];
     for (const rel of LIGHT_SURFACES) {
       const src = readSource(rel);

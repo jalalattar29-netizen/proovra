@@ -1741,7 +1741,7 @@ function buildTeamWork(args: {
     reportsToday: args.reportsToday,
     members,
     pendingInvites: pending,
-    manageHref: "/teams",
+    manageHref: "/collaboration-teams",
   };
 }
 

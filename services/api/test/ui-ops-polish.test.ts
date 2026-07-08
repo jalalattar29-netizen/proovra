@@ -36,30 +36,31 @@ function readSource(rel: string): string {
 // Sidebar navigation
 // =============================================================================
 
-describe("App sidebar — Platform Health group (Phase 32.8B)", () => {
-  // Phase 32.8B — sidebar items live in lib/navigation-config.ts.
-  // The runtime/observability surfaces moved out of the merged
-  // "Operations" group into a dedicated Platform Health group per
-  // the Phase 32.8A information architecture.
-  const navConfig = readSource("../../../apps/web/lib/navigation-config.ts");
+describe("App sidebar — operations surfaces (Phase 38.6 routeRegistry)", () => {
+  // Phase 38.6 — the canonical navigation source of truth is the route
+  // registry (`lib/navigation/routeRegistry.ts`); the legacy
+  // `lib/navigation-config.ts` (which modeled the "Platform Health"
+  // NavGroup) was deleted. Route-href invariants are re-pointed here.
+  const navConfig = readSource(
+    "../../../apps/web/lib/navigation/routeRegistry.ts",
+  );
   const src = readSource(
     "../../../apps/web/components/app-shell-v2/AppSidebarV2.tsx",
   );
 
-  it("Phase 32.8B routes /ops, /ops/observability, /ops/runbooks under Platform Health", () => {
-    expect(navConfig).toMatch(/href: "\/ops"/);
-    expect(navConfig).toMatch(/href: "\/ops\/observability"/);
-    expect(navConfig).toMatch(/href: "\/ops\/runbooks"/);
+  it("registers /operations, /operations/observability, /operations/runbooks", () => {
+    expect(navConfig).toMatch(/href: "\/operations"/);
+    expect(navConfig).toMatch(/href: "\/operations\/observability"/);
+    expect(navConfig).toMatch(/href: "\/operations\/runbooks"/);
   });
 
-  it("places Platform Health between Review & Governance and Administration (Phase 32.8B canonical order)", () => {
-    const review = navConfig.indexOf('title: "Review & Governance"');
-    const platform = navConfig.indexOf('title: "Platform Health"');
-    const admin = navConfig.indexOf('title: "Administration"');
-    expect(review).toBeGreaterThan(0);
-    expect(platform).toBeGreaterThan(review);
-    expect(admin).toBeGreaterThan(platform);
-  });
+  // OBSOLETE — Phase 38.6 removed navigation-config, which was the only
+  // source that modeled sidebar GROUP headings ("Review & Governance" /
+  // "Platform Health" / "Administration") and their order. The flat
+  // routeRegistry has no NavGroup titles, so this ordering assertion no
+  // longer has a source to read. Group ordering is a rendering concern
+  // in AppSidebarV2 + the disclosure resolver.
+  it.skip("places Platform Health between Review & Governance and Administration (removed with navigation-config)", () => {});
 
   it("never points at the broken /docs/runbooks", () => {
     expect(navConfig).not.toContain("/docs/runbooks");
@@ -73,7 +74,7 @@ describe("App sidebar — Platform Health group (Phase 32.8B)", () => {
 
 describe("/ops/runbooks page", () => {
   const src = readSource(
-    "../../../apps/web/app/(app)/ops/runbooks/page.tsx",
+    "../../../apps/web/app/(app)/operations/runbooks/page.tsx",
   );
 
   it("exports a default page component", () => {
@@ -190,7 +191,7 @@ describe("Empty-state runbook links", () => {
     "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
     "../../../apps/web/app/(app)/governance/page.tsx",
-    "../../../apps/web/app/(app)/ops/observability/page.tsx",
+    "../../../apps/web/app/(app)/operations/observability/page.tsx",
     "../../../apps/web/components/operational/RuntimeStatusBanner.tsx",
   ];
 
@@ -203,11 +204,11 @@ describe("Empty-state runbook links", () => {
     }
   });
 
-  it("the canonical runbooks deep-link is /ops/runbooks", () => {
+  it("the canonical runbooks deep-link is /operations/runbooks", () => {
     const src = readSource(
       "../../../apps/web/components/operational/OperationalEmptyState.tsx",
     );
-    expect(src).toContain("/ops/runbooks");
+    expect(src).toContain("/operations/runbooks");
   });
 
   it("'open runtime readiness' is no longer aliased to the same page as observability", () => {
@@ -229,7 +230,7 @@ describe("Empty-state runbook links", () => {
 
 describe("Observability dashboard — summary-first layout", () => {
   const src = readSource(
-    "../../../apps/web/app/(app)/ops/observability/page.tsx",
+    "../../../apps/web/app/(app)/operations/observability/page.tsx",
   );
 
   it("renders a summary rollup section above the raw counters/gauges section", () => {
@@ -410,8 +411,8 @@ describe("Phase 28-I cross-page invariants", () => {
     // tests.
     "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
     "../../../apps/web/app/(app)/governance/page.tsx",
-    "../../../apps/web/app/(app)/ops/observability/page.tsx",
-    "../../../apps/web/app/(app)/ops/runbooks/page.tsx",
+    "../../../apps/web/app/(app)/operations/observability/page.tsx",
+    "../../../apps/web/app/(app)/operations/runbooks/page.tsx",
     "../../../apps/web/app/(app)/evidence/[id]/page.tsx",
   ];
 

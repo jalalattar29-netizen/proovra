@@ -248,7 +248,7 @@ export default function AdminPage() {
         title: "Demo Requests",
         body:
           summary != null
-            ? `${summary.teams.total} team workspaces, ${summary.teams.active} active billed teams, and a controlled path for reviewing inbound commercial demand alongside platform growth.`
+            ? `${summary.teams.total} workspaces, ${summary.teams.active} active billed workspaces, and a controlled path for reviewing inbound commercial demand alongside platform growth.`
             : "Review inbound demo requests, inspect source context, assess spam signals, and move qualified leads through the internal pipeline.",
         accent: "#2f6965",
         eyebrow: "Pipeline",

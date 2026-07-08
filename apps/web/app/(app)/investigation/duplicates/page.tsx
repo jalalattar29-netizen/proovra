@@ -561,7 +561,7 @@ function DuplicateSection({
               // investigation surface they landed on.
               nextAction={{ label: "Capture evidence", href: "/capture" }}
               adminAction={{ label: "Open cases", href: "/cases" }}
-              diagnosticsLink="/ops/observability"
+              diagnosticsLink="/operations/observability"
               isAdmin={isAdmin}
             />
           );

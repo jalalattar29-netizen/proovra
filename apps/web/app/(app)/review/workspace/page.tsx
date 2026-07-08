@@ -457,7 +457,7 @@ function ReviewerWorkspaceShell() {
       if (!activeWorkflowId) return;
       if (!teamId) {
         setStatusBanner(
-          "No active workspace — switch to a team workspace before deciding.",
+          "No active workspace — switch to a workspace before deciding.",
         );
         return;
       }
@@ -606,7 +606,7 @@ function ReviewerWorkspaceShell() {
     if (!activeWorkflowId) return;
     if (!teamId) {
       setStatusBanner(
-        "No active workspace — switch to a team workspace before filing a disagreement.",
+        "No active workspace — switch to a workspace before filing a disagreement.",
       );
       return;
     }

@@ -162,10 +162,10 @@ function SsoHealthContent() {
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="SSO Health"
-          headline="Switch to a team workspace to view SSO health"
-          reason="SSO health is per-workspace. Open a team workspace you administer to diagnose connection health."
+          headline="Switch to a workspace to view SSO health"
+          reason="SSO health is per-workspace. Open a workspace you administer to diagnose connection health."
           actions={[
-            { label: "Open team workspaces", href: "/teams", variant: "primary" },
+            { label: "Open workspaces", href: "/workspaces", variant: "primary" },
           ]}
           testid="sso-health-access-gate-no-workspace"
         />

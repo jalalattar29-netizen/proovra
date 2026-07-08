@@ -153,7 +153,6 @@ describe("Phase IA-surface-tier-wiring — ENTERPRISE layout.tsx files", () => {
     "app/(app)/governance-platform",
     "app/(app)/security-center",
     "app/(app)/intelligence",
-    "app/(app)/intelligence-platform",
     "app/(app)/intelligence-quality",
     "app/(app)/investigation",
     "app/(app)/executive",
@@ -226,9 +225,9 @@ describe("Phase IA-surface-tier-wiring — simplified normal-user sidebar", () =
   // self-serve simplification brief moved them to ENTERPRISE with
   // bounded redirects so they no longer appear as standalone product
   // surfaces.
-  it("/workspaces is ENTERPRISE — redirects to /teams", () => {
+  it("/workspaces is ENTERPRISE — self-serve redirects to /collaboration-teams (Phase 2B: no /teams loop)", () => {
     expect(TIERS).toMatch(
-      /pathPrefix:\s*"\/workspaces",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"redirect",\s*redirectTo:\s*"\/teams"/,
+      /pathPrefix:\s*"\/workspaces",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"redirect",\s*redirectTo:\s*"\/collaboration-teams"/,
     );
   });
 

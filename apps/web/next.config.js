@@ -31,7 +31,13 @@ const nextConfig = {
         destination: "/evidence?filter=locked",
         permanent: true,
       },
-      { source: "/operations", destination: "/ops", permanent: true },
+      // Phase 3 (ops canonicalization) — /operations is now the ONE
+      // canonical operations namespace. The 6 real /ops/* impls were moved
+      // into /operations/*, /ops was deleted, and the bare /ops hub URL
+      // 308s here. Combined with the /ops/*→/operations/* subtree redirects
+      // below, every /ops* source now points one-way to /operations* — no
+      // loop (no source is also a destination).
+      { source: "/ops", destination: "/operations", permanent: true },
       // Phase B — removed the legacy `/review → /reviewer-ops` redirect.
       // Phase C0 made `/review` the canonical reviewer console, but the
       // legacy redirect was intercepting navigation and bouncing
@@ -170,16 +176,33 @@ const nextConfig = {
         destination: "/admin/identity/timeline",
         permanent: true,
       },
-      // Phase HOME-DATA-OWNERSHIP — the `/teams` → `/workspaces`
-      // redirect (Phase Final-Closure-Remediation) is REMOVED. Phase
-      // IA-self-serve-completion later shipped a real self-serve
-      // landing page at app/(app)/teams/page.tsx, but this server
-      // redirect fired first, so the page was unreachable: Home's
-      // "Invite a teammate" → /teams → /workspaces → PageRouteGate
-      // (admin.teams, TEAM_VIEW) → BLANK page for every personal-space
-      // user. /teams is now canonical for self-serve team management;
-      // the reverse mapping (/workspaces → /teams for self-serve) is
-      // handled by the surface-tier rule in lib/surface/tiers.ts.
+      // Phase 2B (Teams/Workspace consolidation) — the parallel
+      // self-serve `/teams` landing page (app/(app)/teams/page.tsx) was
+      // DELETED. It duplicated the canonical Teams product at
+      // `/collaboration-teams`. The bare `/teams` URL now 308s to that
+      // canonical Teams surface so old bookmarks / "Invite a teammate"
+      // deep links keep working. This is an EXACT match: `/teams/[id]`
+      // (the legacy team-detail on `/v1/teams`, deferred to the backend
+      // migration phase) is NOT matched and continues to render. The
+      // `/workspaces` self-serve redirect target was repointed from
+      // `/teams` to `/collaboration-teams` (lib/surface/tiers.ts) so no
+      // redirect loop can form.
+      {
+        source: "/teams",
+        destination: "/collaboration-teams",
+        permanent: true,
+      },
+      // Phase 2B (Intelligence consolidation) — the standalone
+      // `/intelligence-platform` page was DELETED and its provider /
+      // cost / budget content merged into the canonical `/intelligence`
+      // surface (components/intelligence/ProviderBudgetPanel.tsx). The
+      // backend `intelligence-platform.routes.ts` is unchanged. Old deep
+      // links 308 to the canonical Intelligence surface.
+      {
+        source: "/intelligence-platform",
+        destination: "/intelligence",
+        permanent: true,
+      },
       {
         source: "/identity",
         destination: "/admin/identity",
@@ -298,6 +321,22 @@ const nextConfig = {
       {
         source: "/about/trust",
         destination: "/trust",
+        permanent: true,
+      },
+      // Phase 2 (dead-code deletion) — the `/security/trust-center/*`
+      // page tree was a byte-identical duplicate of the canonical
+      // `/trust-center/*` surface. The duplicate pages were deleted;
+      // these 308s keep any external/indexed/bookmarked
+      // `/security/trust-center` deep links resolving to the canonical
+      // Trust Center. (In-app deep links were repointed at the source.)
+      {
+        source: "/security/trust-center",
+        destination: "/trust-center",
+        permanent: true,
+      },
+      {
+        source: "/security/trust-center/:path*",
+        destination: "/trust-center/:path*",
         permanent: true,
       },
       // Legal Center IA restructure — the standalone Privacy Matrix

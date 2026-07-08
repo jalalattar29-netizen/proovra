@@ -1,0 +1,12 @@
+-- Phase 2 Blocker 1 — brand-new-owner enterprise provisioning.
+--
+-- Additive, nullable column on organizations. When a platform admin
+-- provisions an enterprise customer whose owner has no account yet, the
+-- resolved enterprise seat count is persisted here. It is consumed once
+-- when the ORG_OWNER invite is accepted (the accept handler mints the
+-- ENTERPRISE workspace with these seats and clears the marker).
+--
+-- NULL means "no pending enterprise provisioning" — the default for every
+-- existing row and every non-enterprise org. No existing column or data is
+-- touched; this is a purely additive change.
+ALTER TABLE "organizations" ADD COLUMN "pending_enterprise_seats" INTEGER;

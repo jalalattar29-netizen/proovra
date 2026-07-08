@@ -1,13 +1,13 @@
 /**
  * Phase G0 (B0.5) — Canonical /workspaces frontend route.
  *
- * Renders the same `WorkspaceAdministrationHome` component as the
- * legacy /teams route. The two paths coexist:
+ * Renders the `WorkspaceAdministrationHome` component. Route reality:
  *
- *   * /workspaces — canonical (sidebar + breadcrumbs + topbar point
- *     here).
- *   * /teams — legacy backward-compatible alias (deep links + old
- *     bookmarks continue to work; the page still renders).
+ *   * /workspaces — canonical workspace-admin landing (sidebar +
+ *     breadcrumbs + topbar point here).
+ *   * /teams — the bare landing page was DELETED; next.config.js now
+ *     redirects /teams -> /collaboration-teams. Only the
+ *     /teams/[id] detail route is kept.
  *
  * The backend `/v1/teams/*` endpoints remain unchanged; renaming
  * those is a backend-tier migration deferred to a later phase.

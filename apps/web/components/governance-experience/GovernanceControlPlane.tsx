@@ -104,7 +104,7 @@ export function GovernanceControlPlane() {
         <CapabilityDegradedPanel
           surface="Governance"
           requiredCapability="GOVERNANCE_VIEW"
-          reason="Governance Control Plane oversees evidence preservation, retention, destruction, exports, and policy posture across a team. It activates when you switch into a team workspace."
+          reason="Governance Control Plane oversees evidence preservation, retention, destruction, exports, and policy posture across a team. It activates when you switch into a workspace."
           alternatives={[
             { label: "View your evidence", href: "/evidence" },
             { label: "Manage your cases", href: "/cases" },
@@ -143,7 +143,7 @@ export function GovernanceControlPlane() {
           <span data-governance-scope={env.workspace.scope}>
             {env.workspace.scope === "PERSONAL"
               ? "Personal workspace"
-              : "Team workspace"}
+              : "Workspace"}
           </span>
           <span data-governance-role={env.workspace.role}>
             Role: {env.workspace.role}
@@ -183,7 +183,7 @@ export function GovernanceControlPlane() {
           Personal workspace — governance surfaces render in read-only
           enterprise-lite mode. Team-only mutating actions (policy editing,
           hold approval, retention decisions, export governance) are
-          disabled with clear labels. Switch to a team workspace to enable
+          disabled with clear labels. Switch to a workspace to enable
           the full governance control plane.
         </div>
       ) : null}
@@ -794,11 +794,11 @@ function IncidentsTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
             <div className="cc-incident-summary">{row.safeSummary}</div>
             <div className="cc-incident-row-foot">
               {row.runbookSlug && canRunbooks ? (
-                <Link href={`/ops/runbooks#${row.runbookSlug}`}>
+                <Link href={`/operations/runbooks#${row.runbookSlug}`}>
                   Runbook → {row.runbookSlug}
                 </Link>
               ) : !row.runbookSlug && canObservability ? (
-                <Link href="/ops/observability">Open observability</Link>
+                <Link href="/operations/observability">Open observability</Link>
               ) : null}
               <time dateTime={row.lastSeenAtUtc}>
                 Seen {relTime(row.lastSeenAtUtc)}
@@ -810,7 +810,7 @@ function IncidentsTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
       {canOpsCenter ? (
         <div className="cc-section-foot">
           Detailed platform health lives under{" "}
-          <Link href="/ops">Operations Center</Link>.
+          <Link href="/operations">Operations Center</Link>.
         </div>
       ) : null}
     </section>

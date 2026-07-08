@@ -63,7 +63,7 @@ const SERVICE = readApi("src/services/analytics/analytics.service.ts");
 const ROUTES = readApi("src/routes/analytics-operations.routes.ts");
 const SERVER = readApi("src/server.ts");
 const ROUTE_REGISTRY = readWeb("lib/navigation/routeRegistry.ts");
-const PAGE = readWeb("app/(app)/ops/analytics/page.tsx");
+const PAGE = readWeb("app/(app)/operations/analytics/page.tsx");
 const API_TYPES = readApi("src/services/platform-context/types.ts");
 const WEB_TYPES = readWeb("lib/platform-context/types.ts");
 const CAP_REG = readApi("src/services/platform-context/capability-registry.ts");
@@ -334,9 +334,9 @@ describe("E4 Test 4 — REST endpoints contract", () => {
 // ===========================================================================
 
 describe("E4 Test 5 — route registry entry", () => {
-  it("registers platform.analytics under /ops/analytics", () => {
+  it("registers platform.analytics under /operations/analytics", () => {
     expect(ROUTE_REGISTRY).toMatch(/id:\s*["']platform\.analytics["']/);
-    expect(ROUTE_REGISTRY).toMatch(/href:\s*["']\/ops\/analytics["']/);
+    expect(ROUTE_REGISTRY).toMatch(/href:\s*["']\/operations\/analytics["']/);
   });
 
   it("route requires ANALYTICS_VIEW capability", () => {
@@ -373,7 +373,7 @@ describe("E4 Test 5 — route registry entry", () => {
 
 describe("E4 Test 6 — frontend page contract", () => {
   it("page exists at /ops/analytics", () => {
-    expect(existsSync(webPath("app/(app)/ops/analytics/page.tsx"))).toBe(true);
+    expect(existsSync(webPath("app/(app)/operations/analytics/page.tsx"))).toBe(true);
   });
 
   it("default export wraps in PageRouteGate with platform.analytics", () => {

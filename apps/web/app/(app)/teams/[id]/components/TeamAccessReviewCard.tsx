@@ -244,7 +244,7 @@ export function TeamAccessReviewCard({ teamId }: { teamId: string }) {
               kind="REQUEST_ACCESS"
               surface="Member roles"
               headline="Member roles can only be reviewed by admins"
-              reason="Only an Owner or Admin can see this list of members. Ask a team admin to share who has access if you need that information."
+              reason="Only an Owner or Admin can see this list of members. Ask a workspace admin to share who has access if you need that information."
               variant="inline"
               actions={[]}
               testid="team-access-review-access-gate"

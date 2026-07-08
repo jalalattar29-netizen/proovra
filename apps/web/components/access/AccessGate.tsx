@@ -12,7 +12,7 @@
  *   * a feature requires admin help (user lacks a capability their
  *     admin can grant)
  *   * a feature requires workspace scope (action only works in a
- *     team workspace, current scope is personal)
+ *     workspace, current scope is personal)
  *
  * Pair with `<AccessGateInline>` for in-flow lock indicators (e.g.
  * inside a button row) and `<AccessGate>` for full-panel takeovers.
@@ -102,7 +102,7 @@ function defaultsFor(kind: AccessGateKind): {
           "Your workspace admin can grant access. Reach out to the person who manages this workspace, or open settings to see who they are.",
         actions: [
           { label: "Open settings", href: "/settings", variant: "primary" },
-          { label: "View workspace admins", href: "/teams", variant: "secondary" },
+          { label: "View workspace admins", href: "/workspaces", variant: "secondary" },
         ],
       };
     case "REQUEST_ACCESS":
@@ -121,16 +121,16 @@ function defaultsFor(kind: AccessGateKind): {
         reason:
           "Only the workspace owner can complete this step. Ask them to take the action, or open the team page to confirm who owns this workspace.",
         actions: [
-          { label: "Open team page", href: "/teams", variant: "primary" },
+          { label: "Open team page", href: "/collaboration-teams", variant: "primary" },
         ],
       };
     case "WORKSPACE_REQUIRED":
       return {
-        headline: "Switch or create a team workspace",
+        headline: "Switch or create a workspace",
         reason:
-          "This feature is only available in team workspaces. Create one, or switch into a team you already belong to.",
+          "This feature is only available in workspaces. Create one, or switch into a workspace you already belong to.",
         actions: [
-          { label: "Open team workspaces", href: "/teams", variant: "primary" },
+          { label: "Open workspaces", href: "/workspaces", variant: "primary" },
           { label: "Review plans", href: "/billing", variant: "secondary" },
         ],
       };

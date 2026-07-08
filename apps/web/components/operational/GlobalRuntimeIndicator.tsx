@@ -543,7 +543,7 @@ function DropdownFooter({ onClose }: { onClose: () => void }) {
     >
       {canOpsCenter ? (
         <FooterLink
-          href="/ops"
+          href="/operations"
           icon={<Radio size={13} strokeWidth={2} />}
           label="Operations Center"
           onClose={onClose}
@@ -551,7 +551,7 @@ function DropdownFooter({ onClose }: { onClose: () => void }) {
       ) : null}
       {canObservability ? (
         <FooterLink
-          href="/ops/observability"
+          href="/operations/observability"
           icon={<Activity size={13} strokeWidth={2} />}
           label="Observability"
           onClose={onClose}
@@ -567,7 +567,7 @@ function DropdownFooter({ onClose }: { onClose: () => void }) {
       ) : null}
       {canRunbooks ? (
         <FooterLink
-          href="/ops/runbooks"
+          href="/operations/runbooks"
           icon={<BookOpen size={13} strokeWidth={2} />}
           label="Runbooks"
           onClose={onClose}

@@ -74,13 +74,13 @@ function TrustTab() {
             testId="trust-deep-link-subprocessors"
             label="Subprocessors"
             description="Subprocessor registry + version history."
-            href="/security/trust-center/subprocessors"
+            href="/trust-center/subprocessors"
           />
           <DeepLink
             testId="trust-deep-link-status"
             label="Status page"
             description="Live + historical status of the platform's internal + external dependencies."
-            href="/security/trust-center/status"
+            href="/trust-center/status"
           />
         </ul>
       </section>

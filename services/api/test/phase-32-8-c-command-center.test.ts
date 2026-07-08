@@ -48,7 +48,10 @@ const SERVER = readApi("src/server.ts");
 const CC = readWeb("components/command-center/CommandCenter.tsx");
 const CC_TYPES = readWeb("components/command-center/types.ts");
 const HOME = readWeb("app/(app)/home/page.tsx");
-const NAV_CONFIG = readWeb("lib/navigation-config.ts");
+// Phase 38.6 — canonical navigation source of truth is the route
+// registry (`lib/navigation/routeRegistry.ts`); the legacy
+// `lib/navigation-config.ts` was deleted.
+const NAV_CONFIG = readWeb("lib/navigation/routeRegistry.ts");
 
 // =============================================================================
 // PART 1 — Backend aggregator endpoint
@@ -290,8 +293,8 @@ describe("Phase 32.8C — personal vs team workspace behavior", () => {
       /Personal workspace uses basic evidence controls/,
     );
     // The note explicitly covers BOTH reviewer and governance.
-    expect(CC).toMatch(/Reviewer orchestration is a team workspace feature/);
-    expect(CC).toMatch(/Governance posture is a team workspace feature/);
+    expect(CC).toMatch(/Reviewer orchestration is a workspace feature/);
+    expect(CC).toMatch(/Governance posture is a workspace feature/);
   });
 
   it("summary strip hides team-only metrics (reviewer pending, governance attention) when workspace is personal", () => {
@@ -494,12 +497,32 @@ describe("Phase 32.8C — old /dashboard surface disposition", () => {
     );
   });
 
-  it("none of the /dashboard sub-routes are referenced in the canonical navigation config", () => {
-    // No href to /dashboard/* in the Phase 32.8B sidebar.
+  it("no /dashboard sub-route is surfaced in the canonical navigation registry", () => {
+    // Phase 38.6 — repointed to routeRegistry.ts. `/dashboard/api-keys`
+    // and `/dashboard/insights` were retired outright (redirect only) and
+    // must not appear as routes at all.
     expect(NAV_CONFIG).not.toMatch(/href:\s*"\/dashboard\/api-keys"/);
-    expect(NAV_CONFIG).not.toMatch(/href:\s*"\/dashboard\/quotas"/);
     expect(NAV_CONFIG).not.toMatch(/href:\s*"\/dashboard\/insights"/);
-    expect(NAV_CONFIG).not.toMatch(/href:\s*"\/dashboard\/batch-analysis"/);
+    // `/dashboard/quotas` and `/dashboard/batch-analysis` DO have registry
+    // entries (the live pages exist) but are intentionally kept out of
+    // every discovery surface — never sidebar-eligible, command-palette,
+    // or All Tools. Assert each entry declares all three visibility flags
+    // false so it can never leak into navigation.
+    for (const href of ["/dashboard/quotas", "/dashboard/batch-analysis"]) {
+      const idx = NAV_CONFIG.indexOf(`href: "${href}"`);
+      expect(idx, `routeRegistry missing entry for ${href}`).toBeGreaterThan(-1);
+      // Slice from this entry's href to the end of its object literal.
+      const entry = NAV_CONFIG.slice(idx, NAV_CONFIG.indexOf("\n  },", idx));
+      expect(entry, `${href} must not be sidebar-eligible`).toMatch(
+        /sidebarEligible:\s*false/,
+      );
+      expect(entry, `${href} must not be command-palette visible`).toMatch(
+        /commandPaletteVisible:\s*false/,
+      );
+      expect(entry, `${href} must not be All Tools visible`).toMatch(
+        /allToolsVisible:\s*false/,
+      );
+    }
   });
 });
 
@@ -508,21 +531,23 @@ describe("Phase 32.8C — old /dashboard surface disposition", () => {
 // =============================================================================
 
 describe("Phase 32.8C — runtime details delegate to Platform Health", () => {
-  it("Incidents section links out to /ops or /ops/observability for full details (no duplicated runtime panel)", () => {
+  it("Incidents section links out to /operations or /operations/observability for full details (no duplicated runtime panel)", () => {
     const block = CC.slice(CC.indexOf("function IncidentsSection"));
     expect(block).toMatch(/Operations Center/);
-    expect(block).toMatch(/href="\/ops/);
+    // Phase 3 canonicalised the platform-ops surface /ops → /operations.
+    expect(block).toMatch(/href="\/operations/);
   });
 
-  it("Incidents footnote points at /ops (Phase 32.8A boundary preserved)", () => {
+  it("Incidents footnote points at /operations (Phase 32.8A boundary preserved)", () => {
     // Phase 32.8C control plane — the footnote was reworded to explain
     // that operator actions (acknowledge/assign/resolve/suppress) live
     // on the Operations Center page, not the dashboard. The boundary
-    // is preserved (the link still points at /ops/observability).
+    // is preserved (the link still points at /operations/observability;
+    // Phase 3 canonicalised /ops → /operations).
     expect(CC).toMatch(
       /Operator actions[\s\S]{0,200}Operations Center/,
     );
-    expect(CC).toMatch(/href="\/ops\/observability/);
+    expect(CC).toMatch(/href="\/operations\/observability/);
   });
 
   it("CommandCenter does NOT render the Phase 28-J /admin/runtime panels inline (no duplication of /ops)", () => {

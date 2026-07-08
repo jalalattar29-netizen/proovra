@@ -199,7 +199,7 @@ describe("Phase 38.11 — route registry expansion (8 new routes)", () => {
     { id: "governance.lifecycle", href: "/governance/lifecycle" },
     { id: "governance.destruction", href: "/governance/destruction" },
     { id: "governance.notifications", href: "/governance/notifications" },
-    { id: "platform.observability", href: "/ops/observability" },
+    { id: "platform.observability", href: "/operations/observability" },
     { id: "investigation.hub", href: "/investigation" },
   ];
 
@@ -261,7 +261,7 @@ describe("Phase 38.11 — additional PageRouteGate migrations", () => {
       routeId: "governance.notifications",
     },
     {
-      page: "app/(app)/ops/observability/page.tsx",
+      page: "app/(app)/operations/observability/page.tsx",
       routeId: "platform.observability",
     },
     {
@@ -294,7 +294,7 @@ describe("Phase 38.11 — useTeamWorkspaceGate allow-list shrinkage", () => {
   const MIGRATED_OFF = [
     "app/(app)/reviewer-ops/sla/page.tsx",
     "app/(app)/governance/policy/page.tsx",
-    "app/(app)/ops/observability/page.tsx",
+    "app/(app)/operations/observability/page.tsx",
   ];
 
   for (const page of MIGRATED_OFF) {
@@ -327,7 +327,7 @@ describe("Phase 38.11 — cumulative <PageRouteGate> adoption", () => {
       // `/review/page.tsx`; the legacy `/reviewer-ops/page.tsx` was
       // deleted and the URL redirects via `next.config.js`.
       "app/(app)/review/page.tsx",
-      "app/(app)/ops/page.tsx",
+      "app/(app)/operations/page.tsx",
       // Phase Final-Closure-Remediation — canonical surface is
       // `/workspaces`; the duplicate `/teams/page.tsx` was deleted.
       "app/(app)/workspaces/page.tsx",
@@ -344,7 +344,7 @@ describe("Phase 38.11 — cumulative <PageRouteGate> adoption", () => {
       "app/(app)/workflows/page.tsx",
       "app/(app)/intake-links/page.tsx",
       "app/(app)/security-center/page.tsx",
-      "app/(app)/ops/runbooks/page.tsx",
+      "app/(app)/operations/runbooks/page.tsx",
       "app/(app)/reviewer-ops/escalations/page.tsx",
       // Phase 38.11
       "app/(app)/governance/policy/page.tsx",
@@ -352,7 +352,7 @@ describe("Phase 38.11 — cumulative <PageRouteGate> adoption", () => {
       "app/(app)/governance/lifecycle/page.tsx",
       "app/(app)/governance/destruction/page.tsx",
       "app/(app)/governance/notifications/page.tsx",
-      "app/(app)/ops/observability/page.tsx",
+      "app/(app)/operations/observability/page.tsx",
       "app/(app)/reviewer-ops/sla/page.tsx",
       "app/(app)/investigation/page.tsx",
     ];

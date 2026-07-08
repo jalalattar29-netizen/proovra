@@ -10,7 +10,7 @@
  *   * Recent non-dismissed signals — bounded list, severity-ordered.
  *   * Recent graph activity — bounded list of new nodes + edges.
  *   * Queue health — gauges from the existing /v1/ops/metrics
- *     endpoint (reused from /ops/media-graph).
+ *     endpoint (reused from /operations/media-graph).
  *
  * Hard rules:
  *   * Tone is operational only. No forbidden vocabulary
@@ -146,7 +146,7 @@ export default function InvestigationOverviewPage() {
 
 function InvestigationOverviewPageInner() {
   const teamId = useTeamId();
-  // STAGE 2 — /ops/media-graph maps to OBSERVABILITY_VIEW in the
+  // STAGE 2 — /operations/media-graph maps to OBSERVABILITY_VIEW in the
   // canonical route registry. The "Open operations console" pivot
   // below is the only deep-link off this page into an ops surface
   // and must be hidden for actors without the capability.
@@ -456,7 +456,7 @@ function InvestigationOverviewPageInner() {
         <QueueHealthGrid metrics={metrics} />
         {canObservability ? (
           <div style={pivotsStyle}>
-            <Link href="/ops/media-graph" style={pivotLinkStyle}>
+            <Link href="/operations/media-graph" style={pivotLinkStyle}>
               Open operations console →
             </Link>
           </div>
@@ -544,7 +544,7 @@ function RecentSignalsList({
         reason={reason}
         nextAction={{ label: "Capture evidence", href: "/capture" }}
         adminAction={{ label: "Open cases", href: "/cases" }}
-        diagnosticsLink="/ops/observability"
+        diagnosticsLink="/operations/observability"
         isAdmin={isAdmin}
       />
     );
@@ -641,7 +641,7 @@ function GraphActivityList({
         reason={reason}
         nextAction={{ label: "Capture evidence", href: "/capture" }}
         adminAction={{ label: "Open cases", href: "/cases" }}
-        diagnosticsLink="/ops/observability"
+        diagnosticsLink="/operations/observability"
         isAdmin={isAdmin}
       />
     );
@@ -1010,7 +1010,7 @@ function formatTimestamp(iso: string): string {
 }
 
 // =============================================================================
-// Styles — inline, dense, enterprise. Matches /ops/media-graph register.
+// Styles — inline, dense, enterprise. Matches /operations/media-graph register.
 // =============================================================================
 
 const pageStyle: React.CSSProperties = {
