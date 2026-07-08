@@ -86,6 +86,39 @@ function SecurityTab() {
 
   return (
     <section data-testid="org-admin-security" data-org-id={orgId}>
+      {/* Phase 3 (Enterprise Identity) — deep-link to the org-scoped Domains
+          verification tab (sibling admin tab). Consolidated here rather than
+          duplicating domain management on this readiness page. */}
+      <section
+        data-section="security-domains"
+        style={{
+          padding: "1rem 1.1rem",
+          border: "1px solid rgba(127,127,127,0.3)",
+          borderRadius: 8,
+          marginBottom: "1rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+          <div style={{ fontWeight: 600 }}>Verified domains</div>
+          <div style={{ fontSize: 12, opacity: 0.75 }}>
+            Claim + verify email domains (DNS TXT) that gate SSO and
+            auto-associate members.
+          </div>
+        </div>
+        <Link
+          href={`/organizations/${orgId}/admin/domains`}
+          data-testid="sec-deep-link-domains"
+          className="cases-filter-chip"
+        >
+          Manage domains →
+        </Link>
+      </section>
+
       <section
         data-section="security-readiness"
         style={{

@@ -204,7 +204,10 @@ describe("Phase 27.5/28.5 — external-review.routes.ts source contract", () => 
 
   it("issue route returns rawToken EXACTLY ONCE in the 201 response", () => {
     const issueIdx = src.indexOf('app.post(\n    "/v1/external-review/grants"');
-    const issueRoute = src.slice(issueIdx, issueIdx + 2500);
+    // Window widened (2500 → 3200) for the Phase 3 step-up gate inserted
+    // between authorizeOrFail and the issue call — the rawToken response
+    // shape is unchanged, just further down the handler body.
+    const issueRoute = src.slice(issueIdx, issueIdx + 3200);
     expect(issueRoute).toMatch(/rawToken:\s*result\.rawToken/);
     // The route's 201 response shape includes both `grant` + `rawToken`
     // — the operator captures the raw token now (it's never derivable

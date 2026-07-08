@@ -53,6 +53,9 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+// Phase 3 — Enterprise Identity: shared SSO login enforcement point
+// (enterprise-only + organization-workspace + verified-domain).
+import { enforceSsoLoginPolicy } from "./sso-login-policy.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -70,7 +73,16 @@ export class SsoServiceError extends Error {
       | "SSO_CODE_EXCHANGE_FAILED"
       | "SSO_EMAIL_DOMAIN_NOT_ALLOWED"
       | "SSO_JIT_DISABLED"
-      | "SSO_OIDC_USERINFO_INVALID",
+      | "SSO_OIDC_USERINFO_INVALID"
+      // Phase 3 — Enterprise Identity login-policy denials.
+      | "SSO_NOT_ENTERPRISE"
+      | "SSO_WORKSPACE_PERSONAL"
+      | "SSO_DOMAIN_NOT_VERIFIED"
+      // Phase 3 — policy-update guard: cannot enable verified-domain
+      // restriction when the owning org has zero verified domains.
+      | "SSO_NO_VERIFIED_DOMAINS"
+      // Phase 3 — a supplied SP private key was not a plausible PEM.
+      | "SSO_INVALID_SP_KEY",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -100,6 +112,18 @@ function previewClientSecret(secret: string): string {
   return `ck-***-${tail}`;
 }
 
+/**
+ * Phase 3 — SHA-256 fingerprint of a SAML SP private key, hex, lowercase,
+ * no colons. This is a ONE-WAY digest surfaced to the admin UI so an
+ * operator can confirm WHICH key is installed without the key ever leaving
+ * the server. It is NOT reversible and is safe to display. Normalises
+ * whitespace/newlines so the same PEM produces a stable fingerprint.
+ */
+function fingerprintSpKey(pem: string): string {
+  const normalized = pem.replace(/\r\n/g, "\n").trim();
+  return createHash("sha256").update(normalized).digest("hex");
+}
+
 // -----------------------------------------------------------------------------
 // Projection — operator-safe; never echoes secrets.
 // -----------------------------------------------------------------------------
@@ -123,9 +147,42 @@ export type SsoConnectionProjection = {
   rotatedAtUtc: string | null;
   revokedAtUtc: string | null;
   revokedByUserId: string | null;
+  // -------------------------------------------------------------------------
+  // Phase 3 — SAML SP signing + verified-domain policy STATUS.
+  //
+  // SECURITY: the SP private key is NEVER projected. We expose only:
+  //   - whether AuthnRequest signing is enabled,
+  //   - whether a per-connection key is installed and its SHA-256 fingerprint,
+  //   - whether the platform-wide env key is available as a fallback source,
+  //   - the effective signing-key source ("stored" | "env" | "none"),
+  //   - whether verified-domain restriction is on.
+  // -------------------------------------------------------------------------
+  samlSignRequests: boolean;
+  restrictToVerifiedDomains: boolean;
+  samlSpKeyConfigured: boolean;
+  samlSpKeyFingerprint: string | null;
+  samlSpEnvKeyAvailable: boolean;
+  samlSpSigningKeySource: "stored" | "env" | "none";
+  samlSpCertificateConfigured: boolean;
 };
 
+function envSpKeyAvailable(): boolean {
+  const envKey = process.env["SAML_SP_PRIVATE_KEY"];
+  return !!(envKey && envKey.trim().length > 0);
+}
+
 function projectConnection(row: DbConnection): SsoConnectionProjection {
+  const storedKey =
+    typeof row.samlSpPrivateKey === "string" &&
+    row.samlSpPrivateKey.trim().length > 0
+      ? row.samlSpPrivateKey
+      : null;
+  const envAvailable = envSpKeyAvailable();
+  const signingKeySource: "stored" | "env" | "none" = storedKey
+    ? "stored"
+    : envAvailable
+      ? "env"
+      : "none";
   return {
     id: row.id,
     teamId: row.teamId,
@@ -148,6 +205,16 @@ function projectConnection(row: DbConnection): SsoConnectionProjection {
     rotatedAtUtc: row.rotatedAtUtc?.toISOString() ?? null,
     revokedAtUtc: row.revokedAtUtc?.toISOString() ?? null,
     revokedByUserId: row.revokedByUserId,
+    // Phase 3 — status only; NEVER the key material.
+    samlSignRequests: row.samlSignRequests,
+    restrictToVerifiedDomains: row.restrictToVerifiedDomains,
+    samlSpKeyConfigured: storedKey !== null,
+    samlSpKeyFingerprint: storedKey ? fingerprintSpKey(storedKey) : null,
+    samlSpEnvKeyAvailable: envAvailable,
+    samlSpSigningKeySource: signingKeySource,
+    samlSpCertificateConfigured:
+      typeof row.samlSpCertificate === "string" &&
+      row.samlSpCertificate.trim().length > 0,
   };
 }
 
@@ -329,6 +396,167 @@ export async function transitionSsoConnection(
     metadata: { teamId: input.teamId, from, to: input.nextStatus },
     db: client,
   });
+  return projectConnection(updated);
+}
+
+// -----------------------------------------------------------------------------
+// Phase 3 — SAML SP signing + verified-domain policy update.
+//
+// An enterprise ORG admin can, on an existing connection:
+//   - enable/disable AuthnRequest signing (samlSignRequests),
+//   - enable/disable verified-domain restriction (restrictToVerifiedDomains),
+//   - install/rotate/clear the per-connection SP signing key + certificate.
+//
+// SECURITY (hard rules enforced here):
+//   - The private key is ACCEPTED for storage but NEVER returned; the
+//     projection exposes only status + a SHA-256 fingerprint.
+//   - The key material is NEVER logged and NEVER placed in the audit payload
+//     or the security-event details.
+//   - Enabling restrictToVerifiedDomains is REJECTED when the owning org has
+//     zero verified OrganizationDomain rows (guard, failure-closed).
+// -----------------------------------------------------------------------------
+
+export type UpdateSsoConnectionPolicyInput = {
+  teamId: string;
+  id: string;
+  actorUserId: string;
+  /** Enable/disable AuthnRequest signing. Omit to leave unchanged. */
+  samlSignRequests?: boolean;
+  /** Enable/disable verified-domain restriction. Omit to leave unchanged. */
+  restrictToVerifiedDomains?: boolean;
+  /**
+   * Per-connection SP signing private key (PEM). When a non-empty string is
+   * supplied it is stored and rotatedAtUtc is stamped. An explicit empty
+   * string CLEARS the stored key (falls back to the env source). Omit
+   * (undefined) to leave the current key untouched. NEVER echoed back.
+   */
+  samlSpPrivateKey?: string | null;
+  /**
+   * Per-connection SP certificate (base64, no PEM header/footer) advertised
+   * in SP metadata. Empty string clears; omit to leave untouched.
+   */
+  samlSpCertificate?: string | null;
+};
+
+function looksLikePrivateKeyPem(pem: string): boolean {
+  // Accept PKCS#8 or PKCS#1 PEM. We do not parse the key (no key material in
+  // logs); we only sanity-check the envelope so we never store garbage.
+  return (
+    /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/.test(pem) &&
+    /-----END (?:RSA |EC )?PRIVATE KEY-----/.test(pem)
+  );
+}
+
+async function countVerifiedDomainsForOrg(
+  organizationId: string | null,
+  client: PrismaClient,
+): Promise<number> {
+  if (!organizationId) return 0;
+  return client.organizationDomain.count({
+    where: { organizationId, verifiedAt: { not: null } },
+  });
+}
+
+export async function updateSsoConnectionPolicy(
+  input: UpdateSsoConnectionPolicyInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<SsoConnectionProjection> {
+  const row = await client.ssoConnection.findFirst({
+    where: { id: input.id, teamId: input.teamId },
+  });
+  if (!row) throw new SsoServiceError("SSO_CONNECTION_NOT_FOUND");
+  if (row.status === "REVOKED") {
+    throw new SsoServiceError("SSO_INVALID_STATE", { reason: "revoked" });
+  }
+
+  // Guard: enabling verified-domain restriction requires at least one verified
+  // OrganizationDomain on the owning org. Failure-closed.
+  if (input.restrictToVerifiedDomains === true) {
+    const team = await client.team.findUnique({
+      where: { id: input.teamId },
+      select: { organizationId: true },
+    });
+    const verifiedCount = await countVerifiedDomainsForOrg(
+      team?.organizationId ?? null,
+      client,
+    );
+    if (verifiedCount === 0) {
+      throw new SsoServiceError("SSO_NO_VERIFIED_DOMAINS");
+    }
+  }
+
+  // Validate + normalise supplied key material (never logged).
+  const now = new Date();
+  const data: prismaPkg.Prisma.SsoConnectionUpdateInput = {};
+  const changed: string[] = [];
+
+  if (typeof input.samlSignRequests === "boolean") {
+    data.samlSignRequests = input.samlSignRequests;
+    changed.push("samlSignRequests");
+  }
+  if (typeof input.restrictToVerifiedDomains === "boolean") {
+    data.restrictToVerifiedDomains = input.restrictToVerifiedDomains;
+    changed.push("restrictToVerifiedDomains");
+  }
+  if (input.samlSpPrivateKey !== undefined) {
+    if (input.samlSpPrivateKey === null || input.samlSpPrivateKey === "") {
+      data.samlSpPrivateKey = null;
+      changed.push("samlSpPrivateKey:cleared");
+    } else {
+      const pem = input.samlSpPrivateKey;
+      if (!looksLikePrivateKeyPem(pem)) {
+        throw new SsoServiceError("SSO_INVALID_SP_KEY");
+      }
+      data.samlSpPrivateKey = pem;
+      data.rotatedAtUtc = now;
+      // NOTE: only the fingerprint is ever surfaced — never the key.
+      changed.push("samlSpPrivateKey:rotated");
+    }
+  }
+  if (input.samlSpCertificate !== undefined) {
+    data.samlSpCertificate =
+      input.samlSpCertificate === null || input.samlSpCertificate === ""
+        ? null
+        : input.samlSpCertificate.slice(0, 8192);
+    changed.push("samlSpCertificate");
+  }
+
+  if (changed.length === 0) {
+    // Nothing to do — return the current projection unchanged.
+    return projectConnection(row);
+  }
+
+  const updated = await client.ssoConnection.update({
+    where: { id: row.id },
+    data,
+  });
+
+  safeEmitSecurityEvent({
+    teamId: input.teamId,
+    eventType: "sso_connection_updated",
+    severity: "WARNING",
+    details: {
+      connectionId: row.id,
+      provider: row.provider,
+      actorUserId: input.actorUserId,
+      // Only field NAMES — never values, never key material.
+      changed,
+    },
+  });
+  await appendPlatformAuditLog({
+    userId: input.actorUserId,
+    action: "sso.connection.policy_update",
+    category: "identity",
+    severity: "warning",
+    source: "sso_service",
+    outcome: "success",
+    resourceType: "sso_connection",
+    resourceId: row.id,
+    // Field names only. The key/cert VALUES never enter the audit payload.
+    metadata: { teamId: input.teamId, changed },
+    db: client,
+  });
+
   return projectConnection(updated);
 }
 
@@ -613,6 +841,39 @@ export async function handleOidcCallback(
       },
     });
     throw new SsoServiceError("SSO_EMAIL_DOMAIN_NOT_ALLOWED");
+  }
+
+  // ---- Phase 3 — SSO login enforcement point ----
+  // Enterprise-only + organization-workspace (never PERSONAL) + verified-domain
+  // (when the connection restricts to verified OrganizationDomain rows). Runs
+  // BEFORE any find-or-JIT so denied logins create no membership side-effects.
+  const policy = await enforceSsoLoginPolicy(
+    {
+      teamId: conn.teamId,
+      email: userinfo.email,
+      restrictToVerifiedDomains: conn.restrictToVerifiedDomains,
+    },
+    client,
+  );
+  if (!policy.ok) {
+    bump("sso_login_failure_total");
+    safeEmitSecurityEvent({
+      teamId: conn.teamId,
+      eventType: "sso_login_failed",
+      severity: "WARNING",
+      details: {
+        connectionId: conn.id,
+        reason: policy.reason,
+        provider: conn.provider,
+      },
+    });
+    if (policy.reason === "sso_not_enterprise") {
+      throw new SsoServiceError("SSO_NOT_ENTERPRISE");
+    }
+    if (policy.reason === "sso_workspace_personal") {
+      throw new SsoServiceError("SSO_WORKSPACE_PERSONAL");
+    }
+    throw new SsoServiceError("SSO_DOMAIN_NOT_VERIFIED");
   }
 
   // ---- Find or JIT-provision the user ----

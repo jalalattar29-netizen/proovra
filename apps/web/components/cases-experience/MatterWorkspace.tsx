@@ -38,6 +38,13 @@ import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+// Phase 6 (SCOPE B) — canonical case-assignment picker. The modal was
+// already built (POST /v1/cases/:id/assignments) but orphaned; wiring
+// it into the Assignments tab is the only missing piece.
+import {
+  AssignmentPickerModal,
+  type AssignmentRole,
+} from "./matter-modals";
 import { GovernanceSummary } from "../governance/GovernanceSummary";
 import { PresenceIndicator } from "../presence/PresenceIndicator";
 import { CaseRiskPanel } from "../hidden-feature-panels/HiddenFeaturePanels";
@@ -76,6 +83,13 @@ type MatterEnvelope = {
     userId: string;
     role: string;
     canManage?: boolean;
+    // Phase 6 (SCOPE B) — capability flags emitted by the backend
+    // envelope (matter-workspace.service.ts `viewer`). `canAssign`
+    // mirrors the canonical `evaluateCaseMutationPermission("ASSIGN")`
+    // guard, so the Assignments tab renders the assign/unassign
+    // controls exactly when the backend would accept the mutation.
+    canAssign?: boolean;
+    disabledReasons?: Readonly<Record<string, string>>;
     activeAssignmentRoles?: ReadonlyArray<string>;
   };
   risk: {
@@ -682,7 +696,12 @@ export function MatterWorkspace({
           <CommunicationsTab envelope={envelope} filterText={filterText} />
         ) : null}
         {activeTab === "assignments" ? (
-          <AssignmentsTab envelope={envelope} filterText={filterText} />
+          <AssignmentsTab
+            envelope={envelope}
+            filterText={filterText}
+            caseId={caseId}
+            onChanged={() => void load()}
+          />
         ) : null}
         {activeTab === "siu" ? (
           <div className="matter-tab matter-tab--siu" data-cc-matter-siu-tab>
@@ -1429,22 +1448,93 @@ function CommunicationsTab({
 function AssignmentsTab({
   envelope,
   filterText = "",
+  caseId,
+  onChanged,
 }: {
   envelope: MatterEnvelope;
   filterText?: string;
+  // Phase 6 (SCOPE B) — the interactive assign/unassign controls need
+  // the case id (for the write endpoints) and a refetch callback so the
+  // list refreshes after a mutation without a full page reload.
+  caseId: string;
+  onChanged: () => void;
 }) {
   const assignments = envelope.assignments;
-  if (assignments.length === 0) {
-    // Phase IA-self-serve-completion — dropped the references to
-    // hidden enterprise assignment surfaces. The Assignments panel
-    // inline on this tab is still the right place to add people.
-    return (
-      <EmptyState
-        title="No assignments yet"
-        body="Assign teammates to this case using the Assignments panel. The assignment history shows here once someone is assigned."
-      />
-    );
-  }
+  // Phase 6 (SCOPE B) — the backend already emits `viewer.canAssign`
+  // from the SAME canonical guard the write routes enforce
+  // (evaluateCaseMutationPermission("ASSIGN")). We render the manage
+  // controls only when the mutation would actually be accepted, and
+  // never on PERSONAL-scope cases (which reject assignment server-side).
+  const canAssign =
+    envelope.viewer.canAssign === true && envelope.case.scope === "TEAM";
+  const assignDisabledReason =
+    envelope.viewer.disabledReasons?.["ASSIGN"] ?? null;
+
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [banner, setBanner] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  // Mirror the review-operations assign shape: a single audited POST to
+  // the canonical /assignments endpoint. Returns `{ ok }` so the modal
+  // stays open on failure for a retry. Errors are surfaced through the
+  // sanctioned toSafeUserError path only.
+  const submitAssignment = useCallback(
+    async (input: {
+      userId: string;
+      role: AssignmentRole;
+      note: string | null;
+    }): Promise<{ ok: boolean }> => {
+      setBanner(null);
+      try {
+        await apiFetch(`/v1/cases/${encodeURIComponent(caseId)}/assignments`, {
+          method: "POST",
+          body: JSON.stringify({
+            assignedToUserId: input.userId,
+            role: input.role,
+            note: input.note,
+          }),
+        });
+        onChanged();
+        return { ok: true };
+      } catch (err) {
+        const e = err as { message?: string };
+        setBanner(
+          toSafeUserError(e, {
+            message: "Unable to add the assignment.",
+          }).message,
+        );
+        return { ok: false };
+      }
+    },
+    [caseId, onChanged],
+  );
+
+  // Unassign = canonical DELETE (soft REMOVE + audit) on the existing
+  // assignment row. Never mutates case ownership, custody, or evidence.
+  const unassign = useCallback(
+    async (assignmentId: string) => {
+      setBanner(null);
+      setRemovingId(assignmentId);
+      try {
+        await apiFetch(
+          `/v1/cases/${encodeURIComponent(caseId)}/assignments/${encodeURIComponent(assignmentId)}`,
+          { method: "DELETE" },
+        );
+        onChanged();
+      } catch (err) {
+        const e = err as { message?: string };
+        setBanner(
+          toSafeUserError(e, {
+            message: "Unable to remove the assignment.",
+          }).message,
+        );
+      } finally {
+        setRemovingId(null);
+      }
+    },
+    [caseId, onChanged],
+  );
+
   const active = matchesFilter(
     assignments.filter((a) => a.status === "ACTIVE"),
     filterText,
@@ -1456,19 +1546,94 @@ function AssignmentsTab({
     filterText,
     (a) => `${a.role ?? ""} ${a.assignedToUserId ?? ""} ${a.status ?? ""}`,
   );
+
+  const assignButton = canAssign ? (
+    <button
+      type="button"
+      className="cases-filter-chip is-active"
+      data-matter-assignments-add
+      onClick={() => setPickerOpen(true)}
+    >
+      Assign teammate
+    </button>
+  ) : (
+    <button
+      type="button"
+      className="cases-filter-chip"
+      data-matter-assignments-add
+      data-disabled="true"
+      disabled
+      title={
+        assignDisabledReason ??
+        (envelope.case.scope === "PERSONAL"
+          ? "Personal cases do not support assignments. Switch to a team workspace."
+          : "You need a manage-level role to change assignments.")
+      }
+    >
+      Assign teammate
+    </button>
+  );
+
   return (
     <div className="matter-tab matter-tab--assignments">
-      <h3>Active assignments ({active.length})</h3>
-      <ul>
-        {active.map((a) => (
-          <li key={a.id}>
-            <strong>{a.role}</strong>
-            <span> · {a.assignedToUserId}</span>
-            <small> · assigned {formatRelative(a.assignedAtUtc)}</small>
-            {a.note ? <p>{a.note}</p> : null}
-          </li>
-        ))}
-      </ul>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 12,
+        }}
+      >
+        <h3 style={{ margin: 0 }}>Active assignments ({active.length})</h3>
+        {assignButton}
+      </div>
+
+      {banner ? (
+        <div
+          className="cc-section-note"
+          role="alert"
+          data-matter-assignments-error
+          style={{ marginBottom: 12 }}
+        >
+          {banner}
+        </div>
+      ) : null}
+
+      {active.length === 0 ? (
+        <EmptyState
+          title="No assignments yet"
+          body={
+            canAssign
+              ? "Assign a teammate to this case using the button above. The assignment history shows here once someone is assigned."
+              : "No one is assigned to this case yet. A workspace Owner or Admin (or the case OWNER) can assign teammates."
+          }
+        />
+      ) : (
+        <ul>
+          {active.map((a) => (
+            <li key={a.id} data-matter-assignment-row={a.id}>
+              <strong>{a.role}</strong>
+              <span> · {a.assignedToUserId}</span>
+              <small> · assigned {formatRelative(a.assignedAtUtc)}</small>
+              {a.note ? <p>{a.note}</p> : null}
+              {canAssign ? (
+                <button
+                  type="button"
+                  className="cases-filter-chip"
+                  data-matter-assignment-unassign={a.id}
+                  disabled={removingId === a.id}
+                  onClick={() => void unassign(a.id)}
+                  style={{ marginLeft: 8 }}
+                >
+                  {removingId === a.id ? "Removing…" : "Unassign"}
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+
       {removed.length > 0 ? (
         <>
           <h3>History ({removed.length})</h3>
@@ -1485,6 +1650,13 @@ function AssignmentsTab({
           </ul>
         </>
       ) : null}
+
+      <AssignmentPickerModal
+        open={pickerOpen}
+        caseId={caseId}
+        onClose={() => setPickerOpen(false)}
+        onSubmit={submitAssignment}
+      />
     </div>
   );
 }

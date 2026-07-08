@@ -243,6 +243,23 @@ export async function governanceRoutes(app: FastifyInstance) {
         denyByPermission(reply, perm.reason);
         return;
       }
+      // Phase 3 (Enterprise Identity) — placing a legal hold is a
+      // sensitive governance action (LEGAL_HOLD_PLACE is in the MFA
+      // force-list). Its sibling RELEASE route already gates on
+      // step-up; PLACE was left ungated. Reuse the existing step-up
+      // middleware (additive guard) so both sides of the legal-hold
+      // lifecycle require re-proof before mutating custody-relevant
+      // state. No hashing / custody / hold logic is changed here — the
+      // gate runs BEFORE `placeLegalHold`.
+      const gate = await requireStepUpForSensitiveAction({
+        req, reply,
+        teamId: body.teamId,
+        userId: ok.userId,
+        purpose: "LEGAL_HOLD_PLACE",
+        resourceKind: "evidence_legal_hold",
+        resourceId: body.evidenceId,
+      });
+      if (gate.sent) return;
 
       try {
         const hold = await placeLegalHold({

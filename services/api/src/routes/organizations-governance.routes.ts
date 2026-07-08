@@ -49,6 +49,7 @@ import { getAuthUserId } from "../auth.js";
 import { checkOrgAccess } from "../services/organization/org-access.js";
 import type { OrgRole } from "../services/organization/organization-resolver.service.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
+import { buildOrgGovernanceControlCenter } from "../services/organization/org-governance-control-center.service.js";
 
 const UuidParam = z.string().uuid();
 
@@ -265,6 +266,13 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
    * Stripe subscription ids. Operators see "how many subscriptions
    * are active across the org's workspaces" without enumerating
    * customer data.
+   *
+   * Phase 4 (Enterprise Administration) — extended with seat usage
+   * (included vs. used, per-workspace + org totals), an over-seat
+   * workspace count, an active-workspace count, and the org billing
+   * owner's operator-readable identity (email + display name). All
+   * additions are counts / identities only; the counts-only guarantee
+   * (no card/Stripe ids) is preserved.
    */
   app.get(
     "/v1/orgs/:id/billing/rollup",
@@ -296,38 +304,136 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
           billingPlan: true,
           billingStatus: true,
           includedSeats: true,
+          // Used seats = current member count. Same signal the
+          // per-workspace billing overview surfaces
+          // (billing.service.ts `team._count.members`). Counts only —
+          // no member identities cross the wire here.
+          _count: { select: { members: true } },
         },
         orderBy: { createdAt: "asc" },
       });
 
+      // Billing owner is an ORG-level field (organizations.billingOwnerUserId).
+      // Surface the operator-readable identity (email + display name) so
+      // the enterprise billing tab can show a billing contact WITHOUT
+      // exposing any payment instrument. Counts-only guarantee is
+      // preserved — a user identity is not a card/Stripe id.
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { billingOwnerUserId: true },
+      });
+      const billingOwnerUserId = org?.billingOwnerUserId ?? null;
+      const billingOwner = billingOwnerUserId
+        ? await prisma.user.findUnique({
+            where: { id: billingOwnerUserId },
+            select: { id: true, email: true, displayName: true },
+          })
+        : null;
+
       const planCounts: Record<string, number> = {};
       const statusCounts: Record<string, number> = {};
       let totalIncludedSeats = 0;
+      let totalUsedSeats = 0;
+      let overSeatWorkspaceCount = 0;
+      let activeWorkspaceCount = 0;
       for (const ws of workspaces) {
         const plan = String(ws.billingPlan ?? "FREE");
         planCounts[plan] = (planCounts[plan] ?? 0) + 1;
         const status = String(ws.billingStatus ?? "NONE");
         statusCounts[status] = (statusCounts[status] ?? 0) + 1;
-        totalIncludedSeats += ws.includedSeats ?? 0;
+        const included = ws.includedSeats ?? 0;
+        const used = ws._count.members;
+        totalIncludedSeats += included;
+        totalUsedSeats += used;
+        // Over-seat = a workspace whose member count exceeds its
+        // included-seat allotment (mirrors billing.service.ts
+        // `_count.members > includedSeats`). Only counted when the
+        // workspace actually has a seat allotment.
+        if (included > 0 && used > included) overSeatWorkspaceCount += 1;
+        if (
+          status === "ACTIVE" ||
+          status === "PAST_DUE"
+        ) {
+          activeWorkspaceCount += 1;
+        }
       }
 
       return reply.code(200).send({
         organizationId: orgId,
         workspaceCount: workspaces.length,
+        activeWorkspaceCount,
         totalIncludedSeats,
+        totalUsedSeats,
+        overSeatWorkspaceCount,
         planCounts,
         statusCounts,
-        // Bounded per-workspace view — name + plan + status only.
-        // NEVER includes Stripe subscription ids, customer ids, or
-        // payment instrument data.
+        // Billing contact — operator identity only. NEVER a payment
+        // instrument. Null when the org has no billing owner set.
+        billingOwner: billingOwner
+          ? {
+              userId: billingOwner.id,
+              email: billingOwner.email,
+              displayName: billingOwner.displayName,
+            }
+          : null,
+        // Bounded per-workspace view — name + plan + status + seat
+        // counts only. NEVER includes Stripe subscription ids, customer
+        // ids, or payment instrument data.
         workspaces: workspaces.map((w) => ({
           id: w.id,
           name: w.name,
           billingPlan: w.billingPlan,
           billingStatus: w.billingStatus,
           includedSeats: w.includedSeats ?? 0,
+          usedSeats: w._count.members,
+          overSeat:
+            (w.includedSeats ?? 0) > 0 &&
+            w._count.members > (w.includedSeats ?? 0),
         })),
       });
+    },
+  );
+
+  /**
+   * GET /v1/orgs/:id/governance/control-center
+   *
+   * Phase 5 (Enterprise Governance) — the single read-only aggregate
+   * behind the org-admin Governance Control Center tab. Resolves the
+   * org's non-personal workspaces and projects bounded evidence-
+   * governance posture across them: active legal holds, active
+   * retention policies, pending destruction reviews, active external-
+   * review grants, recent org governance audit, and derived coverage /
+   * custody-health indicators.
+   *
+   * Gate: ORG_AUDITOR+ (read posture — same tier as /audit-events).
+   * Anti-enumeration: 404 for any non-OK access outcome (mirrors the
+   * sibling org endpoints in this file).
+   *
+   * READ ONLY: no mutations, no audit emission, no secrets. Each
+   * section degrades independently to an honest "unavailable" rather
+   * than failing the whole response or fabricating a metric.
+   */
+  app.get(
+    "/v1/orgs/:id/governance/control-center",
+    { preHandler: [requireAuth] },
+    async (req: FastifyRequest, reply) => {
+      const userId = getAuthUserId(req);
+      const orgId = UuidParam.parse((req.params as { id: string }).id);
+
+      const access = await requireOrgAdmin({
+        orgId,
+        userId,
+        minRole: "ORG_AUDITOR",
+      });
+      if (!access.ok) {
+        return reply.code(access.code).send({
+          message: "Organization not found",
+          code: "org_not_found",
+        });
+      }
+
+      const envelope = await buildOrgGovernanceControlCenter({ orgId });
+      return reply.code(200).send(envelope);
     },
   );
 }

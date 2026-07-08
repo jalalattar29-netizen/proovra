@@ -26,6 +26,7 @@ import {
   ScimGroupSchema,
   ScimPatchOpSchema,
   ScimUserSchema,
+  interpretScimUserPatch,
   scimError,
   type ScimScope,
 } from "@proovra/shared";
@@ -35,7 +36,9 @@ import {
   scimCreateUser,
   scimDeactivateUser,
   scimListUsers,
+  scimReactivateUser,
   scimReadUser,
+  scimUpdateUserAttributes,
 } from "../services/access-control/scim.service.js";
 import {
   scimCreateGroup,
@@ -170,7 +173,14 @@ export async function scimRoutes(app: FastifyInstance) {
     },
   );
 
-  // PATCH /v2/scim/Users/:id — replace active
+  // PATCH /v2/scim/Users/:id — supported subset:
+  //   • replace active            → deactivate (SOFT suspend) / reactivate
+  //   • replace/add displayName   → mapping displayName
+  //   • replace/add name.formatted→ mapping displayName
+  //   • replace/add userType|roles→ TeamMember.role (VIEWER | MEMBER only)
+  // Any unsupported path (phoneNumbers, addresses, emails rewrite, …)
+  // yields a spec-correct 501/400 — we NEVER report silent success for
+  // an attribute the data model cannot persist.
   app.patch(
     "/v2/scim/Users/:id",
     async (req: FastifyRequest, reply: FastifyReply) => {
@@ -184,23 +194,25 @@ export async function scimRoutes(app: FastifyInstance) {
           .code(400)
           .send(scimError(400, "invalid_patch", "invalidSyntax"));
       }
-      // Phase 26 supports the "replace active" path only (IdP-driven
-      // deactivation is the highest-value operation). Other ops are
-      // 501 Not Implemented.
-      const op = parsed.data.Operations.find(
-        (o) =>
-          o.op === "replace" &&
-          o.path.toLowerCase() === "active" &&
-          typeof o.value === "boolean",
-      );
-      if (!op) {
+
+      const plan = interpretScimUserPatch(parsed.data.Operations);
+
+      // Nothing the model can honestly persist → be honest about it.
+      if (!plan.hasSupported) {
         return reply
           .type("application/scim+json")
           .code(501)
-          .send(scimError(501, "only replace active supported"));
+          .send(
+            scimError(
+              501,
+              `unsupported PATCH path(s): ${plan.unsupported.join(", ") || "none"}`,
+            ),
+          );
       }
-      const value = op.value as boolean;
-      if (value === false) {
+
+      // Apply the `active` transition first (it gates whether the user
+      // is resolvable for a subsequent attribute write).
+      if (plan.active === false) {
         const result = await scimDeactivateUser(ctx, id);
         if (!result.ok) {
           return reply
@@ -208,22 +220,46 @@ export async function scimRoutes(app: FastifyInstance) {
             .code(404)
             .send(scimError(404, "User not found"));
         }
-        const user = await scimReadUser(ctx, id);
-        return reply
-          .type("application/scim+json")
-          .code(200)
-          .send(user ?? { schemas: [SCIM_USER_SCHEMA_URI], id });
+      } else if (plan.active === true) {
+        const result = await scimReactivateUser(ctx, id);
+        if (!result.ok) {
+          return reply
+            .type("application/scim+json")
+            .code(404)
+            .send(scimError(404, "User not found"));
+        }
       }
-      // Reactivation: bring the team member back to ACTIVE. We do not
-      // re-link the external mapping (a re-create through POST does).
+
+      // Apply supported attribute updates (displayName / role).
+      if (plan.displayName !== undefined || plan.role !== undefined) {
+        const upd = await scimUpdateUserAttributes(ctx, id, {
+          ...(plan.displayName !== undefined
+            ? { displayName: plan.displayName }
+            : {}),
+          ...(plan.role !== undefined ? { role: plan.role } : {}),
+        });
+        if (!upd.ok && upd.status === 404) {
+          return reply
+            .type("application/scim+json")
+            .code(404)
+            .send(scimError(404, "User not found"));
+        }
+        // A `noTarget` here (e.g. displayName supplied but the mapping is
+        // unlinked) is non-fatal when an `active` change already applied;
+        // otherwise surface it so the caller is not misled.
+        if (!upd.ok && plan.active === undefined) {
+          return reply
+            .type("application/scim+json")
+            .code(upd.status)
+            .send(scimError(upd.status, upd.detail, upd.scimType));
+        }
+      }
+
       const user = await scimReadUser(ctx, id);
-      if (!user) {
-        return reply
-          .type("application/scim+json")
-          .code(404)
-          .send(scimError(404, "User not found"));
-      }
-      return reply.type("application/scim+json").code(200).send(user);
+      return reply
+        .type("application/scim+json")
+        .code(200)
+        .send(user ?? { schemas: [SCIM_USER_SCHEMA_URI], id });
     },
   );
 

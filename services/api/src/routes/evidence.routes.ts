@@ -9963,11 +9963,13 @@ if (
       // Phase 9.5 — gate report download by workspace policy. Fail-closed:
       // a transient policy lookup blocks the export rather than leaking
       // a download URL.
+      let reportDownloadTeamId: string | null = null;
       {
         const evidenceForGate = await prisma.evidence.findUnique({
           where: { id },
           select: { id: true, teamId: true, retentionUntilUtc: true },
         });
+        reportDownloadTeamId = evidenceForGate?.teamId ?? null;
         if (evidenceForGate?.teamId) {
           const { enforceSensitiveAction } = await import(
             "../services/governance.service.js"
@@ -10082,6 +10084,23 @@ limitationsSnapshot: true,
         resourceId: id,
         metadata: {
           reportVersion: latest.version,
+        },
+      });
+
+      // Phase 5 (Enterprise Governance) — evidence-defensibility audit.
+      // Record the report DOWNLOAD as a distinct, queryable admin audit
+      // action (separate from the "report_viewed" access event above and
+      // the REPORT_DOWNLOADED custody event). Best-effort / fail-safe:
+      // auditEvidenceAction is void ...catch(), so an audit-write failure
+      // never breaks the download. NO signed URL / key material recorded.
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.report.downloaded",
+        outcome: "success",
+        resourceId: id,
+        metadata: {
+          reportVersion: latest.version,
+          ...(reportDownloadTeamId ? { teamId: reportDownloadTeamId } : {}),
         },
       });
 
@@ -10280,6 +10299,23 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         },
       });
 
+      // Phase 5 (Enterprise Governance) — evidence-defensibility audit.
+      // Record the original-file DOWNLOAD under the canonical dotted
+      // download action string, alongside the pre-existing
+      // "evidence.downloaded" event (kept for back-compat). Best-effort /
+      // fail-safe: an audit-write failure never breaks the download. NO
+      // presigned URL / key material is recorded.
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.original.downloaded",
+        outcome: "success",
+        resourceId: id,
+        metadata: {
+          accessMode: "original_presign",
+          ...(evidence.teamId ? { teamId: evidence.teamId } : {}),
+        },
+      });
+
       const storage = await getStorageProtectionSummary(
         evidence.storageBucket,
         evidence.storageKey,
@@ -10388,11 +10424,13 @@ displayName: resolvedDisplayName,
       }
 
       // Phase 9.5 — gate package download by workspace policy. Fail-closed.
+      let packageDownloadTeamId: string | null = null;
       {
         const evidenceForGate = await prisma.evidence.findUnique({
           where: { id },
           select: { id: true, teamId: true, retentionUntilUtc: true },
         });
+        packageDownloadTeamId = evidenceForGate?.teamId ?? null;
         if (evidenceForGate?.teamId) {
           const { enforceSensitiveAction } = await import(
             "../services/governance.service.js"
@@ -10631,6 +10669,26 @@ displayName: resolvedDisplayName,
           packageKey: latest.storageKey,
           version: latest.version,
           packageType: latest.packageType ?? null,
+        },
+      });
+
+      // Phase 5 (Enterprise Governance) — evidence-defensibility audit.
+      // Record the verification-package DOWNLOAD as a distinct, queryable
+      // admin audit action in the "evidence" category (separate from the
+      // "verification.package_accessed" event above and the
+      // VERIFICATION_PACKAGE_DOWNLOADED custody event). Best-effort /
+      // fail-safe: an audit-write failure never breaks the download.
+      // NO signed URL is recorded; storageKey is an internal object path,
+      // not a secret / not a credentialed URL.
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.verification_package.downloaded",
+        outcome: "success",
+        resourceId: id,
+        metadata: {
+          version: latest.version,
+          packageType: latest.packageType ?? null,
+          ...(packageDownloadTeamId ? { teamId: packageDownloadTeamId } : {}),
         },
       });
 

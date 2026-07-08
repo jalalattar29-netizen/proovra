@@ -3,8 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
+import { useToast } from "../../../../components/ui";
 import { apiFetch, ApiError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
+import { notifyApiError } from "../../../../lib/feedback/notify";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { useTeamId } from "../../../../lib/platform-context";
 import { LifecycleSectionBoundary } from "../_shared";
 
 type PermissionDenialState = { denial: string; tier: string } | null;
@@ -80,9 +88,18 @@ function safeDate(input: string | null | undefined): string {
 }
 
 function Shell() {
+  const { addToast } = useToast();
+  // Active workspace id — the step-up challenge is minted against this
+  // tenant. Placing a legal hold is a sensitive governance action, so
+  // when the backend responds STEP_UP_REQUIRED the hook opens the modal
+  // and resumes the EXACT create request with the challenge header.
+  const teamId = useTeamId();
+  const stepUp = useStepUpAction({ teamId });
+
   const [holds, setHolds] = useState<LegalHold[]>([]);
   const [busy, setBusy] = useState(false);
   const [denial, setDenial] = useState<PermissionDenialState>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // Create form state
   const [kind, setKind] = useState<string>(HOLD_KINDS[0]);
@@ -111,28 +128,53 @@ function Shell() {
   const create = useCallback(async () => {
     setCreating(true);
     setDenial(null);
+    setCreateError(null);
     try {
-      await apiFetch("/v1/lifecycle/legal-holds", {
-        method: "POST",
-        body: JSON.stringify({
-          kind,
-          name,
-          reason,
-          expiresAtUtc: expiresAtUtc || null,
-          scopeTargetId: scopeTargetId || null,
+      // Run the create INSIDE runStepUpAction: if the backend gate
+      // responds STEP_UP_REQUIRED, the modal opens and, on successful
+      // step-up, the hook resumes this exact request with the step-up
+      // challenge header injected by the hook's retry (never spelled out
+      // here). If the endpoint does not demand a challenge the wrapper is
+      // a no-op and the hold is created on the first call.
+      await stepUp.runStepUpAction(async (headers) =>
+        apiFetch("/v1/lifecycle/legal-holds", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({
+            kind,
+            name,
+            reason,
+            expiresAtUtc: expiresAtUtc || null,
+            scopeTargetId: scopeTargetId || null,
+          }),
         }),
-      });
+      );
       setName("");
       setReason("");
       setExpiresAtUtc("");
       setScopeTargetId("");
+      addToast("Legal hold placed.", "success");
       await refresh();
     } catch (err) {
-      applyDenial(err, setDenial);
+      // Cancelling step-up must NOT create a hold and must NOT surface a
+      // scary error — the operator deliberately backed out.
+      const code = (err as { code?: string })?.code;
+      if (code === "STEP_UP_CANCEL") {
+        addToast("Step-up cancelled — no legal hold was placed.", "info");
+      } else {
+        applyDenial(err, setDenial);
+        const safe = toSafeUserError(err, {
+          message: "We couldn't place this legal hold.",
+        });
+        setCreateError(safe.message);
+        notifyApiError(addToast, err, {
+          message: "We couldn't place this legal hold.",
+        });
+      }
     } finally {
       setCreating(false);
     }
-  }, [kind, name, reason, expiresAtUtc, scopeTargetId, refresh]);
+  }, [kind, name, reason, expiresAtUtc, scopeTargetId, refresh, stepUp, addToast]);
 
   const release = useCallback(
     async (id: string) => {
@@ -258,6 +300,28 @@ function Shell() {
           </button>
         </div>
       </section>
+
+      {createError ? (
+        <div
+          data-legal-hold-create-error
+          role="alert"
+          style={{
+            padding: 10,
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#991b1b",
+            borderRadius: 8,
+            fontSize: 12,
+            marginBottom: 10,
+          }}
+        >
+          {createError}
+        </div>
+      ) : null}
+
+      {/* Reuses the existing step-up flow — the modal opens only when the
+          backend answers STEP_UP_REQUIRED for the create request. */}
+      <StepUpModal control={stepUp} />
 
       <button
         type="button"

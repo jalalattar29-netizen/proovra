@@ -47,6 +47,14 @@ import {
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+// Phase 3A redaction closure — publishing a redacted derivative is the
+// irreversible, disclosure-shaping step of the redaction lifecycle, so it
+// must require a fresh step-up (purpose REDACTION_PUBLISH) AFTER the
+// redaction RBAC capability check and BEFORE the PUBLISHED transition. This
+// reuses the existing enterprise step-up middleware — no second security
+// system, and it NEVER gates viewing / authoring / detection / submit /
+// approve / derivative-request.
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
 import {
   extractPrismaDiagnostic,
@@ -684,6 +692,40 @@ export async function redactionRoutes(app: FastifyInstance) {
       if (!(await gate(reply, ctx, "redaction.version.publish"))) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = PublishBody.parse(req.body ?? {});
+
+      // STEP-UP: publishing a redacted derivative is the irreversible,
+      // disclosure-shaping step of the redaction lifecycle (it flips the
+      // version + project to PUBLISHED so the verify badge / reports /
+      // packages / derivative download treat that derivative as the
+      // authoritative redacted artifact). Require a fresh step-up AFTER the
+      // redaction RBAC capability gate, BEFORE the mutation. The middleware
+      // consumes the challenge single-use; on failure it has already sent
+      // 401 STEP_UP_REQUIRED (or 403 on CRITICAL risk) and we early-return.
+      // The original evidence is NEVER touched — only the derivative-backed
+      // version transitions.
+      const gateResult = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "REDACTION_PUBLISH",
+        resourceKind: "redaction_derivative",
+        resourceId: id,
+      });
+      if (gateResult.sent) return reply;
+
+      // The step-up challenge id (consumed above) is recorded in the
+      // VERSION_PUBLISHED audit row so the trail captures who authorised
+      // the disclosure and that a fresh step-up passed. Bounded id only —
+      // never the OTP / phone / session token.
+      const stepUpHeader = req.headers["x-proovra-step-up-challenge-id"];
+      const stepUpChallengeId =
+        typeof stepUpHeader === "string"
+          ? stepUpHeader.trim() || null
+          : Array.isArray(stepUpHeader) && stepUpHeader[0]
+            ? String(stepUpHeader[0]).trim() || null
+            : null;
+
       // Publish requires a READY derivative — gate it here.
       const derivative = await prisma.redactionDerivative.findFirst({
         where: { teamId: ctx.teamId, versionId: id },
@@ -700,6 +742,7 @@ export async function redactionRoutes(app: FastifyInstance) {
         toState: "PUBLISHED",
         actorUserId: ctx.userId,
         rationale: body.rationale ?? null,
+        stepUpChallengeId,
       });
       if (!res.ok) return reply.code(409).send({ denial: res.denial });
       return reply.code(200).send({ ok: true });

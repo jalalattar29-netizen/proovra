@@ -192,11 +192,21 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "account.organization_admin_members",
       "account.organization_admin_departments",
       "account.organization_admin_governance",
+      // Phase 5 (Enterprise Governance) — external-reviewer grant governance view.
+      "account.organization_admin_governance_external_reviewers",
       "account.organization_admin_access_reviews",
       "account.organization_admin_retention",
       "account.organization_admin_audit",
       "account.organization_admin_security",
+      // Phase 3 (Enterprise Identity) — Domains verification tab.
+      "account.organization_admin_domains",
       "account.organization_admin_trust",
+      // Phase 4 (Enterprise Administration) — Roles, Billing, Integrations
+      // finalization tabs. Same GOVERNANCE-secondary placement as their
+      // sibling org-admin tabs (org-tier oversight, sidebarEligible: false).
+      "account.organization_admin_roles",
+      "account.organization_admin_billing",
+      "account.organization_admin_integrations",
       // Final Closure Remediation Part A — `security_center.mfa_recovery`
       // is the MFA-recovery approvals console reached from the Security
       // Center. It belongs to the Governance group (member-identity

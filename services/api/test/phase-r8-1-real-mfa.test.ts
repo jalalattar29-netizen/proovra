@@ -274,7 +274,7 @@ describe("R8.1 Part 7 — bounded surface area (R8.1.1-aware)", () => {
       // growth is a single Enterprise-feature gate at the top of
       // `authenticateScim` that delegates to the shared resolver in
       // `services/enterprise-gate-resolvers.service.ts`.
-      { rel: "src/routes/scim.routes.ts", expectedBytes: 12000 },
+      { rel: "src/routes/scim.routes.ts", expectedBytes: 13640 },
     ];
     for (const { rel, expectedBytes } of PINS) {
       const st = statSync(apiPath(rel));

@@ -26,6 +26,7 @@ import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError"
  *     #2). API enforces role permissions; UI surfaces 403 honestly.
  */
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -33,41 +34,13 @@ import { PageRouteGate } from "../../../../../../components/navigation/PageRoute
 import { useConfirmAction } from "../../../../../../components/ui/ConfirmActionModal";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../../../lib/date";
-
-type OrgRole =
-  | "ORG_OWNER"
-  | "ORG_ADMIN"
-  | "ORG_SECURITY_ADMIN"
-  | "ORG_BILLING_ADMIN"
-  | "ORG_AUDITOR"
-  | "ORG_MEMBER";
-
-const ALL_ROLES: ReadonlyArray<OrgRole> = [
-  "ORG_OWNER",
-  "ORG_ADMIN",
-  "ORG_SECURITY_ADMIN",
-  "ORG_BILLING_ADMIN",
-  "ORG_AUDITOR",
-  "ORG_MEMBER",
-];
-
-const ROLE_RANK: Record<OrgRole, number> = {
-  ORG_OWNER: 5,
-  ORG_ADMIN: 4,
-  ORG_SECURITY_ADMIN: 3,
-  ORG_BILLING_ADMIN: 3,
-  ORG_AUDITOR: 2,
-  ORG_MEMBER: 1,
-};
-
-const ROLE_LABEL: Record<OrgRole, string> = {
-  ORG_OWNER: "Owner",
-  ORG_ADMIN: "Admin",
-  ORG_SECURITY_ADMIN: "Security admin",
-  ORG_BILLING_ADMIN: "Billing admin",
-  ORG_AUDITOR: "Auditor",
-  ORG_MEMBER: "Member",
-};
+import { SeatsCard } from "../_lib/SeatsCard";
+import {
+  ALL_ORG_ROLES as ALL_ROLES,
+  ORG_ROLE_LABEL as ROLE_LABEL,
+  canManageMembers,
+  type OrgRole,
+} from "../_lib/orgRoles";
 
 interface OrgResponse {
   organizationId: string;
@@ -186,7 +159,7 @@ function MembersTab() {
   }, [refresh]);
 
   const callerRole = org.kind === "ready" ? org.data.callerRole : null;
-  const canMutate = callerRole !== null && ROLE_RANK[callerRole] >= ROLE_RANK.ORG_ADMIN;
+  const canMutate = callerRole !== null && canManageMembers(callerRole);
 
   const sendInvite = useCallback(async () => {
     const email = inviteEmail.trim();
@@ -334,6 +307,50 @@ function MembersTab() {
 
   return (
     <section data-testid="org-admin-members" data-org-id={orgId}>
+      {/* ------------------- ACCESS SUMMARY + ROLES LINK ------------------- */}
+      <section
+        data-section="members-access-summary"
+        data-testid="members-access-summary"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          padding: "0.7rem 1.1rem",
+          border: "1px solid rgba(127,127,127,0.3)",
+          borderRadius: 8,
+          marginBottom: "1rem",
+        }}
+      >
+        <div style={{ fontSize: 13, opacity: 0.85 }}>
+          {org.kind === "ready" ? (
+            <>
+              Your access:{" "}
+              <strong data-testid="members-caller-role">
+                {ROLE_LABEL[org.data.callerRole]}
+              </strong>
+              {" — "}
+              {canMutate
+                ? "you can invite members and change org roles."
+                : "read-only. Ask an organization admin to make changes."}
+            </>
+          ) : (
+            "Org-level governance roles. Workspace access is workspace-scoped."
+          )}
+        </div>
+        <Link
+          href={`/organizations/${orgId}/admin/roles`}
+          data-testid="members-roles-reference-link"
+          className="cases-filter-chip"
+        >
+          Roles &amp; permissions reference →
+        </Link>
+      </section>
+
+      {/* ------------------- SEATS ------------------- */}
+      <SeatsCard orgId={orgId} />
+
       {/* ------------------- INVITE FORM ------------------- */}
       <section
         data-section="invite-form"
@@ -474,6 +491,8 @@ function MembersTab() {
           <h2 style={{ margin: 0, fontSize: 16 }}>Members</h2>
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
             Org-level governance roles. Workspace-level access is workspace-scoped.
+            SSO / SCIM source, MFA state, and last-login are managed per-workspace
+            in Identity and are not exposed on the org member list.
           </div>
         </header>
         {members.kind === "loading" ? (

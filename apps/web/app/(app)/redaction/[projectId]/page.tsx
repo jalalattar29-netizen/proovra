@@ -23,7 +23,13 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 import { apiFetch } from "../../../../lib/api";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { useTeamId } from "../../../../lib/platform-context";
 
 import { ImageRedactionViewer } from "../../../../components/redaction/ImageRedactionViewer";
 import { PdfRedactionViewer } from "../../../../components/redaction/PdfRedactionViewer";
@@ -96,6 +102,14 @@ function RedactionProjectShell({
     null,
   );
   const [banner, setBanner] = useState<string | null>(null);
+  // Active workspace id — the step-up challenge is minted against this
+  // tenant. Publishing a redacted derivative is a sensitive, irreversible
+  // disclosure action, so when the backend answers STEP_UP_REQUIRED the
+  // hook opens the modal and resumes the EXACT publish request with the
+  // challenge header. Reuses the existing enterprise step-up flow — no
+  // parallel implementation, and viewing / authoring are never gated.
+  const teamId = useTeamId();
+  const stepUp = useStepUpAction({ teamId });
 
   const refresh = useCallback(async () => {
     try {
@@ -146,21 +160,53 @@ function RedactionProjectShell({
       verdict?: "APPROVE" | "REJECT" | "REQUEST_CHANGES",
       rationale?: string,
     ) => {
+      const url = `/v1/redaction/versions/${versionId}/${action}`;
+      const body =
+        action === "approve"
+          ? JSON.stringify({ verdict, rationale })
+          : JSON.stringify({ rationale });
       try {
-        const url = `/v1/redaction/versions/${versionId}/${action}`;
-        const body =
-          action === "approve"
-            ? JSON.stringify({ verdict, rationale })
-            : JSON.stringify({ rationale });
-        await apiFetch(url, { method: "POST", body });
+        if (action === "publish") {
+          // PUBLISH is the sensitive, irreversible disclosure step. Run it
+          // INSIDE runStepUpAction: if the backend gate answers
+          // STEP_UP_REQUIRED, the modal opens and, on successful step-up,
+          // the hook resumes THIS exact publish request with the challenge
+          // header injected on retry (never spelled out here). When no
+          // challenge is demanded the wrapper is a transparent no-op.
+          await stepUp.runStepUpAction(async (headers) =>
+            apiFetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+              body,
+            }),
+          );
+        } else {
+          await apiFetch(url, { method: "POST", body });
+        }
         setBanner(`Version transitioned (${action}).`);
         await refresh();
       } catch (err) {
+        // Cancelling step-up must NOT publish and must NOT surface a scary
+        // error — the operator deliberately backed out.
+        const code = (err as { code?: string })?.code;
+        if (code === "STEP_UP_CANCEL") {
+          setBanner("Step-up cancelled — the redaction was not published.");
+          return;
+        }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setBanner(`Refused: ${((err as any)?.denial ?? "POLICY_REJECTED")}`);
+        const denial = (err as any)?.denial as string | undefined;
+        if (denial) {
+          setBanner(`Refused: ${denial}`);
+          return;
+        }
+        setBanner(
+          toSafeUserError(err, {
+            message: `We couldn't complete the ${action} action.`,
+          }).message,
+        );
       }
     },
-    [refresh],
+    [refresh, stepUp],
   );
 
   if (!project) {
@@ -212,6 +258,10 @@ function RedactionProjectShell({
           + New version
         </button>
       </header>
+
+      {/* Reuses the existing step-up flow — the modal opens only when the
+          backend answers STEP_UP_REQUIRED for the publish request. */}
+      <StepUpModal control={stepUp} />
 
       {banner ? (
         <div

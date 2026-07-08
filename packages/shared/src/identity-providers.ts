@@ -326,6 +326,80 @@ export const ScimPatchOpSchema = z
 export type ScimPatchOpInput = z.infer<typeof ScimPatchOpSchema>;
 
 // -----------------------------------------------------------------------------
+// SCIM User PATCH interpreter — pure classifier.
+//
+// Maps RFC 7644 PatchOp Operations onto the subset the data model can
+// honestly persist:
+//   - active           → TeamMember.status (activate / deactivate)
+//   - displayName / name.formatted → ExternalIdentityMapping.displayName
+//   - userType / roles → TeamMember.role  (VIEWER | MEMBER only)
+//
+// Every other path is collected in `unsupported` so the route can return
+// a spec-correct response instead of faking success. This function does
+// NOT touch the DB and is exhaustively unit-testable.
+// -----------------------------------------------------------------------------
+
+export type ScimUserPatchPlan = {
+  /** Present iff a `replace active` op was supplied. */
+  active?: boolean;
+  /** Present iff a supported displayName/name.formatted op was supplied. */
+  displayName?: string | null;
+  /** Present iff a supported role/userType op resolved to a SCIM-assignable role. */
+  role?: "VIEWER" | "MEMBER";
+  /** Paths the model cannot honestly persist (e.g. phoneNumbers, addresses). */
+  unsupported: string[];
+  /** True iff at least one supported field was recognised. */
+  hasSupported: boolean;
+};
+
+function normalizeScimRole(value: unknown): "VIEWER" | "MEMBER" | null {
+  if (typeof value !== "string") return null;
+  const v = value.trim().toUpperCase();
+  if (v === "VIEWER") return "VIEWER";
+  // REVIEWER and MEMBER both map to MEMBER (mirrors create-path mapping).
+  if (v === "MEMBER" || v === "REVIEWER") return "MEMBER";
+  return null;
+}
+
+export function interpretScimUserPatch(
+  ops: ReadonlyArray<{ op: string; path: string; value?: unknown }>,
+): ScimUserPatchPlan {
+  const plan: ScimUserPatchPlan = { unsupported: [], hasSupported: false };
+  for (const op of ops) {
+    const path = op.path.trim().toLowerCase();
+    const isReplace = op.op === "replace";
+    const isAdd = op.op === "add";
+
+    if (isReplace && path === "active" && typeof op.value === "boolean") {
+      plan.active = op.value;
+      plan.hasSupported = true;
+      continue;
+    }
+    if (
+      (isReplace || isAdd) &&
+      (path === "displayname" || path === "name.formatted") &&
+      (typeof op.value === "string" || op.value === null)
+    ) {
+      plan.displayName =
+        typeof op.value === "string" ? op.value : null;
+      plan.hasSupported = true;
+      continue;
+    }
+    if ((isReplace || isAdd) && (path === "usertype" || path === "roles")) {
+      const role = normalizeScimRole(op.value);
+      if (role) {
+        plan.role = role;
+        plan.hasSupported = true;
+        continue;
+      }
+    }
+    // Anything else is not backed by the data model.
+    plan.unsupported.push(op.path);
+  }
+  return plan;
+}
+
+// -----------------------------------------------------------------------------
 // JIT provisioning — pure helper that decides whether the SSO callback
 // can mint a new TeamMember on first login.
 // -----------------------------------------------------------------------------

@@ -170,6 +170,16 @@ export type TransitionRedactionVersionInput = {
   toState: RedactionVersionState;
   actorUserId: string;
   rationale?: string | null;
+  /**
+   * Phase 3A redaction closure — when a PUBLISH transition passed the
+   * step-up gate the route threads the consumed step-up challenge id
+   * here so the VERSION_PUBLISHED audit row records that a fresh
+   * step-up authorised the disclosure. This is bounded metadata only
+   * (the challenge id, NOT the OTP / phone / session token) and reuses
+   * the existing redaction activity audit path — no second audit
+   * system, no new activity code.
+   */
+  stepUpChallengeId?: string | null;
 };
 
 export type TransitionRedactionVersionResult =
@@ -271,6 +281,20 @@ export async function transitionRedactionVersion(
       from,
       to: input.toState,
       rationalePreview: input.rationale?.slice(0, 80) ?? null,
+      // Phase 3A redaction closure — record that the PUBLISH disclosure
+      // was authorised by a fresh step-up. `stepUpVerified` is true only
+      // when the route consumed a challenge for this publish; the
+      // bounded challenge id is stored for the audit trail (never the
+      // OTP / phone / session token).
+      ...(input.toState === "PUBLISHED"
+        ? {
+            stepUpVerified: input.stepUpChallengeId != null,
+            stepUpChallengeId: input.stepUpChallengeId ?? null,
+            stepUpPurpose: input.stepUpChallengeId != null
+              ? "REDACTION_PUBLISH"
+              : null,
+          }
+        : {}),
     },
   });
 

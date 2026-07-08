@@ -793,7 +793,7 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // mapping; allowlisted so the guardrail keeps detecting UNattributed
       // migrations while permitting this deliberate provisioning work.
       "20270909000000_org_pending_enterprise_seats",
-    ]);
+      "20270910000000_phase_3_enterprise_identity_domains_and_sp_signing",    ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);
       if (!m) return false;

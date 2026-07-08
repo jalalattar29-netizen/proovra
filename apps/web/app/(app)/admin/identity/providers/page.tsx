@@ -15,10 +15,14 @@
  */
 
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../../components/identity-security/StepUpModal";
 import {
   cardStyle,
   errorBoxStyle,
@@ -63,7 +67,18 @@ type SsoConnection = {
   createdAt: string;
   updatedAt: string;
   lastUsedAtUtc: string | null;
+  // Phase 3 — SAML SP signing + verified-domain policy STATUS. The private
+  // key is NEVER present here — only status + fingerprint.
+  samlSignRequests: boolean;
+  restrictToVerifiedDomains: boolean;
+  samlSpKeyConfigured: boolean;
+  samlSpKeyFingerprint: string | null;
+  samlSpEnvKeyAvailable: boolean;
+  samlSpSigningKeySource: "stored" | "env" | "none";
+  samlSpCertificateConfigured: boolean;
 };
+
+const SAML_PROVIDERS: SsoProvider[] = ["GENERIC_SAML"];
 
 const PROVIDER_LABELS: Record<SsoProvider, string> = {
   GENERIC_OIDC: "Generic OIDC",
@@ -83,9 +98,12 @@ const OIDC_PROVIDERS: SsoProvider[] = [
 
 export default function ProvidersPage() {
   const teamId = useTeamId();
+  const stepUp = useStepUpAction({ teamId });
   const [providers, setProviders] = useState<SsoConnection[] | null>(null);
+  const [verifiedDomainCount, setVerifiedDomainCount] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({
     provider: "GOOGLE_WORKSPACE" as SsoProvider,
@@ -105,10 +123,16 @@ const load = useCallback(() => {
       `/v1/admin/identity/providers?teamId=${encodeURIComponent(teamId)}`,
       { method: "GET" },
     )
-      .then((r: { providers: SsoConnection[] }) => {
-        setProviders(r.providers ?? []);
-        setError(null);
-      })
+      .then(
+        (r: {
+          providers: SsoConnection[];
+          verifiedDomainCount?: number;
+        }) => {
+          setProviders(r.providers ?? []);
+          setVerifiedDomainCount(r.verifiedDomainCount ?? 0);
+          setError(null);
+        },
+      )
       .catch((err: { message?: string }) =>
         setError(toSafeUserError(err, { message: "Could not load providers." }).message),
       );
@@ -178,6 +202,54 @@ const load = useCallback(() => {
       }
     },
     [teamId, load],
+  );
+
+  const updatePolicy = useCallback(
+    async (
+      id: string,
+      patch: {
+        samlSignRequests?: boolean;
+        restrictToVerifiedDomains?: boolean;
+        samlSpPrivateKey?: string | null;
+        samlSpCertificate?: string | null;
+      },
+    ) => {
+      if (!teamId) return;
+      setBusy(id);
+      setError(null);
+      try {
+        // The private key (if any) is sent write-only; the response projection
+        // NEVER returns it back — we only re-read status + fingerprint.
+        await stepUp.runStepUpAction(async (headers) =>
+          apiFetch(
+            `/v1/admin/identity/providers/${encodeURIComponent(id)}/policy`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(headers ?? {}),
+              },
+              body: JSON.stringify({ teamId, ...patch }),
+            },
+          ),
+        );
+        load();
+      } catch (err) {
+        const code = (err as { code?: string })?.code;
+        if (code === "STEP_UP_CANCEL") {
+          setError("Step-up cancelled — no changes were saved.");
+        } else {
+          setError(
+            toSafeUserError(err, {
+              message: "Could not update signing policy.",
+            }).message,
+          );
+        }
+      } finally {
+        setBusy(null);
+      }
+    },
+    [teamId, stepUp, load],
   );
 
   if (!teamId) {
@@ -250,7 +322,8 @@ const load = useCallback(() => {
             </thead>
             <tbody>
               {providers.map((p) => (
-                <tr key={p.id}>
+                <React.Fragment key={p.id}>
+                <tr>
                   <td style={tdStyle}>
                     <span style={{ fontWeight: 600 }}>
                       {PROVIDER_LABELS[p.provider]}
@@ -294,6 +367,15 @@ const load = useCallback(() => {
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        style={ghostButtonStyle}
+                        onClick={() =>
+                          setExpanded((cur) => (cur === p.id ? null : p.id))
+                        }
+                      >
+                        {expanded === p.id ? "Hide policy" : "Signing & policy"}
+                      </button>
                       {p.status === "PENDING" ? (
                         <button
                           type="button"
@@ -342,11 +424,26 @@ const load = useCallback(() => {
                     </div>
                   </td>
                 </tr>
+                {expanded === p.id ? (
+                  <tr>
+                    <td style={{ ...tdStyle, padding: 0 }} colSpan={7}>
+                      <PolicyPanel
+                        connection={p}
+                        verifiedDomainCount={verifiedDomainCount}
+                        busy={busy === p.id}
+                        onUpdate={(patch) => updatePolicy(p.id, patch)}
+                      />
+                    </td>
+                  </tr>
+                ) : null}
+              </React.Fragment>
               ))}
             </tbody>
           </table>
         )}
       </section>
+
+      <StepUpModal control={stepUp} />
 
       {showCreate ? (
         <section style={{ ...cardStyle, marginTop: 16 }}>
@@ -486,6 +583,191 @@ const load = useCallback(() => {
         </section>
       ) : null}
     </main>
+  );
+}
+
+function PolicyPanel({
+  connection,
+  verifiedDomainCount,
+  busy,
+  onUpdate,
+}: {
+  connection: SsoConnection;
+  verifiedDomainCount: number;
+  busy: boolean;
+  onUpdate: (patch: {
+    samlSignRequests?: boolean;
+    restrictToVerifiedDomains?: boolean;
+    samlSpPrivateKey?: string | null;
+    samlSpCertificate?: string | null;
+  }) => void;
+}) {
+  const isSaml = SAML_PROVIDERS.includes(connection.provider);
+  const noVerifiedDomains = verifiedDomainCount === 0;
+  const [keyDraft, setKeyDraft] = useState("");
+  const [certDraft, setCertDraft] = useState("");
+
+  const signingSourceLabel =
+    connection.samlSpSigningKeySource === "stored"
+      ? "Stored (per-connection key)"
+      : connection.samlSpSigningKeySource === "env"
+        ? "Configured via environment (SAML_SP_PRIVATE_KEY)"
+        : "Not configured";
+
+  return (
+    <div
+      style={{
+        background: TOKENS.surfaceMuted,
+        borderTop: `1px solid ${TOKENS.border}`,
+        padding: 16,
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+      }}
+    >
+      {isSaml ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <strong style={{ fontSize: 13 }}>SAML SP request signing</strong>
+          <div style={{ ...mutedStyle, fontSize: 12 }}>
+            Signing key source: <strong>{signingSourceLabel}</strong>
+            {connection.samlSpKeyFingerprint ? (
+              <>
+                {" · "}fingerprint (SHA-256):{" "}
+                <code style={{ fontFamily: "monospace", fontSize: 11 }}>
+                  {connection.samlSpKeyFingerprint.slice(0, 16)}…
+                </code>
+              </>
+            ) : null}
+            {" · "}SP certificate:{" "}
+            {connection.samlSpCertificateConfigured ? "configured" : "none"}
+          </div>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 13,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={connection.samlSignRequests}
+              disabled={busy}
+              onChange={(e) =>
+                onUpdate({ samlSignRequests: e.target.checked })
+              }
+            />
+            <span>Sign AuthnRequests</span>
+          </label>
+          {connection.samlSignRequests &&
+          connection.samlSpSigningKeySource === "none" ? (
+            <div style={{ ...mutedStyle, fontSize: 12, color: "#92400e" }}>
+              Signing is enabled but no signing key is available. Add a
+              per-connection key below or set the SAML_SP_PRIVATE_KEY
+              environment variable — until then requests are sent unsigned.
+            </div>
+          ) : null}
+
+          <div style={{ ...mutedStyle, fontSize: 12, marginTop: 4 }}>
+            Replace signing key (PEM, write-only — never shown again):
+          </div>
+          <textarea
+            value={keyDraft}
+            disabled={busy}
+            onChange={(e) => setKeyDraft(e.target.value)}
+            placeholder="-----BEGIN PRIVATE KEY-----&#10;…&#10;-----END PRIVATE KEY-----"
+            style={{
+              ...inputStyle,
+              minHeight: 80,
+              fontFamily: "monospace",
+              fontSize: 11,
+            }}
+          />
+          <textarea
+            value={certDraft}
+            disabled={busy}
+            onChange={(e) => setCertDraft(e.target.value)}
+            placeholder="SP certificate (base64, no PEM header) — optional"
+            style={{
+              ...inputStyle,
+              minHeight: 60,
+              fontFamily: "monospace",
+              fontSize: 11,
+            }}
+          />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              style={primaryButtonStyle}
+              disabled={busy || (keyDraft.trim() === "" && certDraft.trim() === "")}
+              onClick={() => {
+                const patch: {
+                  samlSpPrivateKey?: string;
+                  samlSpCertificate?: string;
+                } = {};
+                if (keyDraft.trim() !== "") patch.samlSpPrivateKey = keyDraft;
+                if (certDraft.trim() !== "")
+                  patch.samlSpCertificate = certDraft;
+                onUpdate(patch);
+                setKeyDraft("");
+                setCertDraft("");
+              }}
+            >
+              {busy ? "Saving…" : "Install / rotate key"}
+            </button>
+            {connection.samlSpKeyConfigured ? (
+              <button
+                type="button"
+                style={ghostButtonStyle}
+                disabled={busy}
+                onClick={() => onUpdate({ samlSpPrivateKey: "" })}
+              >
+                Clear stored key
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div style={{ ...mutedStyle, fontSize: 12 }}>
+          SP request signing applies to SAML connections only.
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <strong style={{ fontSize: 13 }}>Verified-domain restriction</strong>
+        <div style={{ ...mutedStyle, fontSize: 12 }}>
+          Verified organization domains:{" "}
+          <strong>{verifiedDomainCount}</strong>
+        </div>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 13,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={connection.restrictToVerifiedDomains}
+            disabled={
+              busy ||
+              (noVerifiedDomains && !connection.restrictToVerifiedDomains)
+            }
+            onChange={(e) =>
+              onUpdate({ restrictToVerifiedDomains: e.target.checked })
+            }
+          />
+          <span>Restrict SSO logins to verified domains</span>
+        </label>
+        {noVerifiedDomains && !connection.restrictToVerifiedDomains ? (
+          <div style={{ ...mutedStyle, fontSize: 12, color: "#92400e" }}>
+            Verify at least one organization domain before enabling this
+            restriction.
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

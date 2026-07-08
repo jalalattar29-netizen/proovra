@@ -189,11 +189,54 @@ export async function isUnderActiveLegalHold(
   evidenceId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<boolean> {
+  // --- Canonical delete-gate hold model: EvidenceLegalHold (Phase 27 / 4A) ---
+  // This is the per-record hold the trash/delete/archive UI writes via
+  // `placeLegalHold` (governance.routes.ts) and the worker-enforced lineage.
   const row = await client.evidenceLegalHold.findFirst({
     where: { evidenceId, status: prismaPkg.LegalHoldStatus.ACTIVE },
     select: { id: true },
   });
-  return Boolean(row);
+  if (row) return true;
+
+  // --- SCOPE-E gap closure: also consult the Phase 4B `LegalHold` model ---
+  // The Surface-A "Lifecycle Operations" UI (POST /v1/lifecycle/legal-holds)
+  // writes EVIDENCE/WORKSPACE/ORGANIZATION/CASE-scoped holds into the 4B
+  // `legal_holds` table (lifecycle/legal-hold.service.ts). Before this
+  // consult, a 4B EVIDENCE-scoped hold placed through that live UI would
+  // NOT block a `DELETE /v1/evidence/:id` — a deletion-blocking asymmetry,
+  // because the 4B canonical `isUnderLegalHold` reads BOTH models while this
+  // gate read only one. This union check makes the delete gate honour a hold
+  // placed by EITHER surface. Strictly ADDITIVE (fail-closed only gains block
+  // conditions); it never allows a deletion the prior code blocked.
+  //
+  // Tolerant of a missing/absent `legal_holds` table (older environments):
+  // a lookup failure degrades to "no 4B hold" so we never break the delete
+  // path — the EvidenceLegalHold check above already ran fail-closed.
+  try {
+    const ev = await client.evidence.findUnique({
+      where: { id: evidenceId },
+      select: { teamId: true, caseId: true },
+    });
+    if (!ev?.teamId) return false;
+
+    const orClauses: Array<Record<string, unknown>> = [
+      { kind: "EVIDENCE", scopeTargetId: evidenceId },
+      { kind: "WORKSPACE", scopeTargetId: ev.teamId },
+      { kind: "ORGANIZATION" },
+    ];
+    if (ev.caseId) {
+      orClauses.push({ kind: "CASE", scopeTargetId: ev.caseId });
+    }
+
+    const hold4B = await client.legalHold.findFirst({
+      where: { teamId: ev.teamId, state: "ACTIVE", OR: orClauses },
+      select: { id: true },
+    });
+    return Boolean(hold4B);
+  } catch {
+    // 4B `legal_holds` table may not exist in every environment — tolerate.
+    return false;
+  }
 }
 
 export async function listLegalHoldsForEvidence(

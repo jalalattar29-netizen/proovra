@@ -76,7 +76,16 @@ function AuditTab() {
   const params = useParams<{ id: string }>();
   const orgId = params?.id ?? "";
 
+  // `filter` (event type / action) is applied SERVER-side — the
+  // audit-events endpoint supports an `eventType` query param. `actor`
+  // and the from/to date window are applied CLIENT-side over the loaded
+  // page, because the endpoint does not expose actor/date filters. This
+  // keeps the surface honest: we never claim a server capability that
+  // isn't there.
   const [filter, setFilter] = useState<string>("");
+  const [actor, setActor] = useState<string>("");
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
   const [audit, setAudit] = useState<Loadable<AuditResponse>>({
     kind: "loading",
   });
@@ -109,6 +118,35 @@ function AuditTab() {
     void load();
   }, [load]);
 
+  // Client-side actor + date-window filtering over the loaded page.
+  const visibleEvents =
+    audit.kind === "ready"
+      ? audit.data.events.filter((e) =>
+          matchesClientFilters(e, actor, fromDate, toDate),
+        )
+      : [];
+
+  const exportCsv = useCallback(() => {
+    const rows = visibleEvents.map((e) => [
+      e.createdAt,
+      e.eventType,
+      e.actorDisplayName ?? e.actorEmail ?? e.actorUserId ?? "",
+      e.targetType,
+      e.targetId ?? "",
+    ]);
+    const header = ["createdAt", "eventType", "actor", "targetType", "targetId"];
+    const csv = [header, ...rows]
+      .map((r) => r.map(csvCell).join(","))
+      .join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `org-audit-${orgId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [visibleEvents, orgId]);
+
   return (
     <section data-testid="org-admin-audit" data-org-id={orgId}>
       <section
@@ -136,19 +174,63 @@ function AuditTab() {
               Org governance events. Requires ORG_AUDITOR or higher.
             </div>
           </div>
-          <select
-            data-testid="audit-type-filter"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            style={{ fontSize: 12, padding: "0.25rem 0.4rem" }}
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
           >
-            <option value="">All event types</option>
-            {KNOWN_EVENT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+            <select
+              data-testid="audit-type-filter"
+              aria-label="Filter by event type"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              style={{ fontSize: 12, padding: "0.25rem 0.4rem" }}
+            >
+              <option value="">All event types</option>
+              {KNOWN_EVENT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <input
+              data-testid="audit-actor-filter"
+              aria-label="Filter by actor"
+              placeholder="Actor (name / email)"
+              value={actor}
+              onChange={(e) => setActor(e.target.value)}
+              style={{ fontSize: 12, padding: "0.25rem 0.4rem", minWidth: 140 }}
+            />
+            <input
+              data-testid="audit-from-filter"
+              aria-label="From date"
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              style={{ fontSize: 12, padding: "0.2rem 0.4rem" }}
+            />
+            <input
+              data-testid="audit-to-filter"
+              aria-label="To date"
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              style={{ fontSize: 12, padding: "0.2rem 0.4rem" }}
+            />
+            <button
+              type="button"
+              data-testid="audit-export-csv"
+              onClick={exportCsv}
+              disabled={audit.kind !== "ready" || visibleEvents.length === 0}
+              className="cases-filter-chip"
+              style={{ fontSize: 12 }}
+            >
+              Export CSV
+            </button>
+          </div>
         </header>
         {audit.kind === "loading" ? (
           <div data-state="loading" style={{ fontSize: 13, opacity: 0.7 }}>
@@ -176,19 +258,20 @@ function AuditTab() {
           <ul
             data-testid="audit-events-list"
             data-total-events={audit.data.summary.totalEvents}
+            data-visible-events={visibleEvents.length}
             style={{ listStyle: "none", padding: 0, margin: 0 }}
           >
-            {audit.data.events.length === 0 ? (
+            {visibleEvents.length === 0 ? (
               <li
                 data-empty-state="no-audit-events"
                 style={{ padding: "0.5rem 0", fontSize: 13, opacity: 0.75 }}
               >
-                {filter
-                  ? `No events matching ${filter}.`
+                {filter || actor || fromDate || toDate
+                  ? "No events match the current filters."
                   : "No audit events yet."}
               </li>
             ) : null}
-            {audit.data.events.map((e) => (
+            {visibleEvents.map((e) => (
               <li
                 key={e.id}
                 data-audit-event-id={e.id}
@@ -251,6 +334,46 @@ function AuditTab() {
       </section>
     </section>
   );
+}
+
+/**
+ * Client-side filter predicate for actor + date window. Event-type
+ * filtering is applied SERVER-side (the endpoint supports it), so it is
+ * not repeated here.
+ */
+function matchesClientFilters(
+  e: AuditEvent,
+  actor: string,
+  fromDate: string,
+  toDate: string,
+): boolean {
+  if (actor.trim()) {
+    const needle = actor.trim().toLowerCase();
+    const haystack = [e.actorDisplayName, e.actorEmail, e.actorUserId]
+      .filter((x): x is string => !!x)
+      .join(" ")
+      .toLowerCase();
+    if (!haystack.includes(needle)) return false;
+  }
+  const created = Date.parse(e.createdAt);
+  if (fromDate) {
+    const from = Date.parse(`${fromDate}T00:00:00.000Z`);
+    if (Number.isFinite(from) && created < from) return false;
+  }
+  if (toDate) {
+    // Inclusive of the whole `toDate` day (end-of-day UTC).
+    const to = Date.parse(`${toDate}T23:59:59.999Z`);
+    if (Number.isFinite(to) && created > to) return false;
+  }
+  return true;
+}
+
+/** RFC-4180-safe CSV cell escaping. */
+function csvCell(value: string): string {
+  if (/[",\r\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
 }
 
 function DeepLink({

@@ -433,3 +433,179 @@ export function isSessionStale(input: {
   const ageMs = (input.nowUtc ?? new Date()).getTime() - anchor.getTime();
   return ageMs > stale * 60_000;
 }
+
+// -----------------------------------------------------------------------------
+// Phase 3 (Enterprise Identity) — Org session-timeout POLICY enforcement.
+//
+// The OrganizationSecurityPolicy row stores two role-tiered absolute
+// session-timeout fields — `reviewerSessionTimeoutSeconds` and
+// `contributorSessionTimeoutSeconds` — that were previously STORED but
+// never enforced (read-only / deferred). These pure helpers let the
+// auth middleware turn a stored policy + the current session's age +
+// idle time into an expire/allow decision WITHOUT importing Prisma or
+// any Node built-in, so they are browser-safe and trivially unit-
+// testable.
+//
+// Hard rules:
+//   - A `null` timeout for a role means "no policy timeout for that
+//     role" — the session is bounded only by the JWT's own 30-day exp.
+//     (Mirrors the "empty allow-list ALWAYS allows" convention.)
+//   - The configured timeout is an INACTIVITY (idle) timeout — the
+//     standard enterprise "session timeout" meaning. A session expires
+//     once the user has been idle (no last-seen activity) longer than
+//     the limit. When no last-seen heartbeat exists yet, idle is
+//     measured from issuance (age). We do NOT invent a separate idle
+//     policy field.
+//   - The JWT `exp` (checked in verifyJwt) is always the hard ceiling;
+//     this policy can only make a session expire SOONER, never later.
+// -----------------------------------------------------------------------------
+
+/**
+ * The workspace roles the timeout policy discriminates on. This is the
+ * canonical Phase 17 TeamRole set; kept as a local string union so the
+ * shared module stays Prisma-free.
+ */
+export type SessionTimeoutRole =
+  | "OWNER"
+  | "ADMIN"
+  | "MEMBER"
+  | "VIEWER"
+  | null;
+
+export type SessionTimeoutPolicyFields = {
+  /** Applies to the reviewer/staff tier: OWNER, ADMIN, MEMBER. */
+  reviewerSessionTimeoutSeconds: number | null;
+  /** Applies to the limited / contributor tier: VIEWER. */
+  contributorSessionTimeoutSeconds: number | null;
+};
+
+/**
+ * Resolve the absolute-session-timeout (in seconds) that applies to a
+ * user with the given workspace role, or `null` when no policy timeout
+ * constrains that role (fall back to the JWT exp cap).
+ *
+ * Mapping rationale — the policy exposes exactly two tiers:
+ *   - "reviewer" = internal reviewing staff → OWNER / ADMIN / MEMBER
+ *   - "contributor" = limited / read-scoped → VIEWER
+ * An unknown / null role is treated as the MORE restrictive tier
+ * (contributor) so an unexpected value never GRANTS a longer session.
+ */
+export function resolveSessionTimeoutSecondsForRole(
+  role: SessionTimeoutRole,
+  policy: SessionTimeoutPolicyFields,
+): number | null {
+  const reviewer = normaliseTimeoutSeconds(policy.reviewerSessionTimeoutSeconds);
+  const contributor = normaliseTimeoutSeconds(
+    policy.contributorSessionTimeoutSeconds,
+  );
+  switch (role) {
+    case "OWNER":
+    case "ADMIN":
+    case "MEMBER":
+      return reviewer;
+    case "VIEWER":
+      return contributor;
+    default:
+      // Unknown / null role — fail toward the tighter tier. Use the
+      // contributor timeout when present, else the reviewer timeout,
+      // else null (no constraint). Never returns the LONGER of the two.
+      if (contributor !== null && reviewer !== null) {
+        return Math.min(contributor, reviewer);
+      }
+      return contributor ?? reviewer;
+  }
+}
+
+function normaliseTimeoutSeconds(value: number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return Math.floor(value);
+}
+
+export type SessionTimeoutDecision = {
+  expired: boolean;
+  /**
+   * Why the session expired (or `null` when allowed). `idle` = time
+   * since last-seen (heartbeat) exceeded the policy; `absolute` = no
+   * last-seen anchor existed so inactivity was measured from issuance
+   * (age) instead.
+   */
+  reason: "absolute" | "idle" | null;
+  /** The resolved timeout applied, seconds; null = no policy timeout. */
+  appliedTimeoutSeconds: number | null;
+  /** Age of the session at evaluation time, seconds. */
+  ageSeconds: number;
+  /** Idle time (since last-seen) at evaluation time, seconds. */
+  idleSeconds: number;
+};
+
+/**
+ * Decide whether an authenticated internal session has exceeded the
+ * org's role-applicable session timeout. Pure + deterministic.
+ *
+ * The configured timeout is treated as an INACTIVITY (idle) timeout —
+ * the standard enterprise "session timeout" meaning: a session is
+ * expired once the user has been idle (no last-seen activity) for
+ * longer than the limit. The JWT's own 30-day `exp` remains the
+ * absolute ceiling (enforced in verifyJwt); this policy only expires a
+ * session SOONER.
+ *
+ *   - `issuedAtMs`  — session issuance (JWT iat, ms epoch). Used as the
+ *                     idle anchor when no last-seen heartbeat exists.
+ *   - `lastSeenAtMs`— last-seen heartbeat (ms epoch). When present, the
+ *                     idle window is measured from here; the decision is
+ *                     reported as `idle`. When absent, it is measured
+ *                     from issuance and reported as `absolute`.
+ *   - a `null` resolved timeout ⇒ never expired by policy.
+ */
+export function evaluateSessionTimeout(input: {
+  role: SessionTimeoutRole;
+  policy: SessionTimeoutPolicyFields;
+  issuedAtMs: number;
+  lastSeenAtMs?: number | null;
+  nowMs?: number;
+}): SessionTimeoutDecision {
+  const now = input.nowMs ?? Date.now();
+  const timeoutSeconds = resolveSessionTimeoutSecondsForRole(
+    input.role,
+    input.policy,
+  );
+  const ageSeconds = Math.max(0, Math.floor((now - input.issuedAtMs) / 1000));
+  const hasLastSeen =
+    input.lastSeenAtMs != null && Number.isFinite(input.lastSeenAtMs);
+  const lastSeen = hasLastSeen
+    ? (input.lastSeenAtMs as number)
+    : input.issuedAtMs;
+  const idleSeconds = Math.max(0, Math.floor((now - lastSeen) / 1000));
+
+  if (timeoutSeconds === null) {
+    return {
+      expired: false,
+      reason: null,
+      appliedTimeoutSeconds: null,
+      ageSeconds,
+      idleSeconds,
+    };
+  }
+  // Inactivity (idle) is the primary check. When we have a real
+  // last-seen anchor the reason is `idle`; without one we fall back to
+  // measuring from issuance and report `absolute` (age-based). Either
+  // way the same configured timeout applies — we do NOT invent a
+  // separate idle policy field.
+  if (idleSeconds > timeoutSeconds) {
+    return {
+      expired: true,
+      reason: hasLastSeen ? "idle" : "absolute",
+      appliedTimeoutSeconds: timeoutSeconds,
+      ageSeconds,
+      idleSeconds,
+    };
+  }
+  return {
+    expired: false,
+    reason: null,
+    appliedTimeoutSeconds: timeoutSeconds,
+    ageSeconds,
+    idleSeconds,
+  };
+}

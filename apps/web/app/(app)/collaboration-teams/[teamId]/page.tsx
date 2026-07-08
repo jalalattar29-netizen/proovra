@@ -62,6 +62,7 @@ import {
 import {
   useAccount,
   useActiveSpace,
+  useCan,
   useOrganizations,
   usePersonalSpace,
 } from "../../../../lib/platform-context";
@@ -135,6 +136,17 @@ function TeamDetail() {
   // identical across renders regardless of which branch we take).
   // Consumed below in the header chips once `team` is loaded.
   const headerBillingSummary = useBillingSummary();
+
+  // SCOPE J (Phase 6 collaboration finalization) — deep-link to the
+  // EXISTING external-reviewer management console (`/review/external`).
+  // This is a REUSE link, never a second portal: the console is the
+  // Phase-2B grant/identity/audit surface. We gate the link on the
+  // same authority the console's PageRouteGate enforces
+  // (`REVIEWER_OPS_VIEW`, ORGANIZATION_ONLY) so a self-serve /
+  // personal team never sees a link that would only redirect. The
+  // capability check MUST be a top-level hook call (Rules of Hooks),
+  // so it lives here with the other pre-return hooks.
+  const canManageExternalReviewers = useCan("REVIEWER_OPS_VIEW");
 
   if (loading && !team) {
     return (
@@ -254,6 +266,16 @@ function TeamDetail() {
           >
             Collaboration hub
           </Link>
+          {canManageExternalReviewers ? (
+            <Link
+              href="/review/external"
+              className="cases-filter-chip"
+              data-testid="external-reviewers-link"
+              title="Invite and manage external reviewers via the External Review console"
+            >
+              External reviewers
+            </Link>
+          ) : null}
           {canInvite ? (
             <button
               type="button"

@@ -68,6 +68,14 @@ const ACTIONS_FORCING_MFA: ReadonlyArray<StepUpPurpose> = [
   "GOVERNANCE_POLICY_UPDATE",
   "RETENTION_POLICY_UPDATE",
   "MFA_POLICY_UPDATE",
+  // Phase 3 blocker closure — external-reviewer grant issuance/rotate/
+  // reveal/extend always forces step-up (it can expose sensitive
+  // evidence to an outside reviewer), regardless of org MFA policy.
+  "EXTERNAL_REVIEW_GRANT_ISSUE",
+  // Phase 3A redaction closure — publishing a redacted derivative is the
+  // irreversible, disclosure-shaping step of the redaction lifecycle and
+  // always forces step-up regardless of org MFA policy.
+  "REDACTION_PUBLISH",
 ];
 
 export function actionForcesStepUp(action: StepUpPurpose): boolean {

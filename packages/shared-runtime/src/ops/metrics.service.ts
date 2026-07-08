@@ -369,6 +369,7 @@ export const COUNTER_NAMES = [
   "scim_sync_total",
   "scim_user_created_total",
   "scim_user_updated_total",
+  "scim_user_reactivated_total",
   "scim_user_deactivated_total",
   "scim_invalid_token_total",
   "rbac_permission_eval_total",
@@ -383,6 +384,9 @@ export const COUNTER_NAMES = [
   "session_heartbeat_sampled_skip_total",
   "stale_session_total",
   "stale_session_swept_total",
+  // Phase 3 (Enterprise Identity) — org session-timeout policy enforcement.
+  "session_expired_by_policy_total",
+  "session_timeout_policy_fail_open_total",
   "suspicious_session_total",
   "adaptive_step_up_total",
   "adaptive_block_total",

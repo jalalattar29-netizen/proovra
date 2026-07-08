@@ -680,6 +680,10 @@ describe("Phase R10 — registry-page-existence invariant", () => {
     "/organizations/:id",
 
     "/organizations/:id/setup",
+
+    "/organizations/:id/admin/domains",
+
+    "/organizations/:id/admin/governance/external-reviewers",
     "/org-invites/:token/accept",
     "/reviewer-ops/[reviewId]",
     // Evidence requests is reached only via a per-id detail page
@@ -712,6 +716,10 @@ describe("Phase R10 — registry-page-existence invariant", () => {
     "/organizations/:id/admin/audit",
     "/organizations/:id/admin/security",
     "/organizations/:id/admin/trust",
+    // Phase 4 (Enterprise Administration) — Roles, Billing, Integrations.
+    "/organizations/:id/admin/roles",
+    "/organizations/:id/admin/billing",
+    "/organizations/:id/admin/integrations",
   ]);
 
   function pageExistsForHref(href: string): boolean {

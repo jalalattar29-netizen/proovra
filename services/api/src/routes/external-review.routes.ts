@@ -37,6 +37,10 @@ import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+// Phase 3 blocker closure — issuing an external-reviewer grant exposes
+// sensitive evidence to an OUTSIDE reviewer, so it must require a fresh
+// step-up on top of the permission gate.
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { bump } from "../services/ops/metrics.service.js";
 import {
   EXTERNAL_REVIEW_SCOPE_KINDS,
@@ -155,6 +159,21 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+
+      // STEP-UP: issuing a grant can expose sensitive evidence to an
+      // outside reviewer — require a fresh step-up AFTER the permission
+      // gate, BEFORE the mutation. The middleware consumes the challenge
+      // single-use; on failure it has already sent 401 STEP_UP_REQUIRED.
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: actor.teamId,
+        userId: actor.actorUserId,
+        purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
+        resourceKind: "external_review_grant",
+        resourceId: body.evidenceId ?? body.caseId ?? body.packageId ?? null,
+      });
+      if (gate.sent) return;
 
       const result = await issueExternalReviewGrant({
         teamId: body.teamId,

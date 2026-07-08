@@ -321,16 +321,31 @@ export type ExecutiveMetricBand = "RED" | "AMBER" | "GREEN";
 
 export type ExecutiveCaptureMetrics = {
   capturesLast7d: number;
-  captureSuccessRatePct: number;
+  captureSuccessRatePct: number | null;
   mobileSignedRatio: number;
   highTrustCapturesLast7d: number;
 };
 
 export type ExecutiveReviewMetrics = {
   reviewedLast7d: number;
-  approvalRatePct: number;
-  qcAccuracyPct: number;
-  averageReviewDurationMs: number;
+  /**
+   * Share of completed reviews that ended APPROVED_INTERNAL, in [0, 100].
+   * Computed from EvidenceReviewWorkflow status. NULL when no reviews
+   * completed in the window (denominator 0) — never a 100 placeholder.
+   */
+  approvalRatePct: number | null;
+  /**
+   * QC pass rate = PASS / (PASS + FAIL + PARTIAL) over rendered QcSample
+   * verdicts, in [0, 100]. NULL when no QC verdicts exist in the window.
+   * Was previously a hardcoded 0 placeholder — now real or null.
+   */
+  qcAccuracyPct: number | null;
+  /**
+   * Mean elapsed time (ms) between workflow creation and completion, over
+   * completed workflows. NULL when no reviews completed in the window.
+   * Was previously a hardcoded 0 placeholder — now real or null.
+   */
+  averageReviewDurationMs: number | null;
 };
 
 export type ExecutiveEvidenceMetrics = {
@@ -342,7 +357,12 @@ export type ExecutiveEvidenceMetrics = {
 export type ExecutiveVerificationMetrics = {
   verificationsLast7d: number;
   publicVerifyViewsLast7d: number;
-  successRatePct: number;
+  /**
+   * Verification pass rate. NULL — there is no pass/fail verification-result
+   * source to compute this honestly (lastVerifiedAtUtc marks that a verify
+   * ran, not its outcome). Was previously a hardcoded 100 placeholder.
+   */
+  successRatePct: number | null;
 };
 
 export type ExecutiveAiMetrics = {
@@ -353,10 +373,18 @@ export type ExecutiveAiMetrics = {
 };
 
 export type ExecutiveSlaMetrics = {
-  averageDetectionLatencyMs: number;
-  averageDerivativeLatencyMs: number;
+  /**
+   * Mean detection latency (ms). NULL — no detection-timing source exists
+   * to compute this honestly. Was previously a hardcoded 0 placeholder.
+   */
+  averageDetectionLatencyMs: number | null;
+  /**
+   * Mean derivative-generation latency (ms). NULL — no derivative-timing
+   * source exists. Was previously a hardcoded 0 placeholder.
+   */
+  averageDerivativeLatencyMs: number | null;
   jobFailureRatePct: number;
-  providerAvailabilityPct: number;
+  providerAvailabilityPct: number | null;
 };
 
 export type ExecutiveMetricsProjection = {
@@ -377,6 +405,15 @@ export const EXECUTIVE_METRICS_LIMITATIONS: ReadonlyArray<string> = [
   "EXECUTIVE_METRICS_ARE_AGGREGATE_ONLY",
   "EXECUTIVE_METRICS_DO_NOT_EXPOSE_PII",
   "EXECUTIVE_METRICS_LAG_BY_UP_TO_5_MIN",
+  // Honesty disclosure: these fields have no real data source and are
+  // surfaced as NULL ("Not measured"), never as fabricated figures:
+  //   * verification.successRatePct       — no pass/fail verification result
+  //   * sla.averageDetectionLatencyMs     — no detection-timing source
+  //   * sla.averageDerivativeLatencyMs    — no derivative-timing source
+  // NOTE: review.qcAccuracyPct and review.averageReviewDurationMs are now
+  // computed from real data (QcSample verdicts / workflow timestamps) and
+  // are NULL only when the window contains no such rows.
+  "EXECUTIVE_METRICS_QC_VERIFICATION_AND_LATENCY_NOT_YET_COMPUTED",
 ];
 
 // ===========================================================================

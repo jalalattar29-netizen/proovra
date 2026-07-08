@@ -9,6 +9,7 @@ import { recordHeartbeat } from "../services/access-control/session-inventory.se
 import { getSecret } from "../config/runtime-secrets.js";
 import { prisma } from "../db.js";
 import { gateSecurityAction } from "../services/governance/policy-runtime-gates.service.js";
+import { enforceSessionTimeoutPolicy } from "../services/identity-security/session-timeout-policy.service.js";
 
 function readCookie(header: string | undefined, name: string): string | null {
   if (!header) return null;
@@ -119,13 +120,19 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
     // sessions without a resolvable teamId (personal-space tokens have no
     // workspace policies to evaluate, so the gate is a no-op there by design).
     if (sid) {
+      // Single session-row read reused by BOTH the Phase 4A security
+      // gate and the Phase 3 session-timeout policy enforcement below,
+      // so the hot path adds at most one lookup. `lastSeenAtUtc` feeds
+      // the idle-timeout computation.
+      let sessionRow: { teamId: string | null; lastSeenAtUtc: Date } | null =
+        null;
       try {
-        const sessionRow = await prisma.authenticatedSession.findFirst({
+        sessionRow = await prisma.authenticatedSession.findFirst({
           where: {
             userId: payload.sub,
             sessionIdHash: hashSessionId(sid),
           },
-          select: { teamId: true },
+          select: { teamId: true, lastSeenAtUtc: true },
         });
         const teamId = sessionRow?.teamId ?? null;
         if (teamId) {
@@ -161,6 +168,45 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
               err instanceof Error ? err.message : "security_gate_failed",
           },
           "auth.security_gate_failed",
+        );
+      }
+
+      // Phase 3 (Enterprise Identity) — enforce the org's role-tiered
+      // session-timeout policy. Connects the previously stored-but-not-
+      // enforced reviewer/contributor session-timeout fields to actual
+      // enforcement. When the caller's session age or idle time exceeds
+      // the applicable timeout for their workspace role, reject with a
+      // 401 (session_expired) so the client re-authenticates. FAILS SAFE:
+      // `enforceSessionTimeoutPolicy` never throws and degrades to the
+      // JWT exp cap on any lookup error, so a policy-table outage cannot
+      // lock everyone out. Personal-space (teamless) sessions are a
+      // no-op. The external reviewer portal never reaches this code
+      // (separate token/session model), so its sessions are unaffected.
+      const timeout = await enforceSessionTimeoutPolicy({
+        userId: payload.sub,
+        teamId: sessionRow?.teamId ?? null,
+        iat,
+        lastSeenAtMs: sessionRow?.lastSeenAtUtc
+          ? sessionRow.lastSeenAtUtc.getTime()
+          : null,
+      });
+      if (timeout.action === "expire") {
+        req.log.info(
+          {
+            requestId: req.id,
+            userId: payload.sub,
+            reason: timeout.reason,
+            appliedTimeoutSeconds: timeout.appliedTimeoutSeconds,
+            role: timeout.role,
+          },
+          "auth.session_expired_by_policy",
+        );
+        return reply.code(401).send(
+          createErrorResponse(
+            ErrorCode.TOKEN_EXPIRED,
+            req.id,
+            { reason: "session_expired" },
+          ),
         );
       }
     }

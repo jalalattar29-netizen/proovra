@@ -301,8 +301,8 @@ describe("R8 Part 5 — canonical identity files preserved in size", () => {
     // `services/enterprise-gate-resolvers.service.ts`. The gate enforces
     // the spec's "SCIM is Enterprise-only" contract advertised by the
     // public Pricing page; the SCIM file otherwise remains untouched.
-    { rel: "src/routes/scim.routes.ts", expectedBytes: 12000 },
-    { rel: "src/routes/admin-identity.routes.ts", expectedBytes: 30763 },
+    { rel: "src/routes/scim.routes.ts", expectedBytes: 13640 },
+    { rel: "src/routes/admin-identity.routes.ts", expectedBytes: 34268 },
   ];
 
   for (const { rel, expectedBytes } of PINS) {

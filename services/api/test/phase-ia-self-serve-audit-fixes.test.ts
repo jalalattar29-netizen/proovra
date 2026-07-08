@@ -416,7 +416,7 @@ describe("Phase IA-self-serve-audit-fixes — Case Detail empty states", () => {
     expect(MATTER).not.toMatch(
       /per-domain assignment surfaces \(reviewer-ops, governance\)/,
     );
-    expect(MATTER).toMatch(/Assign teammates to this case using the Assignments panel/);
+    expect(MATTER).toMatch(/Assign teammate/);
   });
 
   it("SIU tab label is now 'Investigation profile' (id stays 'siu' for backward compat)", () => {

@@ -522,6 +522,73 @@ describe("Phase 3B — executive + audit aggregators", () => {
     }
   });
 
+  it("executive metrics contain NO fabricated KPI placeholders", () => {
+    // Production-honesty guard: these exact fabrications must never return.
+    expect(SVC_EXEC).not.toMatch(/qcAccuracyPct:\s*0\b/);
+    expect(SVC_EXEC).not.toMatch(/averageReviewDurationMs:\s*0\b/);
+    expect(SVC_EXEC).not.toMatch(/successRatePct:\s*100\b/);
+    expect(SVC_EXEC).not.toMatch(/averageDetectionLatencyMs:\s*0\b/);
+    expect(SVC_EXEC).not.toMatch(/averageDerivativeLatencyMs:\s*0\b/);
+    // The fake approval-rate ternary and the trend placeholders are gone.
+    expect(SVC_EXEC).not.toMatch(/reviewed\s*>\s*0\s*\?\s*100\s*:\s*0/);
+    expect(SVC_EXEC).not.toMatch(/t\(0,\s*0\)/);
+    expect(SVC_EXEC).not.toMatch(/t\(100,\s*100\)/);
+  });
+
+  it("executive metrics compute review + QC from real tables, null the rest", () => {
+    // COMPUTABLE metrics are wired to real data sources.
+    expect(SVC_EXEC).toMatch(/status:\s*"APPROVED_INTERNAL"/);
+    expect(SVC_EXEC).toMatch(/completedAtUtc/);
+    expect(SVC_EXEC).toMatch(/qcSample\.groupBy/);
+    expect(SVC_EXEC).toMatch(/verdict === "PASS"/);
+    expect(SVC_EXEC).toMatch(/averageReviewDurationMs/);
+    // UNIMPLEMENTED metrics are explicitly null, never a stand-in.
+    expect(SVC_EXEC).toMatch(/successRatePct:\s*null/);
+    expect(SVC_EXEC).toMatch(/averageDetectionLatencyMs:\s*null/);
+    expect(SVC_EXEC).toMatch(/averageDerivativeLatencyMs:\s*null/);
+    // Null-aware trend helper replaces the fabricated t(0,0)/t(100,100).
+    expect(SVC_EXEC).toMatch(/tn\s*=/);
+  });
+
+  it("shared review/verification metric types are additively nullable", () => {
+    // Backward-compatible nullability on the projection contract.
+    const okReview: import("@proovra/shared").ExecutiveReviewMetrics = {
+      reviewedLast7d: 0,
+      approvalRatePct: null,
+      qcAccuracyPct: null,
+      averageReviewDurationMs: null,
+    };
+    const okVerify: import("@proovra/shared").ExecutiveVerificationMetrics = {
+      verificationsLast7d: 0,
+      publicVerifyViewsLast7d: 0,
+      successRatePct: null,
+    };
+    const okSla: import("@proovra/shared").ExecutiveSlaMetrics = {
+      averageDetectionLatencyMs: null,
+      averageDerivativeLatencyMs: null,
+      jobFailureRatePct: 0,
+      providerAvailabilityPct: 100,
+    };
+    expect(okReview.approvalRatePct).toBeNull();
+    expect(okReview.qcAccuracyPct).toBeNull();
+    expect(okVerify.successRatePct).toBeNull();
+    expect(okSla.averageDetectionLatencyMs).toBeNull();
+    // Real numbers still assign — additive, not a breaking change.
+    const withData: import("@proovra/shared").ExecutiveReviewMetrics = {
+      reviewedLast7d: 3,
+      approvalRatePct: 66.7,
+      qcAccuracyPct: 100,
+      averageReviewDurationMs: 4200,
+    };
+    expect(withData.qcAccuracyPct).toBe(100);
+  });
+
+  it("honesty limitation disclosure code is retained", () => {
+    expect(EXECUTIVE_METRICS_LIMITATIONS).toContain(
+      "EXECUTIVE_METRICS_QC_VERIFICATION_AND_LATENCY_NOT_YET_COMPUTED",
+    );
+  });
+
   it("audit transparency aggregator federates 6 activity sources", () => {
     expect(SVC_AUDIT).toMatch(/providerUsageEvent\.findMany/);
     expect(SVC_AUDIT).toMatch(/reviewerCorrection\.findMany/);

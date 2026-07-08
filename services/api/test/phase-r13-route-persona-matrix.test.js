@@ -214,6 +214,7 @@ const HREF_EXCEPTIONS = new Set([
     "/organizations/:id/admin/members",
     "/organizations/:id/admin/departments",
     "/organizations/:id/admin/governance",
+    "/organizations/:id/admin/governance/external-reviewers",
     "/organizations/:id/admin/access-reviews",
     "/organizations/:id/admin/retention",
     "/organizations/:id/admin/audit",

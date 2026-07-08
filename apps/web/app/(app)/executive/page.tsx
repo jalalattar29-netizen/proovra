@@ -348,10 +348,44 @@ function TrendTile({
   suffix,
 }: {
   label: string;
-  metric: TrendMetric;
+  metric: TrendMetric | null;
   prefix?: string;
   suffix?: string;
 }) {
+  // Honest null rendering: a metric with no real data source (or no
+  // denominator) arrives as null. Show "Not measured" / "—", never a
+  // fabricated 0 / 100.
+  if (metric === null) {
+    return (
+      <div
+        data-executive-trend-tile={label}
+        data-trend-not-measured="true"
+        style={{
+          background: "#fff",
+          border: "1px solid rgba(15, 23, 42, 0.08)",
+          borderRadius: 10,
+          padding: 10,
+        }}
+      >
+        <small style={{ fontSize: 11, color: "#475569", fontWeight: 600 }}>
+          {label}
+        </small>
+        <strong
+          style={{
+            fontSize: 22,
+            display: "block",
+            marginTop: 4,
+            color: "#94a3b8",
+          }}
+        >
+          —
+        </strong>
+        <div style={{ marginTop: 4, fontSize: 11, color: "#94a3b8" }}>
+          Not measured
+        </div>
+      </div>
+    );
+  }
   const arrow = directionArrow(metric.direction);
   const color = directionColor(metric.direction);
   return (

@@ -270,11 +270,19 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["account.organization_admin_members", "ADMIN"],
   ["account.organization_admin_departments", "ADMIN"],
   ["account.organization_admin_governance", "ADMIN"],
+  // Phase 5 (Enterprise Governance) — external-reviewer grant governance view.
+  ["account.organization_admin_governance_external_reviewers", "ADMIN"],
   ["account.organization_admin_access_reviews", "ADMIN"],
   ["account.organization_admin_retention", "ADMIN"],
   ["account.organization_admin_audit", "ADMIN"],
   ["account.organization_admin_security", "ADMIN"],
+  // Phase 3 (Enterprise Identity) — Domains verification tab.
+  ["account.organization_admin_domains", "ADMIN"],
   ["account.organization_admin_trust", "ADMIN"],
+  // Phase 4 (Enterprise Administration) — Roles, Billing, Integrations tabs.
+  ["account.organization_admin_roles", "ADMIN"],
+  ["account.organization_admin_billing", "ADMIN"],
+  ["account.organization_admin_integrations", "ADMIN"],
   ["workspace.integrations", "ADMIN"],
   ["workspace.security_center", "ADMIN"],
   // Phase C — workflow templates administration; moved from CAPTURE.

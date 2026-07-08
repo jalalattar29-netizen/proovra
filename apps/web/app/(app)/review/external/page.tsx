@@ -40,9 +40,20 @@ import {
 } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
-import { useActiveSpace, useCan } from "../../../../lib/platform-context";
+import { notifyApiError } from "../../../../lib/feedback/notify";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { useToast } from "../../../../components/ui";
+import {
+  useActiveSpace,
+  useCan,
+  useTeamId,
+} from "../../../../lib/platform-context";
 
 // ---------------------------------------------------------------------------
 // PHASE 4 — Per-action capability gating.
@@ -221,6 +232,14 @@ export default function ExternalInvitationsPage() {
 
 function ExternalReviewManagementConsole() {
   const caps = useExternalReviewCapabilities();
+  const teamId = useTeamId();
+  // Reuse the canonical step-up flow (same hook + modal as
+  // admin/provisioning). Sensitive external-review mutations (bulk
+  // issue, break-glass token reveal) run through `runStepUpAction` so a
+  // 401 STEP_UP_REQUIRED response surfaces the modal and resumes the
+  // original request once the challenge is verified. NEVER a parallel
+  // step-up implementation.
+  const stepUp = useStepUpAction({ teamId });
   const [rows, setRows] = useState<InvitationRow[] | null>(null);
   const [listDenied, setListDenied] = useState(false);
   const [tab, setTab] = useState<TabId>("active");
@@ -493,6 +512,7 @@ function ExternalReviewManagementConsole() {
       {tab === "bulk" ? (
         <BulkInvitePanel
           caps={caps}
+          stepUp={stepUp}
           onCompleted={(text) => {
             setBanner({ tone: "ok", text });
             void refresh();
@@ -518,6 +538,7 @@ function ExternalReviewManagementConsole() {
             <InvitationDetailDrawer
               row={selectedRow}
               caps={caps}
+              stepUp={stepUp}
               onClose={() => setSelected(null)}
               onChanged={(text) => {
                 setBanner({ tone: "ok", text });
@@ -530,6 +551,10 @@ function ExternalReviewManagementConsole() {
           ) : null}
         </div>
       )}
+
+      {/* Single centrally-hosted step-up modal — drives the challenge
+          flow for bulk issue + break-glass reveal. */}
+      <StepUpModal control={stepUp} />
     </div>
   );
 }
@@ -710,12 +735,14 @@ function InvitationsTable({
 function InvitationDetailDrawer({
   row,
   caps,
+  stepUp,
   onClose,
   onChanged,
   onRefuse,
 }: {
   row: InvitationRow;
   caps: ExternalReviewCapabilities;
+  stepUp: ReturnType<typeof useStepUpAction>;
   onClose: () => void;
   onChanged: (msg: string) => void;
   onRefuse: (msg: string) => void;
@@ -963,6 +990,7 @@ function InvitationDetailDrawer({
         {confirmReveal && !revealed && caps.canRevealToken ? (
           <BreakGlassReveal
             grantId={row.grantId}
+            stepUp={stepUp}
             onCancel={() => setConfirmReveal(false)}
             onRevealed={(rawToken) => {
               setRevealed({
@@ -1152,10 +1180,12 @@ function InvitationDetailDrawer({
 
 function BreakGlassReveal({
   grantId,
+  stepUp,
   onCancel,
   onRevealed,
 }: {
   grantId: string;
+  stepUp: ReturnType<typeof useStepUpAction>;
   onCancel: () => void;
   onRevealed: (rawToken: string) => void;
 }) {
@@ -1169,22 +1199,36 @@ function BreakGlassReveal({
     }
     setBusy(true);
     try {
-      // Calls the existing issue endpoint shape — the token reveal
-      // path returns a fresh raw token. NOTE: This deliberately
-      // requires a confirmed reason so it is auditable.
-      const res = await apiFetch(
-        `/v1/external-review/invitations/${grantId}/reveal-token`,
-        {
-          method: "POST",
-          body: JSON.stringify({ reason: reason.trim() }),
-        },
-      );
+      // Break-glass reveal ROTATES the grant token and returns a fresh
+      // raw token — sensitive, so it is step-up gated on the backend.
+      // Wrap in `runStepUpAction`: a 401 STEP_UP_REQUIRED surfaces the
+      // modal and the request resumes (with the challenge header) once
+      // verified. This deliberately requires a confirmed reason so it
+      // is auditable.
+      const res = (await stepUp.runStepUpAction(async (headers) =>
+        apiFetch(
+          `/v1/external-review/invitations/${grantId}/reveal-token`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(headers ?? {}),
+            },
+            body: JSON.stringify({ reason: reason.trim() }),
+          },
+        ),
+      )) as { rawToken?: string } | null;
       if (typeof res?.rawToken === "string") {
         onRevealed(res.rawToken);
       } else {
         setErr("Reveal denied — see audit timeline.");
       }
     } catch (e) {
+      const code = (e as { code?: string })?.code;
+      if (code === "STEP_UP_CANCEL") {
+        setErr("Step-up cancelled — token was not revealed.");
+        return;
+      }
       // eslint-disable-next-line no-console
       console.warn("[external-review] reveal token failed", {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1197,7 +1241,7 @@ function BreakGlassReveal({
     } finally {
       setBusy(false);
     }
-  }, [grantId, reason, onRevealed]);
+  }, [grantId, reason, onRevealed, stepUp]);
   return (
     <div data-break-glass-form>
       <textarea
@@ -1253,11 +1297,14 @@ function BreakGlassReveal({
 
 function BulkInvitePanel({
   caps,
+  stepUp,
   onCompleted,
 }: {
   caps: ExternalReviewCapabilities;
+  stepUp: ReturnType<typeof useStepUpAction>;
   onCompleted: (msg: string) => void;
 }) {
+  const { addToast } = useToast();
   const [pasted, setPasted] = useState("");
   const [hours, setHours] = useState(72);
   const [defaultRole, setDefaultRole] = useState<ExternalReviewerRole>(
@@ -1301,29 +1348,39 @@ function BulkInvitePanel({
         .split(/[,\s]+/)
         .map((d) => d.trim().toLowerCase().replace(/^@/, ""))
         .filter(Boolean);
-      const res = await apiFetch("/v1/external-review/invitations/bulk", {
-        method: "POST",
-        body: JSON.stringify({
-          expiresAtUtc: new Date(
-            Date.now() + hours * 3600 * 1000,
-          ).toISOString(),
-          defaultRole,
-          defaultWatermarkPolicy: defaultWatermark,
-          defaultMfaRequired: defaultMfa,
-          defaultScope: { kind: "PACKAGE" },
-          rows: parsed.map((p) => ({
-            inviteEmail: p.email,
-            displayName: p.displayName,
-            organization: p.organization,
-          })),
-          // Federation defaults — surfaced for honest UX but the
-          // closure SSO binding actually flips authMethod when the
-          // first successful SSO bind occurs (server-side).
-          defaultAuthMethod: authMethod,
-          defaultSsoConnectionId: ssoConnectionId || undefined,
-          defaultAllowedDomains: allowedDomainList,
+      // Bulk issue grants multiple outside reviewers access to sensitive
+      // evidence — step-up gated on the backend. Wrap in
+      // `runStepUpAction`: a 401 STEP_UP_REQUIRED surfaces the modal and
+      // the request resumes (with the challenge header) once verified.
+      const res = await stepUp.runStepUpAction(async (headers) =>
+        apiFetch("/v1/external-review/invitations/bulk", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(headers ?? {}),
+          },
+          body: JSON.stringify({
+            expiresAtUtc: new Date(
+              Date.now() + hours * 3600 * 1000,
+            ).toISOString(),
+            defaultRole,
+            defaultWatermarkPolicy: defaultWatermark,
+            defaultMfaRequired: defaultMfa,
+            defaultScope: { kind: "PACKAGE" },
+            rows: parsed.map((p) => ({
+              inviteEmail: p.email,
+              displayName: p.displayName,
+              organization: p.organization,
+            })),
+            // Federation defaults — surfaced for honest UX but the
+            // closure SSO binding actually flips authMethod when the
+            // first successful SSO bind occurs (server-side).
+            defaultAuthMethod: authMethod,
+            defaultSsoConnectionId: ssoConnectionId || undefined,
+            defaultAllowedDomains: allowedDomainList,
+          }),
         }),
-      });
+      );
       setOutcomes({
         bulkBatchId: res.bulkBatchId,
         summary: res.summary as Record<string, number>,
@@ -1336,12 +1393,34 @@ function BulkInvitePanel({
         `Bulk invite: ${invited}/${parsed.length} invitations sent.`,
       );
     } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === "STEP_UP_CANCEL") {
+        // Operator cancelled the step-up challenge — nothing was issued.
+        // The modal already conveyed the cancel; surface a bounded
+        // per-row outcome so the table doesn't look silently stuck.
+        setOutcomes({
+          bulkBatchId: "",
+          summary: {},
+          rows: parsed.map((p) => ({
+            inviteEmail: p.email,
+            outcome: "FAILED",
+            grantId: null,
+            denial: "STEP_UP_CANCELLED",
+          })),
+        });
+        return;
+      }
       // eslint-disable-next-line no-console
       console.warn("[external-review] bulk invite failed", {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         status: (err as any)?.statusCode ?? 0,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         code: (err as any)?.code ?? "UNKNOWN",
+      });
+      notifyApiError(addToast, err, {
+        message: toSafeUserError(err, {
+          message: "We couldn't issue these invitations.",
+        }).message,
       });
       const denial = denialFromError(err);
       setOutcomes({
@@ -1368,6 +1447,8 @@ function BulkInvitePanel({
     ssoConnectionId,
     allowedDomains,
     onCompleted,
+    stepUp,
+    addToast,
   ]);
 
   return (

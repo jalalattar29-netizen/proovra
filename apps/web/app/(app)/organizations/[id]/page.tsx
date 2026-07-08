@@ -44,7 +44,6 @@ import { apiFetch } from "../../../../lib/api";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   formatUserDate,
-  formatUserDateTime,
   formatUserTime,
   formatUtcAuditDateTime,
 } from "../../../../lib/date";
@@ -224,19 +223,10 @@ function OrganizationDetailInner() {
     kind: "loading",
   });
 
-  // ---- per-row busy / errors ----
-  const [memberBusy, setMemberBusy] = useState<Record<string, boolean>>({});
-  const [memberError, setMemberError] = useState<Record<string, string>>({});
-  const [inviteBusyMap, setInviteBusyMap] = useState<Record<string, boolean>>({});
-  const [inviteRowError, setInviteRowError] = useState<Record<string, string>>({});
-
-  // ---- invite modal ----
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<OrgRole>("ORG_MEMBER");
-  const [inviteBusy, setInviteBusy] = useState(false);
-  const [inviteError, setInviteError] = useState<string | null>(null);
-  const [lastInviteToken, setLastInviteToken] = useState<string | null>(null);
+  // Phase 4 (Enterprise Administration) dedup — the member/invite/audit
+  // mutation state (row busy maps, invite modal, audit filter) moved to the
+  // canonical admin tabs (admin/members, admin/audit). This page keeps only
+  // the settings mutation + the read-only summary loads.
 
   // ---- settings form ----
   const [settingsName, setSettingsName] = useState("");
@@ -248,9 +238,6 @@ function OrganizationDetailInner() {
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [settingsSavedAt, setSettingsSavedAt] = useState<string | null>(null);
-
-  // ---- audit filter ----
-  const [auditTypeFilter, setAuditTypeFilter] = useState<string>("");
 
   // ---------------------------------------------------------------------------
   // Generic safe loader.
@@ -281,15 +268,13 @@ function OrganizationDetailInner() {
     setAudit({ kind: "loading" });
     setPendingInvites({ kind: "loading" });
 
-    const auditPath = auditTypeFilter
-      ? `/v1/orgs/${orgId}/audit-events?eventType=${encodeURIComponent(auditTypeFilter)}`
-      : `/v1/orgs/${orgId}/audit-events`;
-
+    // Audit is read here for the summary tile + deep-link count only; the
+    // filterable timeline + CSV export live on the canonical admin/audit tab.
     const [o, m, w, a, p] = await Promise.all([
       safeFetch<OrgResponse>(`/v1/orgs/${orgId}`),
       safeFetch<MembersResponse>(`/v1/orgs/${orgId}/members`),
       safeFetch<WorkspacesResponse>(`/v1/orgs/${orgId}/workspaces`),
-      safeFetch<AuditResponse>(auditPath),
+      safeFetch<AuditResponse>(`/v1/orgs/${orgId}/audit-events`),
       safeFetch<PendingInvitesResponse>(`/v1/orgs/${orgId}/invites`),
     ]);
     setOrg(o);
@@ -306,7 +291,7 @@ function OrganizationDetailInner() {
       setSettingsTimezone(o.data.timezone ?? "");
       setSettingsLogoUrl(o.data.logoUrl ?? "");
     }
-  }, [orgId, safeFetch, auditTypeFilter]);
+  }, [orgId, safeFetch]);
 
   useEffect(() => {
     void fetchAll();
@@ -314,7 +299,6 @@ function OrganizationDetailInner() {
 
   const callerRole: OrgRole | null = org.kind === "ready" ? org.data.callerRole : null;
   const canMutate = callerRole !== null && ROLE_RANK[callerRole] >= ROLE_RANK.ORG_ADMIN;
-  const canAudit = callerRole !== null && ROLE_RANK[callerRole] >= ROLE_RANK.ORG_AUDITOR;
 
   // ---------------------------------------------------------------------------
   // Derived governance signals.
@@ -344,117 +328,9 @@ function OrganizationDetailInner() {
     : null;
 
   // ---------------------------------------------------------------------------
-  // Mutations.
+  // Mutations. (Member/invite mutation lives on admin/members now; only the
+  // org-profile Settings PATCH remains on this page.)
   // ---------------------------------------------------------------------------
-  const submitInvite = useCallback(async () => {
-    const email = inviteEmail.trim();
-    if (!email) {
-      setInviteError("Email is required.");
-      return;
-    }
-    setInviteBusy(true);
-    setInviteError(null);
-    try {
-      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
-      const data = (await apiFetch(`/v1/orgs/${orgId}/invites`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, role: inviteRole }),
-      })) as { token: string };
-      setLastInviteToken(data.token);
-      setInviteEmail("");
-      await fetchAll();
-    } catch (err: unknown) {
-      const message =
-        toSafeUserError(err, { message: "Failed to send invite." }).message;
-      setInviteError(message);
-    } finally {
-      setInviteBusy(false);
-    }
-  }, [inviteEmail, inviteRole, orgId, fetchAll]);
-
-  const changeRole = useCallback(
-    async (membershipId: string, newRole: OrgRole) => {
-      setMemberBusy((s) => ({ ...s, [membershipId]: true }));
-      setMemberError((s) => ({ ...s, [membershipId]: "" }));
-      try {
-        await apiFetch(`/v1/orgs/${orgId}/members/${membershipId}`, {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ role: newRole }),
-        });
-        await fetchAll();
-      } catch (err: unknown) {
-        const message =
-          toSafeUserError(err, { message: "Failed to change role." }).message;
-        setMemberError((s) => ({ ...s, [membershipId]: message }));
-      } finally {
-        setMemberBusy((s) => ({ ...s, [membershipId]: false }));
-      }
-    },
-    [orgId, fetchAll],
-  );
-
-  const removeMember = useCallback(
-    async (membershipId: string) => {
-      setMemberBusy((s) => ({ ...s, [membershipId]: true }));
-      setMemberError((s) => ({ ...s, [membershipId]: "" }));
-      try {
-        await apiFetch(`/v1/orgs/${orgId}/members/${membershipId}`, {
-          method: "DELETE",
-        });
-        await fetchAll();
-      } catch (err: unknown) {
-        const message =
-          toSafeUserError(err, { message: "Failed to remove member." }).message;
-        setMemberError((s) => ({ ...s, [membershipId]: message }));
-      } finally {
-        setMemberBusy((s) => ({ ...s, [membershipId]: false }));
-      }
-    },
-    [orgId, fetchAll],
-  );
-
-  const revokeInvite = useCallback(
-    async (inviteId: string) => {
-      setInviteBusyMap((s) => ({ ...s, [inviteId]: true }));
-      setInviteRowError((s) => ({ ...s, [inviteId]: "" }));
-      try {
-        await apiFetch(`/v1/orgs/${orgId}/invites/${inviteId}`, {
-          method: "DELETE",
-        });
-        await fetchAll();
-      } catch (err: unknown) {
-        const message =
-          toSafeUserError(err, { message: "Failed to revoke invite." }).message;
-        setInviteRowError((s) => ({ ...s, [inviteId]: message }));
-      } finally {
-        setInviteBusyMap((s) => ({ ...s, [inviteId]: false }));
-      }
-    },
-    [orgId, fetchAll],
-  );
-
-  const resendInvite = useCallback(
-    async (inviteId: string) => {
-      setInviteBusyMap((s) => ({ ...s, [inviteId]: true }));
-      setInviteRowError((s) => ({ ...s, [inviteId]: "" }));
-      try {
-        await apiFetch(`/v1/orgs/${orgId}/invites/${inviteId}/resend`, {
-          method: "POST",
-        });
-        await fetchAll();
-      } catch (err: unknown) {
-        const message =
-          toSafeUserError(err, { message: "Failed to resend invite." }).message;
-        setInviteRowError((s) => ({ ...s, [inviteId]: message }));
-      } finally {
-        setInviteBusyMap((s) => ({ ...s, [inviteId]: false }));
-      }
-    },
-    [orgId, fetchAll],
-  );
-
   const submitSettings = useCallback(async () => {
     const name = settingsName.trim();
     if (!name) {
@@ -614,20 +490,6 @@ function OrganizationDetailInner() {
             >
               Workspace admin →
             </Link>
-            {canMutate && (
-              <button
-                type="button"
-                data-action="open-invite"
-                onClick={() => {
-                  setInviteError(null);
-                  setLastInviteToken(null);
-                  setInviteOpen(true);
-                }}
-                style={cardLinkBtn(false)}
-              >
-                + Invite member
-              </button>
-            )}
           </div>
         </header>
       )}
@@ -660,9 +522,15 @@ function OrganizationDetailInner() {
               }}
             >
               <li data-onboarding-step="invite-first-member">
-                <strong>Invite the first member.</strong> Use the “+ Invite
-                member” button in the header. Pick a role; share the invite
-                token URL. Audited as <code>ORG_INVITE_CREATED</code>.
+                <strong>Invite the first member.</strong> Open{" "}
+                <Link
+                  href={`/organizations/${orgId}/admin/members`}
+                  data-action="onboarding-open-admin-members"
+                >
+                  Members in the Admin console
+                </Link>
+                , pick a role, and share the invite token URL. Audited as{" "}
+                <code>ORG_INVITE_CREATED</code>.
               </li>
               <li data-onboarding-step="set-legal-metadata">
                 <strong>Set legal metadata.</strong> Fill name, legal name,
@@ -917,183 +785,50 @@ function OrganizationDetailInner() {
         )}
       </section>
 
-      {/* ============================ MEMBERS ================================ */}
-      <section data-section="org-members" style={sectionStyle}>
+      {/* ===================== MEMBERS (canonical deep-link) ================= */}
+      {/*
+        Phase 4 (Enterprise Administration) dedup — the member roster,
+        role-change, remove, invite, and pending-invite management surfaces
+        that used to be embedded here now live ONLY on the canonical
+        /organizations/:id/admin/members tab (the admin shell). This page
+        keeps the org profile, overview, workspaces, and enterprise setup;
+        member mutation is a single canonical surface, not two. The
+        overview "Governance" tile above still surfaces the member + pending
+        counts, so the at-a-glance signal is preserved; the deep-link below
+        is the one place to act on them.
+      */}
+      <section data-section="org-members-deeplink" style={sectionStyle}>
         <SectionHeader
-          title="Members"
-          subtitle="Org-level governance roles. Workspace-level access remains workspace-scoped."
+          title="Members & invites"
+          subtitle="Managing members, roles, and pending invites moved to the Admin console — one canonical surface for member governance."
           right={
-            canMutate ? (
-              <button
-                type="button"
-                data-action="header-open-invite"
-                onClick={() => {
-                  setInviteError(null);
-                  setLastInviteToken(null);
-                  setInviteOpen(true);
-                }}
-                style={toolbarBtn(false)}
-              >
-                + Invite member
-              </button>
-            ) : null
+            <Link
+              href={`/organizations/${orgId}/admin/members`}
+              data-action="open-admin-members"
+              style={cardLinkBtn(true)}
+            >
+              Manage members →
+            </Link>
           }
         />
-        {members.kind === "loading" && <RowLoading />}
-        {members.kind === "error" && (
-          <RowError
-            status={members.status}
-            forbiddenMessage="You don’t have access to the member list."
-          />
-        )}
-        {members.kind === "ready" && (
-          <ul
-            data-state="ready"
-            data-total-members={members.data.summary.totalMembers}
-            style={listResetStyle}
-          >
-            {members.data.members.length === 0 && (
-              <li style={emptyRowStyle}>No members.</li>
-            )}
-            {members.data.members.map((m) => {
-              const busy = !!memberBusy[m.membershipId];
-              const err = memberError[m.membershipId];
-              return (
-                <li
-                  key={m.membershipId}
-                  data-membership-id={m.membershipId}
-                  data-member-role={m.role}
-                  style={memberRowStyle}
-                >
-                  <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                    <div style={{ fontWeight: 500 }}>
-                      {m.displayName || m.email || "(unnamed user)"}
-                    </div>
-                    {m.email && (
-                      <div style={{ fontSize: 12, opacity: 0.7 }}>{m.email}</div>
-                    )}
-                    {err && (
-                      <div role="alert" data-state="error" style={inlineErrorStyle}>
-                        {err}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {canMutate ? (
-                      <select
-                        data-action="change-role"
-                        value={m.role}
-                        disabled={busy}
-                        onChange={(e) =>
-                          void changeRole(m.membershipId, e.target.value as OrgRole)
-                        }
-                        style={{ fontSize: 12 }}
-                      >
-                        {ALL_ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {ROLE_LABELS[r]}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <Pill tone={ROLE_TONE[m.role]} data-role-label>
-                        {ROLE_LABELS[m.role]}
-                      </Pill>
-                    )}
-                    <span style={{ fontSize: 12, opacity: 0.7 }}>
-                      since {formatUserDate(m.memberSince)}
-                    </span>
-                    {canMutate && (
-                      <button
-                        type="button"
-                        data-action="remove-member"
-                        disabled={busy}
-                        onClick={() => void removeMember(m.membershipId)}
-                        style={dangerBtn}
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      {/* ========================= PENDING INVITES =========================== */}
-      <section data-section="org-pending-invites" style={sectionStyle}>
-        <SectionHeader
-          title="Pending invites"
-          subtitle="Invites sent but not yet accepted, revoked, or expired."
-        />
-        {pendingInvites.kind === "loading" && <RowLoading />}
-        {pendingInvites.kind === "error" && (
-          <RowError
-            status={pendingInvites.status}
-            forbiddenMessage="Pending-invite visibility requires admin access."
-          />
-        )}
-        {pendingInvites.kind === "ready" && (
-          <ul
-            data-state="ready"
-            data-total-pending={pendingInvites.data.summary.totalPending}
-            style={listResetStyle}
-          >
-            {pendingInvites.data.invites.length === 0 && (
-              <li style={emptyRowStyle}>No pending invites.</li>
-            )}
-            {pendingInvites.data.invites.map((i) => {
-              const busy = !!inviteBusyMap[i.inviteId];
-              const err = inviteRowError[i.inviteId];
-              return (
-                <li
-                  key={i.inviteId}
-                  data-invite-id={i.inviteId}
-                  data-invite-role={i.role}
-                  style={memberRowStyle}
-                >
-                  <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                    <div style={{ fontWeight: 500 }}>{i.email}</div>
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>
-                      {ROLE_LABELS[i.role]} · expires{" "}
-                      {formatUserDateTime(i.expiresAt)}
-                      {i.resendCount > 0 ? ` · resent ${i.resendCount}×` : ""}
-                    </div>
-                    {err && (
-                      <div role="alert" data-state="error" style={inlineErrorStyle}>
-                        {err}
-                      </div>
-                    )}
-                  </div>
-                  {canMutate && (
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button
-                        type="button"
-                        data-action="resend-invite"
-                        disabled={busy}
-                        onClick={() => void resendInvite(i.inviteId)}
-                        style={toolbarBtn(false)}
-                      >
-                        Resend
-                      </button>
-                      <button
-                        type="button"
-                        data-action="revoke-invite"
-                        disabled={busy}
-                        onClick={() => void revokeInvite(i.inviteId)}
-                        style={dangerBtn}
-                      >
-                        Revoke
-                      </button>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <div style={{ fontSize: 13, opacity: 0.85 }}>
+          {org.kind === "ready" ? (
+            <>
+              {org.data.summary.memberCount} member
+              {org.data.summary.memberCount === 1 ? "" : "s"}
+              {pendingCount !== null ? (
+                <>
+                  {" · "}
+                  {pendingCount} pending invite
+                  {pendingCount === 1 ? "" : "s"}
+                </>
+              ) : null}
+              {roleTally ? <> · {roleTallyShort(roleTally)}</> : null}
+            </>
+          ) : (
+            "Loading member summary…"
+          )}
+        </div>
       </section>
 
       {/* ============================ WORKSPACES ============================= */}
@@ -1203,92 +938,43 @@ function OrganizationDetailInner() {
         )}
       </section>
 
-      {/* ============================ AUDIT ================================== */}
-      <section data-section="org-audit" style={sectionStyle}>
+      {/* ===================== AUDIT (canonical deep-link) ================== */}
+      {/*
+        Phase 4 (Enterprise Administration) dedup — the filterable audit
+        timeline (event-type / actor / date filters + CSV export) now lives
+        ONLY on the canonical /organizations/:id/admin/audit tab. The
+        overview "Audit" tile above still surfaces the event count + latest
+        timestamp; the deep-link below is the one place to browse + export.
+      */}
+      <section data-section="org-audit-deeplink" style={sectionStyle}>
         <SectionHeader
           title="Audit timeline"
-          subtitle="Organization governance events. Requires ORG_AUDITOR or higher."
+          subtitle="Organization governance events moved to the Admin console, with event-type / actor / date filters and CSV export. Requires ORG_AUDITOR or higher."
           right={
-            canAudit ? (
-              <select
-                data-action="audit-type-filter"
-                value={auditTypeFilter}
-                onChange={(e) => setAuditTypeFilter(e.target.value)}
-                style={{ fontSize: 12 }}
-              >
-                <option value="">All event types</option>
-                <option value="ORG_CREATED">ORG_CREATED</option>
-                <option value="ORG_UPDATED">ORG_UPDATED</option>
-                <option value="ORG_INVITE_CREATED">ORG_INVITE_CREATED</option>
-                <option value="ORG_INVITE_ACCEPTED">ORG_INVITE_ACCEPTED</option>
-                <option value="ORG_INVITE_REVOKED">ORG_INVITE_REVOKED</option>
-                <option value="ORG_INVITE_RESENT">ORG_INVITE_RESENT</option>
-                <option value="ORG_MEMBER_ROLE_CHANGED">ORG_MEMBER_ROLE_CHANGED</option>
-                <option value="ORG_MEMBER_REMOVED">ORG_MEMBER_REMOVED</option>
-              </select>
-            ) : null
+            <Link
+              href={`/organizations/${orgId}/admin/audit`}
+              data-action="open-admin-audit"
+              style={cardLinkBtn(true)}
+            >
+              Open audit timeline →
+            </Link>
           }
         />
-        {audit.kind === "loading" && <RowLoading />}
-        {audit.kind === "error" && (
-          <RowError
-            status={audit.status}
-            forbiddenMessage="You don’t have access to the audit timeline."
-          />
-        )}
-        {audit.kind === "ready" && (
-          <ul
-            data-state="ready"
-            data-total-events={audit.data.summary.totalEvents}
-            style={listResetStyle}
-          >
-            {audit.data.events.length === 0 && (
-              <li style={emptyRowStyle}>
-                {auditTypeFilter
-                  ? `No events matching ${auditTypeFilter}.`
-                  : "No audit events yet."}
-              </li>
-            )}
-            {audit.data.events.map((e) => (
-              <li
-                key={e.id}
-                data-audit-event-type={e.eventType}
-                style={{
-                  padding: "0.45rem 0.6rem",
-                  borderBottom: "1px solid rgba(127,127,127,0.18)",
-                  fontSize: 13,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div>
-                    <strong>{e.eventType}</strong>{" "}
-                    <span style={{ opacity: 0.7 }}>
-                      ({e.targetType}
-                      {e.targetId ? ` ${e.targetId.slice(0, 8)}…` : ""})
-                    </span>
-                  </div>
-                  <div style={{ opacity: 0.75, fontSize: 12 }}>
-                    {formatUtcAuditDateTime(e.createdAt)}
-                  </div>
-                </div>
-                <div style={{ fontSize: 12, opacity: 0.75 }}>
-                  by{" "}
-                  {e.actorDisplayName ||
-                    e.actorEmail ||
-                    e.actorUserId ||
-                    "(unknown)"}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div style={{ fontSize: 13, opacity: 0.85 }}>
+          {audit.kind === "ready" ? (
+            <>
+              {audit.data.summary.totalEvents} event
+              {audit.data.summary.totalEvents === 1 ? "" : "s"}
+              {lastAuditAt
+                ? ` · latest ${formatUtcAuditDateTime(lastAuditAt)}`
+                : ""}
+            </>
+          ) : audit.kind === "error" && audit.status === 403 ? (
+            "Requires ORG_AUDITOR or higher."
+          ) : (
+            "Loading audit summary…"
+          )}
+        </div>
       </section>
 
       {/* ========================= SCOPE / HIERARCHY ========================== */}
@@ -1382,104 +1068,6 @@ function OrganizationDetailInner() {
         </div>
       </section>
 
-      {/* ============================ INVITE MODAL =========================== */}
-      {inviteOpen && (
-        <ModalShell
-          onClose={() => !inviteBusy && setInviteOpen(false)}
-          dataAttr="invite-member"
-        >
-          <form
-            data-form="invite-member"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void submitInvite();
-            }}
-            style={modalForm}
-          >
-            <h2 style={{ margin: "0 0 0.5rem" }}>Invite member</h2>
-            <p style={{ fontSize: 13, opacity: 0.85, marginTop: 0 }}>
-              The invitee accepts via the returned token. Stage 4 does
-              not send email automatically — share the token URL with
-              them.
-            </p>
-            <label style={settingsLabel}>
-              Email
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                required
-                disabled={inviteBusy}
-                data-input="invite-email"
-                style={modalInput}
-              />
-            </label>
-            <label style={settingsLabel}>
-              Role
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as OrgRole)}
-                disabled={inviteBusy}
-                data-input="invite-role"
-                style={{
-                  display: "block",
-                  marginTop: 4,
-                  padding: "0.35rem 0.45rem",
-                }}
-              >
-                {ALL_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {ROLE_LABELS[r]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {inviteError && (
-              <div role="alert" data-state="error" style={modalErrorBox}>
-                {inviteError}
-              </div>
-            )}
-            {lastInviteToken && (
-              <div
-                data-state="invite-token-issued"
-                style={{
-                  padding: "0.45rem 0.6rem",
-                  border: "1px dashed currentColor",
-                  borderRadius: 4,
-                  fontSize: 12,
-                  marginTop: 8,
-                  wordBreak: "break-all",
-                }}
-              >
-                <strong>Invite token</strong> — share this URL with the
-                invitee:
-                <div style={{ marginTop: 4 }}>
-                  <code>/org-invites/{lastInviteToken}/accept</code>
-                </div>
-              </div>
-            )}
-            <div style={modalActions}>
-              <button
-                type="button"
-                onClick={() => setInviteOpen(false)}
-                disabled={inviteBusy}
-                data-action="cancel-invite"
-                style={toolbarBtn(false)}
-              >
-                Close
-              </button>
-              <button
-                type="submit"
-                disabled={inviteBusy || !inviteEmail.trim()}
-                data-action="submit-invite"
-                style={toolbarBtn(true)}
-              >
-                {inviteBusy ? "Sending…" : "Send invite"}
-              </button>
-            </div>
-          </form>
-        </ModalShell>
-      )}
     </main>
   );
 }
@@ -1668,38 +1256,6 @@ function RowError({
   );
 }
 
-function ModalShell({
-  onClose,
-  children,
-  dataAttr,
-}: {
-  onClose: () => void;
-  children: React.ReactNode;
-  dataAttr: string;
-}) {
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      data-modal={dataAttr}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
 function Pill({
   tone,
   children,
@@ -1758,12 +1314,6 @@ const emptyRowStyle: React.CSSProperties = {
   opacity: 0.75,
 };
 
-const inlineErrorStyle: React.CSSProperties = {
-  marginTop: 4,
-  fontSize: 12,
-  color: "#d44",
-};
-
 const miniChip: React.CSSProperties = {
   marginLeft: 6,
   padding: "1px 6px",
@@ -1775,16 +1325,6 @@ const miniChip: React.CSSProperties = {
 const settingsLabel: React.CSSProperties = {
   display: "block",
   fontSize: 13,
-};
-
-const modalForm: React.CSSProperties = {
-  background: "var(--bg, #fff)",
-  color: "var(--fg, #000)",
-  padding: "1.25rem",
-  borderRadius: 8,
-  minWidth: 380,
-  maxWidth: 520,
-  boxShadow: "0 10px 32px rgba(0,0,0,0.42)",
 };
 
 const modalInput: React.CSSProperties = {
@@ -1806,13 +1346,6 @@ const modalErrorBox: React.CSSProperties = {
   borderRadius: 4,
   fontSize: 13,
   background: "rgba(220,68,68,0.06)",
-};
-
-const modalActions: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "flex-end",
-  gap: 8,
-  marginTop: 12,
 };
 
 function toolbarBtn(primary: boolean): React.CSSProperties {
@@ -1842,16 +1375,6 @@ function cardLinkBtn(primary: boolean): React.CSSProperties {
     whiteSpace: "nowrap",
   };
 }
-
-const dangerBtn: React.CSSProperties = {
-  border: "1px solid #d44",
-  borderRadius: 4,
-  padding: "0.2rem 0.55rem",
-  background: "transparent",
-  color: "inherit",
-  cursor: "pointer",
-  fontSize: 12,
-};
 
 const scopeCard: React.CSSProperties = {
   padding: "0.7rem 0.85rem",

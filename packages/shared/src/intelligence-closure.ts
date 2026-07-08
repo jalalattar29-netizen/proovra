@@ -111,16 +111,19 @@ export function buildTrendMetric(current: number, previous: number): TrendMetric
 
 export type ExecutiveCaptureTrend = {
   captures: TrendMetric;
-  captureSuccessRatePct: TrendMetric;
+  captureSuccessRatePct: TrendMetric | null;
   mobileSignedRatio: TrendMetric;
   highTrustCaptures: TrendMetric;
 };
 
 export type ExecutiveReviewTrend = {
   reviewed: TrendMetric;
-  approvalRatePct: TrendMetric;
-  qcAccuracyPct: TrendMetric;
-  averageReviewDurationMs: TrendMetric;
+  /** NULL when neither window has completed reviews (no honest rate). */
+  approvalRatePct: TrendMetric | null;
+  /** NULL when neither window has QC verdicts. */
+  qcAccuracyPct: TrendMetric | null;
+  /** NULL when neither window has completed reviews. */
+  averageReviewDurationMs: TrendMetric | null;
 };
 
 export type ExecutiveEvidenceTrend = {
@@ -131,7 +134,8 @@ export type ExecutiveEvidenceTrend = {
 export type ExecutiveVerificationTrend = {
   verifications: TrendMetric;
   publicVerifyViews: TrendMetric;
-  successRatePct: TrendMetric;
+  /** NULL — no pass/fail verification-result source to compute a rate. */
+  successRatePct: TrendMetric | null;
 };
 
 export type ExecutiveAiTrend = {
@@ -143,7 +147,7 @@ export type ExecutiveAiTrend = {
 
 export type ExecutiveSlaTrend = {
   jobFailureRatePct: TrendMetric;
-  providerAvailabilityPct: TrendMetric;
+  providerAvailabilityPct: TrendMetric | null;
 };
 
 export type ExecutiveCostTrend = {

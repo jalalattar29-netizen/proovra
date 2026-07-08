@@ -12,7 +12,10 @@
  *   * NEVER per-user / per-document identifiers in the projection.
  *   * Bounded enums for all confidence / band labels.
  *   * Workspace-anchored.
- *   * Best-effort — if a per-domain count is unavailable, return 0.
+ *   * Best-effort COUNTS — if a per-domain count is unavailable, return 0.
+ *   * RATES / LATENCIES are NEVER fabricated: a rate with no denominator,
+ *     or a metric with no real data source, is emitted as `null`
+ *     ("Not measured"), never as a 0/100 stand-in.
  */
 
 import type { PrismaClient } from "@prisma/client";
@@ -58,8 +61,8 @@ export async function projectExecutiveMetrics(input: {
     review: {
       reviewedLast7d: totals.reviewed,
       approvalRatePct: totals.approvalRatePct,
-      qcAccuracyPct: 0,
-      averageReviewDurationMs: 0,
+      qcAccuracyPct: totals.qcAccuracyPct,
+      averageReviewDurationMs: totals.averageReviewDurationMs,
     },
     evidence: {
       totalEvidence: totals.totalEvidence,
@@ -69,7 +72,8 @@ export async function projectExecutiveMetrics(input: {
     verification: {
       verificationsLast7d: totals.verifications,
       publicVerifyViewsLast7d: totals.publicVerifyViews,
-      successRatePct: 100,
+      // No pass/fail verification-result source — honest null, not a 100.
+      successRatePct: null,
     },
     ai: {
       providerCallsLast7d: totals.providerCalls,
@@ -78,8 +82,9 @@ export async function projectExecutiveMetrics(input: {
       averageProviderConfidence: totals.averageProviderConfidence,
     },
     sla: {
-      averageDetectionLatencyMs: 0,
-      averageDerivativeLatencyMs: 0,
+      // No detection/derivative-timing source — honest null, not a fake 0.
+      averageDetectionLatencyMs: null,
+      averageDerivativeLatencyMs: null,
       jobFailureRatePct: totals.jobFailureRatePct,
       providerAvailabilityPct: totals.providerAvailabilityPct,
     },
@@ -120,6 +125,10 @@ export async function projectExecutiveTrends(input: {
   ]);
 
   const t = (c: number, p: number): TrendMetric => buildTrendMetric(c, p);
+  // Null-aware trend: if EITHER window lacks the metric, there is no honest
+  // trend — emit null rather than fabricating a 0/100 baseline.
+  const tn = (c: number | null, p: number | null): TrendMetric | null =>
+    c === null || p === null ? null : buildTrendMetric(c, p);
 
   return {
     schemaVersion: EXECUTIVE_TRENDS_SCHEMA_VERSION,
@@ -132,15 +141,18 @@ export async function projectExecutiveTrends(input: {
     previousWindowEndUtc: previousEnd.toISOString(),
     capture: {
       captures: t(current.captures, previous.captures),
-      captureSuccessRatePct: t(current.captureSuccessRatePct, previous.captureSuccessRatePct),
+      captureSuccessRatePct: tn(current.captureSuccessRatePct, previous.captureSuccessRatePct),
       mobileSignedRatio: t(current.mobileSignedRatio, previous.mobileSignedRatio),
       highTrustCaptures: t(current.highTrustCaptures, previous.highTrustCaptures),
     },
     review: {
       reviewed: t(current.reviewed, previous.reviewed),
-      approvalRatePct: t(current.approvalRatePct, previous.approvalRatePct),
-      qcAccuracyPct: t(0, 0),
-      averageReviewDurationMs: t(0, 0),
+      approvalRatePct: tn(current.approvalRatePct, previous.approvalRatePct),
+      qcAccuracyPct: tn(current.qcAccuracyPct, previous.qcAccuracyPct),
+      averageReviewDurationMs: tn(
+        current.averageReviewDurationMs,
+        previous.averageReviewDurationMs,
+      ),
     },
     evidence: {
       totalEvidence: t(current.totalEvidence, previous.totalEvidence),
@@ -149,7 +161,9 @@ export async function projectExecutiveTrends(input: {
     verification: {
       verifications: t(current.verifications, previous.verifications),
       publicVerifyViews: t(current.publicVerifyViews, previous.publicVerifyViews),
-      successRatePct: t(100, 100),
+      // No pass/fail verification-result source — honest null, never a
+      // fabricated 100-baseline trend.
+      successRatePct: null,
     },
     ai: {
       providerCalls: t(current.providerCalls, previous.providerCalls),
@@ -162,7 +176,7 @@ export async function projectExecutiveTrends(input: {
     },
     sla: {
       jobFailureRatePct: t(current.jobFailureRatePct, previous.jobFailureRatePct),
-      providerAvailabilityPct: t(
+      providerAvailabilityPct: tn(
         current.providerAvailabilityPct,
         previous.providerAvailabilityPct,
       ),
@@ -192,11 +206,24 @@ export async function projectExecutiveTrends(input: {
 
 type WindowTotals = {
   captures: number;
-  captureSuccessRatePct: number;
+  captureSuccessRatePct: number | null;
   mobileSignedRatio: number;
   highTrustCaptures: number;
   reviewed: number;
-  approvalRatePct: number;
+  /**
+   * Share of completed reviews that ended APPROVED_INTERNAL, in [0, 100].
+   * NULL when no reviews completed in the window — never a 100 placeholder.
+   */
+  approvalRatePct: number | null;
+  /**
+   * QC pass rate = PASS / (PASS + FAIL + PARTIAL) over rendered QcSample
+   * verdicts, in [0, 100]. NULL when no verdicts exist in the window.
+   */
+  qcAccuracyPct: number | null;
+  /**
+   * Mean workflow completion latency (ms). NULL when no reviews completed.
+   */
+  averageReviewDurationMs: number | null;
   totalEvidence: number;
   storageBytes: number;
   byMimeFamily: Record<string, number>;
@@ -207,7 +234,7 @@ type WindowTotals = {
   corrections: number;
   averageProviderConfidence: number;
   jobFailureRatePct: number;
-  providerAvailabilityPct: number;
+  providerAvailabilityPct: number | null;
   blockedCalls: number;
   budgetBreaches: number;
   correctionsCreated: number;
@@ -268,9 +295,7 @@ async function aggregateWindow(input: {
     }),
   );
   const captureSuccessRatePct =
-    captures === 0
-      ? 100
-      : Math.round((capturesWithSignature / captures) * 1000) / 10;
+    captures === 0 ? null : Math.round((capturesWithSignature / captures) * 1000) / 10;
   let mobileSignedRatio = 0;
   let highTrustCaptures = 0;
   try {
@@ -290,13 +315,81 @@ async function aggregateWindow(input: {
     /* swallow */
   }
 
-  // Review.
+  // Review — completion counted by the real completion timestamp column.
   const reviewed = await safeCount(() =>
     prisma.evidenceReviewWorkflow.count({
-      where: { teamId, completedAt: within } as never,
+      where: { teamId, completedAtUtc: within } as never,
     }),
   );
-  const approvalRatePct = reviewed > 0 ? 100 : 0;
+
+  // Approval rate — REAL: completed workflows that ended APPROVED_INTERNAL
+  // over all completed workflows. NULL when nothing completed (no honest
+  // rate to report — never a 100 stand-in).
+  let approvalRatePct: number | null = null;
+  // Review duration — REAL: mean(completedAtUtc − createdAt) over completed
+  // workflows. NULL when nothing completed.
+  let averageReviewDurationMs: number | null = null;
+  try {
+    if (reviewed > 0) {
+      const approved = await prisma.evidenceReviewWorkflow.count({
+        where: {
+          teamId,
+          completedAtUtc: within,
+          status: "APPROVED_INTERNAL",
+        } as never,
+      });
+      approvalRatePct = Math.round((approved / reviewed) * 1000) / 10;
+
+      const completedRows = await prisma.evidenceReviewWorkflow.findMany({
+        where: { teamId, completedAtUtc: within } as never,
+        select: { createdAt: true, completedAtUtc: true } as never,
+      });
+      let durationSum = 0;
+      let durationCount = 0;
+      for (const row of completedRows as Array<{
+        createdAt: Date | null;
+        completedAtUtc: Date | null;
+      }>) {
+        if (row.createdAt && row.completedAtUtc) {
+          const ms = row.completedAtUtc.getTime() - row.createdAt.getTime();
+          if (ms >= 0) {
+            durationSum += ms;
+            durationCount += 1;
+          }
+        }
+      }
+      averageReviewDurationMs =
+        durationCount > 0 ? Math.round(durationSum / durationCount) : null;
+    }
+  } catch {
+    /* swallow — leave approval/duration null */
+  }
+
+  // QC accuracy — REAL: PASS / (PASS + FAIL + PARTIAL) over rendered QcSample
+  // verdicts in the window. NULL when no verdicts were rendered.
+  let qcAccuracyPct: number | null = null;
+  try {
+    const verdictRows = await prisma.qcSample.groupBy({
+      by: ["verdict"],
+      where: { teamId, verdictAtUtc: within, verdict: { not: null } } as never,
+      _count: { _all: true },
+    });
+    let pass = 0;
+    let total = 0;
+    for (const row of verdictRows as Array<{
+      verdict: string | null;
+      _count: { _all: number };
+    }>) {
+      const n = row._count._all;
+      total += n;
+      if (row.verdict === "PASS") pass += n;
+    }
+    if (total > 0) {
+      qcAccuracyPct = Math.round((pass / total) * 1000) / 10;
+    }
+  } catch {
+    /* swallow — leave qcAccuracy null */
+  }
 
   // Verification.
   let verifications = 0;
@@ -319,7 +412,7 @@ async function aggregateWindow(input: {
   let corrections = 0;
   let blockedCalls = 0;
   let jobFailureRatePct = 0;
-  let providerAvailabilityPct = 100;
+  let providerAvailabilityPct: number | null = null;
   try {
     const aggUsage = await prisma.providerUsageEvent.aggregate({
       where: {
@@ -397,6 +490,8 @@ async function aggregateWindow(input: {
     highTrustCaptures,
     reviewed,
     approvalRatePct,
+    qcAccuracyPct,
+    averageReviewDurationMs,
     totalEvidence: evidenceTotal,
     storageBytes: Number(storageAgg._sum.sizeBytes ?? 0n),
     byMimeFamily,

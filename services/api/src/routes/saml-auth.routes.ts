@@ -72,6 +72,8 @@ import {
   persistSamlCallbackAttempt,
 } from "../services/access-control/sso-hardening.service.js";
 import { recordAuthenticatedSession } from "../services/access-control/session-inventory.service.js";
+import { enforceSsoLoginPolicy } from "../services/access-control/sso-login-policy.service.js";
+import { isEmailDomainVerifiedForOrg } from "../services/organization/organization-domain.service.js";
 import { detectAndScoreSession } from "../services/access-control/suspicious-session.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
@@ -171,6 +173,26 @@ function setSessionCookie(
 }
 
 /**
+ * Phase 3 — resolves the SP private signing key (PEM) for AuthnRequest
+ * signing. Prefers the per-connection key; falls back to the platform-wide
+ * SAML_SP_PRIVATE_KEY env. Returns null when no key material is available,
+ * in which case the request is left unsigned. Never logged.
+ */
+function resolveSpSigningKey(
+  connectionPrivateKey: string | null | undefined,
+): string | null {
+  if (connectionPrivateKey && connectionPrivateKey.trim().length > 0) {
+    return connectionPrivateKey;
+  }
+  const envKey = process.env["SAML_SP_PRIVATE_KEY"];
+  if (envKey && envKey.trim().length > 0) {
+    // Support newline-escaped env values (common in container secrets).
+    return envKey.includes("\\n") ? envKey.replace(/\\n/g, "\n") : envKey;
+  }
+  return null;
+}
+
+/**
  * Builds the SP entityID for a given connection.
  * Canonical form: {apiBaseUrl}/saml/sp/{connectionId}
  */
@@ -239,6 +261,9 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           samlCertificate: true,
           samlNameIdFormat: true,
           samlEntityId: true,
+          // Phase 3 — SP AuthnRequest signing material.
+          samlSignRequests: true,
+          samlSpPrivateKey: true,
         },
       });
 
@@ -257,16 +282,26 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
       const acsUrl = buildAcsUrl(req);
       const nameIdFormat = conn.samlNameIdFormat ?? SAML_DEFAULT_NAME_ID_FORMAT;
 
+      // Phase 3 — resolve the SP signing key ONLY when the connection is
+      // configured to sign requests. Prefer the per-connection key; fall back
+      // to the platform-wide SAML_SP_PRIVATE_KEY env. When neither is present
+      // the request is left unsigned (unchanged legacy behaviour).
+      const spPrivateKeyPem = conn.samlSignRequests
+        ? resolveSpSigningKey(conn.samlSpPrivateKey)
+        : null;
+
       try {
         // Build AuthnRequest
-        const { requestId, redirectUrl, relayState } = buildSamlAuthnRequest({
-          connectionId: conn.id,
-          spEntityId,
-          acsUrl,
-          idpSsoUrl: conn.samlSsoUrl,
-          nameIdFormat,
-          forceAuthn: false,
-        });
+        const { requestId, redirectUrl, relayState, signed } =
+          buildSamlAuthnRequest({
+            connectionId: conn.id,
+            spEntityId,
+            acsUrl,
+            idpSsoUrl: conn.samlSsoUrl,
+            nameIdFormat,
+            forceAuthn: false,
+            spPrivateKeyPem,
+          });
 
         // Persist state for replay protection
         const persist = await persistSamlCallbackAttempt(
@@ -295,6 +330,9 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           details: {
             connectionId: conn.id,
             provider: conn.provider,
+            // Phase 3 — record whether the AuthnRequest was signed so
+            // operators can confirm signing is active without inspecting URLs.
+            authnRequestSigned: signed,
           },
         });
 
@@ -392,6 +430,8 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           jitDefaultRole: true,
           // R8.2.1 — SCIM-managed JIT gate
           samlScimManaged: true,
+          // Phase 3 — verified-domain enforcement flag.
+          restrictToVerifiedDomains: true,
         },
       });
 
@@ -458,6 +498,27 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           | { email?: string; name?: string; externalId?: string }
           | null;
 
+        // Phase 3 — SSO login enforcement point (pre-JIT). Reject before any
+        // membership side-effects when: SSO is used by a non-enterprise
+        // workspace, or the connection is (mis)configured on a PERSONAL
+        // workspace. The email is not needed for these two checks, so we pass
+        // a placeholder and skip the verified-domain check here (run below,
+        // once the assertion email is resolved).
+        const preGate = await enforceSsoLoginPolicy(
+          {
+            teamId: conn.teamId,
+            email: "",
+            restrictToVerifiedDomains: false,
+          },
+          prisma,
+        );
+        if (!preGate.ok) {
+          throw new SamlMappingError("SAML_CONNECTION_INACTIVE", {
+            connectionId: conn.id,
+            reason: preGate.reason,
+          });
+        }
+
         const result = await handleSamlAssertion(
           {
             teamId: conn.teamId,
@@ -472,6 +533,23 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           },
           prisma,
         );
+
+        // Phase 3 — verified-domain enforcement. When the connection restricts
+        // logins to VERIFIED OrganizationDomain rows, the resolved login email
+        // domain must be verified for the connection's org. Layered ON TOP of
+        // the allowedEmailDomains gate already enforced inside handleSamlAssertion.
+        if (conn.restrictToVerifiedDomains) {
+          const domainVerified = await isEmailDomainVerifiedForOrg(
+            { organizationId: preGate.organizationId, email: result.email },
+            prisma,
+          );
+          if (!domainVerified) {
+            throw new SamlMappingError("SAML_EMAIL_DOMAIN_NOT_ALLOWED", {
+              connectionId: conn.id,
+              reason: "domain_not_verified",
+            });
+          }
+        }
 
         // Mark connection used
         await prisma.ssoConnection.update({
@@ -710,6 +788,10 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           samlNameIdFormat: true,
           // R8.2.2 — reflect signing status honestly in metadata
           samlSignRequests: true,
+          // Phase 3 — SP signing material drives an HONEST AuthnRequestsSigned
+          // flag + optional KeyDescriptor advertisement.
+          samlSpPrivateKey: true,
+          samlSpCertificate: true,
         },
       });
 
@@ -723,22 +805,40 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
       const nameIdFormat =
         conn.samlNameIdFormat ?? SAML_DEFAULT_NAME_ID_FORMAT;
 
-      // R8.2.2 — honest AuthnRequestsSigned: reflect the stored flag.
-      // NOTE: request signing is schema-supported but NOT YET implemented
-      // in buildSamlAuthnRequest (no SP private key wiring exists).
-      // This field is always false until R8.3 wires SP signing. We expose
-      // the raw flag value so that if/when signing is implemented, the
-      // metadata auto-updates without requiring a code change.
-      const authnRequestsSigned = conn.samlSignRequests ? "true" : "false";
+      // Phase 3 — HONEST AuthnRequestsSigned. SP AuthnRequest signing is now
+      // implemented (HTTP-Redirect query-string signature in
+      // saml-authn-request.service.ts). We advertise `true` ONLY when the
+      // connection is configured to sign AND signing key material is actually
+      // resolvable (per-connection key or the platform SAML_SP_PRIVATE_KEY
+      // env) — never a bare flag that promises signing we cannot perform.
+      const signingKeyAvailable =
+        resolveSpSigningKey(conn.samlSpPrivateKey) !== null;
+      const authnRequestsSigned =
+        conn.samlSignRequests && signingKeyAvailable ? "true" : "false";
 
-      // R8.2.2 — include all SP metadata fields per SAML 2.0 metadata spec:
+      // Phase 3 — advertise the SP signing certificate in a KeyDescriptor when
+      // one is configured, so the IdP can verify our AuthnRequest signature.
+      const keyDescriptor =
+        authnRequestsSigned === "true" && conn.samlSpCertificate
+          ? [
+              `    <md:KeyDescriptor use="signing">`,
+              `      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">`,
+              `        <ds:X509Data>`,
+              `          <ds:X509Certificate>${conn.samlSpCertificate}</ds:X509Certificate>`,
+              `        </ds:X509Data>`,
+              `      </ds:KeyInfo>`,
+              `    </md:KeyDescriptor>`,
+            ]
+          : [];
+
+      // SP metadata fields per SAML 2.0 metadata spec:
       //   - entityID: the SP's unique identifier
       //   - WantAssertionsSigned: always true (we REQUIRE signed assertions)
-      //   - AuthnRequestsSigned: false (unsigned requests, honest status)
+      //   - AuthnRequestsSigned: honest — true iff signing is active + keyed
+      //   - KeyDescriptor(signing): SP cert, present when signing + cert set
       //   - NameIDFormat: the preferred NameID format
       //   - AssertionConsumerService: HTTP-POST binding ACS URL
       //   No private key material is included.
-      //   No internal hostnames or non-production URLs.
       const xml = [
         `<?xml version="1.0" encoding="UTF-8"?>`,
         `<md:EntityDescriptor`,
@@ -748,6 +848,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         `    AuthnRequestsSigned="${authnRequestsSigned}"`,
         `    WantAssertionsSigned="true"`,
         `    protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">`,
+        ...keyDescriptor,
         `    <md:NameIDFormat>${nameIdFormat}</md:NameIDFormat>`,
         `    <md:AssertionConsumerService`,
         `      Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"`,

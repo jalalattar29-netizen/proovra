@@ -6799,9 +6799,30 @@ model SsoConnection {
   /// urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
   samlNameIdFormat String? @map("saml_name_id_format") @db.VarChar(200)
 
-  /// R8.2 — When true, the SP signs AuthnRequests with the platform SP
-  /// private key (SAML_SP_PRIVATE_KEY env). Some IdPs require this.
+  /// R8.2 — When true, the SP signs AuthnRequests with the SP private
+  /// key (per-connection samlSpPrivateKey, else the platform-wide
+  /// SAML_SP_PRIVATE_KEY env). Some IdPs require this.
   samlSignRequests Boolean @default(false) @map("saml_sign_requests")
+
+  /// Phase 3 — Optional per-connection SP signing private key (PEM,
+  /// PKCS#8 or PKCS#1). When set AND samlSignRequests=true, the SP
+  /// signs AuthnRequests with this key rather than the platform-wide
+  /// SAML_SP_PRIVATE_KEY env. Additive + nullable. NEVER logged; NEVER
+  /// returned to the caller — write-only from the admin surface.
+  samlSpPrivateKey String? @map("saml_sp_private_key")
+
+  /// Phase 3 — Optional per-connection SP X.509 certificate (base64
+  /// only, no PEM header/footer) advertised in SP metadata and embedded
+  /// in the AuthnRequest KeyInfo so the IdP can verify the signature.
+  /// Additive + nullable.
+  samlSpCertificate String? @map("saml_sp_certificate") @db.VarChar(8192)
+
+  /// Phase 3 — Domain verification enforcement. When true, SSO logins
+  /// through this connection are additionally restricted to email
+  /// domains that are VERIFIED OrganizationDomain rows for the owning
+  /// org (layered ON TOP of allowedEmailDomains, which is unchanged).
+  /// Default false preserves existing behaviour for every connection.
+  restrictToVerifiedDomains Boolean @default(false) @map("restrict_to_verified_domains")
 
   /// R8.2 — Optional operator-supplied JSON mapping IdP attribute names
   /// to profile fields: { email?: string, name?: string, externalId?: string }.
@@ -9073,6 +9094,8 @@ model Organization {
   auditEvents OrganizationAuditEvent[]
   workspaces  Team[]                   @relation("OrganizationToTeam")
   policies    OrganizationPolicy[]
+  // Phase 3 — Enterprise Identity: DNS-verified domain ownership.
+  domains     OrganizationDomain[]
   // Phase A1 — back-relation for the Evidence organization relation
   // declared above. Cascades are not used (Restrict) so an
   // Organization with active Evidence cannot be deleted by accident.
@@ -9080,6 +9103,46 @@ model Organization {
 
   @@index([status])
   @@map("organizations")
+}
+
+// =============================================================================
+// Phase 3 — Enterprise Identity: Organization domain ownership verification.
+//
+// An organization proves ownership of an email domain by publishing a DNS
+// TXT record containing the challenge token. Once verified, SSO connections
+// configured with restrictToVerifiedDomains only admit logins whose email
+// domain matches a VERIFIED row here. This is a REAL ownership proof, distinct
+// from the admin-typed (unverified) SsoConnection.allowedEmailDomains allow-list.
+//
+// Hard rules:
+//   - verificationToken is single-purpose (DNS challenge). It is safe to
+//     surface to the org admin who is publishing the record; it is NOT a
+//     secret credential.
+//   - verifiedAt NULL means "pending / not proven". Enforcement paths treat
+//     only rows with a non-null verifiedAt as authoritative.
+//   - (organizationId, domain) is unique — a domain is claimed once per org.
+// =============================================================================
+model OrganizationDomain {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  /// Lowercased bare domain (e.g. "acme.com"). No scheme, no path, no port.
+  domain            String    @db.VarChar(253)
+  /// Opaque DNS-challenge token the admin publishes as a TXT record at
+  /// `_proovra-verify.<domain>`. Regenerated is NOT supported — remove +
+  /// re-add to rotate.
+  verificationToken String    @map("verification_token") @db.VarChar(128)
+  /// Non-null once the DNS TXT record proving ownership has been observed.
+  verifiedAt        DateTime? @map("verified_at") @db.Timestamptz(6)
+  createdByUserId   String    @map("created_by_user_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, domain], name: "organization_domains_org_domain_uniq")
+  @@index([domain])
+  @@index([organizationId, verifiedAt])
+  @@map("organization_domains")
 }
 
 model OrganizationMembership {

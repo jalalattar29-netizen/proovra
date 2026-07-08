@@ -65,6 +65,8 @@ import { organizationsRoutes } from "./routes/organizations.routes.js";
 // template publishing + billing rollup). Narrow, audited, and
 // scope-gated; does NOT replace the workspace operational layer.
 import { organizationsGovernanceRoutes } from "./routes/organizations-governance.routes.js";
+// Phase 3 — Enterprise Identity: DNS-verified organization domain ownership.
+import { organizationDomainsRoutes } from "./routes/organization-domains.routes.js";
 // Phase A.1C — Account-level operational priorities (above-workspace surface).
 import { meOperationalPrioritiesRoutes } from "./routes/me-operational-priorities.routes.js";
 // Phase C — Operational Inbox (caller-scoped unified attention stream).
@@ -921,6 +923,9 @@ allowedHeaders: [
   // read-only `organizationsRoutes` so the existing endpoints take
   // precedence on any path collision.
   await app.register(organizationsGovernanceRoutes);
+  // Phase 3 — Enterprise Identity: organization domain verification write
+  // surfaces (add / verify / list / remove). Enterprise-gated + step-up.
+  await app.register(organizationDomainsRoutes);
   await app.register(meOperationalPrioritiesRoutes);
   await app.register(meInboxRoutes);
   // Phase G3 — bounded in-process presence routes

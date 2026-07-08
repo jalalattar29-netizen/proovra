@@ -33,6 +33,11 @@ import {
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+// Phase 3 blocker closure — issuing/rotating/revealing an external-
+// reviewer grant can expose sensitive evidence to an OUTSIDE reviewer,
+// so these mutations must require a fresh step-up on top of the RBAC
+// capability gate.
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { externalPortalCapabilitiesForRole } from "@proovra/shared";
 import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
 import {
@@ -359,6 +364,23 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         if (!feOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_EXTERNAL_PORTAL" });
       } catch { /* engine failure must not break route */ }
       const body = IssueInvitationBody.parse(req.body);
+      // STEP-UP: issuing an invitation grants an outside reviewer access
+      // to sensitive evidence — require a fresh step-up AFTER the RBAC
+      // capability gate, BEFORE the mutation.
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
+        resourceKind: "external_review_grant",
+        resourceId:
+          body.scope.evidenceId ??
+          body.scope.caseId ??
+          body.scope.packageId ??
+          null,
+      });
+      if (gate.sent) return;
       const res = await issueInvitation({
         teamId: ctx.teamId,
         invitedByUserId: ctx.userId,
@@ -436,6 +458,19 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       if (!requireCap(ctx, "review.bulk") || !requireCap(ctx, "review.assign")) {
         return denyNoPermission(reply);
       }
+      // STEP-UP: bulk issuance grants multiple outside reviewers access
+      // to sensitive evidence — require a fresh step-up AFTER the RBAC
+      // capability gate, BEFORE the mutation.
+      const bulkGate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
+        resourceKind: "external_review_grant_bulk",
+        resourceId: null,
+      });
+      if (bulkGate.sent) return;
       const body = BulkIssueBody.parse(req.body);
 
       const team = await prisma.team.findUnique({
@@ -521,6 +556,20 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         return denyNoPermission(reply);
       }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // STEP-UP: break-glass reveal ROTATES the grant token and returns a
+      // fresh raw bearer token — the most sensitive mutation on this
+      // surface. Require a fresh step-up AFTER the RBAC capability gate,
+      // BEFORE the rotate.
+      const revealGate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
+        resourceKind: "external_review_grant_reveal",
+        resourceId: id,
+      });
+      if (revealGate.sent) return;
       const body = z
         .object({ reason: z.string().min(10).max(400) })
         .parse(req.body);

@@ -181,6 +181,7 @@ export async function scimCreateGroup(
   });
   await appendPlatformAuditLog({
     userId: null,
+    isPublic: true,
     action: "scim.group.create",
     category: "identity",
     severity: "info",
@@ -400,6 +401,7 @@ export async function scimDeleteGroup(
   });
   await appendPlatformAuditLog({
     userId: null,
+    isPublic: true,
     action: "scim.group.delete",
     category: "identity",
     severity: "warning",

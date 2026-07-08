@@ -18,10 +18,13 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
  *
  * Hard rules (carried from the Phase C brief):
  *   - No fake AI. No invented signals. No noisy duplicates.
- *   - Read state is INHERENT in source state — an item disappears
- *     when the underlying record is resolved (invite accepted /
- *     governance acknowledged / org joined). We do NOT introduce a
- *     separate read-receipt model.
+ *   - Items are sourced from unresolved backend state — an item
+ *     disappears when the underlying record is resolved (invite
+ *     accepted / governance acknowledged / org joined). On TOP of that
+ *     source truth, per-user read / dismiss / snooze state persists in
+ *     the `InboxItemState` table (unique per user + itemKey) via the
+ *     /read /unread /dismiss /snooze endpoints — this is real, not
+ *     local UI state.
  *   - No cross-org leak. The endpoint is caller-scoped server-side.
  *   - Every CTA is a real registered route. No invented destinations.
  *   - Honest "deferred" panel documents what is NOT delivered (push,
@@ -1305,6 +1308,14 @@ function InboxPageInner() {
                 <strong>Onboarding signals.</strong> No-organizations yet;
                 no email identity bound.
               </li>
+              <li data-inbox-scope-item="per-user-state">
+                <strong>Per-user read / dismiss / snooze.</strong> Read,
+                unread, dismiss, and snooze persist per user in the
+                InboxItemState table (unique per user + item). Dismissed
+                and snoozed items drop out of the list until they re-fire;
+                read items de-emphasize. These are real, audited-by-source
+                mutations — not local UI state.
+              </li>
             </ul>
           </div>
           <div
@@ -1313,12 +1324,6 @@ function InboxPageInner() {
           >
             <div style={scopeBlockTitle}>Deferred</div>
             <ul style={scopeListStyle}>
-              <li data-inbox-scope-item="read-state">
-                <strong>Read-state persistence.</strong> The inbox shows
-                items that are unresolved on the backend; we do not track
-                a separate per-user “seen” receipt yet. This is a
-                deliberate “avoid infinite unread growth” choice.
-              </li>
               <li data-inbox-scope-item="preferences-ui">
                 <strong>Notification preferences UI.</strong> The
                 NotificationPreference model is partially wired (per-
@@ -1332,23 +1337,12 @@ function InboxPageInner() {
                 NotificationDelivery pipeline). Digest / push / SMS aren’t
                 wired for inbox items.
               </li>
-              <li data-inbox-scope-item="intake-action-required">
-                <strong>Intake link submissions requiring action.</strong>{" "}
-                Intake handling rolls through WorkflowIntakeSession but
-                there is no dedicated "action required" model. Future
-                phase only.
-              </li>
               <li data-inbox-scope-item="seat-overrun">
                 <strong>Billing seat-overrun alerts.</strong> Per-workspace
                 billing posture is visible to admins on the
                 /organizations/[id] page (Phase A.1B); a seat-overrun
                 inbox item is not built — backend has no incident model
                 for it yet.
-              </li>
-              <li data-inbox-scope-item="dismiss">
-                <strong>Dismiss-with-snooze.</strong> Items disappear when
-                the underlying record resolves; there is no manual
-                per-user dismiss yet.
               </li>
             </ul>
           </div>

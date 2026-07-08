@@ -85,6 +85,7 @@ import {
 } from "../services/lifecycle/destruction-governance.service.js";
 import { projectLifecycleDashboard } from "../services/lifecycle/lifecycle-dashboard.service.js";
 import { computeLifecycleCapabilityStatus } from "../services/lifecycle/capability-status.service.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
   VERIFICATION_PACKAGE_LIFECYCLE_PREVIEW_KINDS,
   buildLifecyclePackagePreview,
@@ -922,6 +923,24 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           expiresAtUtc: z.string().datetime().nullable().optional(),
         })
         .parse(req.body);
+
+      // Phase 3 blocker closure — this lifecycle route is the canonical
+      // Legal Hold CREATE path used by the enterprise UI. Placing a hold
+      // is a sensitive custody action (LEGAL_HOLD_PLACE is in the MFA
+      // force-list), so it must require step-up re-proof when org policy
+      // demands it — matching the governance PLACE/RELEASE gates. Additive
+      // guard; runs BEFORE createLegalHold; no hold/custody logic changed.
+      const stepUpGate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "LEGAL_HOLD_PLACE",
+        resourceKind: "evidence_legal_hold",
+        resourceId: body.scopeTargetId ?? null,
+      });
+      if (stepUpGate.sent) return;
+
       const res = await createLegalHold({
         teamId: ctx.teamId,
         kind: body.kind,

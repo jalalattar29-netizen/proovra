@@ -2,21 +2,47 @@
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 
 /**
- * Phase 8 — Org admin / Overview tab.
+ * Phase 4 (Enterprise Administration) — Org admin / Overview tab.
  *
- * Read-only posture summary across the canonical org REST surface
- * (/v1/orgs/:id, /v1/orgs/:id/members, /v1/orgs/:id/workspaces,
- * /v1/orgs/:id/audit-events) plus deep-links to canonical Phase 4A
- * governance/audit/trust pages.
+ * The real Enterprise Admin HOME. A read-only posture summary across the
+ * canonical org REST surface plus evidence-platform quick actions that
+ * deep-link to the sibling admin tabs / canonical config surfaces.
+ *
+ * Reads (all EXISTING endpoints, fetched directly — no new aggregate):
+ *
+ *   GET /v1/orgs/:id                      — org profile, status, plan
+ *                                           verification, member/workspace/
+ *                                           invite summary, caller role.
+ *   GET /v1/orgs/:id/members              — role distribution.
+ *   GET /v1/orgs/:id/audit-events         — recent governance audit
+ *                                           (ORG_AUDITOR+; 403 tolerated).
+ *   GET /v1/orgs/:id/domains              — verified-domains status
+ *                                           (ORG_ADMIN+ & enterprise gate;
+ *                                           403 tolerated).
+ *   GET /v1/orgs/:id/policies/retention   — retention template posture
+ *                                           (org member).
+ *   GET /v1/orgs/:id/billing/rollup       — seat usage across workspaces
+ *                                           (ORG_BILLING_ADMIN+; 403
+ *                                           tolerated).
+ *
+ * No aggregate endpoint was added: the required reads have DIFFERENT role
+ * gates (auditor / admin / billing-admin), so fanning out client-side lets
+ * each section degrade to its own honest 403 without a bespoke backend gate
+ * that would risk leaking billing / domain data to lower roles.
+ *
+ * MFA / SSO / SCIM / session policy have no org-scoped readiness endpoint;
+ * mirroring the Security tab we report them honestly as "Not configured"
+ * with a deep-link to the canonical identity surface — never fake-positive.
  *
  * Constitutional checks satisfied:
  *
  *   - Wrapped in <PageRouteGate routeId="account.organization-detail">.
- *   - No raw window.confirm — page is read-only.
- *   - No platform-context workspace-fragment reads — we use apiFetch
- *     against /v1/orgs/:id only.
+ *   - No raw window.confirm — page is read-only (no mutations).
+ *   - No platform-context workspace-fragment reads — apiFetch against
+ *     /v1/orgs/:id only.
  *   - Strong TypeScript types throughout.
- *   - No new workspace kinds; deep-links surface canonical surfaces.
+ *   - toSafeUserError is the only non-ApiError display path.
+ *   - No new workspace kinds; quick actions surface canonical tabs/pages.
  */
 
 import Link from "next/link";
@@ -26,6 +52,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
 import { formatUserDate, formatUtcAuditDateTime } from "../../../../../../lib/date";
+
+// ---------------------------------------------------------------------------
+// Wire types — mirror the existing org REST surface.
+// ---------------------------------------------------------------------------
 
 type OrgRole =
   | "ORG_OWNER"
@@ -38,7 +68,10 @@ type OrgRole =
 interface OrgResponse {
   organizationId: string;
   name: string;
+  legalName: string | null;
   status: "ACTIVE" | "SUSPENDED" | "ARCHIVED";
+  verificationState: string | null;
+  verifiedAtUtc: string | null;
   callerRole: OrgRole;
   summary: {
     memberCount: number;
@@ -60,6 +93,30 @@ interface AuditResponse {
   events: Array<{ id: string; eventType: string; createdAt: string }>;
 }
 
+interface DomainsResponse {
+  domains: Array<{
+    id: string;
+    domain: string;
+    verified: boolean;
+    verifiedAt: string | null;
+  }>;
+}
+
+interface RetentionResponse {
+  organizationId: string;
+  value: Record<string, unknown> | null;
+  updatedAt: string | null;
+  inheritance: { workspaceCount: number };
+}
+
+interface BillingRollupResponse {
+  organizationId: string;
+  workspaceCount: number;
+  totalIncludedSeats: number;
+  planCounts: Record<string, number>;
+  statusCounts: Record<string, number>;
+}
+
 type Loadable<T> =
   | { kind: "loading" }
   | { kind: "ready"; data: T }
@@ -73,6 +130,10 @@ const ROLE_LABEL: Record<OrgRole, string> = {
   ORG_AUDITOR: "Auditor",
   ORG_MEMBER: "Member",
 };
+
+// ---------------------------------------------------------------------------
+// Entry point.
+// ---------------------------------------------------------------------------
 
 export default function OrganizationAdminOverviewPage() {
   return (
@@ -91,6 +152,15 @@ function Overview() {
     kind: "loading",
   });
   const [audit, setAudit] = useState<Loadable<AuditResponse>>({
+    kind: "loading",
+  });
+  const [domains, setDomains] = useState<Loadable<DomainsResponse>>({
+    kind: "loading",
+  });
+  const [retention, setRetention] = useState<Loadable<RetentionResponse>>({
+    kind: "loading",
+  });
+  const [billing, setBilling] = useState<Loadable<BillingRollupResponse>>({
     kind: "loading",
   });
 
@@ -118,15 +188,25 @@ function Overview() {
     if (!orgId) return;
     let cancelled = false;
     void (async () => {
-      const [o, m, a] = await Promise.all([
+      // Fan out to the existing endpoints in parallel. Each section
+      // degrades to its own honest 403 (auditor / admin / billing-admin
+      // gates differ), so one section's forbidden read never blocks the
+      // rest of the page.
+      const [o, m, a, d, r, b] = await Promise.all([
         fetchOne<OrgResponse>(`/v1/orgs/${orgId}`),
         fetchOne<MembersResponse>(`/v1/orgs/${orgId}/members`),
         fetchOne<AuditResponse>(`/v1/orgs/${orgId}/audit-events`),
+        fetchOne<DomainsResponse>(`/v1/orgs/${orgId}/domains`),
+        fetchOne<RetentionResponse>(`/v1/orgs/${orgId}/policies/retention`),
+        fetchOne<BillingRollupResponse>(`/v1/orgs/${orgId}/billing/rollup`),
       ]);
       if (cancelled) return;
       setOrg(o);
       setMembers(m);
       setAudit(a);
+      setDomains(d);
+      setRetention(r);
+      setBilling(b);
     })();
     return () => {
       cancelled = true;
@@ -142,14 +222,17 @@ function Overview() {
     return tally;
   }, [members]);
 
-  const lastAudit =
-    audit.kind === "ready" && audit.data.events.length > 0
-      ? audit.data.events[0]!
-      : null;
+  const domainStatus = useMemo(() => domainSummary(domains), [domains]);
+  const recentAudit =
+    audit.kind === "ready" ? audit.data.events.slice(0, 5) : [];
 
   return (
     <section data-testid="org-admin-overview" data-org-id={orgId}>
+      {/* ---------------------------------------------------------------
+          Enterprise posture — organization, plan, seats, members.
+          --------------------------------------------------------------- */}
       <div
+        data-section="overview-posture"
         style={{
           display: "grid",
           gap: 10,
@@ -158,13 +241,65 @@ function Overview() {
         }}
       >
         <Tile
-          dataAttr="tile-status"
-          title="Status"
-          primary={org.kind === "ready" ? org.data.status : loadingOrError(org)}
+          dataAttr="tile-organization"
+          title="Organization"
+          primary={org.kind === "ready" ? org.data.name : loadingOrError(org)}
           secondary={
             org.kind === "ready"
-              ? `Created ${formatUserDate(org.data.createdAt)}`
+              ? `${org.data.status} · created ${formatUserDate(org.data.createdAt)}`
               : null
+          }
+        />
+        <Tile
+          dataAttr="tile-plan"
+          title="Enterprise plan"
+          primary={
+            org.kind === "ready"
+              ? planLabel(org.data.verificationState)
+              : loadingOrError(org)
+          }
+          secondary={
+            org.kind === "ready"
+              ? org.data.verifiedAtUtc
+                ? `Verified ${formatUserDate(org.data.verifiedAtUtc)}`
+                : "Enterprise administration boundary."
+              : null
+          }
+          footer={
+            <Link
+              href={`/organizations/${orgId}/admin/trust`}
+              data-testid="overview-link-trust"
+              style={{ fontSize: 12 }}
+            >
+              Trust Center →
+            </Link>
+          }
+        />
+        <Tile
+          dataAttr="tile-seats"
+          title="Seat usage"
+          primary={
+            billing.kind === "ready"
+              ? seatUsagePrimary(billing.data, members)
+              : billing.kind === "error" && billing.status === 403
+                ? "Billing-admin only"
+                : loadingOrError(billing)
+          }
+          secondary={
+            billing.kind === "ready"
+              ? `${billing.data.totalIncludedSeats} included seat${billing.data.totalIncludedSeats === 1 ? "" : "s"} across ${billing.data.workspaceCount} workspace${billing.data.workspaceCount === 1 ? "" : "s"}`
+              : billing.kind === "error" && billing.status === 403
+                ? "Requires ORG_BILLING_ADMIN or higher."
+                : null
+          }
+          footer={
+            <Link
+              href={`/teams?org=${orgId}`}
+              data-testid="overview-link-billing"
+              style={{ fontSize: 12 }}
+            >
+              Billing & seats →
+            </Link>
           }
         />
         <Tile
@@ -179,10 +314,7 @@ function Overview() {
             roleTally
               ? Object.entries(roleTally)
                   .filter(([, n]) => (n ?? 0) > 0)
-                  .map(
-                    ([role, n]) =>
-                      `${n} ${ROLE_LABEL[role as OrgRole]}`,
-                  )
+                  .map(([role, n]) => `${n} ${ROLE_LABEL[role as OrgRole]}`)
                   .join(" · ")
               : "Role distribution loading…"
           }
@@ -216,101 +348,342 @@ function Overview() {
           }
         />
         <Tile
-          dataAttr="tile-workspaces"
-          title="Workspaces"
-          primary={
-            org.kind === "ready"
-              ? String(org.data.summary.workspaceCount)
-              : loadingOrError(org)
-          }
-          secondary="Workspaces bound to this organization."
-          footer={
-            <Link
-              href={`/teams?org=${orgId}`}
-              data-testid="overview-link-workspaces"
-              style={{ fontSize: 12 }}
-            >
-              Workspace administration →
-            </Link>
-          }
-        />
-        <Tile
-          dataAttr="tile-audit"
-          title="Audit timeline"
-          primary={
-            audit.kind === "ready"
-              ? String(audit.data.summary.totalEvents)
-              : audit.kind === "error" && audit.status === 403
-                ? "Auditor-only"
-                : loadingOrError(audit)
-          }
-          secondary={
-            lastAudit
-              ? `Latest ${lastAudit.eventType} · ${formatUtcAuditDateTime(lastAudit.createdAt)}`
-              : audit.kind === "ready"
-                ? "No events yet."
-                : audit.kind === "error" && audit.status === 403
-                  ? "Requires ORG_AUDITOR or higher."
-                  : null
-          }
-          footer={
-            <Link
-              href={`/organizations/${orgId}/admin/audit`}
-              data-testid="overview-link-audit"
-              style={{ fontSize: 12 }}
-            >
-              Open audit tab →
-            </Link>
-          }
-        />
-        <Tile
           dataAttr="tile-your-role"
           title="Your role"
           primary={
-            org.kind === "ready" ? ROLE_LABEL[org.data.callerRole] : loadingOrError(org)
+            org.kind === "ready"
+              ? ROLE_LABEL[org.data.callerRole]
+              : loadingOrError(org)
           }
           secondary="Org-level governance role. Workspace access is separate."
         />
       </div>
 
-      <DeepLinkCard
-        title="Canonical surfaces"
-        subtitle="The following surfaces own write semantics; this overview is read-only."
+      {/* ---------------------------------------------------------------
+          Identity & compliance readiness.
+          --------------------------------------------------------------- */}
+      <section
+        data-section="overview-readiness"
+        style={{ ...cardStyle, marginBottom: "1.25rem" }}
       >
-        <DeepLinkRow
-          testId="deep-link-governance"
-          label="Governance Platform"
-          description="Policies, departments, delegated admins, cross-org reviews."
-          href="/governance-platform"
-        />
-        <DeepLinkRow
-          testId="deep-link-audit-transparency"
-          label="Audit & Transparency"
-          description="Federated audit feed across organizations."
-          href="/audit-transparency"
-        />
-        <DeepLinkRow
-          testId="deep-link-trust-center"
-          label="Trust Center"
-          description="Public trust articles + subprocessors + status."
-          href="/trust-hub"
-        />
-        <DeepLinkRow
-          testId="deep-link-evidence-lifecycle"
-          label="Evidence Lifecycle"
-          description="Retention runs, legal holds, archive + destruction."
-          href="/evidence-lifecycle"
-        />
-      </DeepLinkCard>
+        <header style={{ marginBottom: "0.5rem" }}>
+          <h2 style={{ margin: 0, fontSize: 16 }}>Identity & compliance</h2>
+          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
+            Enterprise readiness across identity, domains, and evidence
+            retention. Configuration lives on the linked surfaces.
+          </div>
+        </header>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <ReadinessRow
+            testId="readiness-sso"
+            label="SSO (SAML / OIDC)"
+            state={{ tone: "warn", text: "Not configured" }}
+            description="Federated identity. No org-scoped readiness signal is exposed yet."
+            href="/admin/identity"
+            linkTestId="overview-link-sso"
+            linkLabel="Configure SSO"
+          />
+          <ReadinessRow
+            testId="readiness-scim"
+            label="SCIM provisioning"
+            state={{ tone: "warn", text: "Not configured" }}
+            description="Automated provisioning / de-provisioning via SCIM 2.0."
+            href="/admin/identity/scim"
+            linkTestId="overview-link-scim"
+            linkLabel="Configure SCIM"
+          />
+          <ReadinessRow
+            testId="readiness-domains"
+            label="Verified domains"
+            state={domainStatus.state}
+            description={domainStatus.description}
+            href={`/organizations/${orgId}/admin/domains`}
+            linkTestId="overview-link-domains"
+            linkLabel="Verify domain"
+          />
+          <ReadinessRow
+            testId="readiness-mfa"
+            label="MFA / session policy"
+            state={{ tone: "warn", text: "Not configured" }}
+            description="Org-wide MFA enforcement and session timeout policy."
+            href={`/organizations/${orgId}/admin/security`}
+            linkTestId="overview-link-security"
+            linkLabel="Configure MFA / session policy"
+          />
+          <ReadinessRow
+            testId="readiness-retention"
+            label="Retention & legal hold"
+            state={retentionStatus(retention)}
+            description={retentionDescription(retention)}
+            href={`/organizations/${orgId}/admin/retention`}
+            linkTestId="overview-link-retention"
+            linkLabel="Manage retention / legal hold"
+          />
+          <ReadinessRow
+            testId="readiness-api"
+            label="API keys & webhooks"
+            state={{ tone: "warn", text: "Not configured" }}
+            description="Programmatic access + integration delivery. No org-scoped key inventory yet."
+            href="/admin/identity"
+            linkTestId="overview-link-api"
+            linkLabel="Manage API keys / webhooks"
+          />
+        </ul>
+      </section>
+
+      {/* ---------------------------------------------------------------
+          Recent governance audit.
+          --------------------------------------------------------------- */}
+      <section
+        data-section="overview-audit"
+        style={{ ...cardStyle, marginBottom: "1.25rem" }}
+      >
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            gap: 12,
+            marginBottom: "0.5rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Recent admin activity</h2>
+            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
+              {audit.kind === "ready"
+                ? `${audit.data.summary.totalEvents} governance event${audit.data.summary.totalEvents === 1 ? "" : "s"} recorded.`
+                : audit.kind === "error" && audit.status === 403
+                  ? "Requires ORG_AUDITOR or higher."
+                  : "Loading audit timeline…"}
+            </div>
+          </div>
+          <Link
+            href={`/organizations/${orgId}/admin/audit`}
+            data-testid="overview-link-audit"
+            className="cases-filter-chip"
+          >
+            Review audit log →
+          </Link>
+        </header>
+        {recentAudit.length > 0 ? (
+          <ul
+            data-testid="overview-audit-list"
+            style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}
+          >
+            {recentAudit.map((e) => (
+              <li
+                key={e.id}
+                data-testid="overview-audit-row"
+                style={{
+                  padding: "0.4rem 0",
+                  borderBottom: "1px solid rgba(127,127,127,0.18)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  fontSize: 13,
+                  flexWrap: "wrap",
+                }}
+              >
+                <span style={{ fontWeight: 500 }}>{e.eventType}</span>
+                <span style={{ opacity: 0.7, fontSize: 12 }}>
+                  {formatUtcAuditDateTime(e.createdAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div
+            data-testid="overview-audit-empty"
+            style={{ fontSize: 13, opacity: 0.75, marginTop: 8 }}
+          >
+            {audit.kind === "ready"
+              ? "No governance events recorded yet."
+              : audit.kind === "error" && audit.status === 403
+                ? "You don't have permission to view the audit timeline."
+                : audit.kind === "error"
+                  ? audit.message
+                  : "Loading…"}
+          </div>
+        )}
+      </section>
+
+      {/* ---------------------------------------------------------------
+          Quick actions — evidence-platform deep-links to existing tabs.
+          --------------------------------------------------------------- */}
+      <section data-section="overview-quick-actions" style={cardStyle}>
+        <header style={{ marginBottom: "0.5rem" }}>
+          <h2 style={{ margin: 0, fontSize: 16 }}>Quick actions</h2>
+          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
+            Common enterprise administration tasks. Each opens the canonical
+            surface that owns write semantics — this overview is read-only.
+          </div>
+        </header>
+        <div
+          data-testid="overview-quick-actions-grid"
+          style={{
+            display: "grid",
+            gap: 8,
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            marginTop: "0.75rem",
+          }}
+        >
+          <QuickAction
+            testId="quick-action-invite-members"
+            label="Invite members"
+            href={`/organizations/${orgId}/admin/members`}
+          />
+          <QuickAction
+            testId="quick-action-configure-sso"
+            label="Configure SSO"
+            href="/admin/identity"
+          />
+          <QuickAction
+            testId="quick-action-configure-scim"
+            label="Configure SCIM"
+            href="/admin/identity/scim"
+          />
+          <QuickAction
+            testId="quick-action-verify-domain"
+            label="Verify domain"
+            href={`/organizations/${orgId}/admin/domains`}
+          />
+          <QuickAction
+            testId="quick-action-review-audit"
+            label="Review audit log"
+            href={`/organizations/${orgId}/admin/audit`}
+          />
+          <QuickAction
+            testId="quick-action-configure-mfa"
+            label="Configure MFA / session policy"
+            href={`/organizations/${orgId}/admin/security`}
+          />
+          <QuickAction
+            testId="quick-action-manage-retention"
+            label="Manage retention / legal hold"
+            href={`/organizations/${orgId}/admin/retention`}
+          />
+          <QuickAction
+            testId="quick-action-manage-api"
+            label="Manage API keys / webhooks"
+            href="/admin/identity"
+          />
+          <QuickAction
+            testId="quick-action-review-access"
+            label="Review evidence access"
+            href={`/organizations/${orgId}/admin/access-reviews`}
+          />
+          <QuickAction
+            testId="quick-action-configure-billing"
+            label="Configure billing / seats"
+            href={`/teams?org=${orgId}`}
+          />
+        </div>
+      </section>
     </section>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Derived-status helpers.
+// ---------------------------------------------------------------------------
 
 function loadingOrError(l: Loadable<unknown>): string {
   if (l.kind === "loading") return "Loading…";
   if (l.kind === "error") return l.status === 403 ? "Not permitted" : "—";
   return "—";
 }
+
+function planLabel(verificationState: string | null): string {
+  if (!verificationState) return "Enterprise";
+  const v = verificationState.toUpperCase();
+  if (v === "VERIFIED") return "Enterprise · Verified";
+  if (v === "PENDING") return "Enterprise · Pending verification";
+  if (v === "UNVERIFIED" || v === "NONE") return "Enterprise · Unverified";
+  return `Enterprise · ${verificationState}`;
+}
+
+function seatUsagePrimary(
+  billing: BillingRollupResponse,
+  members: Loadable<MembersResponse>,
+): string {
+  const used =
+    members.kind === "ready" ? members.data.summary.totalMembers : null;
+  const included = billing.totalIncludedSeats;
+  if (used === null) return `${included} seats`;
+  const over = used - included;
+  const overStr = over > 0 ? ` · ${over} over` : "";
+  return `${used} / ${included}${overStr}`;
+}
+
+type PillState = { tone: "ok" | "warn"; text: string };
+
+function domainSummary(domains: Loadable<DomainsResponse>): {
+  state: PillState;
+  description: string;
+} {
+  if (domains.kind === "loading") {
+    return { state: { tone: "warn", text: "Loading…" }, description: "Checking verified domains…" };
+  }
+  if (domains.kind === "error") {
+    if (domains.status === 403) {
+      return {
+        state: { tone: "warn", text: "Admin only" },
+        description: "Requires ORG_ADMIN and the enterprise SSO/SCIM feature.",
+      };
+    }
+    return { state: { tone: "warn", text: "Unavailable" }, description: domains.message };
+  }
+  const total = domains.data.domains.length;
+  const verified = domains.data.domains.filter((d) => d.verified).length;
+  if (total === 0) {
+    return {
+      state: { tone: "warn", text: "None claimed" },
+      description: "No email domains claimed. Verify a domain to gate SSO and auto-associate members.",
+    };
+  }
+  return {
+    state: {
+      tone: verified === total ? "ok" : "warn",
+      text: `${verified}/${total} verified`,
+    },
+    description: `${verified} of ${total} claimed domain${total === 1 ? "" : "s"} verified via DNS TXT.`,
+  };
+}
+
+function retentionStatus(retention: Loadable<RetentionResponse>): PillState {
+  if (retention.kind === "loading") return { tone: "warn", text: "Loading…" };
+  if (retention.kind === "error") {
+    return {
+      tone: "warn",
+      text: retention.status === 403 ? "Not permitted" : "Unavailable",
+    };
+  }
+  return retention.data.value === null
+    ? { tone: "warn", text: "Not configured" }
+    : { tone: "ok", text: "Published" };
+}
+
+function retentionDescription(retention: Loadable<RetentionResponse>): string {
+  if (retention.kind !== "ready") {
+    return "Organization-level retention template + legal-hold posture.";
+  }
+  const ws = retention.data.inheritance.workspaceCount;
+  const wsStr = `${ws} workspace${ws === 1 ? "" : "s"}`;
+  return retention.data.value === null
+    ? `No org retention template published. ${wsStr} fall back to workspace policy.`
+    : `Retention template published and inherited by ${wsStr}.`;
+}
+
+// ---------------------------------------------------------------------------
+// Presentational components.
+// ---------------------------------------------------------------------------
+
+const cardStyle = {
+  padding: "1rem 1.1rem",
+  border: "1px solid rgba(127,127,127,0.3)",
+  borderRadius: 8,
+} as const;
 
 function Tile({
   dataAttr,
@@ -357,50 +730,52 @@ function Tile({
   );
 }
 
-function DeepLinkCard({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
+function StatusPill({ state }: { state: PillState }) {
   return (
-    <section
-      data-section="deep-link-card"
+    <span
+      data-state={state.tone === "ok" ? "ok" : "not-configured"}
       style={{
-        padding: "1rem 1.1rem",
-        border: "1px solid rgba(127,127,127,0.3)",
-        borderRadius: 8,
+        fontSize: 11,
+        padding: "1px 8px",
+        borderRadius: 999,
+        background:
+          state.tone === "ok"
+            ? "rgba(16,185,129,0.18)"
+            : "rgba(245,158,11,0.18)",
+        display: "inline-block",
+        fontWeight: 600,
+        letterSpacing: 0.3,
+        textTransform: "uppercase",
       }}
     >
-      <header style={{ marginBottom: "0.5rem" }}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>{title}</h2>
-        {subtitle ? (
-          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{subtitle}</div>
-        ) : null}
-      </header>
-      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>{children}</ul>
-    </section>
+      {state.text}
+    </span>
   );
 }
 
-function DeepLinkRow({
+function ReadinessRow({
   testId,
   label,
+  state,
   description,
   href,
+  linkTestId,
+  linkLabel,
 }: {
   testId: string;
   label: string;
+  state: PillState;
   description: string;
   href: string;
+  linkTestId: string;
+  linkLabel: string;
 }) {
   return (
     <li
+      data-testid={testId}
+      data-state={state.tone === "ok" ? "ok" : "not-configured"}
       style={{
-        padding: "0.5rem 0",
+        padding: "0.55rem 0",
         borderBottom: "1px solid rgba(127,127,127,0.18)",
         display: "flex",
         justifyContent: "space-between",
@@ -410,16 +785,52 @@ function DeepLinkRow({
       }}
     >
       <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-        <div style={{ fontWeight: 500 }}>{label}</div>
-        <div style={{ fontSize: 12, opacity: 0.75 }}>{description}</div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+          }}
+        >
+          <span style={{ fontWeight: 500 }}>{label}</span>
+          <StatusPill state={state} />
+        </div>
+        <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>
+          {description}
+        </div>
       </div>
-      <Link
-        href={href}
-        data-testid={testId}
-        className="cases-filter-chip"
-      >
-        Open →
+      <Link href={href} data-testid={linkTestId} className="cases-filter-chip">
+        {linkLabel} →
       </Link>
     </li>
+  );
+}
+
+function QuickAction({
+  testId,
+  label,
+  href,
+}: {
+  testId: string;
+  label: string;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      data-testid={testId}
+      style={{
+        display: "block",
+        padding: "0.6rem 0.75rem",
+        border: "1px solid rgba(127,127,127,0.3)",
+        borderRadius: 8,
+        textDecoration: "none",
+        fontSize: 13,
+        fontWeight: 500,
+      }}
+    >
+      {label} →
+    </Link>
   );
 }

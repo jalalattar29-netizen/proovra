@@ -308,10 +308,25 @@ export type IsUnderLegalHoldResult = {
 };
 
 /**
- * Canonical "is held" check. Consults BOTH the Phase 4B `legal_holds`
- * table (via LegalHold model) AND the Phase 4A `case_legal_holds`
- * table (via CaseLegalHold model) so a single call is a complete
- * preservation signal regardless of which era placed the hold.
+ * Canonical "is held" check for the Phase 4B destruction-governance
+ * workflow. Consults BOTH the Phase 4B `legal_holds` table (via
+ * LegalHold model) AND the Phase 4A `case_legal_holds` /
+ * `evidence_legal_holds` tables (via CaseLegalHold / EvidenceLegalHold
+ * models) so a single call is a complete preservation signal
+ * regardless of which era placed the hold.
+ *
+ * CROSS-STACK NOTE (SCOPE-D vocabulary unification): the DIRECT evidence
+ * delete/archive gate does NOT call this function — it lives on the
+ * `POST /v1/evidence/:id` route via
+ * `governance.service.ts#isUnderActiveLegalHold`. That function was
+ * hardened (SCOPE-E) to consult the SAME union of hold models this one
+ * does (EvidenceLegalHold + the 4B LegalHold model, incl. WORKSPACE /
+ * ORGANIZATION / CASE scope). The two functions are intentionally
+ * separate entry points (this one drives the 4B destruction workflow;
+ * that one drives the direct trash/delete gate) but they now enforce the
+ * SAME hold-model union, so a hold placed through EITHER lifecycle
+ * surface blocks BOTH destruction paths. Keep them in lock-step: any new
+ * hold model consulted here must also be consulted there.
  */
 export async function isUnderLegalHold(
   input: IsUnderLegalHoldInput,

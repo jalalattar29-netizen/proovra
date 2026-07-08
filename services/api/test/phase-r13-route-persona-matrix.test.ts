@@ -237,6 +237,7 @@ const HREF_EXCEPTIONS = new Set<string>([
   // Detail routes consumed only via deep link / sub-route — keep in
   // the registry for backwards-compat with persona/hub machinery.
   "/organizations/:id",
+  "/organizations/:id/admin/domains",
   "/org-invites/:token/accept",
   "/reviewer-ops/[reviewId]",
   // Phase 8 — Organization Admin shell + 9 tab leaves. Dynamic /:id
@@ -250,11 +251,16 @@ const HREF_EXCEPTIONS = new Set<string>([
   "/organizations/:id/admin/members",
   "/organizations/:id/admin/departments",
   "/organizations/:id/admin/governance",
+  "/organizations/:id/admin/governance/external-reviewers",
   "/organizations/:id/admin/access-reviews",
   "/organizations/:id/admin/retention",
   "/organizations/:id/admin/audit",
   "/organizations/:id/admin/security",
   "/organizations/:id/admin/trust",
+  // Phase 4 (Enterprise Administration) — Roles, Billing, Integrations.
+  "/organizations/:id/admin/roles",
+  "/organizations/:id/admin/billing",
+  "/organizations/:id/admin/integrations",
 ]);
 
 describe("Phase R13 — Stage 10: every visible route has a real page on disk", () => {

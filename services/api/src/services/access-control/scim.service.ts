@@ -477,6 +477,7 @@ export async function scimCreateUser(
   });
   await appendPlatformAuditLog({
     userId: null,
+    isPublic: true,
     action: "scim.user.create",
     category: "identity",
     severity: "info",
@@ -649,6 +650,7 @@ export async function scimDeactivateUser(
   });
   await appendPlatformAuditLog({
     userId: null,
+    isPublic: true,
     action: "scim.user.deactivate",
     category: "identity",
     severity: "info",
@@ -660,6 +662,184 @@ export async function scimDeactivateUser(
     db: client,
   });
   return { ok: true };
+}
+
+/**
+ * SCIM User reactivation.
+ *
+ * Flips the TeamMember from SUSPENDED back to ACTIVE and re-links the
+ * external identity mapping that `scimDeactivateUser` soft-unlinked, so
+ * `scimReadUser` (which filters on `unlinkedAtUtc: null`) resolves the
+ * user again. Evidence/case/custody ownership is untouched — this only
+ * restores the *access* record, never re-creates or moves owned data.
+ *
+ * Returns `{ ok:false, notFound:true }` when there is no member row at
+ * all (nothing to reactivate).
+ */
+export async function scimReactivateUser(
+  ctx: ScimCreateUserContext,
+  userId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<{ ok: boolean; notFound?: boolean }> {
+  const member = await client.teamMember.findUnique({
+    where: { teamId_userId: { teamId: ctx.teamId, userId } },
+  });
+  if (!member) return { ok: false, notFound: true };
+
+  if (member.status !== "ACTIVE") {
+    await client.teamMember.update({
+      where: { id: member.id },
+      data: {
+        status: "ACTIVE",
+        suspendedAtUtc: null,
+        suspensionReason: null,
+      },
+    });
+  }
+  // Re-link the most recent external mapping so the resource is
+  // resolvable again. We only re-link, never create a duplicate.
+  const mapping = await client.externalIdentityMapping.findFirst({
+    where: { teamId: ctx.teamId, userId },
+    orderBy: { linkedAtUtc: "desc" },
+  });
+  if (mapping && mapping.unlinkedAtUtc !== null) {
+    await client.externalIdentityMapping.update({
+      where: { id: mapping.id },
+      data: { unlinkedAtUtc: null },
+    });
+  }
+
+  bump("scim_user_reactivated_total");
+  bump("scim_sync_total");
+  safeEmitSecurityEvent({
+    teamId: ctx.teamId,
+    eventType: "scim_user_reactivated",
+    severity: "INFO",
+    details: { tokenId: ctx.tokenId, userId },
+  });
+  await appendPlatformAuditLog({
+    userId: null,
+    isPublic: true,
+    action: "scim.user.reactivate",
+    category: "identity",
+    severity: "info",
+    source: "scim_service",
+    outcome: "success",
+    resourceType: "user",
+    resourceId: userId,
+    metadata: { teamId: ctx.teamId },
+    db: client,
+  });
+  return { ok: true };
+}
+
+// -----------------------------------------------------------------------------
+// SCIM User attribute update (PATCH replace, non-`active` attributes).
+//
+// The data model can honestly persist exactly two attribute families:
+//   - displayName / name.formatted → ExternalIdentityMapping.displayName
+//   - userType / role              → TeamMember.role  (VIEWER→VIEWER,
+//                                     MEMBER/REVIEWER→MEMBER; OWNER/ADMIN
+//                                     never assigned via SCIM — privileged
+//                                     roles require explicit operator action)
+//
+// Anything else (phoneNumbers, addresses, emails rewrite, title, …) is
+// NOT persisted; the route returns a spec-correct error rather than
+// pretending success. This helper reports which attributes it applied so
+// the route can decide between 200 (something applied) and a clear
+// "no supported target" response.
+// -----------------------------------------------------------------------------
+
+export type ScimUserAttributeUpdate = {
+  displayName?: string | null;
+  role?: "VIEWER" | "MEMBER";
+};
+
+export type ScimUpdateUserResult =
+  | { ok: true; appliedFields: ReadonlyArray<string> }
+  | { ok: false; status: number; detail: string; scimType?: string };
+
+export async function scimUpdateUserAttributes(
+  ctx: ScimCreateUserContext,
+  userId: string,
+  update: ScimUserAttributeUpdate,
+  client: PrismaClient = defaultPrisma,
+): Promise<ScimUpdateUserResult> {
+  const member = await client.teamMember.findUnique({
+    where: { teamId_userId: { teamId: ctx.teamId, userId } },
+    select: { id: true, role: true },
+  });
+  if (!member) {
+    return { ok: false, status: 404, detail: "user_not_found" };
+  }
+
+  const appliedFields: string[] = [];
+
+  if (update.displayName !== undefined) {
+    // Only persist against a live (non-unlinked) mapping.
+    const mapping = await client.externalIdentityMapping.findFirst({
+      where: { teamId: ctx.teamId, userId, unlinkedAtUtc: null },
+      orderBy: { linkedAtUtc: "desc" },
+    });
+    if (mapping) {
+      await client.externalIdentityMapping.update({
+        where: { id: mapping.id },
+        data: { displayName: update.displayName?.slice(0, 180) ?? null },
+      });
+      appliedFields.push("displayName");
+    }
+  }
+
+  if (update.role !== undefined) {
+    // SCIM never assigns OWNER/ADMIN and never silently *demotes* an
+    // existing privileged member — those transitions require explicit
+    // operator action, mirroring the Groups service invariant.
+    if (member.role === "OWNER" || member.role === "ADMIN") {
+      // Skip the role write but do not fail the whole PATCH; the
+      // attribute simply cannot be honoured for a privileged member.
+    } else if (member.role !== update.role) {
+      await client.teamMember.update({
+        where: { id: member.id },
+        data: { role: update.role },
+      });
+      appliedFields.push("role");
+    } else {
+      // No-op change still counts as an honoured target.
+      appliedFields.push("role");
+    }
+  }
+
+  if (appliedFields.length === 0) {
+    return {
+      ok: false,
+      status: 400,
+      detail: "no_supported_attribute_target",
+      scimType: "noTarget",
+    };
+  }
+
+  bump("scim_user_updated_total");
+  bump("scim_sync_total");
+  safeEmitSecurityEvent({
+    teamId: ctx.teamId,
+    eventType: "scim_user_updated",
+    severity: "INFO",
+    details: { tokenId: ctx.tokenId, userId, fields: appliedFields },
+  });
+  await appendPlatformAuditLog({
+    userId: null,
+    isPublic: true,
+    action: "scim.user.update",
+    category: "identity",
+    severity: "info",
+    source: "scim_service",
+    outcome: "success",
+    resourceType: "user",
+    resourceId: userId,
+    metadata: { teamId: ctx.teamId, fields: appliedFields },
+    db: client,
+  });
+  return { ok: true, appliedFields };
 }
 
 /**

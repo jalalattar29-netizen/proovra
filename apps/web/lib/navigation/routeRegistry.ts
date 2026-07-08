@@ -1762,6 +1762,27 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: false,
   },
+  // Phase 5 (Enterprise Governance) — read-only external-reviewer grant
+  // governance view. A sub-view under the Governance tab that reuses the
+  // existing `/v1/external-review/grants` + `/activity` reads to show the
+  // lifecycle detail behind the control center's active-grant count. Same
+  // ACCOUNT + NONE active-space contract as its sibling org-admin tabs.
+  {
+    id: "account.organization_admin_governance_external_reviewers",
+    href: "/organizations/:id/admin/governance/external-reviewers",
+    label: "Organization admin — External reviewer grants",
+    description:
+      "Read-only governance view of external-reviewer grants: state, issuer, scope, expiration, watermark/download policy, and access audit.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
   {
     id: "account.organization_admin_access_reviews",
     href: "/organizations/:id/admin/access-reviews",
@@ -1825,11 +1846,89 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: false,
   },
+  // Phase 3 (Enterprise Identity) — Domains verification tab. Lists claimed
+  // domains + DNS TXT verification status; add/verify/remove call the
+  // enterprise-gated /v1/orgs/:orgId/domains backend. Same ACCOUNT + NONE
+  // active-space contract as its sibling org-admin tabs: personal-only users
+  // never see it (routes resolve via org membership at /organizations/:id).
+  // The /organizations path prefix is ENTERPRISE-tier in lib/surface/tiers.ts,
+  // so FREE/PAYG/PRO/TEAM never reach it; org admins deep-link from the admin
+  // shell tab bar (sidebarEligible: false — org detail is the sidebar entry).
+  {
+    id: "account.organization_admin_domains",
+    href: "/organizations/:id/admin/domains",
+    label: "Organization admin — Domains",
+    description:
+      "Verified email domains (DNS TXT). Gate SSO and auto-associate members to the organization.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
   {
     id: "account.organization_admin_trust",
     href: "/organizations/:id/admin/trust",
     label: "Organization admin — Trust",
     description: "Organization trust center deep-links and methodology references.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  // Phase 4 (Enterprise Administration) — three finalization tabs wired
+  // into the admin shell tab bar. Same ACCOUNT + NONE active-space contract
+  // as their sibling org-admin tabs: the /organizations prefix is
+  // ENTERPRISE-tier (lib/surface/tiers.ts), so FREE/PAYG/PRO/TEAM never
+  // reach them; org admins deep-link from the shell (sidebarEligible: false
+  // — org detail is the sidebar entry). Kept in sync with routeRegistry.js.
+  {
+    id: "account.organization_admin_roles",
+    href: "/organizations/:id/admin/roles",
+    label: "Organization admin — Roles & permissions",
+    description:
+      "Reference for the six built-in org roles and their org-scope capabilities. Assignment happens on the Members tab.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.organization_admin_billing",
+    href: "/organizations/:id/admin/billing",
+    label: "Organization admin — Billing & seats",
+    description:
+      "Enterprise plan + seat rollup across workspaces (read-only). Requires ORG_BILLING_ADMIN or higher.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.organization_admin_integrations",
+    href: "/organizations/:id/admin/integrations",
+    label: "Organization admin — API & integrations",
+    description:
+      "Per-workspace API keys + webhook endpoints, deep-linked to the canonical integrations portal.",
     domain: "ACCOUNT",
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",

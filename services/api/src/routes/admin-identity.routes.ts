@@ -70,6 +70,7 @@ import {
   createSsoConnection,
   listSsoConnections,
   transitionSsoConnection,
+  updateSsoConnectionPolicy,
 } from "../services/access-control/sso.service.js";
 import {
   createScimToken,
@@ -153,7 +154,9 @@ function sendError(reply: FastifyReply, err: unknown): boolean {
         ? 404
         : err.code === "SSO_INVALID_STATE" ||
             err.code === "SSO_INVALID_TRANSITION" ||
-            err.code === "SSO_INVALID_PROVIDER"
+            err.code === "SSO_INVALID_PROVIDER" ||
+            err.code === "SSO_NO_VERIFIED_DOMAINS" ||
+            err.code === "SSO_INVALID_SP_KEY"
           ? 400
           : err.code === "SSO_JIT_DISABLED" ||
               err.code === "SSO_EMAIL_DOMAIN_NOT_ALLOWED"
@@ -200,7 +203,23 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
       const actor = await requireIdentityAdmin(req, reply, q.teamId);
       if (!actor) return;
       const providers = await listSsoConnections({ teamId: q.teamId });
-      return reply.code(200).send({ providers });
+      // Phase 3 — surface the owning org's verified-domain count so the UI can
+      // safely gate the "restrict to verified domains" toggle. Read-only.
+      const team = await prisma.team.findUnique({
+        where: { id: q.teamId },
+        select: { organizationId: true },
+      });
+      const verifiedDomainCount = team?.organizationId
+        ? await prisma.organizationDomain.count({
+            where: {
+              organizationId: team.organizationId,
+              verifiedAt: { not: null },
+            },
+          })
+        : 0;
+      return reply
+        .code(200)
+        .send({ providers, verifiedDomainCount });
     },
   );
 
@@ -292,6 +311,78 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
           nextStatus: body.nextStatus as SsoConnectionStatus,
           actorUserId: actor.userId,
           reason: body.reason ?? null,
+        });
+        return reply.code(200).send({ projection });
+      } catch (err) {
+        if (sendError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase 3 — SAML SP signing + verified-domain policy update.
+  //
+  // Enterprise ORG-admin surface. Sets samlSignRequests / restrictToVerifiedDomains
+  // and installs/rotates/clears the per-connection SP signing key + cert.
+  //
+  // SECURITY: the request body MAY carry a private key (write-only). The
+  // response projection NEVER echoes it back (status + fingerprint only).
+  // Step-up (EXTERNAL_IDENTITY_LINK — the existing identity-provider purpose)
+  // is required; every change is audit-logged with field NAMES only.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/admin/identity/providers/:id/policy",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsId.parse(req.params);
+      const body = z
+        .object({
+          teamId: z.string().uuid(),
+          samlSignRequests: z.boolean().optional(),
+          restrictToVerifiedDomains: z.boolean().optional(),
+          // Write-only key material. Empty string clears; omit to leave as-is.
+          samlSpPrivateKey: z.string().max(16384).nullable().optional(),
+          samlSpCertificate: z.string().max(8192).nullable().optional(),
+        })
+        .parse(req.body ?? {});
+      const actor = await requireIdentityAdmin(
+        req,
+        reply,
+        body.teamId,
+        "identity.external_mapping.manage",
+      );
+      if (!actor) return;
+      // Runtime adaptive gate (quarantine + age + risk), consistent with the
+      // other sensitive SSO mutations.
+      const runtimeGate = await runtimeAdaptiveGate({
+        req,
+        reply,
+        teamId: body.teamId,
+        userId: actor.userId,
+        action: "SSO_CONNECTION_CREATE",
+      });
+      if (!runtimeGate.allow) return;
+      // Reuse the EXISTING identity-provider step-up purpose.
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: body.teamId,
+        userId: actor.userId,
+        purpose: "EXTERNAL_IDENTITY_LINK",
+        resourceKind: "sso_connection",
+        resourceId: id,
+      });
+      if (gate.sent) return;
+      try {
+        const projection = await updateSsoConnectionPolicy({
+          teamId: body.teamId,
+          id,
+          actorUserId: actor.userId,
+          samlSignRequests: body.samlSignRequests,
+          restrictToVerifiedDomains: body.restrictToVerifiedDomains,
+          samlSpPrivateKey: body.samlSpPrivateKey,
+          samlSpCertificate: body.samlSpCertificate,
         });
         return reply.code(200).send({ projection });
       } catch (err) {

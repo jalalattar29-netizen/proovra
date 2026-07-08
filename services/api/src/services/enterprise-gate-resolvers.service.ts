@@ -85,6 +85,35 @@ export async function denyTeamIfNotEnterprise(
 }
 
 /**
+ * Phase 3 — Enterprise Identity: org-level enterprise gate.
+ *
+ * An Organization is treated as Enterprise for identity features (SSO,
+ * domain verification) iff AT LEAST ONE of its workspaces (Teams) grants the
+ * `ssoScim` Enterprise feature under {@link resolveTeamEnterpriseFeatureGate}.
+ * This mirrors the "ENTERPRISE = ORGANIZATION" architecture: enterprise is a
+ * property of the org, surfaced through its billing-active workspaces.
+ *
+ * Returns ok=true on the first qualifying workspace. Does not throw.
+ */
+export async function resolveOrgEnterpriseFeatureGate(
+  organizationId: string,
+  feature: keyof EnterpriseFeatureFlags,
+): Promise<TeamGateResult> {
+  const teams = await prisma.team.findMany({
+    where: { organizationId },
+    select: { id: true },
+  });
+  if (teams.length === 0) {
+    return { ok: false, reason: "organization_not_found", statusCode: 404 };
+  }
+  for (const team of teams) {
+    const gate = await resolveTeamEnterpriseFeatureGate(team.id, feature);
+    if (gate.ok) return { ok: true };
+  }
+  return { ok: false, reason: "ENTERPRISE_FEATURE_REQUIRED", statusCode: 402 };
+}
+
+/**
  * Resolves the SAML connection's owning team and gates that team on
  * the `ssoScim` Enterprise feature. Returns the structured deny shape
  * the route layer surfaces to the operator.

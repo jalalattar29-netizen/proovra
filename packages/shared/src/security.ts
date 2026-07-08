@@ -130,6 +130,11 @@ export const SECURITY_EVENT_TYPES = [
   "trusted_device_revoked",
   "session_revoked",
   "all_sessions_revoked",
+  // Phase 3 (Enterprise Identity) — an authenticated internal session
+  // was expired by the org's role-tiered session-timeout policy (age or
+  // idle exceeded the configured limit). Distinct from session_revoked
+  // (operator/auto deny-list) — this is a passive policy expiry.
+  "session_expired_by_policy",
   "suspicious_login_detected",
   "high_risk_action_blocked",
   "high_risk_action_step_up_required",
@@ -245,6 +250,7 @@ export const SECURITY_EVENT_TYPES = [
   "scim_token_revoked",
   "scim_user_created",
   "scim_user_updated",
+  "scim_user_reactivated",
   "scim_user_deactivated",
   "scim_user_unknown_provider",
   "session_inventory_viewed",

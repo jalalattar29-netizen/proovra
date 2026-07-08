@@ -10,7 +10,7 @@
  * It depends only on Node.js built-ins: node:crypto and node:zlib.
  */
 
-import { randomBytes } from "node:crypto";
+import { createSign, randomBytes } from "node:crypto";
 import { deflateRawSync } from "node:zlib";
 
 // ---------------------------------------------------------------------------
@@ -34,7 +34,25 @@ export type SamlAuthnRequestInput = {
   nameIdFormat?: string;
   /** Whether to set ForceAuthn="true". Defaults to false. */
   forceAuthn?: boolean;
+  /**
+   * Phase 3 — SP AuthnRequest signing.
+   *
+   * When provided, the AuthnRequest is signed for the HTTP-Redirect binding
+   * per SAML 2.0 Bindings §3.4.4.1: the signature is computed over the
+   * URL-encoded query string `SAMLRequest=…&RelayState=…&SigAlg=…` and
+   * appended as an additional `Signature` query parameter (NOT an embedded
+   * XMLDSig — that form is only used for the HTTP-POST binding).
+   *
+   * `spPrivateKeyPem` is a PEM-encoded RSA private key (PKCS#8 or PKCS#1).
+   * When absent, the request is left UNSIGNED and no Signature/SigAlg params
+   * are emitted — preserving the pre-Phase-3 behaviour exactly.
+   */
+  spPrivateKeyPem?: string | null;
 };
+
+/** RSA-SHA256 SigAlg identifier used for HTTP-Redirect binding signatures. */
+const SIG_ALG_RSA_SHA256 =
+  "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256";
 
 /** Result of building a SAML AuthnRequest. */
 export type SamlAuthnRequestResult = {
@@ -50,6 +68,11 @@ export type SamlAuthnRequestResult = {
   redirectUrl: string;
   /** The RelayState value (base64url-encoded random bytes). */
   relayState: string;
+  /**
+   * True when the redirect URL carries a Signature (and SigAlg) query
+   * parameter — i.e. the AuthnRequest was signed. False when unsigned.
+   */
+  signed: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -153,6 +176,7 @@ export function buildSamlAuthnRequest(
     idpSsoUrl,
     nameIdFormat = DEFAULT_NAME_ID_FORMAT,
     forceAuthn = false,
+    spPrivateKeyPem = null,
   } = input;
 
   // Step 1: Generate stable identifiers for this request
@@ -178,16 +202,43 @@ export function buildSamlAuthnRequest(
   // Step 5: Base64-encode the deflated bytes (standard base64 alphabet)
   const base64Encoded = deflated.toString("base64");
 
-  // Step 6: Build the redirect URL
+  // Step 6: Build the redirect URL.
   // Both SAMLRequest and RelayState must be URL-encoded per the binding spec.
+  const samlRequestParam = `SAMLRequest=${encodeURIComponent(base64Encoded)}`;
+  const relayStateParam = `RelayState=${encodeURIComponent(relayState)}`;
+
+  // Step 7: Sign the query string when an SP private key is supplied.
+  //
+  // SAML 2.0 Bindings §3.4.4.1 — for the HTTP-Redirect binding the signature
+  // is NOT an embedded XMLDSig. It is computed over the octet string formed by
+  // concatenating the URL-encoded query components in this exact order:
+  //     SAMLRequest=<value>&RelayState=<value>&SigAlg=<value>
+  // and the resulting signature is base64-encoded and appended as `Signature`.
+  let signed = false;
+  let signatureParams = "";
+  if (spPrivateKeyPem && spPrivateKeyPem.trim().length > 0) {
+    const sigAlgParam = `SigAlg=${encodeURIComponent(SIG_ALG_RSA_SHA256)}`;
+    // Signing input: the exact octet string the IdP will reconstruct and verify.
+    const signingInput = `${samlRequestParam}&${relayStateParam}&${sigAlgParam}`;
+    const signer = createSign("RSA-SHA256");
+    signer.update(signingInput, "utf-8");
+    const signatureB64 = signer.sign(spPrivateKeyPem, "base64");
+    signatureParams =
+      `&${sigAlgParam}` +
+      `&Signature=${encodeURIComponent(signatureB64)}`;
+    signed = true;
+  }
+
   const redirectUrl =
     `${idpSsoUrl}` +
-    `?SAMLRequest=${encodeURIComponent(base64Encoded)}` +
-    `&RelayState=${encodeURIComponent(relayState)}`;
+    `?${samlRequestParam}` +
+    `&${relayStateParam}` +
+    signatureParams;
 
   return {
     requestId,
     redirectUrl,
     relayState,
+    signed,
   };
 }

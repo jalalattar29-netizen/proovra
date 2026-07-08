@@ -37,6 +37,7 @@ import {
   applyInheritanceChain,
   emailMatchesAllowedDomains,
   evaluateJitProvisioning,
+  interpretScimUserPatch,
   isAllowedSsoConnectionTransition,
   normaliseEmailDomain,
   rbacPermissionDomain,
@@ -460,4 +461,76 @@ test("scimError builds an RFC-7644 error with status string", () => {
     e.schemas[0],
     "urn:ietf:params:scim:api:messages:2.0:Error",
   );
+});
+
+// ---------------------------------------------------------------------------
+// interpretScimUserPatch — pure PATCH classifier
+// ---------------------------------------------------------------------------
+
+test("interpretScimUserPatch: replace active=false → deactivate plan", () => {
+  const plan = interpretScimUserPatch([
+    { op: "replace", path: "active", value: false },
+  ]);
+  assert.equal(plan.active, false);
+  assert.equal(plan.hasSupported, true);
+  assert.deepEqual(plan.unsupported, []);
+});
+
+test("interpretScimUserPatch: replace active=true → reactivate plan", () => {
+  const plan = interpretScimUserPatch([
+    { op: "replace", path: "active", value: true },
+  ]);
+  assert.equal(plan.active, true);
+  assert.equal(plan.hasSupported, true);
+});
+
+test("interpretScimUserPatch: displayName + name.formatted both map to displayName", () => {
+  const a = interpretScimUserPatch([
+    { op: "replace", path: "displayName", value: "Alice A" },
+  ]);
+  assert.equal(a.displayName, "Alice A");
+  assert.equal(a.hasSupported, true);
+
+  const b = interpretScimUserPatch([
+    { op: "replace", path: "name.formatted", value: "Bob B" },
+  ]);
+  assert.equal(b.displayName, "Bob B");
+});
+
+test("interpretScimUserPatch: userType/roles map to VIEWER|MEMBER (REVIEWER→MEMBER)", () => {
+  assert.equal(
+    interpretScimUserPatch([{ op: "replace", path: "userType", value: "VIEWER" }]).role,
+    "VIEWER",
+  );
+  assert.equal(
+    interpretScimUserPatch([{ op: "replace", path: "roles", value: "REVIEWER" }]).role,
+    "MEMBER",
+  );
+  // Unknown role value is NOT silently accepted — it becomes unsupported.
+  const unknown = interpretScimUserPatch([
+    { op: "replace", path: "userType", value: "SUPERADMIN" },
+  ]);
+  assert.equal(unknown.role, undefined);
+  assert.deepEqual(unknown.unsupported, ["userType"]);
+});
+
+test("interpretScimUserPatch: unsupported paths collected, NOT faked as success", () => {
+  const plan = interpretScimUserPatch([
+    { op: "replace", path: "phoneNumbers", value: "+15551234567" },
+    { op: "add", path: "addresses", value: {} },
+  ]);
+  assert.equal(plan.hasSupported, false);
+  assert.deepEqual(plan.unsupported, ["phoneNumbers", "addresses"]);
+});
+
+test("interpretScimUserPatch: mixed op applies supported + reports unsupported", () => {
+  const plan = interpretScimUserPatch([
+    { op: "replace", path: "active", value: false },
+    { op: "replace", path: "displayName", value: "New Name" },
+    { op: "replace", path: "title", value: "Director" },
+  ]);
+  assert.equal(plan.active, false);
+  assert.equal(plan.displayName, "New Name");
+  assert.equal(plan.hasSupported, true);
+  assert.deepEqual(plan.unsupported, ["title"]);
 });

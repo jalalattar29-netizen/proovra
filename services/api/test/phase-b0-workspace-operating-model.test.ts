@@ -34,7 +34,9 @@ import { describe, expect, it } from "vitest";
 
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
-  return readFileSync(fileURLToPath(url), "utf8");
+  // Normalize CRLF→LF so byte-exact source-contract matches are robust to
+  // Windows line endings in the working tree.
+  return readFileSync(fileURLToPath(url), "utf8").replace(/\r\n/g, "\n");
 }
 
 const SERVER_SRC = readSource("../src/server.ts");

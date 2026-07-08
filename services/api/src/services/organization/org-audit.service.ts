@@ -64,6 +64,15 @@ export const ORG_AUDIT_EVENT_TYPES = [
   //     enterprise customer (org + owner [+ workspace]).
   "ORG_PLAN_GRANTED",
   "ENTERPRISE_PROVISIONED",
+  // Phase 3 — Enterprise Identity: DNS-verified domain ownership lifecycle.
+  //   DOMAIN_ADDED:    an org admin registered a domain + received the DNS
+  //                    challenge token.
+  //   DOMAIN_VERIFIED: the DNS TXT challenge was observed and the domain
+  //                    row was marked verified.
+  //   DOMAIN_REMOVED:  an org admin removed a domain claim (verified or not).
+  "DOMAIN_ADDED",
+  "DOMAIN_VERIFIED",
+  "DOMAIN_REMOVED",
 ] as const;
 
 export type OrgAuditEventType = (typeof ORG_AUDIT_EVENT_TYPES)[number];
@@ -71,7 +80,9 @@ export type OrgAuditEventType = (typeof ORG_AUDIT_EVENT_TYPES)[number];
 export type OrgAuditTargetType =
   | "organization"
   | "organization_membership"
-  | "organization_invite";
+  | "organization_invite"
+  // Phase 3 — Enterprise Identity: domain-ownership target.
+  | "organization_domain";
 
 /**
  * Per-event metadata documentation. Routes building metadata MUST

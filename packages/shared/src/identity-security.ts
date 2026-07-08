@@ -195,6 +195,42 @@ export const STEP_UP_PURPOSES = [
   "INTEGRATION_WEBHOOK_RETRY",
   "INTEGRATION_WEBHOOK_DISABLE",
   "INTEGRATION_WEBHOOK_ENABLE",
+  // Phase 3 — Enterprise Identity: organization domain ownership.
+  //   ORG_DOMAIN_VERIFY: confirming a DNS-challenge domain establishes an
+  //     identity boundary that gates SSO logins; the actor must re-prove.
+  //   ORG_DOMAIN_REMOVE: dropping a verified domain relaxes that boundary
+  //     and is independently sensitive.
+  // The step_up_challenges.purpose column is VARCHAR(64) (not an enum), so
+  // adding values requires NO migration (longest here is 17 chars).
+  "ORG_DOMAIN_VERIFY",
+  "ORG_DOMAIN_REMOVE",
+  // Phase 3 blocker closure — external reviewer grant issuance/rotation/
+  // reveal/extend. Issuing (or re-issuing via token rotate / break-glass
+  // reveal) an external-reviewer grant can expose sensitive workspace
+  // evidence to an OUTSIDE reviewer, so the action must re-prove the
+  // operator with a fresh step-up regardless of org MFA policy. This
+  // single purpose covers grant/invitation ISSUE, token ROTATE, break-
+  // glass token REVEAL, and grant EXTEND. Read-only reviewer-portal
+  // viewing and the reviewer's own token-accept flow are NEVER gated by
+  // this purpose. The step_up_challenges.purpose column is VARCHAR(64)
+  // (not an enum) — Phase 1 verified — so adding this value (28 chars)
+  // requires NO migration.
+  "EXTERNAL_REVIEW_GRANT_ISSUE",
+  // Phase 3A redaction closure — PUBLISHING a redacted derivative is the
+  // irreversible, disclosure-shaping step of the redaction lifecycle: it
+  // marks a version PUBLISHED so downstream consumers (verify badge,
+  // reports, packages, derivative download) treat that derivative as the
+  // authoritative redacted artifact. Because a published redaction is what
+  // the outside world sees, the operator must re-prove with a fresh
+  // step-up AFTER the redaction RBAC capability check (redaction.version.
+  // publish) and BEFORE the PUBLISHED transition, regardless of org MFA
+  // policy. This NEVER gates authoring, detection review, viewing, submit,
+  // approve, or derivative render-request — only the final publish. The
+  // redaction NEVER mutates the original evidence; publish only transitions
+  // the derivative-backed version. The step_up_challenges.purpose column is
+  // VARCHAR(64) (not an enum), so adding this value (17 chars) requires NO
+  // migration.
+  "REDACTION_PUBLISH",
 ] as const;
 export const StepUpPurposeSchema = z.enum(STEP_UP_PURPOSES);
 export type StepUpPurpose = z.infer<typeof StepUpPurposeSchema>;
