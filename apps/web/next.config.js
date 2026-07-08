@@ -300,6 +300,22 @@ const nextConfig = {
         destination: "/trust",
         permanent: true,
       },
+      // Phase 2 (dead-code deletion) — the `/security/trust-center/*`
+      // page tree was a byte-identical duplicate of the canonical
+      // `/trust-center/*` surface. The duplicate pages were deleted;
+      // these 308s keep any external/indexed/bookmarked
+      // `/security/trust-center` deep links resolving to the canonical
+      // Trust Center. (In-app deep links were repointed at the source.)
+      {
+        source: "/security/trust-center",
+        destination: "/trust-center",
+        permanent: true,
+      },
+      {
+        source: "/security/trust-center/:path*",
+        destination: "/trust-center/:path*",
+        permanent: true,
+      },
       // Legal Center IA restructure — the standalone Privacy Matrix
       // page was retired because its content is already covered in
       // the Privacy Policy. Any indexed Matrix URL 308s to the
