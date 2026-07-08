@@ -355,7 +355,9 @@ describe("Phase 32.8 Foundation — navigation registry", () => {
     const teams = adminGroup?.items.find((i) => i.id === "admin.teams");
     expect(teams).toBeTruthy();
     expect(teams!.requiresCapability).toBe("TEAM_VIEW");
-    expect(teams!.href).toBe("/teams");
+    // Phase 3 consolidation: the admin.teams nav entry now points at
+    // the canonical /workspaces landing (bare /teams landing deleted).
+    expect(teams!.href).toBe("/workspaces");
   });
 
   it("Teams nav visible to every team member AND to personal users (as create-team entry)", () => {
@@ -751,7 +753,7 @@ describe("Phase 32.8 Foundation — shell rewiring (F-3)", () => {
 describe("Phase 32.8 Foundation — Teams restoration (F-4)", () => {
   it("Teams nav item exists in canonical navigation registry", () => {
     expect(NAV).toMatch(/id:\s*['"]admin\.teams['"]/);
-    expect(NAV).toMatch(/href:\s*['"]\/teams['"]/);
+    expect(NAV).toMatch(/href:\s*['"]\/workspaces['"]/);
     expect(NAV).toMatch(/requiresCapability:\s*['"]TEAM_VIEW['"]/);
   });
 

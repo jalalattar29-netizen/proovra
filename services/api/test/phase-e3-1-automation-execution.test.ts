@@ -48,7 +48,7 @@ const DISPATCHER = readApi(
   "src/services/automation/automation-dispatcher.service.ts",
 );
 const ACTIONS = readApi("src/services/automation/automation-actions.service.ts");
-const PAGE = readWeb("app/(app)/ops/automation/page.tsx");
+const PAGE = readWeb("app/(app)/operations/automation/page.tsx");
 
 // ===========================================================================
 // PART 1 — Pure condition evaluator (no eval / vm / Function)

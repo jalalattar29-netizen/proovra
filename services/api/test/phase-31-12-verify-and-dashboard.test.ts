@@ -546,7 +546,7 @@ describe("Phase 31.12 — /investigation dashboard page", () => {
   });
 
   it("pivots to existing surfaces (no dead-end dashboard)", () => {
-    expect(src).toMatch(/href="\/ops\/media-graph"/);
+    expect(src).toMatch(/href="\/operations\/media-graph"/);
     expect(src).toMatch(/href=\{`\/evidence\/\$\{encodeURIComponent\(s\.evidenceId\)\}`\}/);
   });
 });

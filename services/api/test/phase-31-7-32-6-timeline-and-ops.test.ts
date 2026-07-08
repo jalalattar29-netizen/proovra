@@ -160,7 +160,7 @@ describe("Phase 31.7 — /v1/graph/timeline route", () => {
 
 describe("Phase 31.7 + 32.6 — /ops/media-graph page", () => {
   const src = readSource(
-    "../../../apps/web/app/(app)/ops/media-graph/page.tsx",
+    "../../../apps/web/app/(app)/operations/media-graph/page.tsx",
   );
 
   it("declared a client component", () => {

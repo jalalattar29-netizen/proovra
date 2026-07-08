@@ -639,13 +639,13 @@ describe("Phase 32.8C FINAL-2 — frontend rendering", () => {
     );
   });
 
-  it("dashboard is read-only: footnote explicitly delegates lifecycle to /ops/observability", () => {
+  it("dashboard is read-only: footnote explicitly delegates lifecycle to /operations/observability", () => {
     // Allow whitespace (including newlines) between "workflow" and
     // "ownership transitions" since the JSX wraps the phrase.
     expect(CC_TSX).toMatch(
       /workflow\s+ownership transitions[\s\S]{0,300}Operations Center/,
     );
-    expect(CC_TSX).toMatch(/href="\/ops\/observability/);
+    expect(CC_TSX).toMatch(/href="\/operations\/observability/);
   });
 
   it("no inline mutation buttons in causality chains / workflows strips", () => {

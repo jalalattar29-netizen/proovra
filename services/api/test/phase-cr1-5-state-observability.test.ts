@@ -294,7 +294,7 @@ describe("CR1.5 Test 8 — bounded useTeamWorkspaceGate callsite allow-list", ()
     // allow-list so a regression cannot quietly re-introduce the
     // legacy gate on the dashboard surface.
     {
-      file: "app/(app)/ops/page.tsx",
+      file: "app/(app)/operations/page.tsx",
       reason: "Operator-only surface; team-scope gating may be correct.",
       revisitPhase: "R8/R9",
     },

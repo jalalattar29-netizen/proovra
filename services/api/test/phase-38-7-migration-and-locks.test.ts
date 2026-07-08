@@ -87,7 +87,7 @@ describe("Phase 38.7 — useTeamWorkspaceGate allow-list", () => {
     // Phase 38.10 — escalations migrated to PageRouteGate; removed.
     // Phase 38.11 — reviewer-ops/sla migrated to PageRouteGate; removed.
     // Phase 38.11 — ops/observability migrated to PageRouteGate; removed.
-    "app/(app)/ops/page.tsx",
+    "app/(app)/operations/page.tsx",
   ];
 
   it("no new consumer references useTeamWorkspaceGate outside the allow-list", () => {

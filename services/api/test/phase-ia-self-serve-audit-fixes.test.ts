@@ -232,28 +232,40 @@ describe("Phase IA-self-serve-audit-fixes — Intake Links copy", () => {
 // ============================================================================
 
 describe("Phase IA-self-serve-audit-fixes — Teams landing + renames", () => {
-  it("/teams/page.tsx exists (landing list)", () => {
-    expect(existsSync(webPath("app/(app)/teams/page.tsx"))).toBe(true);
+  // Phase 3 consolidation: the bare `/teams` landing page was deleted
+  // (redirects to /collaboration-teams). The canonical workspace-admin
+  // landing is now `app/(app)/workspaces/page.tsx`, which renders
+  // `components/workspace-admin/WorkspaceAdministrationHome.tsx`. These
+  // checks were repointed to the successor sources; each preserves the
+  // original intent (gate, org data source, per-org deep link, billing).
+  it("the canonical workspaces landing page exists", () => {
+    expect(existsSync(webPath("app/(app)/workspaces/page.tsx"))).toBe(true);
   });
 
   it("the landing page uses PageRouteGate routeId='admin.teams'", () => {
-    const SRC = readWeb("app/(app)/teams/page.tsx");
+    const SRC = readWeb("app/(app)/workspaces/page.tsx");
     expect(SRC).toMatch(/<PageRouteGate routeId="admin\.teams">/);
   });
 
   it("the landing page reads useOrganizations() (no new API fetches)", () => {
-    const SRC = readWeb("app/(app)/teams/page.tsx");
+    const SRC = readWeb(
+      "components/workspace-admin/WorkspaceAdministrationHome.tsx",
+    );
     expect(SRC).toMatch(/useOrganizations\(\)/);
   });
 
-  it("the landing page renders /teams/{id} links per org", () => {
-    const SRC = readWeb("app/(app)/teams/page.tsx");
-    expect(SRC).toMatch(/href=\{`\/teams\/\$\{org\.id\}`\}/);
+  it("the landing page renders a per-org governance deep link", () => {
+    const SRC = readWeb(
+      "components/workspace-admin/WorkspaceAdministrationHome.tsx",
+    );
+    expect(SRC).toMatch(/href=\{`\/organizations\/\$\{org\.id\}`\}/);
   });
 
-  it("the landing page shows a 'Go to Billing' CTA when there are no teams", () => {
-    const SRC = readWeb("app/(app)/teams/page.tsx");
-    expect(SRC).toMatch(/href="\/billing"[\s\S]{0,200}Go to Billing/);
+  it("the landing page shows a billing CTA", () => {
+    const SRC = readWeb(
+      "components/workspace-admin/WorkspaceAdministrationHome.tsx",
+    );
+    expect(SRC).toMatch(/href="\/billing"[\s\S]{0,200}(Manage billing|Account billing)/);
   });
 
   it("TeamPermissionMatrix renamed 'Permission matrix' → 'Who can do what'", () => {

@@ -394,7 +394,7 @@ describe("Phase 32.7 — page consumers scope the runtime banner", () => {
     const src = readFileSync(
       fileURLToPath(
         new URL(
-          "../../../apps/web/app/(app)/ops/observability/page.tsx",
+          "../../../apps/web/app/(app)/operations/observability/page.tsx",
           import.meta.url,
         ),
       ),

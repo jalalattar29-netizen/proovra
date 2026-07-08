@@ -173,7 +173,7 @@ describe("R2 Part 4 — sidebar consumes the canonical navigation pipeline", () 
 
   it("the disclosure resolver runs before the grouping resolver", () => {
     const disclosureCall = SIDEBAR.indexOf("resolveNavigationDisclosure({");
-    const groupingCall = SIDEBAR.indexOf("resolveNavigationGroups({");
+    const groupingCall = SIDEBAR.indexOf("resolveNavigationGroups(");
     expect(disclosureCall).toBeGreaterThan(-1);
     expect(groupingCall).toBeGreaterThan(-1);
     expect(disclosureCall).toBeLessThan(groupingCall);

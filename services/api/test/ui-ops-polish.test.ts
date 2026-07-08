@@ -46,10 +46,10 @@ describe("App sidebar — Platform Health group (Phase 32.8B)", () => {
     "../../../apps/web/components/app-shell-v2/AppSidebarV2.tsx",
   );
 
-  it("Phase 32.8B routes /ops, /ops/observability, /ops/runbooks under Platform Health", () => {
-    expect(navConfig).toMatch(/href: "\/ops"/);
-    expect(navConfig).toMatch(/href: "\/ops\/observability"/);
-    expect(navConfig).toMatch(/href: "\/ops\/runbooks"/);
+  it("Phase 32.8B routes /operations, /operations/observability, /operations/runbooks under Platform Health", () => {
+    expect(navConfig).toMatch(/href: "\/operations"/);
+    expect(navConfig).toMatch(/href: "\/operations\/observability"/);
+    expect(navConfig).toMatch(/href: "\/operations\/runbooks"/);
   });
 
   it("places Platform Health between Review & Governance and Administration (Phase 32.8B canonical order)", () => {
@@ -73,7 +73,7 @@ describe("App sidebar — Platform Health group (Phase 32.8B)", () => {
 
 describe("/ops/runbooks page", () => {
   const src = readSource(
-    "../../../apps/web/app/(app)/ops/runbooks/page.tsx",
+    "../../../apps/web/app/(app)/operations/runbooks/page.tsx",
   );
 
   it("exports a default page component", () => {
@@ -190,7 +190,7 @@ describe("Empty-state runbook links", () => {
     "../../../apps/web/app/(app)/reviewer-ops/sla/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
     "../../../apps/web/app/(app)/governance/page.tsx",
-    "../../../apps/web/app/(app)/ops/observability/page.tsx",
+    "../../../apps/web/app/(app)/operations/observability/page.tsx",
     "../../../apps/web/components/operational/RuntimeStatusBanner.tsx",
   ];
 
@@ -203,11 +203,11 @@ describe("Empty-state runbook links", () => {
     }
   });
 
-  it("the canonical runbooks deep-link is /ops/runbooks", () => {
+  it("the canonical runbooks deep-link is /operations/runbooks", () => {
     const src = readSource(
       "../../../apps/web/components/operational/OperationalEmptyState.tsx",
     );
-    expect(src).toContain("/ops/runbooks");
+    expect(src).toContain("/operations/runbooks");
   });
 
   it("'open runtime readiness' is no longer aliased to the same page as observability", () => {
@@ -229,7 +229,7 @@ describe("Empty-state runbook links", () => {
 
 describe("Observability dashboard — summary-first layout", () => {
   const src = readSource(
-    "../../../apps/web/app/(app)/ops/observability/page.tsx",
+    "../../../apps/web/app/(app)/operations/observability/page.tsx",
   );
 
   it("renders a summary rollup section above the raw counters/gauges section", () => {
@@ -410,8 +410,8 @@ describe("Phase 28-I cross-page invariants", () => {
     // tests.
     "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
     "../../../apps/web/app/(app)/governance/page.tsx",
-    "../../../apps/web/app/(app)/ops/observability/page.tsx",
-    "../../../apps/web/app/(app)/ops/runbooks/page.tsx",
+    "../../../apps/web/app/(app)/operations/observability/page.tsx",
+    "../../../apps/web/app/(app)/operations/runbooks/page.tsx",
     "../../../apps/web/app/(app)/evidence/[id]/page.tsx",
   ];
 

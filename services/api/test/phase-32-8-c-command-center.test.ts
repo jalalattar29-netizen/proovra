@@ -508,21 +508,23 @@ describe("Phase 32.8C — old /dashboard surface disposition", () => {
 // =============================================================================
 
 describe("Phase 32.8C — runtime details delegate to Platform Health", () => {
-  it("Incidents section links out to /ops or /ops/observability for full details (no duplicated runtime panel)", () => {
+  it("Incidents section links out to /operations or /operations/observability for full details (no duplicated runtime panel)", () => {
     const block = CC.slice(CC.indexOf("function IncidentsSection"));
     expect(block).toMatch(/Operations Center/);
-    expect(block).toMatch(/href="\/ops/);
+    // Phase 3 canonicalised the platform-ops surface /ops → /operations.
+    expect(block).toMatch(/href="\/operations/);
   });
 
-  it("Incidents footnote points at /ops (Phase 32.8A boundary preserved)", () => {
+  it("Incidents footnote points at /operations (Phase 32.8A boundary preserved)", () => {
     // Phase 32.8C control plane — the footnote was reworded to explain
     // that operator actions (acknowledge/assign/resolve/suppress) live
     // on the Operations Center page, not the dashboard. The boundary
-    // is preserved (the link still points at /ops/observability).
+    // is preserved (the link still points at /operations/observability;
+    // Phase 3 canonicalised /ops → /operations).
     expect(CC).toMatch(
       /Operator actions[\s\S]{0,200}Operations Center/,
     );
-    expect(CC).toMatch(/href="\/ops\/observability/);
+    expect(CC).toMatch(/href="\/operations\/observability/);
   });
 
   it("CommandCenter does NOT render the Phase 28-J /admin/runtime panels inline (no duplication of /ops)", () => {

@@ -119,18 +119,22 @@ describe("Workspace surface audit — NAV_VISIBILITY changes (sidebarEligible fl
     expect(entry).toMatch(/allToolsVisible:\s*true/);
   });
 
-  it("workspace.intelligence_platform (Intelligence) is sidebarEligible:true", () => {
-    const entry = sliceRouteEntry("workspace.intelligence_platform");
+  // The legacy `workspace.intelligence_platform` id was removed when
+  // `/intelligence-platform` merged into the canonical `/intelligence`
+  // entry (`workspace.intelligence`). These checks repoint to the
+  // successor and preserve the original visibility intent.
+  it("workspace.intelligence (Intelligence) is sidebarEligible:true", () => {
+    const entry = sliceRouteEntry("workspace.intelligence");
     expect(entry).toMatch(/sidebarEligible:\s*true/);
   });
 
-  it("workspace.intelligence_platform remains commandPaletteVisible:true", () => {
-    const entry = sliceRouteEntry("workspace.intelligence_platform");
+  it("workspace.intelligence remains commandPaletteVisible:true", () => {
+    const entry = sliceRouteEntry("workspace.intelligence");
     expect(entry).toMatch(/commandPaletteVisible:\s*true/);
   });
 
-  it("workspace.intelligence_platform remains allToolsVisible:true", () => {
-    const entry = sliceRouteEntry("workspace.intelligence_platform");
+  it("workspace.intelligence remains allToolsVisible:true", () => {
+    const entry = sliceRouteEntry("workspace.intelligence");
     expect(entry).toMatch(/allToolsVisible:\s*true/);
   });
 });
@@ -140,8 +144,8 @@ describe("Workspace surface audit — NAV_VISIBILITY changes (sidebarEligible fl
 // ---------------------------------------------------------------------------
 
 describe("Workspace surface audit — LABEL_CLARIFICATION changes", () => {
-  it("workspace.intelligence_platform label is the clarified 'Intelligence' (not 'Intelligence Platform')", () => {
-    const entry = sliceRouteEntry("workspace.intelligence_platform");
+  it("workspace.intelligence label is the clarified 'Intelligence' (not 'Intelligence Platform')", () => {
+    const entry = sliceRouteEntry("workspace.intelligence");
     expect(entry).toMatch(/label:\s*"Intelligence"/);
     // The clarified label must NOT carry the legacy "Platform" suffix
     // as the operator-facing label string for this entry.

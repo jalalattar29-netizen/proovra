@@ -237,12 +237,12 @@ describe("Phase 32.8C FINAL-4 — bulk actions toolbar", () => {
     expect(CC_TSX).toMatch(/capabilities\.incidentActions/);
   });
 
-  it("toolbar is read-only: chips link to /ops/observability, no inline mutations", () => {
+  it("toolbar is read-only: chips link to /operations/observability, no inline mutations", () => {
     const block = CC_TSX.match(
       /function BulkActionsToolbar\([\s\S]*?\n\}\s*\n/,
     );
     expect(block).not.toBeNull();
-    expect(block![0]).toMatch(/\/ops\/observability/);
+    expect(block![0]).toMatch(/\/operations\/observability/);
     expect(block![0]).not.toMatch(/<button/);
     expect(block![0]).not.toMatch(/onClick/);
     expect(block![0]).not.toMatch(/method:\s*"POST"/);

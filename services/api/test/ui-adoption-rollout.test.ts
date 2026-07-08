@@ -86,7 +86,7 @@ describe("Reviewer Ops landing page (full adoption — Phase 32.8E architecture)
     expect(src).toMatch(/\/reviewer-ops\/escalations/);
     expect(src).toMatch(/\/reviewer-ops\/sla/);
     expect(src).toMatch(/\/governance\/policy/);
-    expect(src).toMatch(/\/ops\/observability/);
+    expect(src).toMatch(/\/operations\/observability/);
   });
 
   it("no banned wording in this console's string literals", () => {
@@ -241,7 +241,7 @@ describe("Governance dashboard (full adoption — Phase 32.8E architecture)", ()
 
 describe("Observability dashboard (full adoption)", () => {
   const src = readSource(
-    "../../../apps/web/app/(app)/ops/observability/page.tsx",
+    "../../../apps/web/app/(app)/operations/observability/page.tsx",
   );
 
   it("imports RuntimeStatusBanner from the operational barrel", () => {
@@ -502,7 +502,7 @@ describe("Phase 28-H [cross-page wiring invariants]", () => {
     // Phase 32.8B — policy admin moved to /governance/policy.
     "../../../apps/web/app/(app)/governance/policy/page.tsx",
     "../../../apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
-    "../../../apps/web/app/(app)/ops/observability/page.tsx",
+    "../../../apps/web/app/(app)/operations/observability/page.tsx",
     "../../../apps/web/app/(app)/evidence/[id]/page.tsx",
   ];
 

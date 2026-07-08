@@ -88,7 +88,7 @@ describe("Phase CR0.5 — useTeamWorkspaceGate live consumer count is pinned", (
    */
   const PRODUCTION_CONSUMERS = [
     "components/command-center/CommandCenter.tsx",
-    "app/(app)/ops/page.tsx",
+    "app/(app)/operations/page.tsx",
   ];
 
   it("only the pinned production files import useTeamWorkspaceGate", () => {

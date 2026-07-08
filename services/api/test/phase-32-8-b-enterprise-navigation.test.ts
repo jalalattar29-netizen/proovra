@@ -162,8 +162,9 @@ describe("Phase 32.8B — canonical sidebar hierarchy (5 groups, Account in topb
 
   it("Administration group covers Workspaces, Billing, Integrations, Intake Links, Settings, Platform Admin", () => {
     // Phase B0.5 renamed the nav label from "Teams" to "Workspaces"
-    // (workspace-operating-model-runbook.md). DB model name and
-    // route paths (`/teams`) are unchanged; only the visible label.
+    // (workspace-operating-model-runbook.md). Phase 3 then canonicalised
+    // the workspace-admin URL to `/workspaces`; the DB model name (`Team`)
+    // is unchanged. This test asserts labels only.
     for (const label of [
       "Workspaces",
       "Billing",
@@ -291,8 +292,11 @@ describe("Phase 32.8B — backward-compat redirects for consolidated routes", ()
 
   const expectedRedirects: Record<string, string> = {
     "/dashboard": "/home",
-    "/review": "/reviewer-ops",
-    "/operations": "/ops",
+    // Phase 3 canonicalised the platform-ops surface to `/operations`
+    // (was `/operations → /ops`; now `/ops → /operations`) and removed
+    // the `/review → /reviewer-ops` entry (`/review` is now canonical;
+    // `/reviewer-ops → /review` lives in next.config.js).
+    "/ops": "/operations",
     "/security": "/security-center",
     "/locked": "/evidence?filter=locked",
     "/deleted": "/evidence?filter=deleted",
@@ -319,7 +323,9 @@ describe("Phase 32.8B — backward-compat redirects for consolidated routes", ()
     // gone. The rest of the CR1 redirect table is preserved.
     const cases: Array<{ source: string; target: string }> = [
       { source: "/dashboard", target: "/home" },
-      { source: "/operations", target: "/ops" },
+      // Phase 3 flipped the canonical platform-ops route: `/ops` now
+      // redirects to `/operations` (previously the reverse).
+      { source: "/ops", target: "/operations" },
       { source: "/security", target: "/security-center" },
       { source: "/locked", target: "/evidence?filter=locked" },
       { source: "/deleted", target: "/evidence?filter=deleted" },

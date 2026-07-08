@@ -580,11 +580,15 @@ const ADMINISTRATION_GROUP: NavGroup = {
   items: [
     {
       id: "admin.teams",
-      // Phase B0 — operational vocabulary is "Workspaces". URL
-      // stays `/teams` for backwards-compat (the API now exposes
-      // `/v1/workspaces/*` aliases via the workspace-alias plugin).
+      // Phase B0 — operational vocabulary is "Workspaces". Phase 3
+      // canonicalised the workspace-admin URL to `/workspaces` (matching
+      // routeRegistry.ts and the backend navigation-registry); the API
+      // exposes `/v1/workspaces/*` aliases via the workspace-alias
+      // plugin. The bare `/teams` landing was deleted (redirects to
+      // `/collaboration-teams`); `/teams/[id]` remains the workspace-
+      // admin detail reached from here.
       label: "Workspaces",
-      href: "/teams",
+      href: "/workspaces",
       iconKey: "teams",
       domain: "ADMINISTRATION",
       workspaceScope: "TEAM",

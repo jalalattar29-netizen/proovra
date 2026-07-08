@@ -83,7 +83,12 @@ describe("Phase IA-self-serve-regression-fix — BUG 1: All Tools visibility", (
 
 describe("Phase IA-self-serve-regression-fix — BUG 2: Invite teammate + /teams", () => {
   const HOME = readWeb("components/home-experience/SelfServeHomeDashboard.tsx");
-  const TEAMS = readWeb("app/(app)/teams/page.tsx");
+  // Phase 3 consolidation: the bare /teams landing page was deleted.
+  // The workspace-admin landing content now lives in the shared
+  // WorkspaceAdministrationHome component (rendered by /workspaces).
+  const TEAMS = readWeb(
+    "components/workspace-admin/WorkspaceAdministrationHome.tsx",
+  );
 
   it("the onboarding checklist no longer carries an Invite-teammate step at all (Phase HOME-POLISH)", () => {
     // Phase HOME-POLISH retired intake/invite from onboarding entirely:
@@ -120,15 +125,17 @@ describe("Phase IA-self-serve-regression-fix — BUG 2: Invite teammate + /teams
     expect(stripped).not.toMatch(/import\s*\{[^}]*\bPageRouteGate\b[^}]*\}/);
   });
 
-  it("/teams renders an explicit `No teams yet` empty state for users with no orgs", () => {
-    expect(TEAMS).toMatch(/data-teams-landing-empty/);
-    expect(TEAMS).toMatch(/No teams yet/);
-    expect(TEAMS).toMatch(/Go to Billing/);
+  it("the landing renders an explicit empty state for users with no orgs", () => {
+    // Successor content: WorkspaceAdministrationHome renders a marked
+    // empty-state block with guidance + a billing-reachable CTA path.
+    expect(TEAMS).toMatch(/data-organizations-empty/);
+    expect(TEAMS).toMatch(/You're not in any organizations yet\./);
+    expect(TEAMS).toMatch(/href="\/billing"/);
   });
 
-  it("/teams renders the org list when `useOrganizations()` returns entries", () => {
+  it("the landing renders the org list when `useOrganizations()` returns entries", () => {
     expect(TEAMS).toMatch(/organizations\.map\(/);
-    expect(TEAMS).toMatch(/href=\{`\/teams\/\$\{org\.id\}`\}/);
+    expect(TEAMS).toMatch(/href=\{`\/organizations\/\$\{org\.id\}`\}/);
   });
 });
 
