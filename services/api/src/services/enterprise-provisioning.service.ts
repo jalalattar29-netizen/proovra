@@ -28,7 +28,7 @@
  */
 
 import { randomBytes } from "node:crypto";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { TeamBillingStatus, TeamRole } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../db.js";
@@ -308,6 +308,10 @@ export async function provisionEnterpriseCustomer(
         name: input.organizationName,
         billingOwnerUserId: null,
         status: "ACTIVE",
+        // Phase 2 Blocker 1 — persist the provisioning intent on the org.
+        // When this ORG_OWNER invite is accepted, the accept handler mints
+        // the ENTERPRISE workspace with these seats and clears the marker.
+        pendingEnterpriseSeats: seats,
       },
       select: { id: true },
     });
@@ -384,5 +388,139 @@ export async function provisionEnterpriseCustomer(
     inviteUrl: `/invite/${token}`,
     provisioned: false,
     pendingOwner: true,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 Blocker 1 — brand-new-owner enterprise auto-completion.
+// ---------------------------------------------------------------------------
+
+export type CompleteEnterpriseProvisioningInput = {
+  /** The org the accepted invite belongs to. */
+  organizationId: string;
+  /** The accepting user (the invited ORG_OWNER). Becomes workspace OWNER. */
+  userId: string;
+  /** The invite role. Completion only runs for ORG_OWNER. */
+  inviteRole: string;
+  /** Actor for the audit row (the accepting user). */
+  actorUserId: string;
+};
+
+export type CompleteEnterpriseProvisioningResult = {
+  /** The newly-minted ENTERPRISE workspace, when completion ran. */
+  enterpriseWorkspaceId: string;
+  /** Where the frontend should land the owner (setup wizard). */
+  setupRedirect: string;
+  /** Resolved seats applied to the workspace. */
+  seats: number;
+} | null;
+
+/**
+ * Consume the `pendingEnterpriseSeats` provisioning marker when the
+ * invited ORG_OWNER accepts, completing the enterprise workspace setup
+ * with NO manual admin follow-up.
+ *
+ * MUST be called INSIDE the accept transaction, AFTER the ORG_OWNER
+ * membership has been created. It is fully guarded so it is a no-op for
+ * every non-enterprise accept:
+ *
+ *   (a) inviteRole === "ORG_OWNER", AND
+ *   (b) org.pendingEnterpriseSeats != null, AND
+ *   (c) the org has ZERO workspaces (Team.count === 0).
+ *
+ * When all three hold, in the SAME tx it:
+ *   - creates an ENTERPRISE Team owned by the accepter (billingStatus
+ *     ACTIVE, includedSeats = pendingEnterpriseSeats, OWNER membership),
+ *   - sets org.billingOwnerUserId (only when currently null) and clears
+ *     pendingEnterpriseSeats,
+ *   - emits an ENTERPRISE_PROVISIONED org audit event,
+ *   - returns { enterpriseWorkspaceId, setupRedirect, seats }.
+ *
+ * Otherwise it returns null and writes nothing — the normal accept
+ * behaviour is entirely unchanged.
+ */
+export async function completeEnterpriseProvisioningOnOwnerAccept(
+  tx: Prisma.TransactionClient,
+  input: CompleteEnterpriseProvisioningInput,
+): Promise<CompleteEnterpriseProvisioningResult> {
+  // Guard (a): only the ORG_OWNER accept can complete provisioning.
+  if (input.inviteRole !== "ORG_OWNER") {
+    return null;
+  }
+
+  const org = await tx.organization.findUnique({
+    where: { id: input.organizationId },
+    select: {
+      id: true,
+      name: true,
+      billingOwnerUserId: true,
+      pendingEnterpriseSeats: true,
+    },
+  });
+
+  // Guard (b): a pending enterprise provisioning marker must exist.
+  if (!org || org.pendingEnterpriseSeats == null) {
+    return null;
+  }
+
+  // Guard (c): the org must have ZERO workspaces (idempotency — if a
+  // workspace already exists, provisioning already happened).
+  const workspaceCount = await tx.team.count({
+    where: { organizationId: input.organizationId },
+  });
+  if (workspaceCount !== 0) {
+    return null;
+  }
+
+  const seats = org.pendingEnterpriseSeats;
+
+  const workspace = await tx.team.create({
+    data: {
+      name: org.name,
+      ownerUserId: input.userId,
+      billingOwnerUserId: input.userId,
+      organizationId: input.organizationId,
+      billingPlan: "ENTERPRISE",
+      billingStatus: TeamBillingStatus.ACTIVE,
+      includedSeats: seats,
+      overSeatLimit: false,
+      members: {
+        create: {
+          userId: input.userId,
+          role: TeamRole.OWNER,
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  await tx.organization.update({
+    where: { id: input.organizationId },
+    data: {
+      // Only claim billing ownership if the org has none yet.
+      billingOwnerUserId: org.billingOwnerUserId ?? input.userId,
+      pendingEnterpriseSeats: null,
+    },
+  });
+
+  await emitOrgAuditEvent(tx, {
+    organizationId: input.organizationId,
+    actorUserId: input.actorUserId,
+    eventType: "ENTERPRISE_PROVISIONED",
+    targetType: "organization",
+    targetId: input.organizationId,
+    metadata: {
+      ownerUserId: input.userId,
+      workspaceId: workspace.id,
+      seats,
+      provisioned: true,
+      completedOnOwnerAccept: true,
+    },
+  });
+
+  return {
+    enterpriseWorkspaceId: workspace.id,
+    setupRedirect: `/organizations/${input.organizationId}/setup`,
+    seats,
   };
 }

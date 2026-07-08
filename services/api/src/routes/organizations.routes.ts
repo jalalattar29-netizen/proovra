@@ -48,6 +48,10 @@ import { getAuthUserId } from "../auth.js";
 import { checkOrgAccess } from "../services/organization/org-access.js";
 // Phase 2.7X Stage 4 — audit emitter (writes inside the mutation tx).
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
+// Phase 2 Blocker 1 — brand-new-owner enterprise auto-completion. Runs
+// inside the accept tx after the ORG_OWNER membership is created; a no-op
+// for every non-enterprise accept (guarded on pendingEnterpriseSeats).
+import { completeEnterpriseProvisioningOnOwnerAccept } from "../services/enterprise-provisioning.service.js";
 
 const UuidParam = z.string().uuid();
 
@@ -996,10 +1000,25 @@ export async function organizationsRoutes(app: FastifyInstance) {
           },
         });
 
+        // Phase 2 Blocker 1 — brand-new-owner enterprise auto-completion.
+        // Fully guarded inside the helper (ORG_OWNER role + pending marker +
+        // zero workspaces). For every non-enterprise accept this returns
+        // null and writes nothing, leaving the behaviour below unchanged.
+        const enterpriseCompletion =
+          await completeEnterpriseProvisioningOnOwnerAccept(tx, {
+            organizationId: invite.organizationId,
+            userId,
+            inviteRole: invite.role,
+            actorUserId: userId,
+          });
+
         return {
           kind: "ok" as const,
           organizationId: invite.organizationId,
           role: invite.role,
+          enterpriseWorkspaceId:
+            enterpriseCompletion?.enterpriseWorkspaceId ?? null,
+          setupRedirect: enterpriseCompletion?.setupRedirect ?? null,
         };
       });
 
@@ -1021,9 +1040,18 @@ export async function organizationsRoutes(app: FastifyInstance) {
           .send({ message: "Invite email does not match your account." });
       }
 
+      // Phase 2 Blocker 1 — when the brand-new-owner enterprise completion
+      // ran, surface the new workspace id + the setup-wizard redirect so the
+      // frontend lands the owner in /organizations/:id/setup. These fields
+      // are omitted for every normal (non-enterprise) accept, keeping that
+      // response byte-for-byte unchanged.
       return reply.code(200).send({
         organizationId: result.organizationId,
         role: result.role,
+        ...(result.enterpriseWorkspaceId
+          ? { enterpriseWorkspaceId: result.enterpriseWorkspaceId }
+          : {}),
+        ...(result.setupRedirect ? { setupRedirect: result.setupRedirect } : {}),
       });
     },
   );

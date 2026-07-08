@@ -83,14 +83,22 @@ type Org = {
   name: string;
   status: string;
   billingOwnerUserId: string | null;
+  pendingEnterpriseSeats: number | null;
 };
 
 function makeClient(seed: {
-  orgs?: Org[];
+  orgs?: (Omit<Org, "pendingEnterpriseSeats"> & {
+    pendingEnterpriseSeats?: number | null;
+  })[];
   teams?: Team[];
   users?: { id: string; email: string }[];
 }) {
-  const orgs = new Map<string, Org>((seed.orgs ?? []).map((o) => [o.id, o]));
+  const orgs = new Map<string, Org>(
+    (seed.orgs ?? []).map((o) => [
+      o.id,
+      { ...o, pendingEnterpriseSeats: o.pendingEnterpriseSeats ?? null },
+    ]),
+  );
   const teams = new Map<string, Team>((seed.teams ?? []).map((t) => [t.id, t]));
   const users = seed.users ?? [];
   const memberships: { organizationId: string; userId: string; role: string }[] =
@@ -118,6 +126,7 @@ function makeClient(seed: {
           name: data.name,
           status: data.status,
           billingOwnerUserId: data.billingOwnerUserId ?? null,
+          pendingEnterpriseSeats: data.pendingEnterpriseSeats ?? null,
         };
         orgs.set(org.id, org);
         return { id: org.id };
@@ -408,6 +417,13 @@ describe("provisionEnterpriseCustomer — missing owner", () => {
     const org = orgs.get(res.organizationId)!;
     expect(org.billingOwnerUserId).toBeNull();
 
+    // Phase 2 Blocker 1 — the brand-new-owner branch persists the resolved
+    // enterprise seats on the org so the ORG_OWNER accept can complete
+    // provisioning. Default seats = plan-catalog ENTERPRISE includedSeats.
+    expect(org.pendingEnterpriseSeats).toBe(
+      getPlanCapabilities("ENTERPRISE").includedSeats,
+    );
+
     expect(invites).toHaveLength(1);
     const invite = invites[0]!;
     expect(invite.email).toBe("new-owner@beta.test");
@@ -420,6 +436,21 @@ describe("provisionEnterpriseCustomer — missing owner", () => {
     const days = (invite.expiresAt.getTime() - Date.now()) / 86_400_000;
     expect(days).toBeGreaterThan(6.9);
     expect(days).toBeLessThan(7.1);
+  });
+
+  it("persists the explicit provisioned seat count as pendingEnterpriseSeats", async () => {
+    const { client, orgs } = makeClient({ users: [] });
+    const res = await provisionEnterpriseCustomer(
+      {
+        organizationName: "Gamma Co",
+        ownerEmail: "new-owner@gamma.test",
+        seats: 42,
+        actorUserId: "admin-1",
+      },
+      client,
+    );
+    if (res.provisioned) throw new Error("expected pending owner");
+    expect(orgs.get(res.organizationId)!.pendingEnterpriseSeats).toBe(42);
   });
 
   it("audits an ENTERPRISE_PROVISIONED event for the pending-owner path", async () => {
@@ -460,7 +491,7 @@ describe("enterprise capability + gate wiring", () => {
     );
   });
 
-  it("platform-context ENTERPRISE_PLAN_KEYS additively includes TEAM and ENTERPRISE", () => {
+  it("platform-context ENTERPRISE_PLAN_KEYS is ENTERPRISE-only (TEAM is NOT enterprise — locked model)", () => {
     const src = readSource(
       "../src/services/platform-context/platform-context.service.ts",
     );
@@ -469,8 +500,10 @@ describe("enterprise capability + gate wiring", () => {
     );
     expect(match).not.toBeNull();
     const body = match![1]!;
-    expect(body).toContain('"TEAM"');
     expect(body).toContain('"ENTERPRISE"');
+    // Locked model: TEAM is a subscription plan inside a PERSONAL workspace,
+    // NOT an enterprise workspace type. It must never be an enterprise key.
+    expect(body).not.toContain('"TEAM"');
   });
 
   it("admin-provisioning routes are gated by requirePlatformAdmin AND step-up on both endpoints", () => {

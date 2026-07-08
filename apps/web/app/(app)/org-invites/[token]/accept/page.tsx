@@ -12,6 +12,11 @@ import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
  *     the displayed prompt.
  *   - On success we redirect to /organizations/[id] for the bound
  *     org so the new member sees their landing context.
+ *   - Phase 2 Blocker 1 — when the accepted invite completes a
+ *     brand-new-owner enterprise provisioning, the API returns a
+ *     `setupRedirect` (the enterprise setup wizard). When present we
+ *     honour it instead of the default org landing, so the owner lands
+ *     straight in setup with NO manual admin follow-up.
  *   - 410 / 404 / etc. errors are surfaced cleanly with the API's
  *     message; no analytics tracking on those (invite tokens are
  *     governance signals, not telemetry events).
@@ -27,7 +32,12 @@ import { PageRouteGate } from "../../../../../components/navigation/PageRouteGat
 type State =
   | { kind: "idle" }
   | { kind: "accepting" }
-  | { kind: "ok"; organizationId: string; role: string }
+  | {
+      kind: "ok";
+      organizationId: string;
+      role: string;
+      setupRedirect?: string;
+    }
   | { kind: "error"; status: number; message: string };
 
 export default function OrgInviteAcceptPage() {
@@ -65,11 +75,16 @@ function OrgInviteAcceptPageInner() {
       })) as {
         organizationId: string;
         role: string;
+        // Phase 2 Blocker 1 — present only when a brand-new-owner
+        // enterprise provisioning completed on this accept.
+        enterpriseWorkspaceId?: string;
+        setupRedirect?: string;
       };
       setState({
         kind: "ok",
         organizationId: data.organizationId,
         role: data.role,
+        setupRedirect: data.setupRedirect,
       });
     } catch (err: unknown) {
       const message =
@@ -84,8 +99,13 @@ function OrgInviteAcceptPageInner() {
 
   useEffect(() => {
     if (state.kind === "ok") {
+      // Phase 2 Blocker 1 — an enterprise setup redirect (when the
+      // brand-new-owner provisioning completed) takes precedence over
+      // the default org landing.
+      const destination =
+        state.setupRedirect ?? `/organizations/${state.organizationId}`;
       const t = setTimeout(() => {
-        router.push(`/organizations/${state.organizationId}`);
+        router.push(destination);
       }, 1500);
       return () => clearTimeout(t);
     }
@@ -140,8 +160,10 @@ function OrgInviteAcceptPageInner() {
         >
           You are now a {state.role} of the organization. Redirecting…
           <div style={{ marginTop: 8 }}>
-            <Link href={`/organizations/${state.organizationId}`}>
-              Open organization
+            <Link
+              href={state.setupRedirect ?? `/organizations/${state.organizationId}`}
+            >
+              {state.setupRedirect ? "Continue to setup" : "Open organization"}
             </Link>
           </div>
         </div>

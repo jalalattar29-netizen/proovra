@@ -786,6 +786,13 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // phase-o-migration-safety-gate's APPROVED_CRITICAL_BY_MIGRATION.
       // Unrelated to Phase 32.7.2 SecurityEvent mapping.
       "20270908000000_drop_evidence_anchor_publication_columns",
+      // Phase 2 Blocker 1 — brand-new-owner enterprise provisioning.
+      // Additive, nullable-only (ADD COLUMN pending_enterprise_seats on
+      // organizations). No destructive change, no FK / enum change, no
+      // existing data touched. Unrelated to Phase 32.7.2 SecurityEvent
+      // mapping; allowlisted so the guardrail keeps detecting UNattributed
+      // migrations while permitting this deliberate provisioning work.
+      "20270909000000_org_pending_enterprise_seats",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

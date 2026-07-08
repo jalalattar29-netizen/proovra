@@ -9052,6 +9052,15 @@ model Organization {
   /// ownership; Team billing fields stay for transition compatibility
   /// until Stage 5 cutover.
   billingOwnerUserId String?                        @map("billing_owner_user_id") @db.Uuid
+  /// Phase 2 Blocker 1 — brand-new-owner enterprise provisioning.
+  /// When a platform admin provisions an enterprise customer whose
+  /// owner has no account yet, the resolved enterprise seat count is
+  /// persisted here (additive, nullable). It is consumed exactly once
+  /// when the ORG_OWNER invite is accepted: the accept handler mints
+  /// the ENTERPRISE workspace with these seats and clears this marker.
+  /// NULL means "no pending enterprise provisioning" (the default for
+  /// every existing and non-enterprise org).
+  pendingEnterpriseSeats Int?                       @map("pending_enterprise_seats")
   /// Verification state — mirrors the Team-level field so the
   /// future Stage 5 cutover has a place to land.
   verificationState  OrganizationVerificationState? @map("verification_state")
