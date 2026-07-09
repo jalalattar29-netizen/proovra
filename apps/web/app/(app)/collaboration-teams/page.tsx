@@ -11,6 +11,12 @@
  * The gate's `requiredActiveSpace: "PERSONAL_OR_ORG"` plus the
  * personal-first rescue mean a fresh personal user lands here without
  * any "Activate an organization" wall.
+ *
+ * Phase 7C — VISUAL redesign only. Wrapper migrated from the raw
+ * `.cc-page` chrome to the shared PageShell/PageHeader/PageSection +
+ * Card/Badge/Button/EmptyState primitives. No data-fetching, permission,
+ * billing-limit, or behaviour changes — every data-testid / data-* and
+ * the plan-capacity logic are preserved verbatim.
  */
 
 "use client";
@@ -20,7 +26,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-import { useToast } from "../../../components/ui";
+import {
+  PageShell,
+  PageHeader,
+  PageSection,
+  useToast,
+} from "../../../components/ui";
+import { Card } from "../../../components/ui/Card";
+import { Badge } from "../../../components/ui/Badge";
+import { Button } from "../../../components/ui/Button";
+import { EmptyState } from "../../../components/ui/EmptyState";
 import { ApiError } from "../../../lib/api";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { formatUserDate } from "../../../lib/date";
@@ -114,61 +129,64 @@ function TeamsOverview() {
     void refresh();
   }, []);
 
-  return (
-    <main className="cc-page" data-testid="collaboration-teams-overview">
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Teams</div>
-          <h1 className="cc-title">Teams in this workspace</h1>
-          <p className="cc-subtitle">
-            Teams coordinate people, assignments, and evidence work.
-            Personal users and organizations can both create Teams —
-            no Organization is required.
-          </p>
-        </div>
-        <div className="cc-meta" style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-          {billingSummary && !loading && !error ? (
-            <PlanLimitBadge
-              kind="TEAMS_USED"
-              current={billingSummary.teamsUsed}
-              max={billingSummary.teamsMax}
-              planLabel={billingSummary.plan}
-            />
-          ) : null}
-          {planForCapacity !== null && !loading && !error ? (
-            <PlanCapacityBadge
-              plan={planForCapacity}
-              ownedTeamCount={ownedTeamCount}
-              maxTeams={maxTeams}
-              atCapacity={atCapacity}
-            />
-          ) : null}
-          <button
-            type="button"
-            className="cc-quick-action"
-            data-testid="create-team-button"
-            onClick={() => setCreateOpen(true)}
-            disabled={atCapacity}
-            aria-disabled={atCapacity || undefined}
-            aria-label={
-              createDisabledReason
-                ? `Create Team — ${createDisabledReason}`
-                : "Create Team"
-            }
-            title={createDisabledReason ?? undefined}
-          >
-            Create Team
-          </button>
-          {atCapacity && planForCapacity !== null ? (
-            <UpgradeCTA
-              ownedTeamCount={ownedTeamCount}
-              maxTeams={maxTeams}
-              plan={planForCapacity}
-            />
-          ) : null}
-        </div>
-      </header>
+  const headerActions = (
+    <div
+      className="cc-meta"
+      style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
+    >
+      {billingSummary && !loading && !error ? (
+        <PlanLimitBadge
+          kind="TEAMS_USED"
+          current={billingSummary.teamsUsed}
+          max={billingSummary.teamsMax}
+          planLabel={billingSummary.plan}
+        />
+      ) : null}
+      {planForCapacity !== null && !loading && !error ? (
+        <PlanCapacityBadge
+          plan={planForCapacity}
+          ownedTeamCount={ownedTeamCount}
+          maxTeams={maxTeams}
+          atCapacity={atCapacity}
+        />
+      ) : null}
+      {atCapacity && planForCapacity !== null ? (
+        <UpgradeCTA
+          ownedTeamCount={ownedTeamCount}
+          maxTeams={maxTeams}
+          plan={planForCapacity}
+        />
+      ) : null}
+      <Button
+        variant="primary"
+        data-testid="create-team-button"
+        onClick={() => setCreateOpen(true)}
+        disabled={atCapacity}
+        aria-disabled={atCapacity || undefined}
+        aria-label={
+          createDisabledReason
+            ? `Create Team — ${createDisabledReason}`
+            : "Create Team"
+        }
+        title={createDisabledReason ?? undefined}
+      >
+        Create team
+      </Button>
+    </div>
+  );
 
+  return (
+    <PageShell
+      data-testid="collaboration-teams-overview"
+      header={
+        <PageHeader
+          eyebrow="Collaboration"
+          title="Collaboration Teams"
+          subtitle="Collaboration Teams coordinate people, assignments, and evidence work together. A Team here is a collaboration space — not a workspace or organization. Personal users and organizations can both create Teams; no Organization is required."
+          primaryAction={headerActions}
+        />
+      }
+    >
       {loading ? (
         <LoadingState />
       ) : error ? (
@@ -178,7 +196,7 @@ function TeamsOverview() {
           onRetry={() => void refresh()}
         />
       ) : teams.length === 0 ? (
-        <EmptyState
+        <TeamsEmptyState
           onCreate={() => setCreateOpen(true)}
           requiresUpgrade={planContextReady && maxTeams === 0}
           plan={planForCapacity}
@@ -198,7 +216,7 @@ function TeamsOverview() {
           }}
         />
       ) : null}
-    </main>
+    </PageShell>
   );
 }
 
@@ -212,20 +230,23 @@ function TeamsGrid({
   teams: ReadonlyArray<CollaborationTeamSummary>;
 }) {
   return (
-    <section
-      className="cc-section"
-      data-testid="teams-list"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-        gap: "1rem",
-        marginTop: "1.5rem",
-      }}
+    <PageSection
+      title="Your teams"
+      description="Collaboration Teams you belong to in this workspace."
     >
-      {teams.map((t) => (
-        <TeamCard key={t.id} team={t} />
-      ))}
-    </section>
+      <div
+        data-testid="teams-list"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+          gap: 16,
+        }}
+      >
+        {teams.map((t) => (
+          <TeamCard key={t.id} team={t} />
+        ))}
+      </div>
+    </PageSection>
   );
 }
 
@@ -244,80 +265,98 @@ function TeamCard({ team }: { team: CollaborationTeamSummary }) {
       href={`/collaboration-teams/${team.id}`}
       className="proovra-card-link"
       data-testid={`team-card-${team.id}`}
-      style={{
-        display: "block",
-        border: "1px solid rgba(79,112,107,0.14)",
-        borderRadius: 16,
-        padding: "1.25rem",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(243,245,242,0.92) 100%)",
-        textDecoration: "none",
-        color: "inherit",
-      }}
+      style={{ textDecoration: "none", color: "inherit", display: "block" }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-        <h3
+      <Card
+        variant="action"
+        style={{ height: "100%" }}
+        header={
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: 10,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 650,
+                lineHeight: 1.3,
+                color: "var(--ink-primary, #0f172a)",
+                minWidth: 0,
+              }}
+            >
+              {team.name}
+            </div>
+            <TeamTypeBadge type={team.teamType} />
+          </div>
+        }
+        footer={
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}
+            >
+              Last activity: {lastActivity}
+            </span>
+            {team.viewerRole ? <RoleBadge role={team.viewerRole} /> : null}
+          </div>
+        }
+      >
+        {team.description ? (
+          <p
+            style={{
+              color: "var(--ink-secondary, #475569)",
+              fontSize: 13.5,
+              lineHeight: 1.5,
+              margin: "0 0 12px",
+            }}
+          >
+            {team.description}
+          </p>
+        ) : null}
+        <div
           style={{
-            margin: 0,
-            fontSize: "1.05rem",
-            fontWeight: 600,
-            color: "#182b30",
+            display: "flex",
+            gap: 16,
+            fontSize: 13,
+            color: "var(--ink-secondary, #475569)",
+            flexWrap: "wrap",
           }}
         >
-          {team.name}
-        </h3>
-        <TeamTypeBadge type={team.teamType} />
-      </div>
-      {team.description ? (
-        <p style={{ color: "#5d6d71", fontSize: "0.9rem", margin: "0.5rem 0" }}>
-          {team.description}
-        </p>
-      ) : null}
-      <div
-        style={{
-          display: "flex",
-          gap: "1rem",
-          marginTop: "1rem",
-          fontSize: "0.85rem",
-          color: "#5d6d71",
-          flexWrap: "wrap",
-        }}
-      >
-        <span>
-          <strong style={{ color: "#182b30" }}>{team.memberCount}</strong>{" "}
-          members
-        </span>
-        {team.pendingInviteCount > 0 ? (
           <span>
-            <strong style={{ color: "#9b826b" }}>
-              {team.pendingInviteCount}
+            <strong style={{ color: "var(--ink-primary, #0f172a)" }}>
+              {team.memberCount}
             </strong>{" "}
-            pending invites
+            members
           </span>
-        ) : null}
-        {team.openAssignmentCount > 0 ? (
-          <span>
-            <strong style={{ color: "#3e6063" }}>
-              {team.openAssignmentCount}
-            </strong>{" "}
-            open
-          </span>
-        ) : null}
-      </div>
-      <div
-        style={{
-          marginTop: "0.75rem",
-          fontSize: "0.75rem",
-          color: "#9b826b",
-        }}
-      >
-        Last activity: {lastActivity}
-      </div>
-      {team.viewerRole ? (
-        <div style={{ marginTop: "0.5rem" }}>
-          <RoleBadge role={team.viewerRole} />
+          {team.pendingInviteCount > 0 ? (
+            <span>
+              <strong style={{ color: "var(--status-pending-fg, #78350f)" }}>
+                {team.pendingInviteCount}
+              </strong>{" "}
+              pending invites
+            </span>
+          ) : null}
+          {team.openAssignmentCount > 0 ? (
+            <span>
+              <strong style={{ color: "var(--status-info-fg, #1e40af)" }}>
+                {team.openAssignmentCount}
+              </strong>{" "}
+              open
+            </span>
+          ) : null}
         </div>
-      ) : null}
+      </Card>
     </Link>
   );
 }
@@ -331,39 +370,17 @@ function TeamTypeBadge({ type }: { type: CollaborationTeamType }) {
     COMPLIANCE: "Compliance",
   };
   return (
-    <span
-      style={{
-        background: "rgba(62,96,99,0.10)",
-        color: "#3e6063",
-        padding: "2px 10px",
-        borderRadius: 999,
-        fontSize: "0.72rem",
-        fontWeight: 600,
-        letterSpacing: "0.04em",
-        textTransform: "uppercase",
-      }}
-    >
+    <Badge tone="info" subtle>
       {labels[type]}
-    </span>
+    </Badge>
   );
 }
 
 function RoleBadge({ role }: { role: string }) {
   return (
-    <span
-      style={{
-        background: "rgba(155,130,107,0.14)",
-        color: "#9b826b",
-        padding: "2px 10px",
-        borderRadius: 999,
-        fontSize: "0.7rem",
-        fontWeight: 600,
-        letterSpacing: "0.04em",
-        textTransform: "uppercase",
-      }}
-    >
+    <Badge tone="governance" subtle>
       {role}
-    </span>
+    </Badge>
   );
 }
 
@@ -390,40 +407,22 @@ function PlanCapacityBadge({
   maxTeams: number;
   atCapacity: boolean;
 }) {
-  const tone = atCapacity
-    ? {
-        background: "rgba(186,80,80,0.10)",
-        color: "#7c2d2d",
-        border: "1px solid rgba(186,80,80,0.20)",
-      }
-    : {
-        background: "rgba(62,96,99,0.10)",
-        color: "#3e6063",
-        border: "1px solid rgba(79,112,107,0.18)",
-      };
   return (
-    <span
+    <Badge
+      tone={atCapacity ? "risk" : "verified"}
+      dot
       data-testid="collaboration-teams-plan-capacity-badge"
       data-at-capacity={atCapacity ? "true" : "false"}
       aria-label={`${ownedTeamCount} of ${maxTeams} Teams used on ${plan} plan`}
       title={`Plan ${plan}: ${ownedTeamCount} of ${maxTeams} Teams used`}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "4px 10px",
-        borderRadius: 999,
-        fontSize: "0.78rem",
-        fontWeight: 600,
-        letterSpacing: "0.02em",
-        ...tone,
-      }}
     >
       <strong style={{ fontWeight: 700 }}>{ownedTeamCount}</strong>
-      <span aria-hidden="true">of</span>
+      <span aria-hidden="true" style={{ margin: "0 3px" }}>
+        of
+      </span>
       <strong style={{ fontWeight: 700 }}>{maxTeams}</strong>
-      <span style={{ opacity: 0.85 }}>teams used</span>
-    </span>
+      <span style={{ opacity: 0.85, marginLeft: 4 }}>teams used</span>
+    </Badge>
   );
 }
 
@@ -441,21 +440,11 @@ function UpgradeCTA({
       href="/billing"
       data-testid="collaboration-teams-upgrade-cta"
       aria-label={`Upgrade — your ${plan} plan allows up to ${maxTeams} Teams (currently using ${ownedTeamCount})`}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "6px 12px",
-        borderRadius: 10,
-        background: "linear-gradient(180deg, #9b826b 0%, #7c6452 100%)",
-        color: "#ffffff",
-        fontSize: "0.85rem",
-        fontWeight: 600,
-        textDecoration: "none",
-        boxShadow: "0 4px 12px rgba(155,130,107,0.25)",
-      }}
+      style={{ textDecoration: "none" }}
     >
-      Upgrade plan
+      <Button variant="enterprise" size="sm">
+        Upgrade plan
+      </Button>
     </Link>
   );
 }
@@ -464,7 +453,7 @@ function UpgradeCTA({
 // Empty / loading / error
 // =============================================================================
 
-function EmptyState({
+function TeamsEmptyState({
   onCreate,
   requiresUpgrade = false,
   plan = null,
@@ -489,144 +478,111 @@ function EmptyState({
       createDisabledReason ??
       `Your ${planLabel} plan doesn't include Teams. Upgrade to create one.`;
     return (
-      <section
-        className="cc-section"
+      <Card
+        variant="empty"
         data-testid="teams-empty-state"
         data-requires-upgrade="true"
-        style={{
-          marginTop: "2rem",
-          border: "1px solid rgba(155,130,107,0.30)",
-          borderRadius: 18,
-          padding: "2.5rem",
-          textAlign: "center",
-          background:
-            "linear-gradient(180deg, rgba(255,250,243,0.85) 0%, rgba(243,235,222,0.75) 100%)",
-        }}
       >
-        <h2 style={{ fontSize: "1.15rem", color: "#182b30", margin: 0 }}>
-          Teams are part of a paid plan
-        </h2>
-        <p
-          style={{
-            color: "#5d6d71",
-            marginTop: "0.5rem",
-            maxWidth: 560,
-            marginLeft: "auto",
-            marginRight: "auto",
-          }}
-        >
-          {reason} Teams give you shared assignments, member invites, and
-          collaborative review on cases and evidence.
-        </p>
-        <div
-          style={{
-            display: "inline-flex",
-            gap: "0.5rem",
-            marginTop: "1.25rem",
-            flexWrap: "wrap",
-            justifyContent: "center",
-          }}
-        >
-          <Link
-            href="/billing"
-            data-testid="teams-empty-upgrade-cta"
-            aria-label={`Upgrade plan — ${reason}`}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "10px 16px",
-              borderRadius: 10,
-              background: "linear-gradient(180deg, #9b826b 0%, #7c6452 100%)",
-              color: "#ffffff",
-              fontSize: "0.95rem",
-              fontWeight: 600,
-              textDecoration: "none",
-              boxShadow: "0 4px 12px rgba(155,130,107,0.25)",
-            }}
-          >
-            Upgrade plan
-          </Link>
-          <button
-            type="button"
-            className="cc-quick-action"
-            onClick={onCreate}
-            disabled
-            aria-disabled="true"
-            aria-label={`Create Team — ${reason}`}
-            title={reason}
-            style={{ opacity: 0.6, cursor: "not-allowed" }}
-          >
-            Create Team
-          </button>
-        </div>
-      </section>
+        <EmptyState
+          icon={<TeamsGlyph />}
+          title="Collaboration Teams are part of a paid plan"
+          purpose={`${reason} Teams give you shared assignments, member invites, and collaborative review on cases and evidence.`}
+          action={
+            <div
+              style={{
+                display: "inline-flex",
+                gap: 10,
+                flexWrap: "wrap",
+                justifyContent: "center",
+              }}
+            >
+              <Link
+                href="/billing"
+                data-testid="teams-empty-upgrade-cta"
+                aria-label={`Upgrade plan — ${reason}`}
+                style={{ textDecoration: "none" }}
+              >
+                <Button variant="enterprise">Upgrade plan</Button>
+              </Link>
+              <Button
+                variant="secondary"
+                onClick={onCreate}
+                disabled
+                aria-disabled="true"
+                aria-label={`Create Team — ${reason}`}
+                title={reason}
+              >
+                Create team
+              </Button>
+            </div>
+          }
+        />
+      </Card>
     );
   }
 
   return (
-    <section
-      className="cc-section"
-      data-testid="teams-empty-state"
-      style={{
-        marginTop: "2rem",
-        border: "1px dashed rgba(79,112,107,0.20)",
-        borderRadius: 18,
-        padding: "2.5rem",
-        textAlign: "center",
-        background: "rgba(243,245,242,0.6)",
-      }}
+    <Card variant="empty" data-testid="teams-empty-state">
+      <EmptyState
+        icon={<TeamsGlyph />}
+        title="No collaboration Teams yet"
+        purpose="Create a Team to collaborate on cases, evidence, reviews, and assignments. Teams work in both personal and organization workspaces — no Organization is required."
+        action={
+          <Button variant="primary" onClick={onCreate}>
+            Create team
+          </Button>
+        }
+      />
+    </Card>
+  );
+}
+
+function TeamsGlyph() {
+  return (
+    <svg
+      width="26"
+      height="26"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
     >
-      <h2 style={{ fontSize: "1.15rem", color: "#182b30", margin: 0 }}>
-        No Teams yet
-      </h2>
-      <p
-        style={{
-          color: "#5d6d71",
-          marginTop: "0.5rem",
-          maxWidth: 540,
-          marginLeft: "auto",
-          marginRight: "auto",
-        }}
-      >
-        Create a Team to collaborate on cases, evidence, reviews, and
-        assignments. Teams work in both personal and organization
-        workspaces — no Organization is required.
-      </p>
-      <button
-        type="button"
-        className="cc-quick-action"
-        onClick={onCreate}
-        style={{ marginTop: "1.25rem" }}
-      >
-        Create Team
-      </button>
-    </section>
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
   );
 }
 
 function LoadingState() {
   return (
-    <section
-      className="cc-section"
+    <div
       data-testid="teams-loading"
-      style={{ marginTop: "1.5rem" }}
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+        gap: 16,
+      }}
     >
       {[0, 1, 2].map((i) => (
         <div
           key={i}
           style={{
-            height: 96,
-            borderRadius: 16,
+            height: 132,
+            borderRadius: "var(--radius-card, 14px)",
             background:
-              "linear-gradient(90deg, rgba(243,245,242,0.6) 0%, rgba(229,234,231,0.9) 50%, rgba(243,245,242,0.6) 100%)",
+              "linear-gradient(90deg, rgba(15,23,42,0.03) 0%, rgba(15,23,42,0.06) 50%, rgba(15,23,42,0.03) 100%)",
             backgroundSize: "200% 100%",
             animation: "shimmer 1.5s linear infinite",
-            marginBottom: "0.75rem",
+            border: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
           }}
         />
       ))}
-    </section>
+    </div>
   );
 }
 
@@ -640,42 +596,32 @@ function ErrorState({
   onRetry: () => void;
 }) {
   return (
-    <section
-      className="cc-section"
+    <Card
+      variant="status"
+      tone="risk"
       data-testid="teams-error"
-      style={{
-        marginTop: "1.5rem",
-        border: "1px solid rgba(186,80,80,0.20)",
-        borderRadius: 16,
-        padding: "1.5rem",
-        background: "rgba(255,242,242,0.6)",
-      }}
+      title="Couldn't load Teams"
     >
-      <h2 style={{ margin: 0, color: "#7c2d2d", fontSize: "1.05rem" }}>
-        Couldn't load Teams
-      </h2>
-      <p style={{ color: "#5d6d71", marginTop: "0.5rem" }}>{message}</p>
+      <p style={{ color: "var(--ink-secondary, #475569)", margin: "0 0 8px" }}>
+        {message}
+      </p>
       {requestId ? (
         <p
           style={{
-            color: "#9b826b",
-            fontSize: "0.8rem",
+            color: "var(--ink-muted, #94a3b8)",
+            fontSize: 12,
             fontFamily: "monospace",
+            margin: "0 0 12px",
           }}
           data-testid="error-request-id"
         >
           Request id: {requestId}
         </p>
       ) : null}
-      <button
-        type="button"
-        className="cases-filter-chip"
-        onClick={onRetry}
-        style={{ marginTop: "0.75rem" }}
-      >
+      <Button variant="secondary" size="sm" onClick={onRetry}>
         Try again
-      </button>
-    </section>
+      </Button>
+    </Card>
   );
 }
 
@@ -738,7 +684,7 @@ function CreateTeamModal({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(24,43,48,0.45)",
+        background: "rgba(15,23,42,0.45)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -752,12 +698,12 @@ function CreateTeamModal({
       <form
         onSubmit={onSubmit}
         style={{
-          background: "#ffffff",
-          borderRadius: 20,
+          background: "var(--surface-card, #ffffff)",
+          borderRadius: "var(--radius-card, 14px)",
           padding: "1.5rem",
           maxWidth: 560,
           width: "100%",
-          boxShadow: "0 24px 64px rgba(24,43,48,0.30)",
+          boxShadow: "0 24px 64px rgba(15,23,42,0.30)",
           display: "flex",
           flexDirection: "column",
           gap: "1rem",
@@ -766,12 +712,22 @@ function CreateTeamModal({
         <header>
           <h2
             id="create-team-title"
-            style={{ margin: 0, fontSize: "1.2rem", color: "#182b30" }}
+            style={{
+              margin: 0,
+              fontSize: "1.2rem",
+              color: "var(--ink-primary, #0f172a)",
+            }}
           >
-            Create a Team
+            Create a collaboration Team
           </h2>
-          <p style={{ color: "#5d6d71", margin: "0.25rem 0 0" }}>
+          <p
+            style={{
+              color: "var(--ink-secondary, #475569)",
+              margin: "0.25rem 0 0",
+            }}
+          >
             Teams help you coordinate on evidence, cases, and review work.
+            This is a collaboration space, not a workspace or organization.
           </p>
         </header>
 
@@ -821,7 +777,7 @@ function CreateTeamModal({
           </select>
           <span
             style={{
-              color: "#9b826b",
+              color: "var(--ink-muted, #94a3b8)",
               fontSize: "0.8rem",
               marginTop: 4,
               display: "block",
@@ -836,11 +792,11 @@ function CreateTeamModal({
           <div
             data-testid="create-team-error"
             style={{
-              background: "rgba(255,242,242,0.85)",
-              border: "1px solid rgba(186,80,80,0.20)",
+              background: "var(--status-risk-bg, #fef2f2)",
+              border: "1px solid var(--status-risk-border, #fecaca)",
               borderRadius: 10,
               padding: "0.75rem",
-              color: "#7c2d2d",
+              color: "var(--status-risk-fg, #991b1b)",
               fontSize: "0.9rem",
             }}
           >
@@ -849,7 +805,7 @@ function CreateTeamModal({
               <div
                 style={{
                   marginTop: 4,
-                  color: "#9b826b",
+                  color: "var(--ink-muted, #94a3b8)",
                   fontSize: "0.75rem",
                   fontFamily: "monospace",
                 }}
@@ -868,22 +824,22 @@ function CreateTeamModal({
             marginTop: "0.5rem",
           }}
         >
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={onClose}
-            className="cases-filter-chip"
             disabled={submitting}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             type="submit"
-            className="cc-quick-action"
+            loading={submitting}
             disabled={!canSubmit}
             data-testid="create-team-submit"
           >
-            {submitting ? "Creating…" : "Create Team"}
-          </button>
+            {submitting ? "Creating…" : "Create team"}
+          </Button>
         </footer>
       </form>
     </div>
@@ -908,7 +864,7 @@ function teamTypeLabel(t: CollaborationTeamType): string {
 const labelStyle: React.CSSProperties = {
   display: "block",
   fontWeight: 600,
-  color: "#182b30",
+  color: "var(--ink-primary, #0f172a)",
   fontSize: "0.92rem",
   marginBottom: 6,
 };
@@ -917,10 +873,10 @@ const inputStyle: React.CSSProperties = {
   display: "block",
   width: "100%",
   padding: "10px 12px",
-  border: "1px solid rgba(79,112,107,0.20)",
+  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
   borderRadius: 10,
-  background: "#fff",
-  color: "#182b30",
+  background: "var(--surface-card, #fff)",
+  color: "var(--ink-primary, #0f172a)",
   fontSize: "0.95rem",
   outline: "none",
 };

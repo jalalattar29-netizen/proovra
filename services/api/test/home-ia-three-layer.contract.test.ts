@@ -1,22 +1,22 @@
 /**
- * Phase HOME-IA — 3-layer Home information architecture lock.
+ * Phase 7C — Home information-architecture lock (supersedes the old
+ * 3-layer HomeLayerHeader IA).
  *
- * The Home dashboard now organises its cards into three altitude
- * layers instead of one flat scroll wall:
+ * Home is now a clean Evidence Operations LANDING page, not a flat
+ * scroll-wall of diagnostic cards. The default (above-the-fold) region
+ * leads with the operational overview + "what needs you now" + recent
+ * work; the deep diagnostic cards are RELEGATED into a collapsed
+ * `<details data-home-diagnostics>` disclosure ("one click away, off the
+ * default view"). This test pins that contract:
  *
- *   Layer 1 — Overview        (Executive Summary + KPI row)
- *   Layer 2 — Your work       (Op Queue, Matters, Intake, Reports,
- *                              Priorities, Recent Evidence)
- *   Layer 3 — Verification &  (Verification summary, Public links,
- *             details         Workspace health, Records by type,
- *                             Activity chart, Recent activity,
- *                             Storage)
+ *   • the overview leads (ExecutiveSummary + KPI + OperationalQueue +
+ *     RecentEvidence appear in the default region);
+ *   • the `data-home-diagnostics` disclosure exists and OWNS the deep
+ *     diagnostic cards;
+ *   • those diagnostic cards do NOT render as default content above it.
  *
- * Each layer is preceded by a `HomeLayerHeader` (chip + heading +
- * subtitle) that carries `data-home-layer={1|2|3}` — this is the
- * stable contract this test pins. Cards are then placed *under*
- * their owning layer in source order, so the user reads top→down
- * by altitude.
+ * If a future pass dumps the diagnostics back into the default view (the
+ * exact regression Phase 7C fixed), this test fails.
  */
 
 import { readFileSync } from "node:fs";
@@ -42,90 +42,45 @@ function indexOfOrThrow(needle: string): number {
   return idx;
 }
 
-describe("Phase HOME-IA — three layered HomeLayerHeader chips", () => {
-  it("renders Layer 1 with the 'Overview' title", () => {
-    expect(DASH).toMatch(
-      /<HomeLayerHeader\s+layer=\{1\}\s+title="Overview"/,
-    );
+// The disclosure marker is the boundary between the clean landing region
+// (before) and the relegated diagnostics region (after).
+const DIAGNOSTICS_MARKER = "data-home-diagnostics";
+
+describe("Phase 7C Home — diagnostics are relegated behind a disclosure", () => {
+  it("renders a `data-home-diagnostics` disclosure (deep diagnostics are not default content)", () => {
+    expect(DASH).toMatch(/data-home-diagnostics/);
   });
 
-  it("renders Layer 2 with the 'Your work' title", () => {
-    expect(DASH).toMatch(
-      /<HomeLayerHeader\s+layer=\{2\}\s+title="Your work"/,
-    );
+  it("the overview LEADS: ExecutiveSummary + KPI + OperationalQueue + RecentEvidence render before the diagnostics disclosure", () => {
+    const boundary = indexOfOrThrow(DIAGNOSTICS_MARKER);
+    const landing = DASH.slice(0, boundary);
+    expect(landing).toMatch(/<ExecutiveSummaryBand/);
+    expect(landing).toMatch(/<KpiRow/);
+    expect(landing).toMatch(/<OperationalQueue/);
+    expect(landing).toMatch(/<RecentEvidenceCard/);
   });
 
-  it("renders Layer 3 with the 'Verification & details' title", () => {
-    expect(DASH).toMatch(
-      /<HomeLayerHeader\s+layer=\{3\}\s+title="Verification & details"/,
-    );
+  it("the deep diagnostic cards do NOT appear in the default (pre-disclosure) region", () => {
+    const boundary = indexOfOrThrow(DIAGNOSTICS_MARKER);
+    const landing = DASH.slice(0, boundary);
+    // These are the dense signals Phase 7C moved OFF the default view.
+    expect(landing).not.toMatch(/<TrustStateCard/);
+    expect(landing).not.toMatch(/<EvidenceTypeDonutCard/);
+    expect(landing).not.toMatch(/<EvidenceActivityChart/);
+    expect(landing).not.toMatch(/<StorageUsageCard/);
+    expect(landing).not.toMatch(/<WorkspaceHealthCard/);
+    expect(landing).not.toMatch(/<ActivityFeed/);
   });
 
-  it("the HomeLayerHeader component emits the `data-home-layer` contract attribute", () => {
-    expect(DASH).toMatch(/data-home-layer=\{layer\}/);
-  });
-
-  it("subtitles describe what each layer answers (anti-vague-heading guard)", () => {
-    expect(DASH).toMatch(
-      /subtitle="What you have, what is ready, what needs you right now\."/,
-    );
-    expect(DASH).toMatch(
-      /subtitle="Open actions, matters, intake, and report production\."/,
-    );
-    expect(DASH).toMatch(
-      /subtitle="Trust posture, distribution, recent activity, and storage\."/,
-    );
-  });
-});
-
-describe("Phase HOME-IA — cards live under their owning layer (source order)", () => {
-  // The dashboard source is the single source of truth for read
-  // order. We pin source-order, not visual order: the rendered
-  // grid follows the source. If a card moves layers in source, a
-  // future copy/IA pass will fail this test and the author will
-  // either confirm the move or move it back.
-
-  it("Layer 1 contains Executive Summary + KPI row, and ONLY those (no operational cards above L2)", () => {
-    const l1 = indexOfOrThrow('title="Overview"');
-    const l2 = indexOfOrThrow('title="Your work"');
-    const l1Slice = DASH.slice(l1, l2);
-    expect(l1Slice).toMatch(/<ExecutiveSummaryBand/);
-    expect(l1Slice).toMatch(/<KpiRow/);
-    // L1 must NOT carry any of the Layer-2/3 cards.
-    expect(l1Slice).not.toMatch(/<OperationalQueue/);
-    expect(l1Slice).not.toMatch(/<TrustStateCard/);
-    expect(l1Slice).not.toMatch(/<EvidenceTypeDonutCard/);
-  });
-
-  it("Layer 2 contains Op Queue, Active Matters, Intake, Report Production, Recent Evidence, Priorities", () => {
-    const l2 = indexOfOrThrow('title="Your work"');
-    const l3 = indexOfOrThrow('title="Verification & details"');
-    const slice = DASH.slice(l2, l3);
-    expect(slice).toMatch(/<OperationalQueue/);
-    expect(slice).toMatch(/<ActiveMatters/);
-    expect(slice).toMatch(/<IntakePipelineCard/);
-    expect(slice).toMatch(/<ReportProductionCard/);
-    expect(slice).toMatch(/<RecentEvidenceCard/);
-    expect(slice).toMatch(/<WorkspacePrioritiesCard/);
-    // L2 must NOT carry pure-detail cards.
-    expect(slice).not.toMatch(/<TrustStateCard/);
-    expect(slice).not.toMatch(/<EvidenceTypeDonutCard/);
-    expect(slice).not.toMatch(/<StorageUsageCard/);
-    expect(slice).not.toMatch(/<EvidenceActivityChart/);
-  });
-
-  it("Layer 3 contains Verification summary, Public verification links, Workspace health, Records by type, activity chart, recent activity, storage", () => {
-    const l3 = indexOfOrThrow('title="Verification & details"');
-    const slice = DASH.slice(l3);
-    expect(slice).toMatch(/<TrustStateCard/);
-    expect(slice).toMatch(/<VerificationHealthCard/);
-    expect(slice).toMatch(/<WorkspaceHealthCard/);
-    expect(slice).toMatch(/<EvidenceTypeDonutCard/);
-    expect(slice).toMatch(/<EvidenceActivityChart/);
-    expect(slice).toMatch(/<ActivityFeed/);
-    expect(slice).toMatch(/<StorageUsageCard/);
-    // The Op Queue must NOT sneak into L3 even if a later refactor
-    // tries to consolidate the dashboard.
-    expect(slice).not.toMatch(/<OperationalQueue/);
+  it("the diagnostics disclosure OWNS the deep diagnostic cards (relegated, not deleted)", () => {
+    const boundary = indexOfOrThrow(DIAGNOSTICS_MARKER);
+    const diagnostics = DASH.slice(boundary);
+    expect(diagnostics).toMatch(/<TrustStateCard/);
+    expect(diagnostics).toMatch(/<VerificationHealthCard/);
+    expect(diagnostics).toMatch(/<WorkspaceHealthCard/);
+    expect(diagnostics).toMatch(/<EvidenceTypeDonutCard/);
+    expect(diagnostics).toMatch(/<EvidenceActivityChart/);
+    expect(diagnostics).toMatch(/<ActivityFeed/);
+    expect(diagnostics).toMatch(/<StorageUsageCard/);
   });
 });

@@ -25,6 +25,16 @@ import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
+import {
+  PageShell,
+  PageHeader,
+  PageSection,
+  FilterBar,
+} from "../ui";
+import { Card } from "../ui/Card";
+import { Button } from "../ui/Button";
+import { Badge, type BadgeTone } from "../ui/Badge";
+import { EmptyState } from "../ui/EmptyState";
 import { apiFetch } from "../../lib/api";
 import {
   resolvePersonaEmptyState,
@@ -274,46 +284,65 @@ export function ReportsIndex() {
   const { envelope } = state;
   const { sections } = envelope;
 
-  return (
-    <main className="cc-page" data-reports-index>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Deliverables</div>
-          <h1 className="cc-title">Reports &amp; Artifacts</h1>
-          <p className="cc-subtitle">
-            Generated report snapshots and verification packages. These are
-            workspace deliverables — they record integrity at the time of
-            generation and do NOT assert legal admissibility, authenticity, or
-            "court-ready" status.
-          </p>
-        </div>
-        <div className="cc-meta">
-          {/* Phase 14 — deep link from the reports index into the
-              canonical /search surface, pre-filtered to REPORT
-              documents so operators can search across generated
-              report snapshots. */}
-          <Link
-            href="/search?documentType=REPORT"
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#1e40af",
-              textDecoration: "none",
-              background: "#eff6ff",
-              border: "1px solid #bfdbfe",
-              borderRadius: 999,
-              padding: "4px 12px",
-              marginRight: 12,
-            }}
-          >
-            Search reports
-          </Link>
-          <span title={envelope.generatedAt}>
-            Refreshed {formatRelativeTime(envelope.generatedAt)}
-          </span>
-        </div>
-      </header>
+  const lifecycleFilters: Array<[LifecycleFilter, string]> = [
+    ["all", "All"],
+    ["report_ready", "Report ready"],
+    ["report_pending", "Report pending"],
+    ["package_ready", "Package ready"],
+    ["package_pending", "Package pending"],
+    ["package_blocked", "Package blocked"],
+  ];
 
+  return (
+    <PageShell
+      data-reports-index
+      header={
+        <PageHeader
+          eyebrow="Deliverables"
+          title="Reports & Artifacts"
+          subtitle={
+            <>
+              Generated report snapshots and verification packages. These are
+              workspace deliverables — they record integrity at the time of
+              generation and do NOT assert legal admissibility, authenticity, or
+              "court-ready" status.
+            </>
+          }
+          contextStrip={
+            <span
+              title={envelope.generatedAt}
+              style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)" }}
+            >
+              Refreshed {formatRelativeTime(envelope.generatedAt)}
+            </span>
+          }
+          primaryAction={
+            /* Phase 14 — deep link into /search pre-filtered to REPORT
+               documents so operators can search generated report
+               snapshots. Styled as a secondary button via tokens. */
+            <Link
+              href="/search?documentType=REPORT"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                minHeight: 34,
+                padding: "0 12px",
+                fontSize: 13,
+                fontWeight: 650,
+                borderRadius: 10,
+                textDecoration: "none",
+                background: "var(--surface-card, #ffffff)",
+                color: "var(--ink-primary, #0f172a)",
+                border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+                boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
+              }}
+            >
+              Search reports
+            </Link>
+          }
+        />
+      }
+    >
       {/* Phase 38.17 — workflow-aware contextual help, collapsed by
           default so the reports/artifacts queue stays primary. */}
       <ContextualHelp
@@ -329,11 +358,15 @@ export function ReportsIndex() {
 
       {/* Operational summary */}
       {sections.summary.status === "ok" && sections.summary.data ? (
-        <section className="cc-section" data-reports-summary>
-          <header className="cc-section-header">
-            <h2 className="cc-section-title">Operational Summary</h2>
-          </header>
-          <div className="cc-summary-strip">
+        <PageSection title="Operational summary" data-reports-summary>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fill, minmax(160px, 1fr))",
+              gap: 12,
+            }}
+          >
             <SummaryTile
               keyId="reports_ready"
               label="Reports generated"
@@ -366,84 +399,104 @@ export function ReportsIndex() {
               value={sections.summary.data.totalEvidenceWithArtifacts}
             />
           </div>
-        </section>
+        </PageSection>
       ) : (
-        <section className="cc-section">
-          <header className="cc-section-header">
-            <h2 className="cc-section-title">Operational Summary</h2>
-          </header>
-          <div
-            className="cc-section-note"
-            data-cc-section-status={sections.summary.status}
-          >
-            Summary is temporarily unavailable. The artifact list below remains usable.
-          </div>
-        </section>
+        <PageSection title="Operational summary">
+          <Card variant="status" tone="neutral">
+            <span
+              className="cc-section-note"
+              data-cc-section-status={sections.summary.status}
+              style={{ color: "var(--ink-secondary, #475569)", fontSize: 13.5 }}
+            >
+              Summary is temporarily unavailable. The artifact list below remains
+              usable.
+            </span>
+          </Card>
+        </PageSection>
       )}
 
       {/* Filters */}
-      <section className="cc-section" data-reports-filters>
-        <header className="cc-section-header">
-          <h2 className="cc-section-title">Filters</h2>
-        </header>
-        <div className="cases-filter-row">
-          <input
-            type="search"
-            className="cases-filter-search"
+      <PageSection title="Filters" data-reports-filters>
+        <FilterBar>
+          <FilterBar.Search
+            label="Search by evidence title"
             placeholder="Search by evidence title"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             data-reports-search-input
           />
           <div
             className="cases-filter-chips"
             role="tablist"
             aria-label="Artifact lifecycle filters"
+            style={{ display: "flex", flexWrap: "wrap", gap: 8 }}
           >
-            {(
-              [
-                ["all", "All"],
-                ["report_ready", "Report ready"],
-                ["report_pending", "Report pending"],
-                ["package_ready", "Package ready"],
-                ["package_pending", "Package pending"],
-                ["package_blocked", "Package blocked"],
-              ] as Array<[LifecycleFilter, string]>
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={filter === key}
-                onClick={() => setFilter(key)}
-                className={`cases-filter-chip ${filter === key ? "is-active" : ""}`}
-                data-reports-filter={key}
-              >
-                {label}
-              </button>
-            ))}
+            {lifecycleFilters.map(([key, label]) => {
+              const active = filter === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setFilter(key)}
+                  data-reports-filter={key}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: 999,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    background: active
+                      ? "var(--status-info-bg, #eff6ff)"
+                      : "var(--surface-card, #ffffff)",
+                    color: active
+                      ? "var(--status-info-fg, #1e40af)"
+                      : "var(--ink-secondary, #475569)",
+                    border: active
+                      ? "1px solid var(--status-info-border, #bfdbfe)"
+                      : "1px solid var(--border-default, rgba(15,23,42,0.09))",
+                    transition: "background 160ms ease, border-color 160ms ease",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
-        </div>
-      </section>
+        </FilterBar>
+      </PageSection>
 
       {/* Artifact list */}
-      <section className="cc-section" data-reports-list>
-        <header className="cc-section-header">
-          <h2 className="cc-section-title">
-            Artifacts · {sections.artifacts.items.length}
-          </h2>
-        </header>
+      <PageSection
+        title={`Artifacts · ${sections.artifacts.items.length}`}
+        data-reports-list
+      >
         {sections.artifacts.status !== "ok" ? (
-          <div
-            className="cc-section-note"
-            data-cc-section-status={sections.artifacts.status}
-          >
-            Artifact list is temporarily unavailable. Retry shortly.
-          </div>
+          <Card variant="status" tone="pending">
+            <span
+              className="cc-section-note"
+              data-cc-section-status={sections.artifacts.status}
+              style={{ color: "var(--ink-secondary, #475569)", fontSize: 13.5 }}
+            >
+              Artifact list is temporarily unavailable. Retry shortly.
+            </span>
+          </Card>
         ) : sections.artifacts.items.length === 0 ? (
           <ReportsEmptyState filter={filter} />
         ) : (
-          <ul className="cases-list" data-reports-list-items>
+          <ul
+            className="cases-list"
+            data-reports-list-items
+            style={{
+              listStyle: "none",
+              margin: 0,
+              padding: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
             {sections.artifacts.items.map((row) => (
               <ArtifactRowView
                 key={row.evidenceId}
@@ -454,22 +507,33 @@ export function ReportsIndex() {
           </ul>
         )}
         {sections.artifacts.nextCursor ? (
-          <div className="cc-section-foot">
+          <div
+            className="cc-section-foot"
+            style={{
+              marginTop: 12,
+              fontSize: 12.5,
+              color: "var(--ink-muted, #94a3b8)",
+            }}
+          >
             More artifacts available — refine filters or open the evidence
             library for a full paginated view.
           </div>
         ) : null}
-      </section>
+      </PageSection>
 
-      <section className="cc-section" data-reports-footnote>
-        <div className="cc-section-note" data-cc-section-status="not_applicable">
+      <PageSection data-reports-footnote>
+        <div
+          className="cc-section-note"
+          data-cc-section-status="not_applicable"
+          style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)", lineHeight: 1.6 }}
+        >
           Browsing this page never triggers report or package generation
           and never marks any artifact as viewed. Signed download URLs are
           only minted on explicit per-row action (the Download buttons
           above), the same gated path used by the evidence-detail page.
         </div>
-      </section>
-    </main>
+      </PageSection>
+    </PageShell>
   );
 }
 
@@ -485,14 +549,39 @@ function SummaryTile({
   severe?: boolean;
 }) {
   return (
-    <div
+    <Card
+      variant={severe ? "status" : "summary"}
+      tone={severe ? "risk" : "neutral"}
+      padding="comfortable"
       className="cc-summary-card"
       data-reports-summary-key={keyId}
       data-cc-tile-severe={severe ? "true" : "false"}
     >
-      <span className="cc-summary-card-value">{value}</span>
-      <span className="cc-summary-card-label">{label}</span>
-    </div>
+      <span
+        className="cc-summary-card-value"
+        style={{
+          fontSize: 26,
+          fontWeight: 700,
+          lineHeight: 1.1,
+          color: severe
+            ? "var(--status-risk-fg, #991b1b)"
+            : "var(--ink-primary, #0f172a)",
+        }}
+      >
+        {value}
+      </span>
+      <span
+        className="cc-summary-card-label"
+        style={{
+          display: "block",
+          marginTop: 6,
+          fontSize: 12.5,
+          color: "var(--ink-secondary, #475569)",
+        }}
+      >
+        {label}
+      </span>
+    </Card>
   );
 }
 
@@ -504,54 +593,104 @@ function ArtifactRowView({
   teamId: string | null;
 }) {
   return (
-    <li className="cases-row" data-reports-row-id={row.evidenceId}>
-      <Link href={`/evidence/${row.evidenceId}`} className="cases-row-link">
-        <div className="cases-row-main">
-          <span className="cases-row-title">{row.title}</span>
-          <span className="cases-row-scope">{humanize(row.type)}</span>
-        </div>
-        <div className="cases-row-meta">
-          <span
-            className="cases-row-chip"
-            data-reports-report-state={row.report.state}
+    <li
+      className="cases-row"
+      data-reports-row-id={row.evidenceId}
+      style={{ listStyle: "none" }}
+    >
+      <Card padding="comfortable">
+        <Link
+          href={`/evidence/${row.evidenceId}`}
+          className="cases-row-link"
+          style={{ textDecoration: "none", color: "inherit", display: "block" }}
+        >
+          <div
+            className="cases-row-main"
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
           >
-            Report: {reportLabel(row.report.state)}
-            {row.report.version ? ` · v${row.report.version}` : ""}
-          </span>
-          <span
-            className="cases-row-chip"
-            data-reports-package-state={row.package.state}
-          >
-            Package: {packageLabel(row.package.state)}
-            {row.package.version ? ` · v${row.package.version}` : ""}
-          </span>
-          {row.verificationStatus ? (
-            <span data-reports-verification={row.verificationStatus}>
-              Integrity {humanize(row.verificationStatus)}
-            </span>
-          ) : null}
-          {row.caseId ? (
-            <Link
-              href={`/cases/${row.caseId}`}
-              onClick={(e) => e.stopPropagation()}
-              data-reports-case-link={row.caseId}
-            >
-              Case #{row.caseId.slice(0, 6)}
-            </Link>
-          ) : null}
-          <time dateTime={row.createdAt}>
-            Captured {formatRelativeTime(row.createdAt)}
-          </time>
-          {row.package.blockedReason ? (
             <span
-              className="cases-row-chip"
-              data-reports-package-blocked-reason={row.package.blockedReason}
+              className="cases-row-title"
+              style={{
+                fontSize: 15,
+                fontWeight: 650,
+                color: "var(--ink-primary, #0f172a)",
+              }}
             >
-              Export blocked by governance: {row.package.blockedReason}
+              {row.title}
             </span>
-          ) : null}
-        </div>
-      </Link>
+            <span
+              className="cases-row-scope"
+              style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)" }}
+            >
+              {humanize(row.type)}
+            </span>
+          </div>
+          <div
+            className="cases-row-meta"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap",
+              marginTop: 10,
+            }}
+          >
+            <Badge
+              tone={reportTone(row.report.state)}
+              subtle
+              data-reports-report-state={row.report.state}
+            >
+              Report: {reportLabel(row.report.state)}
+              {row.report.version ? ` · v${row.report.version}` : ""}
+            </Badge>
+            <Badge
+              tone={packageTone(row.package.state)}
+              subtle
+              data-reports-package-state={row.package.state}
+            >
+              Package: {packageLabel(row.package.state)}
+              {row.package.version ? ` · v${row.package.version}` : ""}
+            </Badge>
+            {row.verificationStatus ? (
+              <span
+                data-reports-verification={row.verificationStatus}
+                style={{ fontSize: 12.5, color: "var(--ink-secondary, #475569)" }}
+              >
+                Integrity {humanize(row.verificationStatus)}
+              </span>
+            ) : null}
+            {row.caseId ? (
+              <Link
+                href={`/cases/${row.caseId}`}
+                onClick={(e) => e.stopPropagation()}
+                data-reports-case-link={row.caseId}
+                style={{ fontSize: 12.5, color: "var(--status-info-fg, #1e40af)" }}
+              >
+                Case #{row.caseId.slice(0, 6)}
+              </Link>
+            ) : null}
+            <time
+              dateTime={row.createdAt}
+              style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)" }}
+            >
+              Captured {formatRelativeTime(row.createdAt)}
+            </time>
+            {row.package.blockedReason ? (
+              <Badge
+                tone="governance"
+                subtle
+                data-reports-package-blocked-reason={row.package.blockedReason}
+              >
+                Export blocked by governance: {row.package.blockedReason}
+              </Badge>
+            ) : null}
+          </div>
+        </Link>
       {/* Phase 2.1 — Explicit per-row download actions. The page
           remains side-effect-free on browse (mount does NOT call any
           download endpoint). These buttons only fire on EXPLICIT user
@@ -560,7 +699,8 @@ function ArtifactRowView({
           `/v1/evidence/:id/verification-package`) still gates on
           workspace policy + retention; this UI never simulates
           permission. */}
-      <ArtifactRowActions row={row} teamId={teamId} />
+        <ArtifactRowActions row={row} teamId={teamId} />
+      </Card>
     </li>
   );
 }
@@ -734,15 +874,15 @@ function ArtifactRowActions({
             } as unknown as React.MouseEvent)
           }
           renderAction={({ disabled, onClick }) => (
-            <button
-              type="button"
-              className="btn-secondary"
+            <Button
+              variant="secondary"
+              size="sm"
               data-reports-download-report={row.evidenceId}
               onClick={onClick}
               disabled={busy !== null || disabled}
             >
               {busy === "report" ? "Opening…" : "Download report PDF"}
-            </button>
+            </Button>
           )}
         />
       ) : (
@@ -773,15 +913,15 @@ function ArtifactRowActions({
             } as unknown as React.MouseEvent)
           }
           renderAction={({ disabled, onClick }) => (
-            <button
-              type="button"
-              className="btn-secondary"
+            <Button
+              variant="secondary"
+              size="sm"
               data-reports-download-package={row.evidenceId}
               onClick={onClick}
               disabled={busy !== null || disabled}
             >
               {busy === "package" ? "Opening…" : "Download verification package"}
-            </button>
+            </Button>
           )}
         />
       ) : row.package.state === "blocked" ? (
@@ -811,9 +951,9 @@ function ArtifactRowActions({
           POST /v1/evidence/:id/reports/regenerate endpoint. Visible
           only for failed report OR failed package states. */}
       {canRegenerate ? (
-        <button
-          type="button"
-          className="btn-secondary"
+        <Button
+          variant="secondary"
+          size="sm"
           data-reports-regenerate={row.evidenceId}
           data-reports-regenerate-trigger-report-state={row.report.state}
           data-reports-regenerate-trigger-package-state={row.package.state}
@@ -821,13 +961,26 @@ function ArtifactRowActions({
           disabled={busy !== null}
         >
           {busy === "regen" ? "Enqueuing…" : "Retry generation"}
-        </button>
+        </Button>
       ) : null}
       <Link
         href={`/evidence/${row.evidenceId}`}
-        className="btn-secondary"
         data-reports-open-evidence={row.evidenceId}
         onClick={(e) => e.stopPropagation()}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          minHeight: 34,
+          padding: "0 12px",
+          fontSize: 13,
+          fontWeight: 650,
+          borderRadius: 10,
+          textDecoration: "none",
+          background: "var(--surface-card, #ffffff)",
+          color: "var(--ink-primary, #0f172a)",
+          border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+          boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
+        }}
       >
         Open evidence
       </Link>
@@ -861,6 +1014,34 @@ function ArtifactRowActions({
       ) : null}
     </div>
   );
+}
+
+function reportTone(state: ReportLifecycle): BadgeTone {
+  switch (state) {
+    case "ready":
+      return "verified";
+    case "pending":
+      return "pending";
+    case "failed":
+      return "risk";
+    default:
+      return "neutral";
+  }
+}
+
+function packageTone(state: PackageLifecycle): BadgeTone {
+  switch (state) {
+    case "ready":
+      return "verified";
+    case "pending":
+      return "pending";
+    case "blocked":
+      return "governance";
+    case "failed":
+      return "risk";
+    default:
+      return "neutral";
+  }
 }
 
 function reportLabel(state: ReportLifecycle): string {
@@ -910,32 +1091,60 @@ function ReportsEmptyState({ filter }: { filter: LifecycleFilter }) {
       data-reports-empty={filter}
       data-persona-empty-state-persona={persona.primaryProfile}
     >
-      <strong>{state.title}</strong>
-      <p>{state.body}</p>
-      <Link
-        href={state.primaryCtaHref}
-        className="cc-quick-action"
-        data-persona-empty-state-cta
-      >
-        {state.primaryCtaLabel}
-      </Link>
+      <EmptyState
+        framed
+        title={state.title}
+        purpose={state.body}
+        action={
+          <Link
+            href={state.primaryCtaHref}
+            className="cc-quick-action"
+            data-persona-empty-state-cta
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 42,
+              padding: "0 18px",
+              fontSize: 14,
+              fontWeight: 650,
+              borderRadius: 12,
+              textDecoration: "none",
+              background: "var(--btn-primary-bg)",
+              color: "var(--btn-primary-color)",
+              border: "1px solid var(--btn-primary-border)",
+              boxShadow: "var(--btn-primary-shadow)",
+            }}
+          >
+            {state.primaryCtaLabel}
+          </Link>
+        }
+      />
     </div>
   );
 }
 
 function ReportsLoading() {
   return (
-    <main className="cc-page" data-reports-loading>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Deliverables</div>
-          <h1 className="cc-title">Reports &amp; Artifacts</h1>
-        </div>
-      </header>
-      <section className="cc-section">
-        <div className="cc-skeleton" />
-      </section>
-    </main>
+    <PageShell
+      data-reports-loading
+      header={
+        <PageHeader eyebrow="Deliverables" title="Reports & Artifacts" />
+      }
+    >
+      <PageSection>
+        <Card variant="empty" padding="comfortable">
+          <div
+            style={{
+              height: 120,
+              borderRadius: "var(--radius-card, 14px)",
+              background:
+                "linear-gradient(90deg, rgba(15,23,42,0.04), rgba(15,23,42,0.08), rgba(15,23,42,0.04))",
+            }}
+            aria-hidden="true"
+          />
+        </Card>
+      </PageSection>
+    </PageShell>
   );
 }
 
@@ -949,14 +1158,13 @@ function ReportsNoWorkspace() {
   // Phase 2.2 — replace dead-end text with a structured AccessGate so
   // the operator can browse / switch workspaces or open settings.
   return (
-    <main className="cc-page" data-reports-no-workspace>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Deliverables</div>
-          <h1 className="cc-title">Reports &amp; Artifacts</h1>
-        </div>
-      </header>
-      <section className="cc-section">
+    <PageShell
+      data-reports-no-workspace
+      header={
+        <PageHeader eyebrow="Deliverables" title="Reports & Artifacts" />
+      }
+    >
+      <PageSection>
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="Reports"
@@ -968,8 +1176,8 @@ function ReportsNoWorkspace() {
           ]}
           testid="reports-access-gate-no-workspace"
         />
-      </section>
-    </main>
+      </PageSection>
+    </PageShell>
   );
 }
 
@@ -985,14 +1193,13 @@ function ReportsAuthError({
   // the operator an explicit next step instead of "permission required"
   // text with nothing to click.
   return (
-    <main className="cc-page" data-reports-auth-error={code}>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Deliverables</div>
-          <h1 className="cc-title">Reports &amp; Artifacts</h1>
-        </div>
-      </header>
-      <section className="cc-section">
+    <PageShell
+      data-reports-auth-error={code}
+      header={
+        <PageHeader eyebrow="Deliverables" title="Reports & Artifacts" />
+      }
+    >
+      <PageSection>
         {code === "auth_required" ? (
           <AccessGate
             kind="PERMISSION_REQUIRED"
@@ -1017,22 +1224,32 @@ function ReportsAuthError({
             testid="reports-access-gate-permission"
           />
         )}
-      </section>
-    </main>
+      </PageSection>
+    </PageShell>
   );
 }
 
 function ReportsUnavailable({ message }: { message: string }) {
   return (
-    <main className="cc-page" data-reports-unavailable>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Deliverables</div>
-          <h1 className="cc-title">Temporarily unavailable</h1>
-          <p className="cc-subtitle">{message}</p>
-        </div>
-      </header>
-    </main>
+    <PageShell
+      data-reports-unavailable
+      header={
+        <PageHeader
+          eyebrow="Deliverables"
+          title="Temporarily unavailable"
+          subtitle={message}
+        />
+      }
+    >
+      <PageSection>
+        <Card variant="empty" padding="comfortable">
+          <EmptyState
+            title="Reports & Artifacts couldn't load"
+            purpose={message}
+          />
+        </Card>
+      </PageSection>
+    </PageShell>
   );
 }
 

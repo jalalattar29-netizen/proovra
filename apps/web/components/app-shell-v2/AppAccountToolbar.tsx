@@ -548,7 +548,7 @@ export function AppAccountToolbar({
                       gap: 6,
                       marginTop: 4,
                       fontSize: 11,
-                      color: "#64748b",
+                      color: "var(--content-ink-muted)",
                       textTransform: "uppercase",
                       letterSpacing: "0.06em",
                       fontWeight: 700,

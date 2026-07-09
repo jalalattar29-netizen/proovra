@@ -37,6 +37,10 @@ import {
   Sparkline,
   type SparklineSeverity,
 } from "../../../../components/operational";
+import { PageShell, PageHeader } from "../../../../components/ui";
+import { Card } from "../../../../components/ui/Card";
+import { Badge } from "../../../../components/ui/Badge";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 
 type RuntimeReadinessReport = {
   status: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
@@ -463,31 +467,57 @@ function ObservabilityDashboardPageInner() {
 
   if (!teamId) {
     return (
-      <main style={pageStyle}>
-        <h1 style={titleStyle}>Observability</h1>
-        <p style={mutedStyle}>
-          Switch to a workspace to view operational telemetry.
-        </p>
-      </main>
+      <PageShell
+        header={
+          <PageHeader
+            eyebrow="Operations"
+            title="Observability"
+            subtitle="Switch to a workspace to view operational telemetry."
+          />
+        }
+      >
+        <Card>
+          <EmptyState
+            compact
+            title="No workspace selected"
+            purpose="Switch to a workspace to view operational telemetry."
+          />
+        </Card>
+      </PageShell>
     );
   }
 
   return (
-    <main style={pageStyle}>
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Operations"
+          title="Observability"
+          subtitle={
+            <>
+              Internal operator surface. In-process metrics + alert evaluation
+              for the API runtime. Polled every 15 s.
+              {lastPolledAtUtc
+                ? ` Last sample: ${formatUserTime(lastPolledAtUtc)}`
+                : ""}
+            </>
+          }
+          contextStrip={
+            lastPolledAtUtc ? (
+              <Badge tone="neutral" subtle>
+                Last sample {formatUserTime(lastPolledAtUtc)}
+              </Badge>
+            ) : null
+          }
+          secondaryActions={
+            <Link href="/operations" style={navLinkStyle}>
+              ← Operations Center
+            </Link>
+          }
+        />
+      }
+    >
       <RuntimeStatusBanner teamId={teamId} />
-      <header style={headerStyle}>
-        <div>
-          <h1 style={titleStyle}>Observability</h1>
-          <p style={mutedStyle}>
-            Internal operator surface. In-process metrics + alert evaluation
-            for the API runtime. Polled every 15 s.
-            {lastPolledAtUtc ? ` Last sample: ${formatUserTime(lastPolledAtUtc)}` : ""}
-          </p>
-        </div>
-        <Link href="/operations" style={navLinkStyle}>
-          ← Operations Center
-        </Link>
-      </header>
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
@@ -896,7 +926,7 @@ function ObservabilityDashboardPageInner() {
           </li>
         </ul>
       </details>
-    </main>
+    </PageShell>
   );
 }
 
@@ -1078,27 +1108,6 @@ function SignalList({
 // Styles — enterprise/SOC dense layout
 // -----------------------------------------------------------------------------
 
-const pageStyle: React.CSSProperties = {
-  maxWidth: 1200,
-  margin: "0 auto",
-  padding: "32px 24px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
-};
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-end",
-  gap: 16,
-  marginBottom: 12,
-};
-const titleStyle: React.CSSProperties = {
-  fontSize: 26,
-  fontWeight: 700,
-  marginBottom: 4,
-  letterSpacing: -0.4,
-};
 const mutedStyle: React.CSSProperties = { fontSize: 13, color: "#64748b" };
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 14,

@@ -261,12 +261,16 @@ describe("Observability dashboard (full adoption)", () => {
     );
   });
 
-  it("banner is rendered above the header (operator sees runtime state first)", () => {
+  it("banner is rendered above the telemetry content (operator sees runtime state first)", () => {
+    // Phase 7C — the page migrated to the shared PageShell/PageHeader; the
+    // old `<header style={headerStyle}>` is gone. The runtime banner still
+    // renders ahead of the telemetry body so operators read runtime state
+    // before the metrics. Anchor on the first content section instead.
     const bannerIdx = src.indexOf("RuntimeStatusBanner teamId");
-    const headerIdx = src.indexOf("<header style={headerStyle}>");
+    const contentIdx = src.indexOf("data-observability-summary");
     expect(bannerIdx).toBeGreaterThan(0);
-    expect(headerIdx).toBeGreaterThan(0);
-    expect(bannerIdx).toBeLessThan(headerIdx);
+    expect(contentIdx).toBeGreaterThan(0);
+    expect(bannerIdx).toBeLessThan(contentIdx);
   });
 
   it("no banned wording in this page's string literals", () => {

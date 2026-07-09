@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, useToast } from "../../../components/ui";
+import { Button, PageShell, PageHeader, useToast } from "../../../components/ui";
+import { Button as ActionButton } from "../../../components/ui/Button";
+import { Card } from "../../../components/ui/Card";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import {
   usePersonaProfile,
@@ -499,7 +501,10 @@ function CapturePageInner() {
   }, []);
 
   return (
-    <div className="section app-section capture-page-shell capture-enterprise-page">
+    <PageShell
+      width="full"
+      className="capture-page-shell capture-enterprise-page"
+      data-capture-page-shell>
       {/* Phase 30.10 — resumable upload operations panel. Renders
        *  only when the env flag is on AND there's something to show
        *  (active uploads, network is offline, or recovery has at
@@ -744,45 +749,56 @@ onClick={async () => {
         ) : null}
 
         <section className="capture-enterprise-top">
-          <div className="capture-enterprise-title-card">
-            <div className="capture-enterprise-icon">
-              <Camera size={28} strokeWidth={2.1} />
-            </div>
-
-            <div>
-              {/* Phase IA-self-serve-completion — "Evidence intake
-                  workspace" replaced with "Capture & upload" so the
-                  eyebrow matches how lawyers / journalists describe
-                  this step (capturing, not "intake-ing"). The
-                  underlying class name + Phase reference are preserved
-                  so existing visual styling and dashboards keep
-                  working. */}
-              <div className="capture-enterprise-eyebrow">
+          {/* Phase IA-self-serve-completion — "Evidence intake
+              workspace" replaced with "Capture & upload" so the
+              eyebrow matches how lawyers / journalists describe
+              this step (capturing, not "intake-ing"). Copy preserved
+              verbatim under the shared PageHeader. */}
+          <PageHeader
+            className="capture-enterprise-title-card"
+            eyebrow={
+              <span
+                className="capture-enterprise-eyebrow"
+                style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+              >
+                <Camera size={15} strokeWidth={2.1} />
                 Capture &amp; upload
+              </span>
+            }
+            title="Capture Evidence"
+            subtitle="Collect, map, fingerprint, and prepare evidence materials before Review & Sign. Drafts save metadata only. File contents are not stored until finalization, and draft metadata expires automatically."
+            primaryAction={
+              <ActionButton
+                variant="primary"
+                disabled={busy}
+                onClick={openFilePicker}
+                leadingIcon={<ImageIcon size={16} strokeWidth={2.1} />}
+              >
+                Upload evidence
+              </ActionButton>
+            }
+          />
+
+          <Card
+            variant="status"
+            tone="verified"
+            padding="comfortable"
+            className="capture-enterprise-security-card"
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <div className="capture-security-shield">
+                <ShieldCheck size={28} strokeWidth={2.1} />
               </div>
-              <h1 className="capture-enterprise-title">Capture Evidence</h1>
-              <p className="capture-enterprise-subtitle">
-                Collect, map, fingerprint, and prepare evidence materials
-                before Review & Sign. Drafts save metadata only. File contents
-                are not stored until finalization, and draft metadata expires
-                automatically.
-              </p>
-            </div>
-          </div>
 
-          <div className="capture-enterprise-security-card">
-            <div className="capture-security-shield">
-              <ShieldCheck size={28} strokeWidth={2.1} />
+              <div>
+                <strong>End-to-end protected</strong>
+                <p>
+                  Cryptographic integrity, encrypted storage, and verifiable
+                  audit trail.
+                </p>
+              </div>
             </div>
-
-            <div>
-              <strong>End-to-end protected</strong>
-              <p>
-                Cryptographic integrity, encrypted storage, and verifiable audit
-                trail.
-              </p>
-            </div>
-          </div>
+          </Card>
         </section>
 
         <section className="capture-enterprise-steps">
@@ -1463,6 +1479,6 @@ onClick={async () => {
         stopVideoRecording={stopVideoRecording}
         formatRecordingTime={formatRecordingTime}
       />
-    </div>
+    </PageShell>
   );
 }

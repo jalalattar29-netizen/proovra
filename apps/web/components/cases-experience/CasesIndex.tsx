@@ -16,6 +16,20 @@
  *     action
  *   - latest activity time
  *
+ * Phase 7C — VISUAL redesign of the list surface only. The queue now
+ * renders inside the canonical PROOVRA design foundation:
+ *   - PageShell + a premium PageHeader hero (title / description /
+ *     one primary "Create case" CTA in the coral→pink gradient Button).
+ *   - A shared FilterBar strip wrapping the (source-pinned) search
+ *     input + status / risk selects.
+ *   - A premium Card grid for the case rows, with status / risk /
+ *     priority rendered as tone-keyed Badges and the operational
+ *     counters as restyled meta chips.
+ *   - Card-framed EmptyState surfaces for the two zero states.
+ * NO data-fetching, permission, routing, or business logic changed —
+ * every data-testid / data-* attribute + the load state machine +
+ * the create-case flow are preserved verbatim.
+ *
  * Hard rules:
  *
  *   1. Authority is read from the canonical platform context only.
@@ -32,7 +46,7 @@
  */
 
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -56,6 +70,16 @@ import {
   workflowFromPersona,
 } from "../../lib/platform-context";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
+// Phase 7C — canonical PROOVRA design foundation. PageShell/PageHeader/
+// PageSection + FilterBar come from the shared barrel; the richer
+// Button / Card / Badge / EmptyState primitives are deep-imported per
+// the barrel contract.
+import { PageShell, PageHeader, PageSection, FilterBar } from "../ui";
+import { Button } from "../ui/Button";
+import { Card } from "../ui/Card";
+import { Badge } from "../ui/Badge";
+import type { BadgeTone } from "../ui/Badge";
+import { EmptyState } from "../ui/EmptyState";
 // Phase 2.1 — surfaces `POST /v1/cases` from the canonical Cases page.
 import { CreateCaseModal } from "./matter-modals";
 import type {
@@ -242,18 +266,20 @@ export function CasesIndex() {
     const hasHealthyPersonalSpace = personalSpace?.status === "active";
     if (!hasHealthyPersonalSpace) {
       return (
-        <main className="cc-page" data-cases-no-workspace>
-          <CapabilityDegradedPanel
-            surface="Cases"
-            requiredCapability="CASES_VIEW"
-            reason="No active workspace is available for this account. Create or switch into a workspace to view your cases."
-            alternatives={[
-              { label: "View your evidence", href: "/evidence" },
-              { label: "Generate a report", href: "/reports" },
-              { label: "Switch or create a workspace", href: "/workspaces" },
-            ]}
-          />
-        </main>
+        <PageShell data-cases-no-workspace>
+          <PageSection>
+            <CapabilityDegradedPanel
+              surface="Cases"
+              requiredCapability="CASES_VIEW"
+              reason="No active workspace is available for this account. Create or switch into a workspace to view your cases."
+              alternatives={[
+                { label: "View your evidence", href: "/evidence" },
+                { label: "Generate a report", href: "/reports" },
+                { label: "Switch or create a workspace", href: "/workspaces" },
+              ]}
+            />
+          </PageSection>
+        </PageShell>
       );
     }
     // Healthy personal space but no resolved id yet — surface the
@@ -293,91 +319,103 @@ export function CasesIndex() {
     filters.hasLegalHold ||
     filters.missingArtifact;
   return (
-    <main
-      className="cc-page"
-      data-cases-index
-      data-matter-queue
-      data-cases-personal-mode={isPersonalMode ? "true" : "false"}
-      data-cases-advanced-mode={canSeeAdvancedCaseOps ? "true" : "false"}
-    >
-      <header className="cc-page-header">
-        <div>
-          {/* Phase CASES-PERSONAL-UX — single canonical title. The
-              prior layout repeated "Your cases" as both kicker and h1,
-              and the subtitle leaned on enterprise jargon (legal
-              holds, etc). Personal / small-business audience gets a
-              plain-language title + a one-line description of the
-              concept. */}
-          <h1 className="cc-title" data-cases-title>
-            Cases
-          </h1>
-          <p className="cc-subtitle" data-cases-subtitle>
-            Group related evidence into simple workspaces for incidents,
-            claims, projects, or reviews.
-          </p>
-        </div>
-        <div className="cc-meta">
-          <span data-matter-queue-total>
-            {envelope.total} {envelope.total === 1 ? "case" : "cases"}
-          </span>
-          <span title={envelope.generatedAt} data-matter-queue-generated-at>
-            Refreshed {formatRelativeTime(envelope.generatedAt)}
-          </span>
-          {isReloading ? (
-            <span
-              className="cc-muted"
-              data-matter-queue-reloading
-              style={{ marginLeft: 8, fontSize: 12 }}
-            >
-              Updating…
-            </span>
-          ) : null}
-          {/* Phase 2.1 — canonical Create Case CTA. Server enforces
-              permissions; the button is visible to any team member so
-              they get a structured AccessGate inside the modal on 403
-              instead of a missing button + raw 403 elsewhere. */}
-          <button
-            type="button"
-            className="btn-primary"
-            data-create-case-trigger
-            onClick={() => setCreateOpen(true)}
-            style={{ marginLeft: 12 }}
-          >
-            + Create case
-          </button>
-        </div>
-      </header>
-
-      {/* Phase 38.17 — workflow-aware contextual help, collapsed by
-          default so the matter queue stays primary. */}
-      <ContextualHelp
-        workflow={workflowCode}
-        surface="cases"
-        collapsedByDefault
-        stateNotes={
-          envelope.total === 0
-            ? [
-                "No cases yet — use the Create case button above, or link evidence into an existing case.",
-              ]
-            : undefined
+    <>
+      <PageShell
+        data-cases-index
+        data-matter-queue
+        data-cases-personal-mode={isPersonalMode ? "true" : "false"}
+        data-cases-advanced-mode={canSeeAdvancedCaseOps ? "true" : "false"}
+        header={
+          <PageHeader
+            title={
+              /* Phase CASES-PERSONAL-UX — single canonical title. The
+                 prior layout repeated "Your cases" as both kicker and h1,
+                 and the subtitle leaned on enterprise jargon (legal
+                 holds, etc). Personal / small-business audience gets a
+                 plain-language title + a one-line description of the
+                 concept. The pinned cc-title / cc-subtitle nodes are
+                 retained inside the premium PageHeader hero. */
+              <h1 className="cc-title" data-cases-title>
+                Cases
+              </h1>
+            }
+            subtitle={
+              <p className="cc-subtitle" data-cases-subtitle>
+                Group related evidence into simple workspaces for incidents,
+                claims, projects, or reviews.
+              </p>
+            }
+            contextStrip={
+              <div className="cc-meta" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <Badge tone="info" subtle data-matter-queue-total>
+                  {envelope.total} {envelope.total === 1 ? "case" : "cases"}
+                </Badge>
+                <span
+                  title={envelope.generatedAt}
+                  data-matter-queue-generated-at
+                  style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}
+                >
+                  Refreshed {formatRelativeTime(envelope.generatedAt)}
+                </span>
+                {isReloading ? (
+                  <span
+                    className="cc-muted"
+                    data-matter-queue-reloading
+                    style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}
+                  >
+                    Updating…
+                  </span>
+                ) : null}
+              </div>
+            }
+            primaryAction={
+              /* Phase 2.1 — canonical Create Case CTA. Server enforces
+                 permissions; the button is visible to any team member so
+                 they get a structured AccessGate inside the modal on 403
+                 instead of a missing button + raw 403 elsewhere. Phase 7C
+                 promotes it to the coral→pink gradient primary Button. */
+              <Button
+                variant="primary"
+                data-create-case-trigger
+                onClick={() => setCreateOpen(true)}
+              >
+                Create case
+              </Button>
+            }
+          />
         }
-      />
+      >
+        {/* Phase 38.17 — workflow-aware contextual help, collapsed by
+            default so the matter queue stays primary. */}
+        <ContextualHelp
+          workflow={workflowCode}
+          surface="cases"
+          collapsedByDefault
+          stateNotes={
+            envelope.total === 0
+              ? [
+                  "No cases yet — use the Create case button above, or link evidence into an existing case.",
+                ]
+              : undefined
+          }
+        />
 
-      <MatterQueueFilters
-        filters={filters}
-        viewerUserId={viewerUserId}
-        onChange={setFilters}
-        canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
-      />
+        <MatterQueueFilters
+          filters={filters}
+          viewerUserId={viewerUserId}
+          onChange={setFilters}
+          canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
+        />
 
-      <MatterQueueTable
-        items={envelope.items}
-        totalBeforeFilter={envelope.total}
-        anyFilterActive={anyFilterActive}
-        canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
-        onClearFilters={() => setFilters(DEFAULT_FILTERS)}
-        onCreateCase={() => setCreateOpen(true)}
-      />
+        <MatterQueueTable
+          items={envelope.items}
+          totalBeforeFilter={envelope.total}
+          anyFilterActive={anyFilterActive}
+          canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
+          onClearFilters={() => setFilters(DEFAULT_FILTERS)}
+          onCreateCase={() => setCreateOpen(true)}
+        />
+      </PageShell>
 
       {/* Phase 2.1 — Create Case modal. Mounted at the page level so
           the focus trap restores focus to the trigger button after
@@ -396,7 +434,7 @@ export function CasesIndex() {
           router.push(`/cases/${newCase.id}`);
         }}
       />
-    </main>
+    </>
   );
 }
 
@@ -416,6 +454,33 @@ const STATUS_LABEL: Record<(typeof CASE_STATUSES)[number], string> = {
   RESOLVED: "Resolved",
   CLOSED: "Closed",
   ARCHIVED: "Archived",
+};
+
+/**
+ * Phase 7C — inline token style for the pinned raw <select> controls.
+ * The FilterBar.Select helper takes an options array + string change
+ * handler, but the risk/status selects are source-pinned to their exact
+ * JSX (option maps, aria-labels, data-testids), so we keep the raw
+ * <select> elements and give them the same premium token chrome the
+ * FilterBar controls use.
+ */
+const FILTER_CONTROL_STYLE: React.CSSProperties = {
+  minHeight: 40,
+  fontSize: 13.5,
+  color: "var(--ink-primary, #0f172a)",
+  background: "var(--surface-card, #ffffff)",
+  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+  borderRadius: "var(--radius-md, 8px)",
+  padding: "0 30px 0 12px",
+  cursor: "pointer",
+  appearance: "none",
+  WebkitAppearance: "none",
+  MozAppearance: "none",
+  backgroundImage:
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 8px center",
+  outline: "none",
 };
 
 function MatterQueueFilters({
@@ -439,25 +504,74 @@ function MatterQueueFilters({
   const set = <K extends keyof QueueFilters>(key: K, value: QueueFilters[K]) =>
     onChange({ ...filters, [key]: value });
   return (
-    <section className="cc-section" data-matter-queue-filters>
-      <header className="cc-section-header">
-        <h2 className="cc-section-title">Filters</h2>
-      </header>
-      <div className="cases-filter-row">
-        <input
-          type="search"
-          className="cases-filter-search"
-          placeholder="Search by case name"
-          value={filters.search}
-          onChange={(e) => set("search", e.target.value)}
-          data-matter-queue-search-input
-        />
+    <PageSection data-matter-queue-filters>
+      {/* Phase 7C — the shared FilterBar wraps the source-pinned search
+          input + status / risk selects in the canonical premium strip.
+          The raw controls are kept (their JSX is contract-pinned) and
+          restyled inline to match the FilterBar chrome. */}
+      <FilterBar>
+        <div
+          style={{
+            position: "relative",
+            display: "inline-flex",
+            alignItems: "center",
+            flex: "1 1 260px",
+            minWidth: 200,
+            maxWidth: 420,
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: 12,
+              display: "inline-flex",
+              color: "var(--ink-muted, #94a3b8)",
+              pointerEvents: "none",
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </span>
+          <input
+            type="search"
+            className="cases-filter-search"
+            placeholder="Search by case name"
+            aria-label="Search by case name"
+            value={filters.search}
+            onChange={(e) => set("search", e.target.value)}
+            data-matter-queue-search-input
+            style={{
+              minHeight: 40,
+              width: "100%",
+              padding: "0 14px 0 34px",
+              fontSize: 13.5,
+              color: "var(--ink-primary, #0f172a)",
+              background: "var(--surface-card, #ffffff)",
+              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+              borderRadius: "var(--radius-md, 8px)",
+              outline: "none",
+            }}
+          />
+        </div>
         <select
           aria-label="Status"
           value={filters.status}
           onChange={(e) => set("status", e.target.value as CaseStatus | "")}
           data-matter-queue-status-select
           className="cases-filter-chip"
+          style={FILTER_CONTROL_STYLE}
         >
           <option value="">Any status</option>
           {CASE_STATUSES.map((s) => (
@@ -480,6 +594,7 @@ function MatterQueueFilters({
             }
             data-matter-queue-risk-select
             className="cases-filter-chip"
+            style={FILTER_CONTROL_STYLE}
           >
             <option value="">Any risk</option>
             {RISK_LEVELS.map((s) => (
@@ -489,7 +604,7 @@ function MatterQueueFilters({
             ))}
           </select>
         ) : null}
-      </div>
+      </FilterBar>
       {/* Phase CASES-PERSONAL-UX-CLEANUP — chips removed for everyone.
           The personal "Open issues" / "Missing report or package" chips
           tested as confusing or sparse for the target audience; the
@@ -508,7 +623,7 @@ function MatterQueueFilters({
         // unused-prop warning the previous chip relied on.
         <div data-cases-advanced-mode-context-only aria-hidden style={{ display: "none" }} />
       ) : null}
-    </section>
+    </PageSection>
   );
 }
 
@@ -540,61 +655,92 @@ function MatterQueueTable({
   onCreateCase: () => void;
 }) {
   return (
-    <section className="cc-section" data-matter-queue-table>
-      <header className="cc-section-header">
-        <h2 className="cc-section-title" data-matter-queue-title>
+    <PageSection
+      data-matter-queue-table
+      title={
+        <span data-matter-queue-title>
           {items.length === totalBeforeFilter
             ? `Cases · ${items.length}`
             : `Cases · ${items.length} of ${totalBeforeFilter}`}
-        </h2>
-      </header>
+        </span>
+      }
+    >
       {items.length === 0 ? (
         // Phase CASES-PERSONAL-UX — two distinct empty states. The
         // workspace-has-no-cases-yet state is a real onboarding
         // moment; the filtered-to-zero state must offer a quick
         // clear path so the user doesn't think the page is broken.
+        // Phase 7C wraps each in a Card `empty` frame + the shared
+        // EmptyState surface, keeping the pinned copy + CTA buttons.
         totalBeforeFilter === 0 && !anyFilterActive ? (
-          <div
-            className="cc-section-note"
-            data-matter-queue-empty
-            data-empty-state="no-cases-yet"
-          >
-            <strong>No cases yet</strong>
-            <p>
-              Create a case to group related evidence for an incident,
-              claim, project, or review.
-            </p>
-            <button
-              type="button"
-              className="btn-primary"
-              data-empty-state-cta="create-case"
-              onClick={onCreateCase}
+          <Card variant="empty" padding="none">
+            <div
+              className="cc-section-note"
+              data-matter-queue-empty
+              data-empty-state="no-cases-yet"
             >
-              Create case
-            </button>
-          </div>
+              <EmptyState
+                title={<strong>No cases yet</strong>}
+                purpose={
+                  <p style={{ margin: 0 }}>
+                    Create a case to group related evidence for an incident,
+                    claim, project, or review.
+                  </p>
+                }
+                action={
+                  <button
+                    type="button"
+                    data-empty-state-cta="create-case"
+                    onClick={onCreateCase}
+                    style={PRIMARY_CTA_STYLE}
+                  >
+                    Create case
+                  </button>
+                }
+              />
+            </div>
+          </Card>
         ) : (
-          <div
-            className="cc-section-note"
-            data-matter-queue-empty
-            data-empty-state="no-filter-match"
-          >
-            <strong>No cases match these filters</strong>
-            <p>
-              Try clearing filters or searching for a different case name.
-            </p>
-            <button
-              type="button"
-              className="btn-secondary"
-              data-empty-state-cta="clear-filters"
-              onClick={onClearFilters}
+          <Card variant="empty" padding="none">
+            <div
+              className="cc-section-note"
+              data-matter-queue-empty
+              data-empty-state="no-filter-match"
             >
-              Clear filters
-            </button>
-          </div>
+              <EmptyState
+                title={<strong>No cases match these filters</strong>}
+                purpose={
+                  <p style={{ margin: 0 }}>
+                    Try clearing filters or searching for a different case name.
+                  </p>
+                }
+                action={
+                  <button
+                    type="button"
+                    data-empty-state-cta="clear-filters"
+                    onClick={onClearFilters}
+                    style={SECONDARY_CTA_STYLE}
+                  >
+                    Clear filters
+                  </button>
+                }
+              />
+            </div>
+          </Card>
         )
       ) : (
-        <ul className="cases-list" data-matter-queue-items>
+        <ul
+          className="cases-list"
+          data-matter-queue-items
+          style={{
+            listStyle: "none",
+            margin: 0,
+            padding: 0,
+            display: "grid",
+            gap: 12,
+            gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
+          }}
+        >
           {items.map((row) => (
             <MatterQueueRow
               key={row.id}
@@ -604,7 +750,7 @@ function MatterQueueTable({
           ))}
         </ul>
       )}
-    </section>
+    </PageSection>
   );
 }
 
@@ -630,189 +776,257 @@ function MatterQueueRow({
       data-matter-queue-row-id={row.id}
       data-matter-queue-row-risk={row.riskLevel ?? "NONE"}
       data-matter-queue-row-status={row.status}
+      style={{ listStyle: "none", margin: 0, padding: 0 }}
     >
-      <Link href={`/cases/${row.id}`} className="cases-row-link">
-        <div className="cases-row-main">
-          <span className="cases-row-title">{row.name}</span>
-          {row.referenceNumber ? (
-            <span
-              className="cases-row-scope"
-              data-matter-queue-row-reference={row.referenceNumber}
-            >
-              {row.referenceNumber}
-            </span>
-          ) : null}
-          {/* Phase CASES-PERSONAL-UX — risk badge is enterprise-only.
-              The CaseRiskSnapshot table is mostly unpopulated on
-              personal workspaces so the badge would either be hidden
-              by the `if (!level)` guard or read "Risk: NONE", both
-              of which are noise. */}
-          {canSeeAdvancedCaseOps ? (
-            <RiskBadge level={row.riskLevel} score={row.riskScore} />
-          ) : null}
-          {/* Status pill uses the human-readable label for both
-              audiences. data-status keeps the enum value for E2E. */}
-          <span
-            className="cases-row-chip"
-            data-matter-queue-row-chip="status"
-            data-status={row.status}
-          >
-            {STATUS_LABEL[row.status as (typeof CASE_STATUSES)[number]] ?? row.status}
-          </span>
-          {canSeeAdvancedCaseOps && row.priority && row.priority !== "P2" ? (
-            <span
-              className="cases-row-chip"
-              data-matter-queue-row-chip="priority"
-              data-priority={row.priority}
-            >
-              {row.priority}
-            </span>
-          ) : null}
-        </div>
-        <div className="cases-row-meta">
-          <Counter
-            dataKey="linked-evidence"
-            value={row.linkedEvidenceCount}
-            label={row.linkedEvidenceCount === 1 ? "evidence record" : "evidence records"}
-          />
-          {/* Phase CASES-PERSONAL-UX — for personal users, collapse the
-              full operational counter strip into a single
-              plain-language "Needs report or package" chip when there
-              are gaps. Enterprise users still see the granular
-              counters below. */}
-          {!canSeeAdvancedCaseOps && hasMissingArtifact ? (
-            <span
-              className="cases-row-chip"
-              data-matter-queue-row-chip="needs-artifact"
-              data-missing-count={row.evidenceGapCount}
-            >
-              {row.evidenceGapCount === 1
-                ? "1 record needs report or package"
-                : `${row.evidenceGapCount} records need report or package`}
-            </span>
-          ) : null}
-          {canSeeAdvancedCaseOps && row.evidenceGapCount > 0 ? (
-            <Counter
-              dataKey="evidence-gap"
-              value={row.evidenceGapCount}
-              label="gap"
-              tone="warning"
-            />
-          ) : null}
-          {canSeeAdvancedCaseOps && row.openIncidentCount > 0 ? (
-            <Counter
-              dataKey="open-incidents"
-              value={row.openIncidentCount}
-              label="incident"
-              tone="high"
-            />
-          ) : null}
-          {canSeeAdvancedCaseOps && row.activeWorkflowCount > 0 ? (
-            <Counter
-              dataKey="active-workflows"
-              value={row.activeWorkflowCount}
-              label="wf"
-            />
-          ) : null}
-          {canSeeAdvancedCaseOps && row.overdueWorkflowCount > 0 ? (
-            <Counter
-              dataKey="overdue-workflows"
-              value={row.overdueWorkflowCount}
-              label="overdue"
-              tone="critical"
-            />
-          ) : null}
-          {canSeeAdvancedCaseOps && row.governanceBlockerCount > 0 ? (
-            <Counter
-              dataKey="governance-blockers"
-              value={row.governanceBlockerCount}
-              label="gov block"
-              tone="high"
-            />
-          ) : null}
-          {canSeeAdvancedCaseOps && row.activeLegalHoldCount > 0 ? (
-            <span
-              className="cases-row-chip"
-              data-matter-queue-row-chip="hold"
-              data-hold-count={row.activeLegalHoldCount}
-            >
-              Legal preservation
-            </span>
-          ) : null}
-          {canSeeAdvancedCaseOps && row.activeAssignmentCount > 0 ? (
-            <Counter
-              dataKey="assignments"
-              value={row.activeAssignmentCount}
-              label="assigned"
-            />
-          ) : null}
-          <time
-            dateTime={row.latestActivityAtUtc}
-            data-matter-queue-row-latest-activity
-            title={row.latestActivityAtUtc}
-          >
-            Last updated {formatRelativeTime(row.latestActivityAtUtc)}
-          </time>
-        </div>
-        {/* Phase CASES-PERSONAL-UX — risk-reason codes are enterprise
-            taxonomy; hidden for personal users. */}
-        {canSeeAdvancedCaseOps && reasonCodes.length > 0 ? (
+      <Card variant="action" padding="none" className="cases-row-card">
+        <Link
+          href={`/cases/${row.id}`}
+          className="cases-row-link"
+          style={{
+            display: "block",
+            padding: 16,
+            color: "inherit",
+            textDecoration: "none",
+          }}
+        >
           <div
-            className="cases-row-reasons"
-            data-matter-queue-row-reason-codes
+            className="cases-row-main"
             style={{
               display: "flex",
-              gap: 6,
               flexWrap: "wrap",
-              padding: "6px 0 0",
+              alignItems: "center",
+              gap: 8,
             }}
           >
-            {reasonCodes.map((code) => (
+            <span
+              className="cases-row-title"
+              style={{
+                fontSize: 15,
+                fontWeight: 650,
+                color: "var(--ink-primary, #0f172a)",
+                marginRight: "auto",
+              }}
+            >
+              {row.name}
+            </span>
+            {row.referenceNumber ? (
               <span
-                key={code}
-                className="cases-row-chip"
-                data-matter-queue-row-reason={code}
-                style={{ fontSize: 11 }}
+                className="cases-row-scope"
+                data-matter-queue-row-reference={row.referenceNumber}
               >
-                {reasonCodeLabel(code)}
+                {row.referenceNumber}
               </span>
-            ))}
+            ) : null}
+            {/* Phase CASES-PERSONAL-UX — risk badge is enterprise-only.
+                The CaseRiskSnapshot table is mostly unpopulated on
+                personal workspaces so the badge would either be hidden
+                by the `if (!level)` guard or read "Risk: NONE", both
+                of which are noise. */}
+            {canSeeAdvancedCaseOps ? (
+              <RiskBadge level={row.riskLevel} score={row.riskScore} />
+            ) : null}
+            {/* Status pill uses the human-readable label for both
+                audiences. data-status keeps the enum value for E2E. */}
+            <Badge
+              tone={statusBadgeTone(row.status)}
+              className="cases-row-chip"
+              data-matter-queue-row-chip="status"
+              data-status={row.status}
+            >
+              {STATUS_LABEL[row.status as (typeof CASE_STATUSES)[number]] ?? row.status}
+            </Badge>
+            {canSeeAdvancedCaseOps && row.priority && row.priority !== "P2" ? (
+              <Badge
+                tone="neutral"
+                subtle
+                className="cases-row-chip"
+                data-matter-queue-row-chip="priority"
+                data-priority={row.priority}
+              >
+                {row.priority}
+              </Badge>
+            ) : null}
           </div>
-        ) : null}
-        {/* Recommended action surfaces for both audiences when present
-            — it's the closest thing to a "next simple action" hint
-            the user spec asks for, and it's plain language. */}
-        {row.recommendedAction ? (
           <div
-            className="cases-row-recommendation"
-            data-matter-queue-row-recommendation
+            className="cases-row-meta"
             style={{
-              padding: "6px 0 0",
+              display: "flex",
+              gap: 12,
+              marginTop: 10,
               fontSize: 12,
-              color: "#b8c7c3",
+              color: "var(--ink-secondary, #475569)",
+              flexWrap: "wrap",
+              alignItems: "center",
             }}
           >
-            Recommended: {row.recommendedAction}
+            <Counter
+              dataKey="linked-evidence"
+              value={row.linkedEvidenceCount}
+              label={row.linkedEvidenceCount === 1 ? "evidence record" : "evidence records"}
+            />
+            {/* Phase CASES-PERSONAL-UX — for personal users, collapse the
+                full operational counter strip into a single
+                plain-language "Needs report or package" chip when there
+                are gaps. Enterprise users still see the granular
+                counters below. */}
+            {!canSeeAdvancedCaseOps && hasMissingArtifact ? (
+              <span
+                className="cases-row-chip"
+                data-matter-queue-row-chip="needs-artifact"
+                data-missing-count={row.evidenceGapCount}
+              >
+                {row.evidenceGapCount === 1
+                  ? "1 record needs report or package"
+                  : `${row.evidenceGapCount} records need report or package`}
+              </span>
+            ) : null}
+            {canSeeAdvancedCaseOps && row.evidenceGapCount > 0 ? (
+              <Counter
+                dataKey="evidence-gap"
+                value={row.evidenceGapCount}
+                label="gap"
+                tone="warning"
+              />
+            ) : null}
+            {canSeeAdvancedCaseOps && row.openIncidentCount > 0 ? (
+              <Counter
+                dataKey="open-incidents"
+                value={row.openIncidentCount}
+                label="incident"
+                tone="high"
+              />
+            ) : null}
+            {canSeeAdvancedCaseOps && row.activeWorkflowCount > 0 ? (
+              <Counter
+                dataKey="active-workflows"
+                value={row.activeWorkflowCount}
+                label="wf"
+              />
+            ) : null}
+            {canSeeAdvancedCaseOps && row.overdueWorkflowCount > 0 ? (
+              <Counter
+                dataKey="overdue-workflows"
+                value={row.overdueWorkflowCount}
+                label="overdue"
+                tone="critical"
+              />
+            ) : null}
+            {canSeeAdvancedCaseOps && row.governanceBlockerCount > 0 ? (
+              <Counter
+                dataKey="governance-blockers"
+                value={row.governanceBlockerCount}
+                label="gov block"
+                tone="high"
+              />
+            ) : null}
+            {canSeeAdvancedCaseOps && row.activeLegalHoldCount > 0 ? (
+              <span
+                className="cases-row-chip"
+                data-matter-queue-row-chip="hold"
+                data-hold-count={row.activeLegalHoldCount}
+              >
+                Legal preservation
+              </span>
+            ) : null}
+            {canSeeAdvancedCaseOps && row.activeAssignmentCount > 0 ? (
+              <Counter
+                dataKey="assignments"
+                value={row.activeAssignmentCount}
+                label="assigned"
+              />
+            ) : null}
+            <time
+              dateTime={row.latestActivityAtUtc}
+              data-matter-queue-row-latest-activity
+              title={row.latestActivityAtUtc}
+              style={{ marginLeft: "auto", color: "var(--ink-muted, #94a3b8)" }}
+            >
+              Last updated {formatRelativeTime(row.latestActivityAtUtc)}
+            </time>
           </div>
-        ) : !canSeeAdvancedCaseOps && hasMissingArtifact ? (
-          // Personal-friendly fallback hint when the backend hasn't
-          // computed a recommendedAction but there's still a gap.
-          <div
-            className="cases-row-recommendation"
-            data-matter-queue-row-recommendation
-            data-recommendation-source="personal-fallback"
-            style={{
-              padding: "6px 0 0",
-              fontSize: 12,
-              color: "#b8c7c3",
-            }}
-          >
-            Generate the missing report or package from the evidence detail page.
-          </div>
-        ) : null}
-      </Link>
+          {/* Phase CASES-PERSONAL-UX — risk-reason codes are enterprise
+              taxonomy; hidden for personal users. */}
+          {canSeeAdvancedCaseOps && reasonCodes.length > 0 ? (
+            <div
+              className="cases-row-reasons"
+              data-matter-queue-row-reason-codes
+              style={{
+                display: "flex",
+                gap: 6,
+                flexWrap: "wrap",
+                padding: "10px 0 0",
+              }}
+            >
+              {reasonCodes.map((code) => (
+                <span
+                  key={code}
+                  className="cases-row-chip"
+                  data-matter-queue-row-reason={code}
+                  style={{ fontSize: 11 }}
+                >
+                  {reasonCodeLabel(code)}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {/* Recommended action surfaces for both audiences when present
+              — it's the closest thing to a "next simple action" hint
+              the user spec asks for, and it's plain language. */}
+          {row.recommendedAction ? (
+            <div
+              className="cases-row-recommendation"
+              data-matter-queue-row-recommendation
+              style={{
+                padding: "10px 0 0",
+                fontSize: 12,
+                color: "var(--ink-secondary, #475569)",
+              }}
+            >
+              Recommended: {row.recommendedAction}
+            </div>
+          ) : !canSeeAdvancedCaseOps && hasMissingArtifact ? (
+            // Personal-friendly fallback hint when the backend hasn't
+            // computed a recommendedAction but there's still a gap.
+            <div
+              className="cases-row-recommendation"
+              data-matter-queue-row-recommendation
+              data-recommendation-source="personal-fallback"
+              style={{
+                padding: "10px 0 0",
+                fontSize: 12,
+                color: "var(--ink-secondary, #475569)",
+              }}
+            >
+              Generate the missing report or package from the evidence detail page.
+            </div>
+          ) : null}
+        </Link>
+      </Card>
     </li>
   );
+}
+
+/**
+ * Phase 7C — map the case status enum onto a semantic Badge tone so the
+ * status pill reads for colour-blind users and matches the app-wide
+ * status vocabulary. Presentation-only; the enum value is preserved on
+ * `data-status`.
+ */
+function statusBadgeTone(status: string): BadgeTone {
+  switch (status) {
+    case "OPEN":
+    case "INVESTIGATING":
+      return "info";
+    case "ON_HOLD":
+      return "pending";
+    case "RESOLVED":
+      return "verified";
+    case "CLOSED":
+    case "ARCHIVED":
+      return "neutral";
+    default:
+      return "neutral";
+  }
 }
 
 function RiskBadge({
@@ -831,8 +1045,16 @@ function RiskBadge({
         : level === "MEDIUM"
           ? "warning"
           : "neutral";
+  const badgeTone: BadgeTone =
+    level === "CRITICAL" || level === "HIGH"
+      ? "risk"
+      : level === "MEDIUM"
+        ? "pending"
+        : "neutral";
   return (
-    <span
+    <Badge
+      tone={badgeTone}
+      dot
       className="cases-row-chip"
       data-matter-queue-row-chip="risk"
       data-risk-tone={tone}
@@ -841,9 +1063,41 @@ function RiskBadge({
     >
       Risk: {level}
       {typeof score === "number" ? ` · ${score}` : ""}
-    </span>
+    </Badge>
   );
 }
+
+/**
+ * Phase 7C — operational counter chip. Restyled as a tone-keyed pill so
+ * the enterprise counter strip reads as a scannable premium row instead
+ * of raw comma text. The `data-matter-queue-row-counter` + tone data
+ * attributes are preserved for E2E / observability.
+ */
+const COUNTER_TONE_STYLE: Record<
+  "neutral" | "warning" | "high" | "critical",
+  React.CSSProperties
+> = {
+  neutral: {
+    background: "var(--status-neutral-bg, #f1f5f9)",
+    color: "var(--status-neutral-fg, #475569)",
+    border: "1px solid var(--status-neutral-border, #cbd5e1)",
+  },
+  warning: {
+    background: "var(--status-pending-bg, #fef3c7)",
+    color: "var(--status-pending-fg, #78350f)",
+    border: "1px solid var(--status-pending-border, #fde68a)",
+  },
+  high: {
+    background: "var(--status-info-bg, #eff6ff)",
+    color: "var(--status-info-fg, #1e40af)",
+    border: "1px solid var(--status-info-border, #bfdbfe)",
+  },
+  critical: {
+    background: "var(--status-risk-bg, #fef2f2)",
+    color: "var(--status-risk-fg, #991b1b)",
+    border: "1px solid var(--status-risk-border, #fecaca)",
+  },
+};
 
 function Counter({
   dataKey,
@@ -860,6 +1114,17 @@ function Counter({
     <span
       data-matter-queue-row-counter={dataKey}
       data-counter-tone={tone ?? "neutral"}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "2px 9px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 600,
+        whiteSpace: "nowrap",
+        ...COUNTER_TONE_STYLE[tone ?? "neutral"],
+      }}
     >
       {value} {label}
     </span>
@@ -900,6 +1165,48 @@ function reasonCodeLabel(code: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Shared inline CTA styles (Phase 7C) — the two empty-state CTAs are
+// source-pinned to raw <button> nodes carrying data-empty-state-cta
+// (the contract regexes require the exact element + text with no
+// wrapping <span>), so we cannot swap them for the <Button> component.
+// The legacy btn-primary/btn-secondary class names have been dropped;
+// these buttons now carry the same token-driven premium chrome the
+// Button primitive uses via the inline style objects below.
+// ---------------------------------------------------------------------------
+
+const PRIMARY_CTA_STYLE: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 42,
+  padding: "0 18px",
+  fontSize: 14,
+  fontWeight: 650,
+  borderRadius: 12,
+  cursor: "pointer",
+  background: "var(--btn-primary-bg)",
+  color: "var(--btn-primary-color)",
+  border: "1px solid var(--btn-primary-border)",
+  boxShadow: "var(--btn-primary-shadow)",
+};
+
+const SECONDARY_CTA_STYLE: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 42,
+  padding: "0 18px",
+  fontSize: 14,
+  fontWeight: 650,
+  borderRadius: 12,
+  cursor: "pointer",
+  background: "var(--surface-card, #ffffff)",
+  color: "var(--ink-primary, #0f172a)",
+  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+  boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
+};
+
+// ---------------------------------------------------------------------------
 // Shells
 // ---------------------------------------------------------------------------
 
@@ -908,17 +1215,21 @@ function QueueLoading() {
   // ready-state heading so the eyebrow does not flip from
   // "Your cases" → "Investigation Matters" while loading.
   return (
-    <main className="cc-page" data-matter-queue-loading>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Your cases</div>
-          <h1 className="cc-title">Your cases</h1>
-        </div>
-      </header>
-      <section className="cc-section">
-        <div className="cc-skeleton" />
-      </section>
-    </main>
+    <PageShell
+      data-matter-queue-loading
+      header={
+        <PageHeader
+          eyebrow={<span className="cc-kicker">Your cases</span>}
+          title={<span className="cc-title">Your cases</span>}
+        />
+      }
+    >
+      <PageSection>
+        <Card>
+          <div className="cc-skeleton" style={{ minHeight: 120 }} />
+        </Card>
+      </PageSection>
+    </PageShell>
   );
 }
 
@@ -928,23 +1239,28 @@ function QueueAuthError({
   code: "auth_required" | "permission_denied";
 }) {
   return (
-    <main className="cc-page" data-matter-queue-auth-error={code}>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Investigation Matters</div>
-          <h1 className="cc-title">
-            {code === "auth_required"
-              ? "Sign in required"
-              : "Permission required"}
-          </h1>
-          <p className="cc-subtitle">
-            {code === "auth_required"
-              ? "Sign in to view the matter queue."
-              : "You do not have permission to view the matter queue for this workspace. Ask a workspace administrator."}
-          </p>
-        </div>
-      </header>
-    </main>
+    <PageShell
+      data-matter-queue-auth-error={code}
+      header={
+        <PageHeader
+          eyebrow={<span className="cc-kicker">Investigation Matters</span>}
+          title={
+            <span className="cc-title">
+              {code === "auth_required"
+                ? "Sign in required"
+                : "Permission required"}
+            </span>
+          }
+          subtitle={
+            <span className="cc-subtitle">
+              {code === "auth_required"
+                ? "Sign in to view the matter queue."
+                : "You do not have permission to view the matter queue for this workspace. Ask a workspace administrator."}
+            </span>
+          }
+        />
+      }
+    />
   );
 }
 
@@ -956,20 +1272,23 @@ function QueueUnavailable({
   onRetry: () => void;
 }) {
   return (
-    <main className="cc-page" data-matter-queue-unavailable>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Investigation Matters</div>
-          <h1 className="cc-title">Matter queue temporarily unavailable</h1>
-          <p className="cc-subtitle">{message}</p>
-        </div>
-        <div className="cc-meta">
-          <button type="button" onClick={onRetry} className="cases-filter-chip">
-            Retry
-          </button>
-        </div>
-      </header>
-    </main>
+    <PageShell
+      data-matter-queue-unavailable
+      header={
+        <PageHeader
+          eyebrow={<span className="cc-kicker">Investigation Matters</span>}
+          title={
+            <span className="cc-title">Matter queue temporarily unavailable</span>
+          }
+          subtitle={<span className="cc-subtitle">{message}</span>}
+          primaryAction={
+            <Button variant="secondary" onClick={onRetry}>
+              Retry
+            </Button>
+          }
+        />
+      }
+    />
   );
 }
 

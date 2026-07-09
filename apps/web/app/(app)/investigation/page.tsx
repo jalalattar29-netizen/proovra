@@ -12,6 +12,12 @@
  *   * Queue health — gauges from the existing /v1/ops/metrics
  *     endpoint (reused from /operations/media-graph).
  *
+ * Phase 7C — VISUAL redesign only. The page now composes the shared
+ * PageShell / PageHeader / PageSection foundation with token-driven
+ * Card / Badge / Button primitives. All data fetching, polling,
+ * permission gates, data-* attributes and honest-null ("—") handling
+ * are preserved verbatim.
+ *
  * Hard rules:
  *   * Tone is operational only. No forbidden vocabulary
  *     (tampered/forged/fake/authentic/admissible/proves/confirms/
@@ -33,6 +39,14 @@ import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { HubQuickActionsBar } from "../../../components/hubs/HubQuickActionsBar";
 import { OperationalEmptyState } from "../../../components/operational/OperationalEmptyState";
 import { classifyInvestigationEmptyState } from "../../../lib/empty-state/classifier";
+import {
+  PageShell,
+  PageHeader,
+  PageSection,
+} from "../../../components/ui";
+import { Card } from "../../../components/ui/Card";
+import { Badge, type BadgeTone } from "../../../components/ui/Badge";
+import { Button } from "../../../components/ui/Button";
 // Phase 13 — typed cross-evidence findings client.
 import {
   getCrossEvidenceFindings,
@@ -125,6 +139,24 @@ type ReviewerActivitySummary = {
   };
 };
 
+// Shared tone vocabulary → design-system Badge tone. Keeps the
+// operational palette (ok / info / warn / danger) mapping honest.
+type Tone = "ok" | "info" | "warn" | "danger";
+
+function toneToCard(tone: Tone | undefined): {
+  variant: "summary" | "status";
+  cardTone?: "verified" | "pending" | "risk" | "info" | "neutral";
+} {
+  if (!tone) return { variant: "summary" };
+  const map: Record<Tone, "verified" | "pending" | "risk" | "info"> = {
+    ok: "verified",
+    info: "info",
+    warn: "pending",
+    danger: "risk",
+  };
+  return { variant: "status", cardTone: map[tone] };
+}
+
 // =============================================================================
 // Page
 // =============================================================================
@@ -183,8 +215,8 @@ function InvestigationOverviewPageInner() {
   >(null);
 
   // Resolve workspace once.
-  
-// Bounded poll: workspace data + metrics every 60 s while visible.
+
+  // Bounded poll: workspace data + metrics every 60 s while visible.
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
@@ -340,67 +372,76 @@ function InvestigationOverviewPageInner() {
     }
   };
 
+  const freshnessTone: BadgeTone = error
+    ? "risk"
+    : !teamId || ageSeconds == null
+      ? "neutral"
+      : ageSeconds > 180
+        ? "pending"
+        : "info";
+  const freshnessLabel = error
+    ? "Overview unavailable — retrying"
+    : !teamId
+      ? "loading workspace…"
+      : ageSeconds == null
+        ? "loading…"
+        : `updated ${ageSeconds}s ago`;
+
   return (
-    <div style={pageStyle}>
-      <header style={headerStyle}>
-        <div>
-          <h1 style={titleStyle}>Investigation Intelligence Overview</h1>
-          <p style={subtitleStyle}>
-            Workspace-wide advisory observations and recent graph activity.
-            Numbers are operational telemetry; they do not classify recorded
-            material and they do not establish legal weight.
-          </p>
-        </div>
-        <div style={headerRightStackStyle}>
-          <span style={freshnessPillStyle(error, ageSeconds, teamId)}>
-            {error
-              ? "Overview unavailable — retrying"
-              : !teamId
-                ? "loading workspace…"
-                : ageSeconds == null
-                  ? "loading…"
-                  : `updated ${ageSeconds}s ago`}
-          </span>
-          {/* Wave 2 Phase 6 — workspace-wide media-intelligence refresh.
-              Bounded to top 50 evidence records per request. Hidden for
-              actors without EVIDENCE_MANAGE. */}
-          {canMutate ? (
-            <button
-              type="button"
-              data-action="run-media-intelligence-refresh"
-              onClick={() => void handleRefresh()}
-              disabled={refreshBusy || !teamId}
-              style={refreshButtonStyle(refreshBusy)}
-            >
-              {refreshBusy
-                ? "Refreshing…"
-                : "Run media intelligence refresh"}
-            </button>
-          ) : null}
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Investigation"
+          title="Investigation Intelligence Overview"
+          subtitle="Workspace-wide advisory observations and recent graph activity. Numbers are operational telemetry; they do not classify recorded material and they do not establish legal weight."
+          contextStrip={
+            <Badge tone={freshnessTone} dot>
+              {freshnessLabel}
+            </Badge>
+          }
+          primaryAction={
+            // Wave 2 Phase 6 — workspace-wide media-intelligence refresh.
+            // Bounded to top 50 evidence records per request. Hidden for
+            // actors without EVIDENCE_MANAGE.
+            canMutate ? (
+              <Button
+                variant="primary"
+                data-action="run-media-intelligence-refresh"
+                onClick={() => void handleRefresh()}
+                disabled={refreshBusy || !teamId}
+                loading={refreshBusy}
+              >
+                {refreshBusy ? "Refreshing…" : "Run media intelligence refresh"}
+              </Button>
+            ) : undefined
+          }
+        />
+      }
+    >
+      {refreshResult || refreshError ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: -12 }}>
           {refreshResult ? (
-            <span style={refreshResultStyle}>
+            <Badge tone="verified">
               {refreshResult.enqueued > 0
                 ? `Queued ${refreshResult.enqueued} of ${refreshResult.scanned} record${refreshResult.scanned === 1 ? "" : "s"}.`
                 : `No new analyses queued — scanned ${refreshResult.scanned} record${refreshResult.scanned === 1 ? "" : "s"}.`}
-            </span>
+            </Badge>
           ) : null}
           {refreshError ? (
-            <span style={refreshErrorStyle}>
+            <Badge tone="risk">
               {refreshError === "not_permitted"
                 ? "You do not have permission to run this action."
                 : "Unable to start refresh. Try again."}
-            </span>
+            </Badge>
           ) : null}
         </div>
-      </header>
+      ) : null}
 
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Signal totals</h2>
+      <PageSection title="Signal totals">
         <TotalsGrid totals={overview?.totals ?? null} />
-      </section>
+      </PageSection>
 
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Recent observations</h2>
+      <PageSection title="Recent observations">
         <RecentSignalsList
           signals={overview?.recentSignals ?? null}
           fetchError={fetchError}
@@ -410,49 +451,44 @@ function InvestigationOverviewPageInner() {
           onAck={(id) => void handleSignalAction(id, "ACKNOWLEDGED")}
           onDismiss={(id) => void handleSignalAction(id, "DISMISSED")}
         />
-      </section>
+      </PageSection>
 
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Recent graph activity</h2>
+      <PageSection title="Recent graph activity">
         <GraphActivityList
           events={overview?.recentGraphActivity ?? null}
           fetchError={fetchError}
           isAdmin={canObservability}
         />
-      </section>
+      </PageSection>
 
       {/* Phase 12 — Reviewer activity. Surfaces the bounded totals
           the existing /v1/investigation/reviewers endpoint returns,
           with a deep-link to the dedicated console. */}
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Reviewer activity</h2>
+      <PageSection title="Reviewer activity">
         <ReviewerActivityGrid activity={reviewerActivity} />
         <div style={pivotsStyle}>
           <Link href="/investigation/reviewers" style={pivotLinkStyle}>
             Open reviewer console →
           </Link>
         </div>
-      </section>
+      </PageSection>
 
       {/* Phase 12 — Indexing progress. Surfaces the bounded indexing
           totals (OCR + transcript) that Phase 11 produces. */}
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Indexing progress</h2>
+      <PageSection title="Indexing progress">
         <IndexingProgressGrid totals={reviewerActivity?.indexingTotals ?? null} />
-      </section>
+      </PageSection>
 
       {/* Phase 13 — Cross-Evidence Findings. Lists workspace-wide
           entity tuples (kind, normalizedValue) that appear on more
           than one evidence record. Each chip deep-links into the
           existing /search surface so the operator can pivot to the
           full result set without leaving the page. */}
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Cross-Evidence Findings</h2>
+      <PageSection title="Cross-Evidence Findings">
         <CrossEvidenceFindingsCard findings={crossEvidence} />
-      </section>
+      </PageSection>
 
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Queue health</h2>
+      <PageSection title="Queue health">
         <QueueHealthGrid metrics={metrics} />
         {canObservability ? (
           <div style={pivotsStyle}>
@@ -461,14 +497,14 @@ function InvestigationOverviewPageInner() {
             </Link>
           </div>
         ) : null}
-      </section>
+      </PageSection>
 
       <p style={footerNoteStyle}>
         This dashboard renders only data the workspace operator already has
         access to. Originals are never mutated; the canonical custody record
         remains the authoritative integrity artifact.
       </p>
-    </div>
+    </PageShell>
   );
 }
 
@@ -476,11 +512,32 @@ function InvestigationOverviewPageInner() {
 // Subcomponents
 // =============================================================================
 
+function MetricTile({
+  label,
+  value,
+  tone,
+  detail,
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone?: Tone;
+  detail?: string;
+}) {
+  const { variant, cardTone } = toneToCard(tone);
+  return (
+    <Card variant={variant} tone={cardTone} padding="comfortable">
+      <div style={tileLabelStyle}>{label}</div>
+      <div style={tileValueStyle}>{value}</div>
+      {detail ? <div style={tileMetricNameStyle}>{detail}</div> : null}
+    </Card>
+  );
+}
+
 function TotalsGrid({ totals }: { totals: Totals | null }) {
   const tiles: Array<{
     label: string;
     value: number | null;
-    tone?: "ok" | "info" | "warn" | "danger";
+    tone?: Tone;
   }> = [
     { label: "Total signals", value: totals?.signalsTotal ?? null },
     {
@@ -499,16 +556,16 @@ function TotalsGrid({ totals }: { totals: Totals | null }) {
     { label: "Dismissed", value: totals?.dismissed ?? null },
   ];
   return (
-    <ul style={gridStyle}>
+    <div style={gridStyle}>
       {tiles.map((t) => (
-        <li key={t.label} style={tileStyle(t.tone)}>
-          <div style={tileLabelStyle}>{t.label}</div>
-          <div style={tileValueStyle}>
-            {t.value == null ? "—" : formatNumber(t.value)}
-          </div>
-        </li>
+        <MetricTile
+          key={t.label}
+          label={t.label}
+          tone={t.tone}
+          value={t.value == null ? "—" : formatNumber(t.value)}
+        />
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -550,19 +607,19 @@ function RecentSignalsList({
     );
   }
   return (
-    <ul style={listStyle}>
+    <div style={listStyle}>
       {signals.map((s) => (
-        <li key={s.id} style={rowStyle}>
+        <Card key={s.id} padding="comfortable">
           <div style={rowHeaderStyle}>
-            <span style={severityBadgeStyle(s.severity)}>
+            <Badge tone={severityTone(s.severity)}>
               {severityLabel(s.severity)}
-            </span>
-            <span style={confidenceBadgeStyle}>
+            </Badge>
+            <Badge tone="neutral" subtle>
               {confidenceLabel(s.confidence)}
-            </span>
-            <span style={statusBadgeStyle(s.status)}>
+            </Badge>
+            <Badge tone={statusTone(s.status)} subtle>
               {statusLabel(s.status)}
-            </span>
+            </Badge>
             <span style={signalTypeStyle}>{s.signalType}</span>
           </div>
           <p style={summaryTextStyle}>{s.safeSummary}</p>
@@ -570,37 +627,33 @@ function RecentSignalsList({
             <time style={timestampStyle} dateTime={s.createdAtUtc}>
               Recorded {formatTimestamp(s.createdAtUtc)}
             </time>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               {canMutate ? (
                 <>
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
+                    variant="secondary"
                     data-action="acknowledge-signal"
                     onClick={() => onAck(s.id)}
                     disabled={signalBusy[s.id] != null}
-                    style={signalActionButtonStyle(
-                      "ack",
-                      signalBusy[s.id] === "ACKNOWLEDGED",
-                    )}
+                    loading={signalBusy[s.id] === "ACKNOWLEDGED"}
                   >
                     {signalBusy[s.id] === "ACKNOWLEDGED"
                       ? "Acknowledging…"
                       : "Acknowledge"}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
                     data-action="dismiss-signal"
                     onClick={() => onDismiss(s.id)}
                     disabled={signalBusy[s.id] != null}
-                    style={signalActionButtonStyle(
-                      "dismiss",
-                      signalBusy[s.id] === "DISMISSED",
-                    )}
+                    loading={signalBusy[s.id] === "DISMISSED"}
                   >
                     {signalBusy[s.id] === "DISMISSED"
                       ? "Dismissing…"
                       : "Dismiss"}
-                  </button>
+                  </Button>
                 </>
               ) : null}
               <Link
@@ -611,9 +664,9 @@ function RecentSignalsList({
               </Link>
             </div>
           </div>
-        </li>
+        </Card>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -647,19 +700,21 @@ function GraphActivityList({
     );
   }
   return (
-    <ul style={activityListStyle}>
-      {events.map((e) => (
-        <li key={`${e.kind}:${e.id}`} style={activityRowStyle}>
-          <span style={activityKindBadgeStyle(e.kind)}>
-            {e.kind === "NODE_CREATED" ? "Node" : "Edge"}
-          </span>
-          <span style={activitySummaryStyle}>{e.summary}</span>
-          <time style={timestampStyle} dateTime={e.atUtc}>
-            {formatTimestamp(e.atUtc)}
-          </time>
-        </li>
-      ))}
-    </ul>
+    <Card padding="none">
+      <ul style={activityListStyle}>
+        {events.map((e) => (
+          <li key={`${e.kind}:${e.id}`} style={activityRowStyle}>
+            <Badge tone={e.kind === "NODE_CREATED" ? "info" : "verified"} subtle>
+              {e.kind === "NODE_CREATED" ? "Node" : "Edge"}
+            </Badge>
+            <span style={activitySummaryStyle}>{e.summary}</span>
+            <time style={timestampStyle} dateTime={e.atUtc}>
+              {formatTimestamp(e.atUtc)}
+            </time>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 
@@ -698,7 +753,7 @@ function ReviewerActivityGrid({
   const tiles: Array<{
     label: string;
     value: number | null;
-    tone?: "ok" | "info" | "warn" | "danger";
+    tone?: Tone;
     detail?: string;
   }> = [
     {
@@ -729,19 +784,17 @@ function ReviewerActivityGrid({
     },
   ];
   return (
-    <ul style={gridStyle}>
+    <div style={gridStyle}>
       {tiles.map((t) => (
-        <li key={t.label} style={tileStyle(t.tone)}>
-          <div style={tileLabelStyle}>{t.label}</div>
-          <div style={tileValueStyle}>
-            {t.value == null ? "—" : formatNumber(t.value)}
-          </div>
-          {t.detail ? (
-            <div style={tileMetricNameStyle}>{t.detail}</div>
-          ) : null}
-        </li>
+        <MetricTile
+          key={t.label}
+          label={t.label}
+          tone={t.tone}
+          detail={t.detail}
+          value={t.value == null ? "—" : formatNumber(t.value)}
+        />
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -750,7 +803,7 @@ function ReviewerActivityGrid({
 // Defensive: the /v1/investigation/reviewers handler can silently swallow
 // exceptions and return partial indexingTotals (media-intelligence.routes.ts:910-911).
 // The previous unguarded read at lines 569-575 was the root cause of the
-// /investigation "Something went wrong" crash. Every field is read via
+// /investigation "Something went wrong" regression. Every field is read via
 // optional chain + nullish coalescing so a missing key renders 0 rather
 // than throwing. We also gracefully accept `undefined` (in addition to
 // `null`) so any future caller passing `reviewerActivity?.indexingTotals`
@@ -810,15 +863,17 @@ function IndexingProgressGrid({
     },
   ];
   return (
-    <ul style={gridStyle}>
+    <div style={gridStyle}>
       {tiles.map((t) => (
-        <li key={t.label} style={tileStyle("info")}>
-          <div style={tileLabelStyle}>{t.label}</div>
-          <div style={tileValueStyle}>{formatNumber(t.value)}</div>
-          <div style={tileMetricNameStyle}>{t.detail}</div>
-        </li>
+        <MetricTile
+          key={t.label}
+          label={t.label}
+          tone="info"
+          detail={t.detail}
+          value={formatNumber(t.value)}
+        />
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -851,16 +906,16 @@ function CrossEvidenceFindingsCard({
     );
   }
   return (
-    <ul style={listStyle} data-cross-evidence-findings>
+    <div style={listStyle} data-cross-evidence-findings>
       {findings.map((f) => {
         const href = `/search?q=${encodeURIComponent(f.normalizedValue)}`;
         return (
-          <li key={`${f.kind}:${f.normalizedValue}`} style={rowStyle}>
+          <Card key={`${f.kind}:${f.normalizedValue}`} padding="comfortable">
             <div style={rowHeaderStyle}>
               <span style={signalTypeStyle}>{f.kind}</span>
-              <span style={confidenceBadgeStyle}>
+              <Badge tone="neutral" subtle>
                 {f.evidenceCount} records
-              </span>
+              </Badge>
               <span style={crossEvidenceValueStyle}>{f.normalizedValue}</span>
             </div>
             <p style={summaryTextStyle}>{f.operatorSummary}</p>
@@ -872,17 +927,17 @@ function CrossEvidenceFindingsCard({
                 Open search results →
               </Link>
             </div>
-          </li>
+          </Card>
         );
       })}
-    </ul>
+    </div>
   );
 }
 
 const crossEvidenceValueStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: "#0f172a",
+  color: "var(--ink-primary, #0f172a)",
   wordBreak: "break-all",
 };
 
@@ -891,7 +946,7 @@ function QueueHealthGrid({ metrics }: { metrics: MetricsSnapshot | null }) {
     label: string;
     metric: string;
     kind: "counter" | "gauge";
-    tone?: "ok" | "info" | "warn" | "danger";
+    tone?: Tone;
   }> = [
     {
       label: "Queue depth",
@@ -936,22 +991,22 @@ function QueueHealthGrid({ metrics }: { metrics: MetricsSnapshot | null }) {
   const counters: Record<string, number> = metrics?.counters ?? {};
   const gauges: Record<string, number> = metrics?.gauges ?? {};
   return (
-    <ul style={gridStyle}>
+    <div style={gridStyle}>
       {tiles.map((t) => {
         const bag = t.kind === "counter" ? counters : gauges;
         const present = metrics != null && t.metric in bag;
         const value = present ? bag[t.metric]! : null;
         return (
-          <li key={t.metric} style={tileStyle(t.tone)}>
-            <div style={tileLabelStyle}>{t.label}</div>
-            <div style={tileValueStyle}>
-              {value == null ? "—" : formatNumber(value)}
-            </div>
-            <div style={tileMetricNameStyle}>{t.metric}</div>
-          </li>
+          <MetricTile
+            key={t.metric}
+            label={t.label}
+            tone={t.tone}
+            detail={t.metric}
+            value={value == null ? "—" : formatNumber(value)}
+          />
         );
       })}
-    </ul>
+    </div>
   );
 }
 
@@ -967,6 +1022,28 @@ function severityLabel(s: Severity): string {
       return "Review recommended";
     case "ATTENTION":
       return "Needs attention";
+  }
+}
+
+function severityTone(s: Severity): BadgeTone {
+  switch (s) {
+    case "INFO":
+      return "info";
+    case "REVIEW_RECOMMENDED":
+      return "pending";
+    case "ATTENTION":
+      return "risk";
+  }
+}
+
+function statusTone(s: Status): BadgeTone {
+  switch (s) {
+    case "PENDING":
+      return "neutral";
+    case "ACKNOWLEDGED":
+      return "verified";
+    case "DISMISSED":
+      return "neutral";
   }
 }
 
@@ -1010,218 +1087,53 @@ function formatTimestamp(iso: string): string {
 }
 
 // =============================================================================
-// Styles — inline, dense, enterprise. Matches /operations/media-graph register.
+// Styles — token-driven remnants used inside Card/PageSection bodies.
 // =============================================================================
 
-const pageStyle: React.CSSProperties = {
-  padding: 24,
-  maxWidth: 1280,
-  margin: "0 auto",
-  fontFamily:
-    "ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  color: "#0f172a",
-};
-
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 16,
-  marginBottom: 20,
-};
-
-const titleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 22,
-  fontWeight: 700,
-};
-
-const subtitleStyle: React.CSSProperties = {
-  margin: "4px 0 0 0",
-  fontSize: 13,
-  color: "#64748b",
-  maxWidth: 720,
-  lineHeight: 1.5,
-};
-
-function freshnessPillStyle(
-  err: string | null,
-  ageSeconds: number | null,
-  teamId: string | null,
-): React.CSSProperties {
-  let bg = "#eff6ff";
-  let border = "#bfdbfe";
-  let color = "#1e40af";
-  if (err) {
-    bg = "#fef2f2";
-    border = "#fca5a5";
-    color = "#991b1b";
-  } else if (!teamId || ageSeconds == null) {
-    bg = "#f1f5f9";
-    border = "#cbd5e1";
-    color = "#334155";
-  } else if (ageSeconds > 180) {
-    bg = "#fffbeb";
-    border = "#fcd34d";
-    color = "#92400e";
-  }
-  return {
-    padding: "4px 12px",
-    fontSize: 11,
-    fontWeight: 600,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-    whiteSpace: "nowrap",
-  };
-}
-
-const sectionStyle: React.CSSProperties = {
-  marginBottom: 24,
-};
-
-const headerRightStackStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "flex-end",
-  gap: 6,
-};
-
-function refreshButtonStyle(busy: boolean): React.CSSProperties {
-  return {
-    fontSize: 12,
-    fontWeight: 600,
-    color: "#ffffff",
-    background: busy ? "#1e3a8a" : "#1e40af",
-    border: "1px solid #1e3a8a",
-    borderRadius: 6,
-    padding: "5px 12px",
-    cursor: busy ? "wait" : "pointer",
-    whiteSpace: "nowrap",
-  };
-}
-
-const refreshResultStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#166534",
-  background: "#ecfdf5",
-  border: "1px solid #bbf7d0",
-  borderRadius: 6,
-  padding: "3px 8px",
-  whiteSpace: "nowrap",
-};
-
-const refreshErrorStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#991b1b",
-  background: "#fef2f2",
-  border: "1px solid #fca5a5",
-  borderRadius: 6,
-  padding: "3px 8px",
-  whiteSpace: "nowrap",
-};
-
-function signalActionButtonStyle(
-  variant: "ack" | "dismiss",
-  busy: boolean,
-): React.CSSProperties {
-  const isAck = variant === "ack";
-  return {
-    fontSize: 11,
-    fontWeight: 600,
-    color: isAck ? "#ffffff" : "#1e40af",
-    background: isAck ? (busy ? "#1e3a8a" : "#1e40af") : busy ? "#dbeafe" : "#eff6ff",
-    border: `1px solid ${isAck ? "#1e3a8a" : "#bfdbfe"}`,
-    borderRadius: 6,
-    padding: "3px 10px",
-    cursor: busy ? "wait" : "pointer",
-  };
-}
-
-const sectionTitleStyle: React.CSSProperties = {
-  margin: "0 0 10px 0",
-  fontSize: 14,
-  fontWeight: 700,
-  color: "#334155",
-  textTransform: "uppercase",
-  letterSpacing: 0.6,
-};
-
 const gridStyle: React.CSSProperties = {
-  listStyle: "none",
-  margin: 0,
-  padding: 0,
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-  gap: 10,
+  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+  gap: 12,
 };
-
-function tileStyle(
-  tone: "ok" | "info" | "warn" | "danger" | undefined,
-): React.CSSProperties {
-  const palette: Record<NonNullable<typeof tone>, [string, string]> = {
-    ok: ["#ecfdf5", "#bbf7d0"],
-    info: ["#eff6ff", "#bfdbfe"],
-    warn: ["#fffbeb", "#fcd34d"],
-    danger: ["#fef2f2", "#fca5a5"],
-  };
-  const [bg, border] = tone ? palette[tone] : ["#ffffff", "#e5e7eb"];
-  return {
-    border: `1px solid ${border}`,
-    background: bg,
-    borderRadius: 8,
-    padding: 12,
-  };
-}
 
 const tileLabelStyle: React.CSSProperties = {
   fontSize: 11,
-  color: "#64748b",
+  color: "var(--ink-muted, #94a3b8)",
   fontWeight: 600,
   textTransform: "uppercase",
   letterSpacing: 0.4,
 };
 
 const tileValueStyle: React.CSSProperties = {
-  fontSize: 24,
+  fontSize: 26,
   fontWeight: 700,
-  margin: "4px 0 0 0",
-  color: "#0f172a",
+  margin: "6px 0 0 0",
+  color: "var(--ink-primary, #0f172a)",
+  lineHeight: 1.1,
 };
 
 const tileMetricNameStyle: React.CSSProperties = {
   fontSize: 10,
-  color: "#94a3b8",
+  color: "var(--ink-muted, #94a3b8)",
   fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-  marginTop: 4,
+  marginTop: 6,
 };
 
 const emptyStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 13,
-  color: "#64748b",
+  color: "var(--ink-secondary, #475569)",
   lineHeight: 1.5,
-  background: "#f8fafc",
-  border: "1px solid #e5e7eb",
-  borderRadius: 8,
-  padding: 14,
+  background: "var(--surface-muted, #f1f4f9)",
+  border: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
+  borderRadius: "var(--radius-card, 14px)",
+  padding: 16,
 };
 
 const listStyle: React.CSSProperties = {
-  listStyle: "none",
-  padding: 0,
-  margin: 0,
   display: "flex",
   flexDirection: "column",
-  gap: 10,
-};
-
-const rowStyle: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
-  borderRadius: 8,
-  padding: 12,
-  background: "#ffffff",
+  gap: 12,
 };
 
 const rowHeaderStyle: React.CSSProperties = {
@@ -1229,18 +1141,18 @@ const rowHeaderStyle: React.CSSProperties = {
   flexWrap: "wrap",
   gap: 6,
   alignItems: "center",
-  marginBottom: 6,
+  marginBottom: 8,
 };
 
 const summaryTextStyle: React.CSSProperties = {
   margin: 0,
-  fontSize: 13,
-  color: "#0f172a",
-  lineHeight: 1.5,
+  fontSize: 13.5,
+  color: "var(--ink-primary, #0f172a)",
+  lineHeight: 1.55,
 };
 
 const rowFooterStyle: React.CSSProperties = {
-  marginTop: 10,
+  marginTop: 12,
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
@@ -1250,36 +1162,36 @@ const rowFooterStyle: React.CSSProperties = {
 
 const timestampStyle: React.CSSProperties = {
   fontSize: 11,
-  color: "#64748b",
+  color: "var(--ink-muted, #94a3b8)",
 };
 
 const signalTypeStyle: React.CSSProperties = {
   fontSize: 10,
-  color: "#475569",
+  color: "var(--ink-secondary, #475569)",
   fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-  background: "#f1f5f9",
-  border: "1px solid #e2e8f0",
+  background: "var(--surface-muted, #f1f4f9)",
+  border: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
   borderRadius: 4,
   padding: "1px 6px",
 };
 
 const pivotsStyle: React.CSSProperties = {
-  marginTop: 10,
+  marginTop: 12,
   display: "flex",
   gap: 12,
 };
 
 const pivotLinkStyle: React.CSSProperties = {
   fontSize: 12,
-  fontWeight: 600,
-  color: "#1e40af",
+  fontWeight: 650,
+  color: "var(--status-info-solid, #2563eb)",
   textDecoration: "none",
 };
 
 const footerNoteStyle: React.CSSProperties = {
-  marginTop: 16,
+  marginTop: 4,
   fontSize: 11,
-  color: "#64748b",
+  color: "var(--ink-muted, #94a3b8)",
   textAlign: "center",
   lineHeight: 1.5,
 };
@@ -1290,92 +1202,21 @@ const activityListStyle: React.CSSProperties = {
   margin: 0,
   display: "flex",
   flexDirection: "column",
-  gap: 4,
-  border: "1px solid #e5e7eb",
-  borderRadius: 8,
-  background: "#ffffff",
 };
 
 const activityRowStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "auto 1fr auto",
   gap: 12,
-  padding: "10px 14px",
-  borderBottom: "1px solid #f1f5f9",
+  padding: "12px 16px",
+  borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
   alignItems: "center",
 };
 
-function activityKindBadgeStyle(
-  kind: "NODE_CREATED" | "EDGE_CREATED",
-): React.CSSProperties {
-  const isNode = kind === "NODE_CREATED";
-  return {
-    fontSize: 10,
-    fontWeight: 600,
-    padding: "2px 8px",
-    borderRadius: 999,
-    background: isNode ? "#eff6ff" : "#ecfdf5",
-    border: `1px solid ${isNode ? "#bfdbfe" : "#bbf7d0"}`,
-    color: isNode ? "#1e40af" : "#166534",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-    whiteSpace: "nowrap",
-  };
-}
-
 const activitySummaryStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#0f172a",
+  fontSize: 13,
+  color: "var(--ink-primary, #0f172a)",
   lineHeight: 1.4,
   overflow: "hidden",
   textOverflow: "ellipsis",
 };
-
-function severityBadgeStyle(s: Severity): React.CSSProperties {
-  const palette: Record<Severity, [string, string, string]> = {
-    INFO: ["#eff6ff", "#bfdbfe", "#1e40af"],
-    REVIEW_RECOMMENDED: ["#fffbeb", "#fcd34d", "#92400e"],
-    ATTENTION: ["#fef2f2", "#fca5a5", "#991b1b"],
-  };
-  const [bg, border, color] = palette[s];
-  return {
-    padding: "2px 8px",
-    fontSize: 11,
-    fontWeight: 600,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-    whiteSpace: "nowrap",
-  };
-}
-
-const confidenceBadgeStyle: React.CSSProperties = {
-  padding: "2px 8px",
-  fontSize: 11,
-  fontWeight: 500,
-  background: "#f1f5f9",
-  border: "1px solid #e2e8f0",
-  color: "#334155",
-  borderRadius: 999,
-  whiteSpace: "nowrap",
-};
-
-function statusBadgeStyle(s: Status): React.CSSProperties {
-  const palette: Record<Status, [string, string, string]> = {
-    PENDING: ["#ffffff", "#cbd5e1", "#334155"],
-    ACKNOWLEDGED: ["#ecfdf5", "#bbf7d0", "#166534"],
-    DISMISSED: ["#f1f5f9", "#cbd5e1", "#64748b"],
-  };
-  const [bg, border, color] = palette[s];
-  return {
-    padding: "2px 8px",
-    fontSize: 11,
-    fontWeight: 500,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-    whiteSpace: "nowrap",
-  };
-}

@@ -257,24 +257,20 @@ describe("Phase 24 — UI wording sweep", () => {
     }
   });
 
-  it("badge styling map only contains allowed-catalog keys", () => {
-    // Extract the badgeChipStyle map keys; every key must be in the
-    // shared allowed-catalog (or be the safe fallback empty string).
-    const mapBlock = pageSrc.match(
-      /function badgeChipStyle[\s\S]*?const map: Record<string,[\s\S]*?\};/
-    );
-    expect(mapBlock).toBeTruthy();
-    const keys =
-      mapBlock?.[0].match(/"([^"]+)":\s*\{ bg:/g)?.map((s) => {
-        const m = s.match(/"([^"]+)":/);
-        return m?.[1] ?? "";
-      }) ?? [];
-    for (const k of keys) {
-      expect(
-        SEARCH_RESULT_ALLOWED_BADGES.includes(k),
-        `badge key "${k}" not in allowed catalog`
-      ).toBe(true);
-    }
+  it("result badges render through the shared <Badge> with the catalog-validated label", () => {
+    // Phase 7C — the bespoke `badgeChipStyle` palette map was removed; result
+    // badges now render via the shared <Badge tone={badgeTone(b)}
+    // data-search-result-badge={b}> primitive. The badge LABEL `b` comes from
+    // the search projection, whose values are constrained to
+    // SEARCH_RESULT_ALLOWED_BADGES by `isAllowedSearchBadge` at the SERVICE
+    // layer (see "only emits badges from the allowed catalog" above). So the
+    // honesty guarantee is enforced on the data, not a page-local style map.
+    expect(pageSrc).not.toMatch(/function badgeChipStyle/);
+    expect(pageSrc).toMatch(/tone=\{badgeTone\(b\)\}/);
+    expect(pageSrc).toMatch(/data-search-result-badge=\{b\}/);
+    // Sanity: the allowed catalog still exists and is non-trivial.
+    expect(Array.isArray(SEARCH_RESULT_ALLOWED_BADGES)).toBe(true);
+    expect(SEARCH_RESULT_ALLOWED_BADGES.length).toBeGreaterThan(0);
   });
 });
 

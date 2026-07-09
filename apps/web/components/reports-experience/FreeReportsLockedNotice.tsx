@@ -27,6 +27,8 @@
  */
 
 import Link from "next/link";
+import { Card } from "../ui/Card";
+import { Badge } from "../ui/Badge";
 
 export function FreeReportsLockedNotice() {
   return (
@@ -35,83 +37,117 @@ export function FreeReportsLockedNotice() {
       role="region"
       aria-label="Reports — upgrade required"
       style={{
-        margin: "16px 0",
-        padding: 20,
-        borderRadius: 12,
-        background: "#eef2ff",
-        border: "1px solid #c7d2fe",
-        color: "#1e1b4b",
+        marginInline: "auto",
+        maxWidth: "var(--page-max-w, 1360px)",
+        paddingInline: "var(--page-pad-x, 32px)",
+        paddingTop: "var(--page-pad-y, 28px)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span aria-hidden="true" style={{ fontSize: 20 }}>🔒</span>
-        <strong style={{ fontSize: 18 }}>Reports unlock with Pay-Per-Evidence, Pro, or Team</strong>
-      </div>
-
-      <p style={{ margin: "8px 0 12px", lineHeight: 1.5 }}>
-        Reports are included with Pay-Per-Evidence, Pro, and Team. Upgrade
-        when you need reviewer-facing PDF reports and verification
-        packages. Your existing evidence and public verification links
-        remain available on the Free plan.
-      </p>
-
-      <div
-        data-free-reports-locked-unlocks
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 8,
-          margin: "12px 0",
-          fontSize: 14,
-        }}
-      >
-        <div>✓ PDF verification report</div>
-        <div>✓ Verification package</div>
-        <div>✓ Shareable verification link</div>
-        <div>✓ Report history</div>
-      </div>
-
-      <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
-        <Link
-          href="/billing"
-          data-free-reports-cta="upgrade_pro"
+      <Card variant="status" tone="governance" padding="comfortable">
+        <div
           style={{
-            padding: "8px 16px",
-            background: "#4f46e5",
-            color: "white",
-            borderRadius: 6,
-            textDecoration: "none",
-            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            marginBottom: 8,
           }}
         >
-          Upgrade to Pro
-        </Link>
-        <Link
-          href="/billing?plan=payg"
-          data-free-reports-cta="try_payg"
+          <span aria-hidden="true" style={{ fontSize: 20 }}>
+            🔒
+          </span>
+          <strong
+            style={{ fontSize: 18, color: "var(--ink-primary, #0f172a)" }}
+          >
+            Reports unlock with Pay-Per-Evidence, Pro, or Team
+          </strong>
+          <Badge tone="governance" subtle>
+            Upgrade
+          </Badge>
+        </div>
+
+        <p
           style={{
-            padding: "8px 16px",
-            background: "white",
-            color: "#4f46e5",
-            borderRadius: 6,
-            textDecoration: "none",
-            fontWeight: 600,
-            border: "1px solid #4f46e5",
+            margin: "8px 0 12px",
+            lineHeight: 1.55,
+            color: "var(--ink-secondary, #475569)",
           }}
         >
-          Complete with Pay-Per-Evidence
-        </Link>
-      </div>
+          Reports are included with Pay-Per-Evidence, Pro, and Team. Upgrade
+          when you need reviewer-facing PDF reports and verification packages.
+          Your existing evidence and public verification links remain available
+          on the Free plan.
+        </p>
 
-      <p
-        style={{
-          marginTop: 16,
-          fontSize: 12,
-          opacity: 0.75,
-        }}
-      >
-        Public verification of existing evidence stays free.
-      </p>
+        <div
+          data-free-reports-locked-unlocks
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 8,
+            margin: "12px 0",
+            fontSize: 14,
+            color: "var(--ink-secondary, #475569)",
+          }}
+        >
+          <div>✓ PDF verification report</div>
+          <div>✓ Verification package</div>
+          <div>✓ Shareable verification link</div>
+          <div>✓ Report history</div>
+        </div>
+
+        <div style={{ display: "flex", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
+          <Link
+            href="/billing"
+            data-free-reports-cta="upgrade_pro"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 42,
+              padding: "0 18px",
+              borderRadius: 12,
+              textDecoration: "none",
+              fontSize: 14,
+              fontWeight: 650,
+              background: "var(--btn-primary-bg)",
+              color: "var(--btn-primary-color)",
+              border: "1px solid var(--btn-primary-border)",
+              boxShadow: "var(--btn-primary-shadow)",
+            }}
+          >
+            Upgrade to Pro
+          </Link>
+          <Link
+            href="/billing?plan=payg"
+            data-free-reports-cta="try_payg"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 42,
+              padding: "0 18px",
+              borderRadius: 12,
+              textDecoration: "none",
+              fontSize: 14,
+              fontWeight: 650,
+              background: "var(--surface-card, #ffffff)",
+              color: "var(--ink-primary, #0f172a)",
+              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+              boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
+            }}
+          >
+            Complete with Pay-Per-Evidence
+          </Link>
+        </div>
+
+        <p
+          style={{
+            marginTop: 16,
+            fontSize: 12,
+            color: "var(--ink-muted, #94a3b8)",
+          }}
+        >
+          Public verification of existing evidence stays free.
+        </p>
+      </Card>
     </section>
   );
 }

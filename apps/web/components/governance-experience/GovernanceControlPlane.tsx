@@ -26,6 +26,14 @@ import {
 } from "../../lib/platform-context";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { RuntimeStatusBanner } from "../operational";
+// Phase 7D — shared enterprise design-system primitives. VISUAL-only
+// migration of the control-plane's bespoke panels/tiles/chips. Deep-imported
+// per the barrel contract (the ui/index barrel still serves the LEGACY
+// Card/Button/Badge to older call sites). No structural / contract change:
+// every data-governance-* attribute, tab-state hook, honesty note and the
+// `case-tabs` hero/tab structure are preserved.
+import { Card } from "../ui/Card";
+import { Badge } from "../ui/Badge";
 import type { GovernanceControlPlaneEnvelope, SectionStatus } from "./types";
 
 // CR1.6 — The legacy `no_workspace` LoadState branch was removed.
@@ -285,17 +293,47 @@ function PostureTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
       <header className="cc-section-header">
         <h2 className="cc-section-title">Posture</h2>
       </header>
-      <div className="cc-tile-grid" data-governance-posture-tiles>
+      <div
+        data-governance-posture-tiles
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+          gap: 12,
+        }}
+      >
         {tiles.map((t) => (
-          <div
-            className="cc-tile"
+          <Card
             key={t.key}
+            variant="status"
+            tone={t.severe ? "risk" : "neutral"}
+            padding="compact"
             data-governance-posture-tile={t.key}
             data-cc-tile-severe={t.severe ? "true" : "false"}
           >
-            <span className="cc-tile-value">{t.value}</span>
-            <span className="cc-tile-label">{t.label}</span>
-          </div>
+            <span
+              style={{
+                display: "block",
+                fontSize: 26,
+                fontWeight: 700,
+                lineHeight: 1.1,
+                color: t.severe
+                  ? "var(--status-risk-fg, #991b1b)"
+                  : "var(--ink-primary, #0f172a)",
+              }}
+            >
+              {t.value}
+            </span>
+            <span
+              style={{
+                display: "block",
+                marginTop: 4,
+                fontSize: 13,
+                color: "var(--ink-secondary, #475569)",
+              }}
+            >
+              {t.label}
+            </span>
+          </Card>
         ))}
       </div>
       <div className="cc-section-foot">
@@ -573,31 +611,34 @@ function ExportTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
       <header className="cc-section-header">
         <h2 className="cc-section-title">Export Governance</h2>
       </header>
-      <div className="cc-tile-grid" data-governance-export-tiles>
-        <div className="cc-tile" data-governance-gate-tile="report">
-          <span className="cc-tile-value">
-            {d.gateFlags.allowReportDownload ? "Allowed" : "Blocked"}
-          </span>
-          <span className="cc-tile-label">Report downloads</span>
-        </div>
-        <div className="cc-tile" data-governance-gate-tile="package">
-          <span className="cc-tile-value">
-            {d.gateFlags.allowPackageDownload ? "Allowed" : "Blocked"}
-          </span>
-          <span className="cc-tile-label">Package downloads</span>
-        </div>
-        <div className="cc-tile" data-governance-gate-tile="public_verify">
-          <span className="cc-tile-value">
-            {d.gateFlags.allowPublicVerify ? "Allowed" : "Blocked"}
-          </span>
-          <span className="cc-tile-label">Public verify</span>
-        </div>
-        <div className="cc-tile" data-governance-gate-tile="original">
-          <span className="cc-tile-value">
-            {d.gateFlags.allowOriginalDownload ? "Allowed" : "Blocked"}
-          </span>
-          <span className="cc-tile-label">Original file download</span>
-        </div>
+      <div
+        data-governance-export-tiles
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+          gap: 12,
+        }}
+      >
+        <GateTile
+          data-governance-gate-tile="report"
+          label="Report downloads"
+          allowed={d.gateFlags.allowReportDownload}
+        />
+        <GateTile
+          data-governance-gate-tile="package"
+          label="Package downloads"
+          allowed={d.gateFlags.allowPackageDownload}
+        />
+        <GateTile
+          data-governance-gate-tile="public_verify"
+          label="Public verify"
+          allowed={d.gateFlags.allowPublicVerify}
+        />
+        <GateTile
+          data-governance-gate-tile="original"
+          label="Original file download"
+          allowed={d.gateFlags.allowOriginalDownload}
+        />
       </div>
       <header className="cc-section-header" style={{ marginTop: 12 }}>
         <h3 className="cc-section-title">
@@ -642,6 +683,39 @@ function ExportTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * Export-gate posture tile. Migrated to the shared Card + Badge primitives.
+ * The `data-governance-gate-tile` contract attribute is passed through
+ * untouched via `...rest` onto the Card element. Allowed / Blocked reads
+ * honestly straight from the envelope gate flags — no fabricated state.
+ */
+function GateTile({
+  label,
+  allowed,
+  ...rest
+}: {
+  label: string;
+  allowed: boolean;
+} & Record<`data-${string}`, string>) {
+  return (
+    <Card variant="admin" padding="compact" {...rest}>
+      <Badge tone={allowed ? "verified" : "risk"} dot>
+        {allowed ? "Allowed" : "Blocked"}
+      </Badge>
+      <span
+        style={{
+          display: "block",
+          marginTop: 8,
+          fontSize: 13,
+          color: "var(--ink-secondary, #475569)",
+        }}
+      >
+        {label}
+      </span>
+    </Card>
   );
 }
 
@@ -707,18 +781,45 @@ function PolicyTab({
       <header className="cc-section-header">
         <h2 className="cc-section-title">Policy</h2>
       </header>
-      <ul className="governance-policy-summary" data-governance-policy-rows>
-        {rows.map((r) => (
-          <li
-            key={r.key}
-            className="governance-policy-row"
-            data-governance-policy-row={r.key}
-          >
-            <span className="governance-policy-row-label">{r.label}</span>
-            <span className="governance-policy-row-value">{r.value}</span>
-          </li>
-        ))}
-      </ul>
+      <Card variant="admin" padding="compact">
+        <ul
+          data-governance-policy-rows
+          style={{ listStyle: "none", margin: 0, padding: 0 }}
+        >
+          {rows.map((r, idx) => (
+            <li
+              key={r.key}
+              data-governance-policy-row={r.key}
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                justifyContent: "space-between",
+                gap: 16,
+                padding: "8px 0",
+                borderTop:
+                  idx === 0
+                    ? undefined
+                    : "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
+              }}
+            >
+              <span
+                style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}
+              >
+                {r.label}
+              </span>
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "var(--ink-primary, #0f172a)",
+                }}
+              >
+                {r.value}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Card>
       <div className="cc-section-foot">
         Source:{" "}
         <span data-governance-policy-source={d.source}>
@@ -787,8 +888,21 @@ function IncidentsTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
           >
             <div className="cc-incident-row-main">
               <span className="cc-incident-title">{row.title}</span>
-              <span className="cc-incident-meta">
-                {row.category} · {row.severity} · {row.status}
+              <span
+                className="cc-incident-meta"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <Badge tone={incidentSeverityTone(row.severity)} subtle dot>
+                  {row.severity}
+                </Badge>
+                <span>
+                  {row.category} · {row.status}
+                </span>
               </span>
             </div>
             <div className="cc-incident-summary">{row.safeSummary}</div>
@@ -898,6 +1012,25 @@ function ShellUnavailable({ message }: { message: string }) {
       </header>
     </main>
   );
+}
+
+/**
+ * Map a free-form incident severity string onto the shared Badge tone
+ * vocabulary. Defensive + honest: unknown severities fall back to the
+ * neutral tone rather than inventing an alarming colour. Never changes
+ * the underlying `data-cc-incident-severity` value.
+ */
+function incidentSeverityTone(
+  severity: string,
+): "risk" | "pending" | "info" | "neutral" {
+  const s = severity.toLowerCase();
+  if (s.includes("critical") || s.includes("high") || s.includes("sev1"))
+    return "risk";
+  if (s.includes("medium") || s.includes("warn") || s.includes("sev2"))
+    return "pending";
+  if (s.includes("low") || s.includes("info") || s.includes("sev3"))
+    return "info";
+  return "neutral";
 }
 
 function relTime(iso: string): string {

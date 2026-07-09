@@ -77,6 +77,14 @@ import {
 } from "../identity-security/StepUpModal";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
 import { ReviewerRoutingRecommendationsPane } from "../hidden-feature-panels/HiddenFeaturePanels";
+// Phase 7D — shared enterprise design system. Barrel serves the
+// layout primitives; the richer Card / Button / Badge / EmptyState
+// are deep-imported (the barrel keeps serving the legacy four).
+import { PageShell, PageHeader, PageSection } from "../ui";
+import { Card } from "../ui/Card";
+import { Button } from "../ui/Button";
+import { Badge, type BadgeTone } from "../ui/Badge";
+import { EmptyState } from "../ui/EmptyState";
 
 const DEFAULT_TEAM_PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
 
@@ -198,6 +206,57 @@ function isRowActionable(row: ConsoleRow): boolean {
   if (!row.id) return false;
   const s = (row.status ?? "").toUpperCase();
   return !TERMINAL_STATUSES.has(s);
+}
+
+// ---------------------------------------------------------------------------
+// Phase 7D — presentational tone mapping for the shared <Badge>. These map
+// the OPERATIONAL status / priority / severity vocabulary onto the design
+// system's semantic tones. They never change WHICH value renders — a null
+// value still renders the honest "—" placeholder, never a fabricated chip.
+// ---------------------------------------------------------------------------
+
+function severityTone(severity: string | null | undefined): BadgeTone {
+  switch ((severity ?? "").toUpperCase()) {
+    case "CRITICAL":
+    case "HIGH":
+      return "risk";
+    case "WARNING":
+      return "pending";
+    case "INFO":
+      return "info";
+    default:
+      return "neutral";
+  }
+}
+
+function priorityTone(priority: string | null | undefined): BadgeTone {
+  switch ((priority ?? "").toUpperCase()) {
+    case "CRITICAL":
+    case "URGENT":
+    case "HIGH":
+      return "risk";
+    case "MEDIUM":
+      return "pending";
+    case "LOW":
+      return "info";
+    default:
+      return "neutral";
+  }
+}
+
+function statusTone(status: string | null | undefined): BadgeTone {
+  const s = (status ?? "").toUpperCase();
+  if (s === "APPROVED") return "verified";
+  if (s === "REJECTED" || s === "CANCELLED" || s === "DESTROYED" || s === "TOMBSTONED") {
+    return "risk";
+  }
+  if (s === "ACKNOWLEDGED" || s === "RESOLVED" || s === "SUPPRESSED") {
+    return "verified";
+  }
+  if (s === "OPEN" || s.includes("PENDING") || s.includes("PROGRESS")) {
+    return "pending";
+  }
+  return "neutral";
 }
 
 /**
@@ -704,40 +763,70 @@ export function ReviewerConsole({
 
   if (!teamId) {
     return (
-      <section className="reviewer-console reviewer-console--no-workspace">
-        <p>
-          Reviewer Console is workspace-scoped. Switch into a team
-          workspace from the top-bar workspace switcher to open the
-          queue.
-        </p>
-      </section>
+      <PageShell
+        className="reviewer-console reviewer-console--no-workspace"
+        header={
+          <PageHeader
+            eyebrow="Reviewer operations"
+            title="Review Operations Console"
+          />
+        }
+      >
+        <Card variant="empty" padding="none">
+          <EmptyState
+            title="Reviewer Console is workspace-scoped"
+            purpose="Switch into a team workspace from the top-bar workspace switcher to open the queue."
+          />
+        </Card>
+      </PageShell>
     );
   }
 
   return (
-    <section
+    <PageShell
       className="reviewer-console"
       data-density={effectiveDensity}
       data-active-tab={activeTab}
+      header={
+        <PageHeader
+          eyebrow="Reviewer operations"
+          title="Review Operations Console"
+          subtitle={
+            <>
+              Monitor and manage review operations here. Daily evidence
+              decisions happen in Reviewer Workspace. Keyboard:{" "}
+              <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>Enter</kbd> open ·{" "}
+              <kbd>a</kbd> assign · <kbd>e</kbd> escalate · <kbd>m</kbd>{" "}
+              request info · <kbd>/</kbd> filter · <kbd>Cmd</kbd>+<kbd>K</kbd>{" "}
+              palette.
+            </>
+          }
+          contextStrip={
+            <div
+              className="reviewer-console__ia-strip"
+              data-reviewer-console-ia
+              style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
+            >
+              <a href="/review/workspace">Work: Reviewer Workspace</a>
+              <a href="/review/queues?queue=UNASSIGNED">
+                Manage: Reviewer Queues
+              </a>
+              <a href="/reviewer-ops/sla">Monitor: SLA Operations</a>
+              <a href="/reviewer-ops/escalations">Respond: Escalations</a>
+            </div>
+          }
+          primaryAction={
+            <Button
+              variant="primary"
+              onClick={() => setPaletteOpen(true)}
+              data-reviewer-command-palette-open
+            >
+              Command palette
+            </Button>
+          }
+        />
+      }
     >
-      <header className="reviewer-console__header">
-        <h1>Review Operations Console</h1>
-        <p className="reviewer-console__sub">
-          Monitor and manage review operations here. Daily evidence decisions
-          happen in Reviewer Workspace. Keyboard:{" "}
-          <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>Enter</kbd> open ·{" "}
-          <kbd>a</kbd> assign · <kbd>e</kbd> escalate · <kbd>m</kbd>{" "}
-          request info · <kbd>/</kbd> filter · <kbd>Cmd</kbd>+<kbd>K</kbd>{" "}
-          palette.
-        </p>
-      </header>
-      <div className="reviewer-console__ia-strip" data-reviewer-console-ia>
-        <a href="/review/workspace">Work: Reviewer Workspace</a>
-        <a href="/review/queues?queue=UNASSIGNED">Manage: Reviewer Queues</a>
-        <a href="/reviewer-ops/sla">Monitor: SLA Operations</a>
-        <a href="/reviewer-ops/escalations">Respond: Escalations</a>
-      </div>
-
       {/* Phase Final-Hidden-Feature-Surfacing — routing recommendations
           pane. Reads the canonical reviewer-routing recommendation
           rows via the new `/v1/reviewer/routing-recommendations`
@@ -747,35 +836,65 @@ export function ReviewerConsole({
         <ReviewerRoutingRecommendationsPane teamId={teamId} />
       ) : null}
 
-      <nav className="reviewer-console__tabs" role="tablist">
+      <nav
+        className="reviewer-console__tabs"
+        role="tablist"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gap: 10,
+        }}
+      >
         {TABS.map((t) => {
           const status =
             envelope?.diagnostics.sectionStatus[t.id] ?? "ok";
+          const active = activeTab === t.id;
           return (
             <button
               key={t.id}
               type="button"
               role="tab"
-              aria-selected={activeTab === t.id}
-              className={`reviewer-console__tab ${
-                activeTab === t.id ? "is-active" : ""
-              }`}
+              aria-selected={active}
               onClick={() => {
                 setActiveTab(t.id);
                 setSelectionIndex(0);
               }}
               data-section-status={status}
               data-tab-id={t.id}
+              style={{
+                textAlign: "left",
+                border: active
+                  ? "1px solid var(--ink-primary, #0f172a)"
+                  : "1px solid var(--border-default, rgba(15,23,42,0.09))",
+                boxShadow: active
+                  ? "inset 0 0 0 1px var(--ink-primary, #0f172a)"
+                  : "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
+                background: "var(--surface-card, #fff)",
+                borderRadius: "var(--radius-card, 14px)",
+                padding: "10px 12px",
+                display: "grid",
+                gap: 4,
+                cursor: "pointer",
+                color: "var(--ink-primary, #0f172a)",
+              }}
             >
               <strong>{t.label}</strong>
-              <span className="reviewer-console__tab-desc">{t.description}</span>
+              <span
+                style={{
+                  color: "var(--ink-muted, #64748b)",
+                  fontSize: 12,
+                }}
+              >
+                {t.description}
+              </span>
               {status === "degraded" ? (
-                <span
-                  className="reviewer-console__tab-degraded"
+                <Badge
+                  tone="pending"
+                  style={{ justifySelf: "start" }}
                   title="This section failed to load; other tabs are unaffected."
                 >
-                  degraded
-                </span>
+                  Degraded
+                </Badge>
               ) : null}
             </button>
           );
@@ -783,31 +902,50 @@ export function ReviewerConsole({
       </nav>
 
       {loading ? (
-        <p className="reviewer-console__status">Loading reviewer console…</p>
+        <Card
+          variant="admin"
+          padding="compact"
+          data-reviewer-console-status
+          style={{ color: "var(--ink-secondary, #475569)" }}
+        >
+          Loading reviewer console…
+        </Card>
       ) : null}
       {error ? (
-        <p className="reviewer-console__error" role="alert">
+        <Card
+          variant="status"
+          tone="risk"
+          padding="compact"
+          role="alert"
+          style={{ color: "var(--status-risk-fg, #7f1d1d)" }}
+        >
           {error}
-        </p>
+        </Card>
       ) : null}
 
       {actionError ? (
-        <p
-          className="reviewer-console__action-error"
+        <Card
+          variant="status"
+          tone="risk"
+          padding="compact"
           role="alert"
           data-reviewer-action-error
+          style={{ color: "var(--status-risk-fg, #7f1d1d)" }}
         >
           {actionError}
-        </p>
+        </Card>
       ) : null}
       {actionFlash ? (
-        <p
-          className="reviewer-console__action-flash"
+        <Card
+          variant="status"
+          tone="verified"
+          padding="compact"
           role="status"
           data-reviewer-action-flash
+          style={{ color: "var(--status-verified-fg, #166534)" }}
         >
           {actionFlash}
-        </p>
+        </Card>
       ) : null}
 
       {envelope ? (
@@ -815,13 +953,26 @@ export function ReviewerConsole({
           {/* In-tab filter — `/` focuses this input. The actual
               filter logic lives upstream in the per-domain endpoints
               for deep drill; the console-level input is bounded to
-              row.id / reviewer summary prefix matching. */}
+              row.id / reviewer summary prefix matching. Kept as a
+              token-styled input (not FilterBar.Search) because the
+              `/` shortcut focuses this exact ref. */}
           <div className="reviewer-console__filter">
             <input
               ref={filterInputRef}
               type="text"
               placeholder="Filter visible rows (press /)…"
               aria-label="Filter visible rows"
+              style={{
+                width: "100%",
+                minHeight: 40,
+                padding: "0 12px",
+                fontSize: 13.5,
+                color: "var(--ink-primary, #0f172a)",
+                background: "var(--surface-card, #fff)",
+                border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+                borderRadius: "var(--radius-md, 8px)",
+                outline: "none",
+              }}
             />
           </div>
 
@@ -981,7 +1132,7 @@ export function ReviewerConsole({
           dormant. */}
       <StepUpModal control={stepUp} />
       <style jsx>{reviewerConsoleStyles}</style>
-    </section>
+    </PageShell>
   );
 }
 
@@ -1071,102 +1222,128 @@ function QueueTable({
 }) {
   if (rows.length === 0) {
     return (
-      <p className="reviewer-console__empty">
-        No reviews match this slice right now. Use the queue links above to
-        switch between daily work, unassigned triage, and escalations, or save
-        a queue view once this workspace has active reviews.
-      </p>
+      <Card variant="empty" padding="none" className="reviewer-console__empty">
+        <EmptyState
+          title="No reviews in this slice"
+          purpose="No reviews match this slice right now. Use the queue links above to switch between daily work, unassigned triage, and escalations, or save a queue view once this workspace has active reviews."
+        />
+      </Card>
     );
   }
   return (
-    <table className="reviewer-console__table" role="grid">
-      <thead>
-        <tr>
-          <th>Evidence</th>
-          <th>Stage</th>
-          <th>Status</th>
-          <th>Priority</th>
-          <th>Due</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, idx) => {
-          const selected = idx === selectionIndex;
-          const actionable = isRowActionable(row);
-          const wid = row.id ?? "";
-          const assignBusy = busyKey === `assign:${wid}`;
-          const escalateBusy = busyKey === `escalate:${wid}`;
-          const reqInfoBusy = busyKey === `request-info:${wid}`;
-          return (
-            <tr
-              key={row.id ?? `row-${idx}`}
-              data-selected={selected}
-              data-reviewer-row-actionable={actionable ? "true" : "false"}
-              style={{ background: selected ? "rgba(0, 0, 0, 0.04)" : undefined }}
-            >
-              <td style={{ padding: rowPad }}>
-                {row.reviewerSummary ?? row.evidenceId ?? row.id ?? "—"}
-              </td>
-              <td style={{ padding: rowPad }}>{row.stage ?? "—"}</td>
-              <td style={{ padding: rowPad }}>{row.status ?? "—"}</td>
-              <td style={{ padding: rowPad }}>{row.priority ?? "—"}</td>
-              <td style={{ padding: rowPad }}>{row.dueAtUtc ?? "—"}</td>
-              <td style={{ padding: rowPad }}>
-                <div
-                  data-reviewer-row-actions={wid}
-                  style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
-                >
-                  <button
-                    type="button"
-                    data-reviewer-action="assign"
-                    data-reviewer-workflow-id={wid}
-                    disabled={!actionable || assignBusy}
-                    onClick={() => onAssign(row)}
-                    style={inlineButtonStyle}
-                    title="Assign reviewer (a)"
+    <div style={reviewerTableScrollStyle}>
+      <table role="grid" style={reviewerTableStyle}>
+        <thead>
+          <tr>
+            <th style={reviewerThStyle}>Evidence</th>
+            <th style={reviewerThStyle}>Stage</th>
+            <th style={reviewerThStyle}>Status</th>
+            <th style={reviewerThStyle}>Priority</th>
+            <th style={reviewerThStyle}>Due</th>
+            <th style={reviewerThStyle}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, idx) => {
+            const selected = idx === selectionIndex;
+            const actionable = isRowActionable(row);
+            const wid = row.id ?? "";
+            const assignBusy = busyKey === `assign:${wid}`;
+            const escalateBusy = busyKey === `escalate:${wid}`;
+            const reqInfoBusy = busyKey === `request-info:${wid}`;
+            return (
+              <tr
+                key={row.id ?? `row-${idx}`}
+                data-selected={selected}
+                data-reviewer-row-actionable={actionable ? "true" : "false"}
+                style={reviewerRowStyle(selected)}
+              >
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  {row.reviewerSummary ?? row.evidenceId ?? row.id ?? "—"}
+                </td>
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  {row.stage ?? "—"}
+                </td>
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  {row.status ? (
+                    <Badge tone={statusTone(row.status)} subtle>
+                      {row.status}
+                    </Badge>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  {row.priority ? (
+                    <Badge tone={priorityTone(row.priority)} subtle>
+                      {row.priority}
+                    </Badge>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  {row.dueAtUtc ?? "—"}
+                </td>
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  <div
+                    data-reviewer-row-actions={wid}
+                    style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
                   >
-                    {assignBusy ? "Assigning…" : "Assign"}
-                  </button>
-                  <button
-                    type="button"
-                    data-reviewer-action="escalate"
-                    data-reviewer-workflow-id={wid}
-                    disabled={!actionable || escalateBusy}
-                    onClick={() => onEscalate(row)}
-                    style={inlineButtonStyle}
-                    title="Raise escalation (e)"
-                  >
-                    {escalateBusy ? "Raising…" : "Escalate"}
-                  </button>
-                  <button
-                    type="button"
-                    data-reviewer-action="request-info"
-                    data-reviewer-workflow-id={wid}
-                    disabled={!actionable || reqInfoBusy}
-                    onClick={() => onRequestInfo(row)}
-                    style={inlineButtonStyle}
-                    title="Request more info (m)"
-                  >
-                    {reqInfoBusy ? "Requesting…" : "Request info"}
-                  </button>
-                  <button
-                    type="button"
-                    data-reviewer-action="open-inspector"
-                    data-reviewer-workflow-id={wid}
-                    onClick={() => onOpen?.(row)}
-                    style={inlineButtonStyle}
-                    title="Open reviewer inspector (Enter)"
-                  >
-                    Open inspector
-                  </button>
-                </div>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      data-reviewer-action="assign"
+                      data-reviewer-workflow-id={wid}
+                      disabled={!actionable}
+                      loading={assignBusy}
+                      onClick={() => onAssign(row)}
+                      title="Assign reviewer (a)"
+                    >
+                      {assignBusy ? "Assigning…" : "Assign"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      data-reviewer-action="escalate"
+                      data-reviewer-workflow-id={wid}
+                      disabled={!actionable}
+                      loading={escalateBusy}
+                      onClick={() => onEscalate(row)}
+                      title="Raise escalation (e)"
+                    >
+                      {escalateBusy ? "Raising…" : "Escalate"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      data-reviewer-action="request-info"
+                      data-reviewer-workflow-id={wid}
+                      disabled={!actionable}
+                      loading={reqInfoBusy}
+                      onClick={() => onRequestInfo(row)}
+                      title="Request more info (m)"
+                    >
+                      {reqInfoBusy ? "Requesting…" : "Request info"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      data-reviewer-action="open-inspector"
+                      data-reviewer-workflow-id={wid}
+                      onClick={() => onOpen?.(row)}
+                      title="Open reviewer inspector (Enter)"
+                    >
+                      Open inspector
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -1187,76 +1364,101 @@ function EscalationsTable({
 }) {
   if (rows.length === 0) {
     return (
-      <p className="reviewer-console__empty">
-        No escalations are open. This usually means no review is currently
-        blocked, overdue enough to escalate, or manually raised by an operator.
-      </p>
+      <Card variant="empty" padding="none" className="reviewer-console__empty">
+        <EmptyState
+          title="No open escalations"
+          purpose="No escalations are open. This usually means no review is currently blocked, overdue enough to escalate, or manually raised by an operator."
+        />
+      </Card>
     );
   }
   return (
-    <table className="reviewer-console__table" role="grid">
-      <thead>
-        <tr>
-          <th>Workflow</th>
-          <th>Severity</th>
-          <th>Status</th>
-          <th>Reason</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, idx) => {
-          const selected = idx === selectionIndex;
-          const eid = row.id ?? "";
-          const ackBusy = busyKey === `ack:${eid}`;
-          const ackable =
-            !!row.id &&
-            (row.status ?? "OPEN").toUpperCase() !== "ACKNOWLEDGED" &&
-            (row.status ?? "OPEN").toUpperCase() !== "RESOLVED" &&
-            (row.status ?? "OPEN").toUpperCase() !== "SUPPRESSED";
-          return (
-            <tr
-              key={row.id ?? `esc-${idx}`}
-              data-selected={selected}
-              style={{ background: selected ? "rgba(0, 0, 0, 0.04)" : undefined }}
-            >
-              <td style={{ padding: rowPad }}>{row.workflowId ?? row.id ?? "—"}</td>
-              <td style={{ padding: rowPad }}>{row.severity ?? "—"}</td>
-              <td style={{ padding: rowPad }}>{row.status ?? "—"}</td>
-              <td style={{ padding: rowPad }}>{row.reason ?? "—"}</td>
-              <td style={{ padding: rowPad }}>
-                <div
-                  data-reviewer-row-actions={eid}
-                  style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
-                >
-                  <button
-                    type="button"
-                    data-reviewer-action="acknowledge"
-                    data-reviewer-escalation-id={eid}
-                    disabled={!ackable || ackBusy}
-                    onClick={() => onAcknowledge(row)}
-                    style={inlineButtonStyle}
-                    title="Acknowledge escalation"
+    <div style={reviewerTableScrollStyle}>
+      <table role="grid" style={reviewerTableStyle}>
+        <thead>
+          <tr>
+            <th style={reviewerThStyle}>Workflow</th>
+            <th style={reviewerThStyle}>Severity</th>
+            <th style={reviewerThStyle}>Status</th>
+            <th style={reviewerThStyle}>Reason</th>
+            <th style={reviewerThStyle}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, idx) => {
+            const selected = idx === selectionIndex;
+            const eid = row.id ?? "";
+            const ackBusy = busyKey === `ack:${eid}`;
+            const ackable =
+              !!row.id &&
+              (row.status ?? "OPEN").toUpperCase() !== "ACKNOWLEDGED" &&
+              (row.status ?? "OPEN").toUpperCase() !== "RESOLVED" &&
+              (row.status ?? "OPEN").toUpperCase() !== "SUPPRESSED";
+            return (
+              <tr
+                key={row.id ?? `esc-${idx}`}
+                data-selected={selected}
+                style={reviewerRowStyle(selected)}
+              >
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  {row.workflowId ?? row.id ?? "—"}
+                </td>
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  {row.severity ? (
+                    <Badge tone={severityTone(row.severity)} subtle>
+                      {row.severity}
+                    </Badge>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  {row.status ? (
+                    <Badge tone={statusTone(row.status)} subtle>
+                      {row.status}
+                    </Badge>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  {row.reason ?? "—"}
+                </td>
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  <div
+                    data-reviewer-row-actions={eid}
+                    style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
                   >
-                    {ackBusy ? "Acknowledging…" : "Acknowledge"}
-                  </button>
-                  <button
-                    type="button"
-                    data-reviewer-action="open-inspector"
-                    data-reviewer-escalation-id={eid}
-                    onClick={() => onOpen?.(row)}
-                    style={inlineButtonStyle}
-                    title="Open inspector (Enter)"
-                  >
-                    Open inspector
-                  </button>
-                </div>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      data-reviewer-action="acknowledge"
+                      data-reviewer-escalation-id={eid}
+                      disabled={!ackable}
+                      loading={ackBusy}
+                      onClick={() => onAcknowledge(row)}
+                      title="Acknowledge escalation"
+                    >
+                      {ackBusy ? "Acknowledging…" : "Acknowledge"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      data-reviewer-action="open-inspector"
+                      data-reviewer-escalation-id={eid}
+                      onClick={() => onOpen?.(row)}
+                      title="Open inspector (Enter)"
+                    >
+                      Open inspector
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -1271,73 +1473,108 @@ function WorkloadTable({
 }) {
   if (rows.length === 0) {
     return (
-      <p className="reviewer-console__empty">
-        No workload snapshots are available yet. Reconcile must run before this
-        tab can show reviewer capacity.
-      </p>
+      <Card variant="empty" padding="none" className="reviewer-console__empty">
+        <EmptyState
+          title="No workload snapshots yet"
+          purpose="No workload snapshots are available yet. Reconcile must run before this tab can show reviewer capacity."
+        />
+      </Card>
     );
   }
   return (
-    <table className="reviewer-console__table" role="grid">
-      <thead>
-        <tr>
-          <th>Reviewer</th>
-          <th>Active</th>
-          <th>Overdue</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, idx) => {
-          const selected = idx === selectionIndex;
-          return (
-            <tr
-              key={row.reviewerUserId ?? `wl-${idx}`}
-              data-selected={selected}
-              style={{ background: selected ? "rgba(0, 0, 0, 0.04)" : undefined }}
-            >
-              <td style={{ padding: rowPad }}>{row.reviewerUserId ?? "—"}</td>
-              <td style={{ padding: rowPad }}>{row.activeAssignments ?? 0}</td>
-              <td style={{ padding: rowPad }}>{row.overdueAssignments ?? 0}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div style={reviewerTableScrollStyle}>
+      <table role="grid" style={reviewerTableStyle}>
+        <thead>
+          <tr>
+            <th style={reviewerThStyle}>Reviewer</th>
+            <th style={reviewerThStyle}>Active</th>
+            <th style={reviewerThStyle}>Overdue</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, idx) => {
+            const selected = idx === selectionIndex;
+            return (
+              <tr
+                key={row.reviewerUserId ?? `wl-${idx}`}
+                data-selected={selected}
+                style={reviewerRowStyle(selected)}
+              >
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  {row.reviewerUserId ?? "—"}
+                </td>
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  {row.activeAssignments ?? 0}
+                </td>
+                <td style={{ padding: rowPad, ...reviewerTdStyle }}>
+                  {row.overdueAssignments ?? 0}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
 function SlaPanel({ snapshot }: { snapshot: SlaSnapshot | null }) {
   if (!snapshot) {
     return (
-      <p className="reviewer-console__empty">
-        SLA snapshot unavailable. Use the SLA Operations page for runtime and
-        freshness details when the console has not received a snapshot.
-      </p>
+      <Card variant="empty" padding="none" className="reviewer-console__empty">
+        <EmptyState
+          title="SLA snapshot unavailable"
+          purpose="Use the SLA Operations page for runtime and freshness details when the console has not received a snapshot."
+        />
+      </Card>
     );
   }
+  const tiles: ReadonlyArray<{ label: string; value: number; tone: BadgeTone }> = [
+    { label: "Unassigned", value: snapshot.unassigned, tone: "neutral" },
+    { label: "Due soon", value: snapshot.dueSoon, tone: "pending" },
+    { label: "Overdue", value: snapshot.overdue, tone: "risk" },
+    { label: "Open escalations", value: snapshot.openEscalations, tone: "info" },
+    {
+      label: "Critical escalations",
+      value: snapshot.criticalEscalationsOpen,
+      tone: "risk",
+    },
+  ];
   return (
-    <dl className="reviewer-console__sla">
-      <div>
-        <dt>Unassigned</dt>
-        <dd>{snapshot.unassigned}</dd>
-      </div>
-      <div>
-        <dt>Due soon</dt>
-        <dd>{snapshot.dueSoon}</dd>
-      </div>
-      <div>
-        <dt>Overdue</dt>
-        <dd>{snapshot.overdue}</dd>
-      </div>
-      <div>
-        <dt>Open escalations</dt>
-        <dd>{snapshot.openEscalations}</dd>
-      </div>
-      <div>
-        <dt>Critical escalations</dt>
-        <dd>{snapshot.criticalEscalationsOpen}</dd>
-      </div>
-    </dl>
+    <div
+      className="reviewer-console__sla"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+        gap: 12,
+      }}
+    >
+      {tiles.map((t) => (
+        <Card key={t.label} variant="status" tone={t.tone} padding="comfortable">
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              color: "var(--ink-muted, #64748b)",
+              marginBottom: 6,
+            }}
+          >
+            {t.label}
+          </div>
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              color: "var(--ink-primary, #0f172a)",
+            }}
+          >
+            {t.value}
+          </div>
+        </Card>
+      ))}
+    </div>
   );
 }
 
@@ -1380,10 +1617,10 @@ function PaginationFooter({
         margin: "8px 0",
         padding: "8px 12px",
         fontSize: 12.5,
-        color: "#475569",
-        background: "#f8fafc",
-        border: "1px solid #e2e8f0",
-        borderRadius: 6,
+        color: "var(--ink-secondary, #475569)",
+        background: "var(--surface-muted, #f8fafc)",
+        border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+        borderRadius: "var(--radius-md, 8px)",
       }}
     >
       <span data-reviewer-pagination-status>
@@ -1392,50 +1629,58 @@ function PaginationFooter({
           : "Showing first 25 rows from the console aggregator."}
         {state.loading ? " Loading more…" : null}
       </span>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
         {state.error ? (
           <span
             role="alert"
             data-reviewer-pagination-error
-            style={{ color: "#991b1b" }}
+            style={{ color: "var(--status-risk-fg, #991b1b)" }}
           >
             {state.error}
           </span>
         ) : null}
         {extended ? (
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="ghost"
             data-reviewer-pagination-reset
             onClick={onReset}
-            style={inlineButtonStyle}
             disabled={state.loading}
             title="Return to the bounded 25-row aggregator slice"
           >
             Reset
-          </button>
+          </Button>
         ) : null}
         {(!extended || (state.hasMore && !atCap)) ? (
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="secondary"
             data-reviewer-pagination-load-more
             onClick={onLoadMore}
-            disabled={state.loading || atCap}
-            style={inlineButtonStyle}
+            disabled={atCap}
+            loading={state.loading}
           >
             {state.loading ? "Loading…" : "Load more"}
-          </button>
+          </Button>
         ) : null}
         {!atCap ? (
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="secondary"
             data-reviewer-pagination-view-all
             onClick={onViewAll}
             disabled={state.loading}
-            style={inlineButtonStyle}
             title={`Load up to the workspace cap of ${cap} rows`}
           >
             View all (≤{cap})
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>
@@ -1526,199 +1771,209 @@ function SavedViewsPanel({
   );
 
   return (
-    <aside
+    <PageSection
       className="reviewer-console__saved-views"
       data-reviewer-saved-views-panel
     >
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <h2>Saved queue views</h2>
-        {!creating ? (
-          <button
-            type="button"
-            data-reviewer-saved-view-create
-            onClick={() => setCreating(true)}
-            style={inlineButtonStyle}
+      <Card
+        padding="comfortable"
+        header={
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+            }}
           >
-            Save current view
-          </button>
-        ) : null}
-      </header>
-
-      {error ? (
-        <p
-          role="alert"
-          data-reviewer-saved-view-error
-          style={{ color: "#991b1b", fontSize: 12.5 }}
-        >
-          {error}
-        </p>
-      ) : null}
-
-      {creating ? (
-        <form
-          data-reviewer-saved-view-form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void create();
-          }}
-          style={{
-            display: "grid",
-            gap: 8,
-            margin: "8px 0",
-            padding: "8px 10px",
-            border: "1px solid #e2e8f0",
-            borderRadius: 6,
-            background: "#f8fafc",
-          }}
-        >
-          <label style={{ fontSize: 12, color: "#475569" }}>
-            View name
-            <input
-              autoFocus
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={120}
-              data-reviewer-saved-view-name
-              required
-              style={{
-                width: "100%",
-                padding: "6px 8px",
-                marginTop: 2,
-                border: "1px solid #cbd5e1",
-                borderRadius: 4,
-                fontSize: 13,
-              }}
-            />
-          </label>
-          <label style={{ fontSize: 12, color: "#475569" }}>
-            Visibility
-            <select
-              value={visibility}
-              onChange={(e) =>
-                setVisibility(e.target.value as "PRIVATE" | "TEAM")
-              }
-              data-reviewer-saved-view-visibility
-              style={{
-                width: "100%",
-                padding: "6px 8px",
-                marginTop: 2,
-                border: "1px solid #cbd5e1",
-                borderRadius: 4,
-                fontSize: 13,
-              }}
-            >
-              <option value="PRIVATE">Private — only you</option>
-              <option value="TEAM">Workspace — everyone in this team</option>
-            </select>
-          </label>
-          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={() => {
-                setCreating(false);
-                setName("");
-                setError(null);
-              }}
-              data-reviewer-saved-view-cancel
-              style={inlineButtonStyle}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              data-reviewer-saved-view-submit
-              disabled={busy || !name.trim()}
-              style={primaryInlineButtonStyle}
-            >
-              {busy ? "Saving…" : "Save view"}
-            </button>
-          </div>
-        </form>
-      ) : null}
-
-      {views.length === 0 ? (
-        <p
-          style={{ color: "#64748b", fontSize: 12, margin: "8px 0" }}
-          data-reviewer-saved-views-empty
-        >
-          No saved views yet. Save the current queue slice to return to it
-          later.
-        </p>
-      ) : (
-        <ul>
-          {views.map((v, idx) => {
-            const vid = v.id ?? "";
-            const deleting = deletingId === vid;
-            return (
-              <li
-                key={v.id ?? idx}
-                data-reviewer-saved-view-row={vid}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  justifyContent: "space-between",
-                }}
+            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 650 }}>
+              Saved queue views
+            </h2>
+            {!creating ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                data-reviewer-saved-view-create
+                onClick={() => setCreating(true)}
               >
-                <button
-                  type="button"
-                  data-reviewer-saved-view-apply={vid}
-                  onClick={() => applySavedView(v)}
+                Save current view
+              </Button>
+            ) : null}
+          </div>
+        }
+      >
+        {error ? (
+          <p
+            role="alert"
+            data-reviewer-saved-view-error
+            style={{ color: "var(--status-risk-fg, #991b1b)", fontSize: 12.5 }}
+          >
+            {error}
+          </p>
+        ) : null}
+
+        {creating ? (
+          <form
+            data-reviewer-saved-view-form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void create();
+            }}
+            style={{
+              display: "grid",
+              gap: 8,
+              margin: "8px 0",
+              padding: "10px 12px",
+              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+              borderRadius: "var(--radius-md, 8px)",
+              background: "var(--surface-muted, #f8fafc)",
+            }}
+          >
+            <label
+              style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}
+            >
+              View name
+              <input
+                autoFocus
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={120}
+                data-reviewer-saved-view-name
+                required
+                style={savedViewControlStyle}
+              />
+            </label>
+            <label
+              style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}
+            >
+              Visibility
+              <select
+                value={visibility}
+                onChange={(e) =>
+                  setVisibility(e.target.value as "PRIVATE" | "TEAM")
+                }
+                data-reviewer-saved-view-visibility
+                style={savedViewControlStyle}
+              >
+                <option value="PRIVATE">Private — only you</option>
+                <option value="TEAM">Workspace — everyone in this team</option>
+              </select>
+            </label>
+            <div
+              style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}
+            >
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setCreating(false);
+                  setName("");
+                  setError(null);
+                }}
+                data-reviewer-saved-view-cancel
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                variant="primary"
+                data-reviewer-saved-view-submit
+                disabled={!name.trim()}
+                loading={busy}
+              >
+                {busy ? "Saving…" : "Save view"}
+              </Button>
+            </div>
+          </form>
+        ) : null}
+
+        {views.length === 0 ? (
+          <p
+            style={{
+              color: "var(--ink-muted, #64748b)",
+              fontSize: 12,
+              margin: "8px 0",
+            }}
+            data-reviewer-saved-views-empty
+          >
+            No saved views yet. Save the current queue slice to return to it
+            later.
+          </p>
+        ) : (
+          <ul
+            style={{
+              margin: 0,
+              padding: 0,
+              listStyle: "none",
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            {views.map((v, idx) => {
+              const vid = v.id ?? "";
+              const deleting = deletingId === vid;
+              return (
+                <li
+                  key={v.id ?? idx}
+                  data-reviewer-saved-view-row={vid}
                   style={{
-                    background: "transparent",
-                    border: 0,
-                    color: "#0f172a",
-                    padding: "4px 0",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    justifyContent: "space-between",
                   }}
                 >
-                  {v.name ?? `View ${idx + 1}`}
-                  {v.queueType ? ` · ${v.queueType}` : ""}
-                </button>
-                <button
-                  type="button"
-                  data-reviewer-saved-view-delete={vid}
-                  disabled={!vid || deleting}
-                  onClick={() => {
-                    if (!vid) return;
-                    void (async () => {
-                      const ok = await confirm({
-                        title: "Delete saved view?",
-                        description: `Delete saved view "${v.name ?? vid}"?`,
-                        confirmLabel: "Delete view",
-                        tone: "warning",
-                        testId: "reviewer-saved-view-delete",
-                      });
-                      if (ok) void remove(vid);
-                    })();
-                  }}
-                  style={{
-                    background: "transparent",
-                    border: 0,
-                    color: "#7f1d1d",
-                    padding: "4px 6px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
-                  title="Delete saved view"
-                >
-                  {deleting ? "Deleting…" : "Delete"}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </aside>
+                  <button
+                    type="button"
+                    data-reviewer-saved-view-apply={vid}
+                    onClick={() => applySavedView(v)}
+                    style={{
+                      background: "transparent",
+                      border: 0,
+                      color: "var(--ink-primary, #0f172a)",
+                      padding: "4px 0",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      flex: 1,
+                      font: "inherit",
+                    }}
+                  >
+                    {v.name ?? `View ${idx + 1}`}
+                    {v.queueType ? ` · ${v.queueType}` : ""}
+                  </button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    data-reviewer-saved-view-delete={vid}
+                    disabled={!vid}
+                    loading={deleting}
+                    onClick={() => {
+                      if (!vid) return;
+                      void (async () => {
+                        const ok = await confirm({
+                          title: "Delete saved view?",
+                          description: `Delete saved view "${v.name ?? vid}"?`,
+                          confirmLabel: "Delete view",
+                          tone: "warning",
+                          testId: "reviewer-saved-view-delete",
+                        });
+                        if (ok) void remove(vid);
+                      })();
+                    }}
+                    style={{ color: "var(--status-risk-fg, #7f1d1d)" }}
+                    title="Delete saved view"
+                  >
+                    {deleting ? "Deleting…" : "Delete"}
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
+    </PageSection>
   );
 }
 
@@ -2013,23 +2268,25 @@ function ModalActions({
         marginTop: 12,
       }}
     >
-      <button
-        type="button"
+      <Button
+        size="sm"
+        variant="secondary"
         onClick={onCancel}
         data-reviewer-modal-cancel
-        style={secondaryInlineButtonStyle}
         disabled={busy}
       >
         Cancel
-      </button>
-      <button
+      </Button>
+      <Button
         type="submit"
+        size="sm"
+        variant="primary"
         data-reviewer-modal-submit
-        disabled={submitDisabled || busy}
-        style={primaryInlineButtonStyle}
+        disabled={submitDisabled}
+        loading={busy}
       >
         {submitLabel}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -2100,46 +2357,66 @@ function CommandPalette({
 }
 
 // ---------------------------------------------------------------------------
-// Inline button styling — tight, operational, no flourish.
+// Phase 7D — token-driven table + control styling. Bespoke tables are kept
+// (their <tr> carries load-bearing data-selected / data-reviewer-row-*
+// attributes that the shared <DataTable> row model does not surface) but
+// restyled onto the design tokens instead of the removed legacy classes.
 // ---------------------------------------------------------------------------
 
-const inlineButtonStyle = {
-  padding: "4px 8px",
-  fontSize: 11.5,
-  fontWeight: 500,
-  color: "#0f172a",
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  borderRadius: 4,
-  cursor: "pointer",
+const reviewerTableScrollStyle = {
+  width: "100%",
+  overflowX: "auto",
+  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+  borderRadius: "var(--radius-card, 14px)",
+  background: "var(--surface-card, #ffffff)",
 } as const;
 
-const primaryInlineButtonStyle = {
-  padding: "6px 12px",
-  fontSize: 12.5,
-  fontWeight: 600,
-  color: "#fff",
-  background: "#0f172a",
-  border: 0,
-  borderRadius: 6,
-  cursor: "pointer",
+const reviewerTableStyle = {
+  width: "100%",
+  borderCollapse: "collapse",
+  fontSize: 13.5,
+  color: "var(--ink-primary, #0f172a)",
 } as const;
 
-const secondaryInlineButtonStyle = {
-  padding: "6px 12px",
-  fontSize: 12.5,
-  fontWeight: 600,
-  color: "#0f172a",
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  cursor: "pointer",
+const reviewerThStyle = {
+  textAlign: "left",
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  color: "var(--ink-muted, #94a3b8)",
+  background: "var(--surface-header, #f8fafc)",
+  borderBottom: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+  whiteSpace: "nowrap",
+  padding: "10px 12px",
+} as const;
+
+const reviewerTdStyle = {
+  borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
+  verticalAlign: "middle",
+} as const;
+
+function reviewerRowStyle(selected: boolean) {
+  return {
+    background: selected ? "var(--surface-muted, rgba(15,23,42,0.04))" : undefined,
+  } as const;
+}
+
+const savedViewControlStyle = {
+  width: "100%",
+  padding: "6px 8px",
+  marginTop: 2,
+  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+  borderRadius: "var(--radius-md, 8px)",
+  fontSize: 13,
+  background: "var(--surface-card, #fff)",
+  color: "var(--ink-primary, #0f172a)",
 } as const;
 
 const modalLabelStyle = {
   display: "block",
   fontSize: 12,
-  color: "#475569",
+  color: "var(--ink-secondary, #475569)",
   marginBottom: 8,
 } as const;
 
@@ -2148,188 +2425,34 @@ const modalInputStyle = {
   padding: "8px 10px",
   marginTop: 2,
   fontSize: 13,
-  border: "1px solid #cbd5e1",
-  borderRadius: 4,
+  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+  borderRadius: "var(--radius-md, 8px)",
+  background: "var(--surface-card, #fff)",
+  color: "var(--ink-primary, #0f172a)",
 } as const;
 
+// Only the IA-strip anchors and the command palette still rely on
+// scoped CSS — every other surface migrated to PageShell / Card /
+// Button / Badge / EmptyState and is styled inline with design tokens.
 const reviewerConsoleStyles = `
-  .reviewer-console {
-    display: grid;
-    gap: 14px;
-    padding: 20px 24px 32px;
-    color: #0f172a;
-    background: #f8fafc;
-  }
-  .reviewer-console__header {
-    display: grid;
-    gap: 6px;
-  }
-  .reviewer-console__header h1 {
-    margin: 0;
-    font-size: 24px;
-    letter-spacing: -0.02em;
-  }
-  .reviewer-console__sub {
-    margin: 0;
-    color: #475569;
-    font-size: 13px;
-    line-height: 1.55;
-  }
-  .reviewer-console__ia-strip {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
   .reviewer-console__ia-strip a {
     text-decoration: none;
-    color: #0f172a;
-    border: 1px solid #cbd5e1;
-    background: #fff;
+    color: var(--ink-primary, #0f172a);
+    border: 1px solid var(--border-default, rgba(15,23,42,0.09));
+    background: var(--surface-card, #fff);
     border-radius: 999px;
     padding: 6px 10px;
     font-size: 12px;
     font-weight: 600;
-  }
-  .reviewer-console__tabs {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 10px;
-  }
-  .reviewer-console__tab {
-    text-align: left;
-    border: 1px solid #cbd5e1;
-    background: #fff;
-    border-radius: 12px;
-    padding: 10px 12px;
-    display: grid;
-    gap: 4px;
-    cursor: pointer;
-  }
-  .reviewer-console__tab.is-active {
-    border-color: #0f172a;
-    box-shadow: inset 0 0 0 1px #0f172a;
-    background: #f8fafc;
-  }
-  .reviewer-console__tab-desc {
-    color: #64748b;
-    font-size: 12px;
-  }
-  .reviewer-console__tab-degraded {
-    justify-self: start;
-    font-size: 11px;
-    font-weight: 700;
-    color: #92400e;
-    background: #fef3c7;
-    border: 1px solid #fde68a;
-    border-radius: 999px;
-    padding: 2px 8px;
-    text-transform: uppercase;
-  }
-  .reviewer-console__status,
-  .reviewer-console__empty {
-    margin: 0;
-    padding: 14px 16px;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    background: #fff;
-    color: #475569;
-    line-height: 1.55;
-  }
-  .reviewer-console__error,
-  .reviewer-console__action-error {
-    margin: 0;
-    padding: 12px 14px;
-    border-radius: 10px;
-    background: rgba(220, 38, 38, 0.08);
-    border: 1px solid rgba(220, 38, 38, 0.22);
-    color: #7f1d1d;
-  }
-  .reviewer-console__action-flash {
-    margin: 0;
-    padding: 12px 14px;
-    border-radius: 10px;
-    background: rgba(34, 197, 94, 0.08);
-    border: 1px solid rgba(34, 197, 94, 0.24);
-    color: #166534;
-  }
-  .reviewer-console__filter input {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid #cbd5e1;
-    border-radius: 10px;
-    background: #fff;
-    font-size: 13px;
-  }
-  .reviewer-console__table {
-    width: 100%;
-    border-collapse: collapse;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    overflow: hidden;
-  }
-  .reviewer-console__table th {
-    text-align: left;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #64748b;
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
-    padding: 10px 12px;
-  }
-  .reviewer-console__table td {
-    border-bottom: 1px solid #f1f5f9;
-  }
-  .reviewer-console__sla {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 10px;
-    margin: 0;
-  }
-  .reviewer-console__sla div {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 12px;
-  }
-  .reviewer-console__sla dt {
-    color: #64748b;
-    font-size: 11px;
-    margin-bottom: 6px;
-  }
-  .reviewer-console__sla dd {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 700;
-  }
-  .reviewer-console__saved-views {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 14px;
-    display: grid;
-    gap: 8px;
-  }
-  .reviewer-console__saved-views h2 {
-    margin: 0;
-    font-size: 15px;
-  }
-  .reviewer-console__saved-views ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    display: grid;
-    gap: 6px;
   }
   .reviewer-console__palette {
     position: fixed;
     inset: 10% 50% auto 50%;
     transform: translateX(-50%);
     width: min(560px, calc(100vw - 32px));
-    background: #fff;
-    border: 1px solid #cbd5e1;
-    border-radius: 14px;
+    background: var(--surface-card, #fff);
+    border: 1px solid var(--border-default, rgba(15,23,42,0.09));
+    border-radius: var(--radius-card, 14px);
     padding: 16px;
     box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
     z-index: 70;

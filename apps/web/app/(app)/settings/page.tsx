@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { supportedLocales, type Locale } from "@proovra/shared";
-import { Button, Card, useToast, Input } from "../../../components/ui";
+import { useToast, Input } from "../../../components/ui";
+import { PageShell, PageHeader } from "../../../components/ui/PageShell";
+import { Card } from "../../../components/ui/Card";
+import { Button } from "../../../components/ui/Button";
+import { Badge } from "../../../components/ui/Badge";
 import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
 import { formatUserDateTime } from "../../../lib/date";
@@ -102,25 +106,32 @@ function extractUserFromResponse(res: unknown): UserMeResponse["user"] | null {
   return null;
 }
 
-function cardShellStyle() {
-  return {
-    border: "1px solid rgba(79,112,107,0.16)",
-    boxShadow:
-      "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
-  } as const;
-}
-
-function velvetButtonClass() {
-  return "rounded-[999px] border px-5 py-3 text-[0.94rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
-}
-
 function sectionHeader(icon: React.ReactNode, title: string) {
   return (
     <div className="mb-5 flex items-center gap-3">
-      <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] text-[#8a6e57] shadow-[0_10px_22px_rgba(0,0,0,0.08)]">
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 40,
+          height: 40,
+          borderRadius: 12,
+          background: "var(--surface-card, #ffffff)",
+          border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+          color: "var(--ink-secondary, #475569)",
+        }}
+      >
         {icon}
       </span>
-      <div className="text-[1.08rem] font-semibold tracking-[-0.03em] text-[#21353a]">
+      <div
+        style={{
+          fontSize: 16,
+          fontWeight: 650,
+          letterSpacing: "-0.01em",
+          color: "var(--ink-primary, #0f172a)",
+        }}
+      >
         {title}
       </div>
     </div>
@@ -341,163 +352,71 @@ function SettingsPageInner() {
   };
 
   return (
-    <div className="section app-section settings-page-shell">
+    <PageShell
+      className="settings-page-shell"
+      header={
+        <PageHeader
+          eyebrow={t("settings")}
+          title="Manage your account preferences"
+          subtitle="Update your profile, review security and legal settings, and manage your subscription preferences from one place."
+          contextStrip={
+            <>
+              <Badge tone="info">Profile and identity controls</Badge>
+              <Badge tone="neutral">Language and security options</Badge>
+              <Badge tone="governance">Legal and billing visibility</Badge>
+            </>
+          }
+        />
+      }
+    >
       <style jsx global>{`
-        .settings-page-shell .settings-silver-card {
+        .settings-page-shell .settings-language-dropdown-wrap {
           position: relative;
-          overflow: hidden;
+          z-index: 30;
         }
 
-        .settings-page-shell .settings-silver-card--language {
-  overflow: visible !important;
-  z-index: 20;
-}
-
-.settings-page-shell .settings-silver-card--language .settings-silver-card__content {
-  overflow: visible;
-}
-
-.settings-page-shell .settings-language-dropdown-wrap {
-  position: relative;
-  z-index: 30;
-}
-
-.settings-main-grid {
-  display: grid;
-  gap: 20px;
-}
-
-@media (min-width: 1024px) {
-  .settings-main-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-        .settings-page-shell .settings-silver-card__bg {
-          position: absolute;
-          inset: 0;
-          background-image: url("/images/panel-silver.webp.png");
-          background-size: cover;
-          background-position: center;
+        .settings-main-grid {
+          display: grid;
+          gap: 20px;
         }
 
-        .settings-page-shell .settings-silver-card__overlay {
-          position: absolute;
-          inset: 0;
-          background:
-            radial-gradient(circle at 16% 12%, rgba(255,255,255,0.34), transparent 28%),
-            linear-gradient(
-              180deg,
-              rgba(255,255,255,0.24) 0%,
-              rgba(248,249,246,0.34) 42%,
-              rgba(239,241,238,0.42) 100%
-            );
+        .settings-cards-grid {
+          display: grid;
+          gap: 20px;
         }
 
-        .settings-page-shell .settings-silver-card__content {
-          position: relative;
-          z-index: 1;
+        @media (min-width: 1100px) {
+          .settings-cards-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
         }
 
         .settings-page-shell input,
         .settings-page-shell textarea,
-        .settings-page-shell select,
         .settings-page-shell .input {
-          background: linear-gradient(
-            180deg,
-            rgba(250,251,249,0.94) 0%,
-            rgba(241,244,241,0.98) 100%
-          ) !important;
-          border: 1px solid rgba(79,112,107,0.14) !important;
-          color: #23373b !important;
-          border-radius: 18px !important;
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.68),
-            0 10px 22px rgba(0,0,0,0.05) !important;
-        }
-
-        .settings-page-shell input::placeholder,
-        .settings-page-shell textarea::placeholder {
-          color: rgba(93,109,113,0.62) !important;
-        }
-
-        .settings-page-shell input:focus,
-        .settings-page-shell textarea:focus,
-        .settings-page-shell select:focus,
-        .settings-page-shell .input:focus {
-          border-color: rgba(79,112,107,0.22) !important;
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.78),
-            0 0 0 3px rgba(79,112,107,0.08),
-            0 12px 24px rgba(0,0,0,0.06) !important;
-          outline: none !important;
+          width: 100%;
+          border-radius: 12px !important;
         }
 
         .settings-page-shell textarea {
           min-height: 120px;
         }
 
-        .settings-page-shell input,
-.settings-page-shell textarea {
-  width: 100%;
-}
-
-        .settings-page-shell .settings-primary-btn {
-          border-color: rgba(79,112,107,0.22) !important;
-          background: linear-gradient(
-            180deg,
-            rgba(58,92,95,0.96) 0%,
-            rgba(20,38,42,0.98) 100%
-          ) !important;
-          color: #eef3f1 !important;
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.08),
-            0 16px 34px rgba(18,40,44,0.22) !important;
-        }
-
-        .settings-page-shell .settings-secondary-btn {
-          border-color: rgba(79,112,107,0.12) !important;
-          background: linear-gradient(
-            180deg,
-            rgba(250,251,249,0.82) 0%,
-            rgba(241,244,241,0.96) 100%
-          ) !important;
-          color: #24373b !important;
-          box-shadow:
-            0 10px 20px rgba(0,0,0,0.05),
-            inset 0 1px 0 rgba(255,255,255,0.70) !important;
-        }
-
-        .settings-cards-grid {
-  display: grid;
-  gap: 20px;
-}
-
-@media (min-width: 1100px) {
-  .settings-cards-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
         .settings-page-shell .settings-select {
           width: 100%;
-          min-height: 54px;
-          padding: 0 48px 0 16px !important;
+          min-height: 44px;
+          padding: 0 44px 0 14px !important;
           appearance: none;
           -webkit-appearance: none;
           -moz-appearance: none;
-          background-image:
-            linear-gradient(180deg, rgba(250,251,249,0.94) 0%, rgba(241,244,241,0.98) 100%),
-            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%238a6e57' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
-          background-repeat: no-repeat, no-repeat !important;
-          background-position: left top, right 16px center !important;
-          background-size: auto, 16px !important;
+          background: var(--surface-card, #ffffff);
+          border: 1px solid var(--border-default, rgba(15, 23, 42, 0.09));
+          border-radius: 12px;
+          color: var(--ink-primary, #0f172a);
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 14px center;
           cursor: pointer;
-        }
-
-        .settings-page-shell .settings-select option {
-          background: #f7f8f5;
-          color: #23373b;
         }
 
         .settings-page-shell .settings-legal-links {
@@ -508,126 +427,25 @@ function SettingsPageInner() {
         .settings-page-shell .settings-legal-link,
         .settings-page-shell .settings-security-link {
           width: fit-content;
-          color: #496166 !important;
+          color: var(--ink-secondary, #475569);
           font-weight: 500;
           text-decoration: none;
-          transition:
-            color 0.2s ease,
-            opacity 0.2s ease,
-            transform 0.2s ease;
+          transition: color 0.2s ease, transform 0.2s ease;
         }
 
         .settings-page-shell .settings-legal-link:hover,
         .settings-page-shell .settings-security-link:hover {
-          color: #21353a !important;
-          opacity: 1;
+          color: var(--ink-primary, #0f172a);
           transform: translateY(-1px);
         }
       `}</style>
 
-      <div className="app-hero app-hero-full">
-        <div className="container">
-          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
-            <div style={{ maxWidth: 760 }}>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.72rem",
-                  borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  background: "rgba(255,255,255,0.04)",
-                  padding: "8px 16px",
-                  fontSize: "0.68rem",
-                  fontWeight: 500,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.28em",
-                  color: "#afbbb7",
-                  boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
-                  backdropFilter: "blur(10px)",
-                  WebkitBackdropFilter: "blur(10px)",
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 999,
-                    background: "#b79d84",
-                    opacity: 0.95,
-                    display: "inline-block",
-                    flexShrink: 0,
-                  }}
-                />
-                {t("settings")}
-              </div>
+      <div className="settings-main-grid">
+        <Card variant="admin" padding="comfortable">
+          <div>
+            {sectionHeader(<Icons.Dashboard />, "Profile")}
 
-              <h1
-                className="mt-5 max-w-[720px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
-                style={{ margin: "20px 0 0" }}
-              >
-                Manage your <span className="text-[#c3ebe2]">account preferences</span>.
-              </h1>
-
-              <p className="mt-5 max-w-[700px] text-[0.95rem] font-normal leading-[1.8] tracking-[-0.006em] text-[#aab5b2] md:text-[0.99rem]">
-                Update your <span className="text-[#cfd8d5]">profile</span>, review{" "}
-                <span className="text-[#bbc7c3]">security and legal settings</span>, and
-                manage your <span className="text-[#d9ccbf]">subscription preferences</span>{" "}
-                from one place.
-              </p>
-
-              <div className="mt-6 flex flex-wrap gap-2.5">
-                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#c7d1ce] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#91aca5]">✓</span>
-                  Profile and identity controls
-                </div>
-
-                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#c7d1ce] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#91aca5]">✓</span>
-                  Language and security options
-                </div>
-
-                <div className="rounded-full border border-[rgba(214,184,157,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.07)_0%,rgba(255,255,255,0.028)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#d9ccbf] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#c2a07f]">✓</span>
-                  Legal and billing visibility
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div
-        className="app-body app-body-full pt-8 md:pt-10"
-        style={{
-          position: "relative",
-          background:
-            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
-        }}
-      >
-        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
-          <img
-            src="/images/landing-network-bg.png"
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
-        </div>
-
-        <section className="relative z-10 px-6 pb-14 md:px-8 md:pb-16">
-<div className="settings-main-grid mx-auto max-w-7xl gap-5">
-              <Card
-              className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={cardShellStyle()}
-            >
-              <div className="settings-silver-card__bg" />
-              <div className="settings-silver-card__overlay" />
-
-              <div className="settings-silver-card__content p-6 md:p-7">
-                {sectionHeader(<Icons.Dashboard />, "Profile")}
-
-                <div className="mb-5 flex items-center gap-4">
+            <div className="mb-5 flex items-center gap-4">
                   <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(214,184,157,0.12)_0%,rgba(255,255,255,0.56)_100%)] text-[1.35rem] font-bold text-[#23373b] shadow-[0_10px_22px_rgba(0,0,0,0.08)]">
                     {initials}
                   </div>
@@ -713,34 +531,20 @@ function SettingsPageInner() {
                 </div>
 
                 <div className="mt-5 flex flex-wrap gap-3">
-                  <Button
-                    variant="secondary"
-                    onClick={handleSaveProfile}
-                    className={`${velvetButtonClass()} settings-primary-btn`}
-                  >
+                  <Button variant="primary" onClick={handleSaveProfile}>
                     Save profile
                   </Button>
 
-                  <Button
-                    variant="secondary"
-                    onClick={handleSignOut}
-                    className={`${velvetButtonClass()} settings-secondary-btn`}
-                  >
+                  <Button variant="secondary" onClick={handleSignOut}>
                     Sign out
                   </Button>
                 </div>
-              </div>
-            </Card>
+          </div>
+        </Card>
 
-<div className="settings-cards-grid gap-5">
-                <Card
-                className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={cardShellStyle()}
-              >
-                <div className="settings-silver-card__bg" />
-                <div className="settings-silver-card__overlay" />
-
-                <div className="settings-silver-card__content p-6 md:p-7">
+        <div className="settings-cards-grid">
+          <Card variant="admin" padding="comfortable">
+            <div>
                   {sectionHeader(<Icons.Security />, "Security")}
 
                   <div className="grid gap-4">
@@ -768,17 +572,11 @@ function SettingsPageInner() {
                       security@proovra.com
                     </a>
                   </div>
-                </div>
-              </Card>
+            </div>
+          </Card>
 
-<Card
-  className="settings-silver-card settings-silver-card--language rounded-[30px] border bg-transparent p-0 shadow-none"
-  style={cardShellStyle()}
->
-                  <div className="settings-silver-card__bg" />
-                <div className="settings-silver-card__overlay" />
-
-                <div className="settings-silver-card__content p-6 md:p-7">
+          <Card variant="admin" padding="comfortable" style={{ overflow: "visible" }}>
+            <div>
                   {sectionHeader(<Icons.Settings />, t("language"))}
 
                   <div className="grid gap-4">
@@ -893,17 +691,11 @@ onClick={(e) => {
                       Language preference will be used for future UI updates.
                     </p>
                   </div>
-                </div>
-              </Card>
+            </div>
+          </Card>
 
-              <Card
-                className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={cardShellStyle()}
-              >
-                <div className="settings-silver-card__bg" />
-                <div className="settings-silver-card__overlay" />
-
-                <div className="settings-silver-card__content p-6 md:p-7">
+          <Card variant="admin" padding="comfortable">
+            <div>
                   {sectionHeader(<Icons.Billing />, "Subscription")}
 
                   <div className="grid gap-4">
@@ -914,17 +706,12 @@ onClick={(e) => {
 
                     <div>
                       <Link href="/billing">
-                        <Button
-                          variant="secondary"
-                          className={`${velvetButtonClass()} settings-primary-btn`}
-                        >
-                          Go to Billing
-                        </Button>
+                        <Button variant="secondary">Go to Billing</Button>
                       </Link>
                     </div>
                   </div>
-                </div>
-              </Card>
+            </div>
+          </Card>
 
               {/* Phase IA-collapse — Account security lives at
                   /settings/security (route id `account.security`):
@@ -939,15 +726,12 @@ onClick={(e) => {
                   on the workspace card so the Phase Final-D5-PT2
                   contract (the /settings page still points operators
                   at the workspace security console) stays satisfied. */}
-              <Card
-                className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={cardShellStyle()}
-                data-cc-account-security-link-card
-              >
-                <div className="settings-silver-card__bg" />
-                <div className="settings-silver-card__overlay" />
-
-                <div className="settings-silver-card__content p-6 md:p-7">
+          <Card
+            variant="admin"
+            padding="comfortable"
+            data-cc-account-security-link-card
+          >
+            <div>
                   {sectionHeader(<Icons.Security />, "Account security")}
 
                   <div className="grid gap-4">
@@ -958,16 +742,11 @@ onClick={(e) => {
                     </p>
 
                     <Link href="/settings/security">
-                      <Button
-                        variant="secondary"
-                        className={`${velvetButtonClass()} settings-primary-btn`}
-                      >
-                        Open Account security
-                      </Button>
+                      <Button variant="secondary">Open Account security</Button>
                     </Link>
                   </div>
-                </div>
-              </Card>
+            </div>
+          </Card>
 
               {/* Phase 1 (frontend consolidation) — de-duplicate the
                   account-security entry point. The workspace "Identity &
@@ -978,16 +757,13 @@ onClick={(e) => {
                   — was a duplicate entry point and is removed. The
                   `data-cc-security-link-card` marker and the `/security-center`
                   link are preserved (Phase Final-D5-PT2 contract). */}
-              {canSeeWorkspaceSecurity ? (
-                <Card
-                  className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
-                  style={cardShellStyle()}
-                  data-cc-security-link-card
-                >
-                  <div className="settings-silver-card__bg" />
-                  <div className="settings-silver-card__overlay" />
-
-                  <div className="settings-silver-card__content p-6 md:p-7">
+          {canSeeWorkspaceSecurity ? (
+            <Card
+              variant="admin"
+              padding="comfortable"
+              data-cc-security-link-card
+            >
+              <div>
                     {sectionHeader(<Icons.Security />, "Identity & Security")}
 
                     <div className="grid gap-4">
@@ -998,26 +774,15 @@ onClick={(e) => {
                       </p>
 
                       <Link href="/security-center" data-cc-security-link-card>
-                        <Button
-                          variant="secondary"
-                          className={`${velvetButtonClass()} settings-primary-btn`}
-                        >
-                          Open Security Center
-                        </Button>
+                        <Button variant="secondary">Open Security Center</Button>
                       </Link>
                     </div>
-                  </div>
-                </Card>
-              ) : null}
+              </div>
+            </Card>
+          ) : null}
 
-              <Card
-                className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={cardShellStyle()}
-              >
-                <div className="settings-silver-card__bg" />
-                <div className="settings-silver-card__overlay" />
-
-                <div className="settings-silver-card__content p-6 md:p-7">
+          <Card variant="admin" padding="comfortable">
+            <div>
                   {sectionHeader(<Icons.Security />, "Legal")}
 
                   <div className="grid gap-4">
@@ -1035,9 +800,8 @@ onClick={(e) => {
 
                     <div className="mt-1 grid gap-3">
                       <Button
-                        variant="primary"
+                        variant="secondary"
                         onClick={() => openCookiePreferences()}
-                        className={`${velvetButtonClass()} settings-primary-btn`}
                       >
                         Manage Cookie Preferences
                       </Button>
@@ -1061,12 +825,10 @@ onClick={(e) => {
                       ) : null}
                     </div>
                   </div>
-                </div>
-              </Card>
             </div>
-          </div>
-        </section>
+          </Card>
+        </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

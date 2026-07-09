@@ -152,13 +152,24 @@ describe("Pin 4 — calls ONLY the two keystone endpoints", () => {
 });
 
 describe("Pin 5 — sends teamId from platform-context on both calls", () => {
-  it("reads the admin's active workspace via useTeamId", () => {
+  it("reads the admin's active workspace via useActiveWorkspaceId (incl. Personal Space)", () => {
+    // Phase 7C — a Platform Admin provisions from their own context. The old
+    // `useTeamId` returns null in personal mode, which produced a confusing
+    // "switch to your admin workspace" dead-end. `useActiveWorkspaceId`
+    // returns the active workspace id including personal, so step-up mints
+    // against a real workspace the admin belongs to.
     const src = read(PAGE);
     assert.match(
       src,
-      /import\s+\{[^}]*useTeamId[^}]*\}\s+from\s+["'][^"']*platform-context["']/s,
+      /import\s+\{[^}]*useActiveWorkspaceId[^}]*\}\s+from\s+["'][^"']*platform-context["']/s,
     );
-    assert.match(src, /useTeamId\(\)/);
+    assert.match(src, /useActiveWorkspaceId\(\)/);
+  });
+
+  it("does NOT ask the operator to switch to an 'admin workspace' (no such concept)", () => {
+    const src = read(PAGE);
+    assert.doesNotMatch(src, /admin workspace/i);
+    assert.doesNotMatch(src, /Switch to your admin/i);
   });
 
   it("includes teamId in both request bodies", () => {

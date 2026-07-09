@@ -3,7 +3,7 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useToast } from "../../../components/ui";
+import { PageShell, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
@@ -1173,8 +1173,11 @@ function EvidenceLibraryPageInner() {
   const canSeeReviewerOps = canAccessSurface(surfaceUserCtx, "/reviewer-ops");
 
   return (
-    <div className="section app-section evidence-library-page">
-      <div className="evidence-library-shell">
+    <PageShell className="evidence-library-page" data-evidence-library-page>
+      <div
+        className="evidence-library-shell"
+        style={{ maxWidth: "none", margin: 0, padding: 0 }}
+      >
         <EvidenceLibraryHeader refreshing={refreshing} onRefresh={refreshCurrentScope} />
         {/* Phase 38.17 — workflow-aware contextual help, collapsed
             by default so the evidence table stays primary. */}
@@ -1265,6 +1268,6 @@ function EvidenceLibraryPageInner() {
           />
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

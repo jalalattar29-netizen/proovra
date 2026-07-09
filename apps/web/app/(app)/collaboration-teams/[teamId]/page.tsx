@@ -7,6 +7,13 @@
  * pattern). Permission gating is server-enforced; the UI reads
  * `viewerRole` from the detail response and disables actions the
  * viewer can't perform.
+ *
+ * Phase 7C — VISUAL redesign only. The page chrome (wrapper, header,
+ * loading/error states, tab bar) migrated from raw `.cc-page` markup to
+ * the shared PageShell/PageHeader + Card/Badge/Button primitives. No
+ * data-fetching, permission, billing, or tab-body behaviour changed —
+ * every data-testid / data-* is preserved, including the test-pinned
+ * `external-reviewers-link` deep-link to /review/external.
  */
 
 "use client";
@@ -16,7 +23,9 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import { useToast } from "../../../../components/ui";
+import { PageShell, PageHeader, useToast } from "../../../../components/ui";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { ApiError } from "../../../../lib/api";
 import { notifyApiError } from "../../../../lib/feedback/notify";
@@ -150,46 +159,54 @@ function TeamDetail() {
 
   if (loading && !team) {
     return (
-      <main
-        className="cc-page"
+      <PageShell
         data-testid="team-detail-loading"
-        style={{ maxWidth: 960, margin: "0 auto" }}
+        header={<PageHeader eyebrow="Collaboration" title="Loading Team…" />}
       >
-        <p style={{ color: "#5d6d71" }}>Loading Team…</p>
-      </main>
+        <Card variant="summary">
+          <p style={{ color: "var(--ink-secondary, #475569)", margin: 0 }}>
+            Loading Team…
+          </p>
+        </Card>
+      </PageShell>
     );
   }
   if (error || !team) {
     return (
-      <main
-        className="cc-page"
+      <PageShell
         data-testid="team-detail-error"
-        style={{ maxWidth: 640, margin: "0 auto" }}
+        header={
+          <PageHeader
+            eyebrow="Collaboration Teams"
+            title="Couldn't load Team"
+            subtitle={
+              toSafeUserError(error, {
+                message: "We couldn't load this page. Please try again.",
+              }).message
+            }
+          />
+        }
       >
-        <header className="cc-page-header">
-          <div>
-            <div className="cc-kicker">Teams</div>
-            <h1 className="cc-title">Couldn't load Team</h1>
-            <p className="cc-subtitle">
-              {toSafeUserError(error, { message: "We couldn't load this page. Please try again." }).message}
+        <Card variant="status" tone="risk">
+          {error?.requestId ? (
+            <p
+              style={{
+                color: "var(--ink-muted, #94a3b8)",
+                fontSize: "0.8rem",
+                fontFamily: "monospace",
+                margin: "0 0 12px",
+              }}
+            >
+              Request id: {error.requestId}
             </p>
-            {error?.requestId ? (
-              <p
-                style={{
-                  color: "#9b826b",
-                  fontSize: "0.8rem",
-                  fontFamily: "monospace",
-                }}
-              >
-                Request id: {error.requestId}
-              </p>
-            ) : null}
-          </div>
-        </header>
-        <Link href="/collaboration-teams" className="cases-filter-chip">
-          Back to Teams
-        </Link>
-      </main>
+          ) : null}
+          <Link href="/collaboration-teams" style={{ textDecoration: "none" }}>
+            <Button variant="secondary" size="sm">
+              Back to Teams
+            </Button>
+          </Link>
+        </Card>
+      </PageShell>
     );
   }
 
@@ -223,90 +240,101 @@ function TeamDetail() {
     router.push(`/collaboration-teams/${team.id}?tab=${tab}`);
 
   return (
-    <main
-      className="cc-page"
+    <PageShell
       data-testid="team-detail"
       data-team-id={team.id}
       data-team-status={team.status}
+      header={
+        <PageHeader
+          eyebrow={
+            <span>
+              <Link href="/collaboration-teams" style={{ color: "inherit" }}>
+                Collaboration Teams
+              </Link>{" "}
+              / <span>{team.teamType}</span>
+            </span>
+          }
+          title={team.name}
+          subtitle={
+            team.description ? (
+              team.description
+            ) : (
+              <span style={{ fontStyle: "italic" }}>No description yet.</span>
+            )
+          }
+          contextStrip={
+            headerBillingSummary ? (
+              <PlanLimitBadge
+                kind="MEMBERS_USED"
+                current={activeMemberCountForBadge}
+                max={headerBillingSummary.membersMax}
+                planLabel={headerBillingSummary.plan}
+              />
+            ) : null
+          }
+          primaryAction={
+            <div
+              className="cc-meta"
+              style={{
+                display: "flex",
+                gap: 10,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <Link
+                href={`/collaboration-teams/${team.id}/collaboration`}
+                data-testid="collaboration-hub-link"
+                style={{ textDecoration: "none" }}
+              >
+                <Button variant="secondary" size="sm">
+                  Collaboration hub
+                </Button>
+              </Link>
+              {canManageExternalReviewers ? (
+                <Link
+                  href="/review/external"
+                  data-testid="external-reviewers-link"
+                  title="Invite and manage external reviewers via the External Review console"
+                  style={{ textDecoration: "none" }}
+                >
+                  <Button variant="secondary" size="sm">
+                    External reviewers
+                  </Button>
+                </Link>
+              ) : null}
+              {canManage ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => goTab("settings")}
+                  data-testid="settings-button"
+                >
+                  Settings
+                </Button>
+              ) : null}
+              {canInvite ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => goTab("invites")}
+                  data-testid="quick-invite-button"
+                >
+                  Invite people
+                </Button>
+              ) : null}
+            </div>
+          }
+        />
+      }
     >
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">
-            <Link href="/collaboration-teams" style={{ color: "inherit" }}>
-              Teams
-            </Link>
-            {" "}/{" "}
-            <span>{team.teamType}</span>
-          </div>
-          <h1 className="cc-title">{team.name}</h1>
-          {team.description ? (
-            <p className="cc-subtitle">{team.description}</p>
-          ) : (
-            <p
-              className="cc-subtitle"
-              style={{ color: "#9b826b", fontStyle: "italic" }}
-            >
-              No description yet.
-            </p>
-          )}
-        </div>
-        <div className="cc-meta" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {headerBillingSummary ? (
-            <PlanLimitBadge
-              kind="MEMBERS_USED"
-              current={activeMemberCountForBadge}
-              max={headerBillingSummary.membersMax}
-              planLabel={headerBillingSummary.plan}
-            />
-          ) : null}
-          <Link
-            href={`/collaboration-teams/${team.id}/collaboration`}
-            className="cases-filter-chip"
-            data-testid="collaboration-hub-link"
-          >
-            Collaboration hub
-          </Link>
-          {canManageExternalReviewers ? (
-            <Link
-              href="/review/external"
-              className="cases-filter-chip"
-              data-testid="external-reviewers-link"
-              title="Invite and manage external reviewers via the External Review console"
-            >
-              External reviewers
-            </Link>
-          ) : null}
-          {canInvite ? (
-            <button
-              type="button"
-              className="cc-quick-action"
-              onClick={() => goTab("invites")}
-              data-testid="quick-invite-button"
-            >
-              Invite people
-            </button>
-          ) : null}
-          {canManage ? (
-            <button
-              type="button"
-              className="cases-filter-chip"
-              onClick={() => goTab("settings")}
-              data-testid="settings-button"
-            >
-              Settings
-            </button>
-          ) : null}
-        </div>
-      </header>
-
       <nav
         aria-label="Team sections"
         data-testid="team-tabs"
         style={{
           display: "flex",
           gap: "0.5rem",
-          marginTop: "1rem",
-          borderBottom: "1px solid rgba(79,112,107,0.18)",
+          borderBottom: "1px solid var(--border-default, rgba(15,23,42,0.09))",
           paddingBottom: "0.5rem",
           flexWrap: "wrap",
         }}
@@ -325,12 +353,15 @@ function TeamDetail() {
               border: "1px solid transparent",
               background:
                 t === activeTab
-                  ? "linear-gradient(180deg, rgba(62,96,99,0.94) 0%, rgba(24,43,48,0.98) 100%)"
+                  ? "var(--btn-primary-bg)"
                   : "transparent",
-              color: t === activeTab ? "#eef3f1" : "#5d6d71",
+              color:
+                t === activeTab
+                  ? "var(--btn-primary-color, #fff)"
+                  : "var(--ink-secondary, #475569)",
               cursor: "pointer",
               fontSize: "0.92rem",
-              fontWeight: 500,
+              fontWeight: 600,
               textTransform: "capitalize",
             }}
           >
@@ -339,7 +370,7 @@ function TeamDetail() {
         ))}
       </nav>
 
-      <div style={{ marginTop: "1.5rem" }}>
+      <div>
         {activeTab === "overview" ? (
           <OverviewTab team={team} onJumpTab={goTab} />
         ) : activeTab === "members" ? (
@@ -368,7 +399,7 @@ function TeamDetail() {
           />
         ) : null}
       </div>
-    </main>
+    </PageShell>
   );
 }
 
@@ -430,22 +461,15 @@ function StatCard({
   valueStyle?: React.CSSProperties;
   onClick?: () => void;
 }) {
-  const node = (
-    <div
-      style={{
-        border: "1px solid rgba(79,112,107,0.14)",
-        borderRadius: 14,
-        padding: "1.1rem",
-        background: "rgba(255,255,255,0.7)",
-        cursor: onClick ? "pointer" : "default",
-      }}
-    >
+  const body = (
+    <>
       <div
         style={{
-          color: "#5d6d71",
-          fontSize: "0.78rem",
+          color: "var(--ink-muted, #94a3b8)",
+          fontSize: "0.72rem",
+          fontWeight: 700,
           textTransform: "uppercase",
-          letterSpacing: "0.05em",
+          letterSpacing: "0.08em",
         }}
       >
         {label}
@@ -454,21 +478,21 @@ function StatCard({
         style={{
           marginTop: "0.5rem",
           fontSize: "1.7rem",
-          fontWeight: 600,
-          color: "#182b30",
+          fontWeight: 700,
+          color: "var(--ink-primary, #0f172a)",
           ...valueStyle,
         }}
       >
         {value}
       </div>
-    </div>
+    </>
   );
   return onClick ? (
-    <button type="button" onClick={onClick} style={{ all: "unset" }}>
-      {node}
-    </button>
+    <Card variant="action" onClick={onClick}>
+      {body}
+    </Card>
   ) : (
-    node
+    <Card variant="summary">{body}</Card>
   );
 }
 

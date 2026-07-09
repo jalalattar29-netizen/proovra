@@ -31,11 +31,18 @@ import {
   workflowFromPersona,
 } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-// Phase 7B — shared design-system content plane. PageShell supplies the
-// token-driven page padding / max-width / vertical rhythm. We keep the
-// existing <header>/<h1 data-search-title> heading (pinned by the search
-// contract tests) instead of PageShell's PageHeader, so no PageHeader here.
-import { PageShell } from "../../../components/ui";
+// Phase 7C — full shared design-system migration of the /search console.
+// PageShell supplies the token-driven content plane; PageHeader renders
+// the page heading/description/actions strip. The pinned
+// `<h1 data-search-title>Search</h1>` element is passed as PageHeader's
+// `title` so the contract semantics survive inside the shared header.
+import { PageShell, PageHeader } from "../../../components/ui";
+// Deep-import the NEW Phase-7 primitives (the barrel still serves the
+// legacy Button/Card/Badge/EmptyState for older call sites; the search
+// console upgrades to the richer variant/tone APIs).
+import { Card } from "../../../components/ui/Card";
+import { Button } from "../../../components/ui/Button";
+import { Badge, type BadgeTone } from "../../../components/ui/Badge";
 import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 // Phase IA-self-serve-simplification — gate the admin-only "Enable
@@ -1069,15 +1076,89 @@ function SearchInner() {
   return (
     <main style={pageStyle}>
      <PageShell width="full" style={pageShellStyle}>
-      <header style={headerStyle}>
-        <div>
-          <h1 style={titleStyle} data-search-title>
+      <PageHeader
+        title={
+          // Phase 7C — the single semantic <h1> is now owned by the
+          // shared PageHeader. The pinned `data-search-title` contract
+          // hook rides on this inner <span> so the attribute stays in
+          // the DOM for end-to-end probes without nesting a second
+          // <h1>. `titleStyle` is applied here so the heading keeps its
+          // exact typographic treatment inside PageHeader's h1.
+          <span style={titleStyle} data-search-title>
             Search
-          </h1>
-          <p style={subtitleStyle}>
-            Search evidence, cases, reports, notes and OCR text across
-            this workspace. Results respect visibility and governance.
-          </p>
+          </span>
+        }
+        subtitle="Search evidence, cases, reports, notes and OCR text across this workspace. Results respect visibility and governance."
+        primaryAction={
+          <form
+            onSubmit={submitQuery}
+            style={searchFormStyle}
+            data-search-form
+          >
+            <div style={{ position: "relative", flex: 1 }}>
+              <input
+                value={qDraft}
+                onChange={(e) => setQDraft(e.target.value)}
+                onFocus={() => setSuggestOpen(true)}
+                onBlur={() => {
+                  // Delay close so a mousedown on a suggestion fires
+                  // before the dropdown unmounts.
+                  window.setTimeout(() => setSuggestOpen(false), 120);
+                }}
+                onKeyDown={(e) => {
+                  if (!suggestOpen) return;
+                  const items = qDraft.trim().length < 2 ? recent : suggestions;
+                  if (items.length === 0) return;
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setHighlighted((h) => Math.min(items.length - 1, h + 1));
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setHighlighted((h) => Math.max(0, h - 1));
+                  } else if (e.key === "Enter" && highlighted >= 0) {
+                    e.preventDefault();
+                    const pick = items[highlighted];
+                    const text =
+                      typeof pick === "string" ? pick : pick.title;
+                    setQDraft(text);
+                    setSuggestOpen(false);
+                    updateFilter({ q: text });
+                    pushRecent(text);
+                  } else if (e.key === "Escape") {
+                    setSuggestOpen(false);
+                  }
+                }}
+                placeholder="Search evidence, cases, reports, notes, OCR text…"
+                style={searchInputStyle}
+                maxLength={200}
+                aria-label="Search query"
+                aria-autocomplete="list"
+                aria-expanded={suggestOpen}
+                data-search-input
+              />
+              {suggestOpen ? (
+                <SearchTypeahead
+                  query={qDraft}
+                  suggestions={suggestions}
+                  recent={recent}
+                  highlighted={highlighted}
+                  onPick={(text) => {
+                    setQDraft(text);
+                    setSuggestOpen(false);
+                    updateFilter({ q: text });
+                    pushRecent(text);
+                  }}
+                  onClearRecent={clearRecent}
+                />
+              ) : null}
+            </div>
+            <Button type="submit" variant="primary">
+              Search
+            </Button>
+          </form>
+        }
+        contextStrip={
+          <>
           {/* Phase 15/16 — semantic-search status chip.
               Search-runtime-diagnostics: the chip exposes internal
               ranking-mode mechanics ("Hybrid semantic search active",
@@ -1161,21 +1242,33 @@ function SearchInner() {
                 // gating regardless of role. Numbers / DB tooltip
                 // are deliberately omitted.
                 return (
-                  <div
-                    style={searchHealthChipStyle("empty_index")}
+                  <Badge
+                    tone="risk"
+                    subtle
+                    style={{ marginTop: 8 }}
                     data-search-health="empty_index"
                     data-search-health-audience="user"
                   >
                     Search is being set up. Try again in a moment.
-                  </div>
+                  </Badge>
                 );
               }
               // Support/admin path — opt-in only. Full breakdown,
               // numbers included.
               const breakdown = searchHealth.index.breakdown;
+              const adminToneMap: Record<string, BadgeTone> = {
+                healthy: "verified",
+                partial_index: "pending",
+                empty_index: "risk",
+                empty_workspace: "neutral",
+              };
+              const adminTone: BadgeTone =
+                adminToneMap[effectiveHealth] ?? "neutral";
               return (
-                <div
-                  style={searchHealthChipStyle(effectiveHealth)}
+                <Badge
+                  tone={adminTone}
+                  subtle
+                  style={{ marginTop: 8 }}
                   data-search-health={effectiveHealth}
                   data-search-health-audience="admin"
                   data-search-health-cached={searchHealth.health}
@@ -1226,88 +1319,25 @@ function SearchInner() {
                       : effectiveHealth === "empty_index"
                         ? `Search index preparing (0/${searchHealth.index.evidenceTotal})`
                         : `Workspace has 0 indexable records`}
-                </div>
+                </Badge>
               );
             })()
           ) : searchHealthError &&
             isPlatformAdmin &&
             searchHealthDebugOptIn ? (
-            <div
-              style={searchHealthChipStyle("unknown")}
+            <Badge
+              tone="neutral"
+              subtle
+              style={{ marginTop: 8 }}
               data-search-health="unknown"
               data-search-health-audience="admin"
             >
               Search index status unavailable
-            </div>
+            </Badge>
           ) : null}
-        </div>
-        <form
-          onSubmit={submitQuery}
-          style={searchFormStyle}
-          data-search-form
-        >
-          <div style={{ position: "relative", flex: 1 }}>
-            <input
-              value={qDraft}
-              onChange={(e) => setQDraft(e.target.value)}
-              onFocus={() => setSuggestOpen(true)}
-              onBlur={() => {
-                // Delay close so a mousedown on a suggestion fires
-                // before the dropdown unmounts.
-                window.setTimeout(() => setSuggestOpen(false), 120);
-              }}
-              onKeyDown={(e) => {
-                if (!suggestOpen) return;
-                const items = qDraft.trim().length < 2 ? recent : suggestions;
-                if (items.length === 0) return;
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  setHighlighted((h) => Math.min(items.length - 1, h + 1));
-                } else if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  setHighlighted((h) => Math.max(0, h - 1));
-                } else if (e.key === "Enter" && highlighted >= 0) {
-                  e.preventDefault();
-                  const pick = items[highlighted];
-                  const text =
-                    typeof pick === "string" ? pick : pick.title;
-                  setQDraft(text);
-                  setSuggestOpen(false);
-                  updateFilter({ q: text });
-                  pushRecent(text);
-                } else if (e.key === "Escape") {
-                  setSuggestOpen(false);
-                }
-              }}
-              placeholder="Search evidence, cases, reports, notes, OCR text…"
-              style={searchInputStyle}
-              maxLength={200}
-              aria-label="Search query"
-              aria-autocomplete="list"
-              aria-expanded={suggestOpen}
-              data-search-input
-            />
-            {suggestOpen ? (
-              <SearchTypeahead
-                query={qDraft}
-                suggestions={suggestions}
-                recent={recent}
-                highlighted={highlighted}
-                onPick={(text) => {
-                  setQDraft(text);
-                  setSuggestOpen(false);
-                  updateFilter({ q: text });
-                  pushRecent(text);
-                }}
-                onClearRecent={clearRecent}
-              />
-            ) : null}
-          </div>
-          <button type="submit" style={searchButtonStyle}>
-            Search
-          </button>
-        </form>
-      </header>
+          </>
+        }
+      />
 
       {/* Phase 38.18 — workflow-aware contextual help, collapsed by
           default so the search results stay primary. */}
@@ -1317,11 +1347,17 @@ function SearchInner() {
         collapsedByDefault
       />
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? (
+        <Card variant="status" tone="risk" padding="compact" style={{ marginTop: 12 }}>
+          <span style={{ fontSize: 13, color: "var(--status-risk-fg, #991b1b)" }}>
+            {error}
+          </span>
+        </Card>
+      ) : null}
 
       <div style={threeColStyle}>
         {/* ----------------------------- LEFT ----------------------------- */}
-        <aside style={leftRailStyle}>
+        <Card variant="summary" padding="compact" style={leftRailStyle}>
           <FilterSection label="Sort">
             <select
               value={filter.sort ?? "UPDATED_DESC"}
@@ -1464,24 +1500,24 @@ function SearchInner() {
               style={filterApplyPanelStyle}
               data-search-filter-apply-panel="true"
             >
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={applyDraftFilters}
                 disabled={!dateDraftDirty}
                 data-search-filter-apply="true"
-                style={primaryButtonStyle}
               >
                 Apply filters
-              </button>
+              </Button>
               {filtersNonEmpty ? (
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={clearNarrowingFilters}
                   data-search-filter-clear="true"
-                  style={secondaryButtonStyle}
                 >
                   Clear filters
-                </button>
+                </Button>
               ) : null}
             </div>
           ) : null}
@@ -1499,14 +1535,15 @@ function SearchInner() {
               a refresh to populate the list. */}
           {isPlatformAdmin ? (
             <FilterSection label="Saved views">
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={saveCurrentView}
                 disabled={savingView}
-                style={primaryButtonStyle}
+                loading={savingView}
               >
                 {savingView ? "Saving…" : "Save current view"}
-              </button>
+              </Button>
               {savedViews === null ? (
                 <p style={mutedStyle}>Loading…</p>
               ) : savedViews.length === 0 ? (
@@ -1551,10 +1588,10 @@ function SearchInner() {
               )}
             </FilterSection>
           ) : null}
-        </aside>
+        </Card>
 
         {/* ----------------------------- CENTER ----------------------------- */}
-        <section style={centerColStyle}>
+        <Card variant="summary" padding="compact" style={centerColStyle}>
           <div style={resultsHeaderStyle}>
             <div style={mutedStyle}>
               {loading
@@ -1722,12 +1759,12 @@ function SearchInner() {
                     style={resultRowHeaderStyle}
                     data-search-result-row={row.documentType}
                   >
-                    <span
-                      style={docTypeChipStyle(row.documentType)}
+                    <Badge
+                      tone={docTypeTone(row.documentType)}
                       data-search-result-type={row.documentType}
                     >
                       {DOCUMENT_TYPE_LABEL[row.documentType] ?? row.documentType}
-                    </span>
+                    </Badge>
                     <span style={resultTitleStyle}>{row.title}</span>
                   </div>
                   {/* Phase 15 — match-reason badges. Backend annotates
@@ -1754,13 +1791,14 @@ function SearchInner() {
                     {row.badges.length > 0 ? (
                       <div style={badgeRowStyle}>
                         {row.badges.map((b) => (
-                          <span
+                          <Badge
                             key={b}
-                            style={badgeChipStyle(b)}
+                            tone={badgeTone(b)}
+                            subtle
                             data-search-result-badge={b}
                           >
                             {renderBadgeLabel(b)}
-                          </span>
+                          </Badge>
                         ))}
                       </div>
                     ) : null}
@@ -1773,19 +1811,21 @@ function SearchInner() {
             </ul>
           )}
           {results?.nextCursor ? (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={loadMore}
               disabled={loading}
-              style={loadMoreButtonStyle}
+              loading={loading}
+              fullWidth
+              style={{ marginTop: 12 }}
             >
               {loading ? "Loading…" : "Load more"}
-            </button>
+            </Button>
           ) : null}
-        </section>
+        </Card>
 
         {/* ----------------------------- RIGHT ----------------------------- */}
-        <aside style={rightRailStyle}>
+        <Card variant="summary" padding="comfortable" style={rightRailStyle}>
           {!selected ? (
             // Phase SEARCH-REMEDIATION-3 — the empty preview no
             // longer wastes the right rail. Instead it shows the
@@ -1811,7 +1851,7 @@ function SearchInner() {
               canSeeInvestigation={canSeeInvestigation}
             />
           )}
-        </aside>
+        </Card>
       </div>
      </PageShell>
     </main>
@@ -1840,6 +1880,60 @@ function SearchInner() {
  * (the rendered chip text is bounded by the allowed-badge catalog
  * anyway).
  */
+// Phase 7C — map the search page's document-type + backend-badge
+// vocabularies onto the shared Badge tone set. Presentation only; the
+// wire tokens (data-search-result-type / data-search-result-badge)
+// are preserved unchanged on every chip.
+function docTypeTone(type: DocumentType): BadgeTone {
+  switch (type) {
+    case "EVIDENCE":
+      return "info";
+    case "CASE":
+    case "CASE_TIMELINE":
+      return "info";
+    case "REPORT":
+    case "REVIEW_EVENT":
+      return "pending";
+    case "PACKAGE":
+    case "AUDIT_EVENT":
+      return "governance";
+    case "NOTE":
+    case "COMMUNICATION":
+      return "neutral";
+    case "WORKFLOW":
+      return "info";
+    case "WORKFLOW_STEP":
+      return "verified";
+    case "INCIDENT":
+      return "risk";
+    default:
+      return "neutral";
+  }
+}
+
+function badgeTone(badge: string): BadgeTone {
+  switch (badge) {
+    case "legal-hold":
+    case "governance-restricted":
+    case "incident-linked":
+      return "risk";
+    case "export-restricted":
+    case "review-linked":
+      return "pending";
+    case "visibility-restricted":
+      return "governance";
+    case "contributor-scoped":
+      return "verified";
+    case "workflow-linked":
+    case "integrity record":
+      return "info";
+    case "communication-linked":
+      return "pending";
+    default:
+      return "neutral";
+  }
+}
+
 function renderBadgeLabel(badge: string): string {
   switch (badge) {
     case "in_trash":
@@ -1959,12 +2053,12 @@ function Inspector({
   return (
     <div>
       <div style={inspectorHeaderStyle}>
-        <div
-          style={docTypeChipStyle(row.documentType)}
+        <Badge
+          tone={docTypeTone(row.documentType)}
           data-search-inspector-type={row.documentType}
         >
           {DOCUMENT_TYPE_LABEL[row.documentType] ?? row.documentType}
-        </div>
+        </Badge>
         <h2 style={inspectorTitleStyle}>{row.title}</h2>
         {row.subtitle ? (
           <p style={inspectorSubtitleStyle}>{row.subtitle}</p>
@@ -1985,13 +2079,14 @@ function Inspector({
         <Section label="Signals">
           <div style={badgeRowStyle}>
             {row.badges.map((b) => (
-              <span
+              <Badge
                 key={b}
-                style={badgeChipStyle(b)}
+                tone={badgeTone(b)}
+                subtle
                 data-search-inspector-badge={b}
               >
                 {renderBadgeLabel(b)}
-              </span>
+              </Badge>
             ))}
           </div>
         </Section>
@@ -2360,13 +2455,23 @@ function SemanticStatusChip({
     label = "Keyword mode";
     status = "disabled";
   }
+  const tone: BadgeTone =
+    status === "active"
+      ? "verified"
+      : status === "fallback" || status === "unavailable"
+        ? "pending"
+        : status === "blocked"
+          ? "risk"
+          : "neutral";
   return (
-    <span
+    <Badge
+      tone={tone}
+      subtle
       data-semantic-search-status={status}
-      style={semanticStatusChipStyle(status)}
+      style={{ marginTop: 8 }}
     >
       {label}
-    </span>
+    </Badge>
   );
 }
 
@@ -2435,15 +2540,17 @@ function SemanticBackfillPanel({
       {budgetLine ? (
         <div style={semanticBackfillPanelLineStyle}>{budgetLine}</div>
       ) : null}
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={onRun}
         disabled={running}
-        style={semanticBackfillButtonStyle(running)}
+        loading={running}
+        style={{ alignSelf: "flex-start" }}
         data-action="semantic-backfill-dry-run"
       >
         {running ? "Running dry run…" : "Run backfill (dry run)"}
-      </button>
+      </Button>
       {result ? (
         <div style={semanticBackfillPanelResultStyle}>
           Would embed {result.chunksToEmbed} chunk
@@ -2670,145 +2777,46 @@ const loadingScreenStyle: React.CSSProperties = {
   justifyContent: "center",
 };
 
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "flex-end",
-  justifyContent: "space-between",
-  gap: 24,
-  paddingBottom: 16,
-  borderBottom: "1px solid #e2e8f0",
-  flexWrap: "wrap",
-};
-
+// Phase 7C — the page heading now renders inside the shared PageHeader.
+// `titleStyle` is passed to the pinned `<h1 data-search-title>` so the
+// contract-test element keeps its exact typographic treatment while the
+// surrounding chrome (header layout, subtitle, actions row) is owned by
+// PageHeader. The former bespoke `headerStyle` / `subtitleStyle` /
+// `searchButtonStyle` / `errorBoxStyle` / the two chip-style helpers +
+// the disabled `_semanticSearchChipStyle` baseline were removed once the
+// header, buttons, error surface, and every status chip migrated to the
+// shared PageHeader / Button / Card / Badge primitives.
 const titleStyle: React.CSSProperties = {
+  margin: 0,
   fontSize: 22,
   fontWeight: 700,
-  margin: 0,
-  letterSpacing: -0.2,
+  lineHeight: 1.2,
+  letterSpacing: "-0.01em",
+  color: "var(--ink-primary, #0f172a)",
 };
 
-const subtitleStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: "#64748b",
-  margin: "4px 0 0",
-  maxWidth: 640,
-};
-
-// Phase 13 — disabled-state pill for the semantic-search indicator.
-// Bounded operator-safe language only; no internal config names.
-// Phase 15 — retained as the disabled baseline; new state-aware
-// variants below (semanticStatusChipStyle) build from the same tokens.
-const _semanticSearchChipStyle: React.CSSProperties = {
-  display: "inline-block",
-  marginTop: 8,
-  padding: "2px 10px",
-  fontSize: 11,
-  fontWeight: 500,
-  background: "#f1f5f9",
-  color: "#475569",
-  border: "1px solid #cbd5e1",
-  borderRadius: 999,
-};
-
-// Search-runtime-diagnostics — workspace + index-health chip. Color
-// codes the four health states so a wrong workspace or empty index is
-// visible at a glance, independent of empty-state copy.
-function searchHealthChipStyle(
-  health: "healthy" | "partial_index" | "empty_index" | "empty_workspace" | "unknown",
-): React.CSSProperties {
-  const tone =
-    health === "healthy"
-      ? { bg: "#ecfdf5", border: "#a7f3d0", fg: "#065f46" }
-      : health === "partial_index"
-        ? { bg: "#fffbeb", border: "#fde68a", fg: "#92400e" }
-        : health === "empty_index"
-          ? { bg: "#fef2f2", border: "#fecaca", fg: "#991b1b" }
-          : health === "empty_workspace"
-            ? { bg: "#f8fafc", border: "#cbd5e1", fg: "#475569" }
-            : { bg: "#f8fafc", border: "#cbd5e1", fg: "#64748b" };
-  return {
-    display: "inline-block",
-    marginTop: 8,
-    padding: "3px 10px",
-    fontSize: 11,
-    fontWeight: 500,
-    background: tone.bg,
-    color: tone.fg,
-    border: `1px solid ${tone.border}`,
-    borderRadius: 999,
-  };
-}
-
-// Phase 15 — palette-aware status chip. Uses the same colour family as
-// the existing badge palette on this page so we do not introduce a new
-// design system.
-function semanticStatusChipStyle(
-  status: "disabled" | "active" | "fallback" | "blocked" | "unavailable",
-): React.CSSProperties {
-  const palette: Record<
-    "disabled" | "active" | "fallback" | "blocked" | "unavailable",
-    { bg: string; fg: string; border: string }
-  > = {
-    disabled: { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" },
-    active: { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" },
-    fallback: { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
-    blocked: { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" },
-    // Phase 16 — "enabled but offline" carries a warning palette so
-    // operators distinguish it from "disabled" (no feature) and
-    // "blocked" (operator picked an unavailable mode).
-    unavailable: { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
-  };
-  const p = palette[status];
-  return {
-    display: "inline-block",
-    marginTop: 8,
-    padding: "2px 10px",
-    fontSize: 11,
-    fontWeight: 500,
-    background: p.bg,
-    color: p.fg,
-    border: `1px solid ${p.border}`,
-    borderRadius: 999,
-  };
-}
-
+// The search form keeps a bespoke input (pinned by the typeahead
+// contract test to a `position:relative` wrapper + raw <input>) so the
+// SearchTypeahead dropdown can anchor to it. The submit button migrated
+// to the shared <Button variant="primary">.
 const searchFormStyle: React.CSSProperties = {
   display: "flex",
   gap: 8,
   alignItems: "center",
   minWidth: 320,
+  flex: "1 1 360px",
 };
 
 const searchInputStyle: React.CSSProperties = {
   flex: 1,
-  padding: "8px 12px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontSize: 13,
-  background: "#fff",
-  color: "#0f172a",
+  minHeight: 42,
+  padding: "0 14px",
+  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+  borderRadius: "var(--radius-md, 12px)",
+  fontSize: 14,
+  background: "var(--surface-card, #fff)",
+  color: "var(--ink-primary, #0f172a)",
   minWidth: 240,
-};
-
-const searchButtonStyle: React.CSSProperties = {
-  padding: "8px 16px",
-  fontSize: 13,
-  fontWeight: 600,
-  background: "#1e293b",
-  color: "#fff",
-  border: "1px solid #1e293b",
-  borderRadius: 6,
-  cursor: "pointer",
-};
-
-const errorBoxStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: 10,
-  background: "#fef2f2",
-  color: "#7f1d1d",
-  border: "1px solid #fecaca",
-  borderRadius: 6,
-  fontSize: 13,
 };
 
 const threeColStyle: React.CSSProperties = {
@@ -2819,11 +2827,11 @@ const threeColStyle: React.CSSProperties = {
   alignItems: "flex-start",
 };
 
+// Phase 7C — the three columns are now shared <Card> surfaces (token
+// background / border / radius / padding). These style objects only
+// carry the positional concerns Card doesn't own: sticky rails, scroll,
+// and the center column's min-height.
 const leftRailStyle: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e2e8f0",
-  borderRadius: 8,
-  padding: 12,
   position: "sticky",
   top: 16,
   maxHeight: "calc(100vh - 32px)",
@@ -2831,18 +2839,10 @@ const leftRailStyle: React.CSSProperties = {
 };
 
 const centerColStyle: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e2e8f0",
-  borderRadius: 8,
-  padding: 12,
   minHeight: 400,
 };
 
 const rightRailStyle: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e2e8f0",
-  borderRadius: 8,
-  padding: 16,
   position: "sticky",
   top: 16,
   maxHeight: "calc(100vh - 32px)",
@@ -2922,31 +2922,11 @@ const inputStyle: React.CSSProperties = {
   color: "#0f172a",
 };
 
-const primaryButtonStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  fontSize: 12,
-  fontWeight: 600,
-  border: "1px solid #1e293b",
-  background: "#1e293b",
-  color: "#fff",
-  borderRadius: 6,
-  cursor: "pointer",
-};
-
-// Search-page-final-cleanup (C) — secondary action ("Clear
-// filters"). Lower visual weight than primary so Apply stays the
-// obvious next move; both share the same height + radius so they
-// look like a button group in the filter panel.
-const secondaryButtonStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  fontSize: 12,
-  fontWeight: 500,
-  border: "1px solid #cbd5e1",
-  background: "#ffffff",
-  color: "#334155",
-  borderRadius: 6,
-  cursor: "pointer",
-};
+// Phase 7C — the Apply / Clear / Save-view / Load-more / Search buttons
+// migrated to the shared <Button> primitive, so the bespoke
+// primaryButtonStyle / secondaryButtonStyle / loadMoreButtonStyle /
+// searchButtonStyle / semanticBackfillButtonStyle constants were
+// removed.
 
 // Sticky-ish container for the Apply/Clear button pair below
 // the Updated date pickers. Visually framed so a user editing
@@ -3018,26 +2998,59 @@ const resultsHeaderStyle: React.CSSProperties = {
   gap: 8,
 };
 
+// Phase 7C — the honest empty-state branches (loading / error / idle /
+// no-match / no-match-filtered / empty-workspace / empty-index /
+// partial-index) keep their pinned `data-search-empty-state-kind`
+// markup; this container gives them the shared design system's centered,
+// token-framed placeholder treatment (matching the Card `empty` variant
+// language).
 const emptyStateStyle: React.CSSProperties = {
-  padding: 40,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 4,
+  padding: "48px 24px",
+  margin: "8px 0",
   textAlign: "center",
-  color: "#94a3b8",
-  fontSize: 13,
+  color: "var(--ink-secondary, #475569)",
+  fontSize: 13.5,
+  lineHeight: 1.6,
+  borderRadius: "var(--radius-card, 14px)",
+  border: "1px dashed var(--border-strong, rgba(15,23,42,0.14))",
+  background: "rgba(15,23,42,0.015)",
 };
 
 const resultListStyle: React.CSSProperties = {
   listStyle: "none",
   padding: 0,
-  margin: 0,
+  margin: "8px 0 0",
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
 };
 
+// Phase 7C — result rows read as premium interactive cards: token
+// surface, rounded corners, a hairline separation via gap on the list,
+// and a governance-accent left rail + tinted fill when selected.
 function resultRowStyle(active: boolean): React.CSSProperties {
   return {
-    padding: "10px 12px",
-    borderBottom: "1px solid #f1f5f9",
+    padding: "12px 14px",
+    borderRadius: "var(--radius-md, 12px)",
     cursor: "pointer",
-    background: active ? "#f1f5f9" : "transparent",
-    borderLeft: active ? "3px solid #1e293b" : "3px solid transparent",
+    border: active
+      ? "1px solid var(--status-info-border, #bfdbfe)"
+      : "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
+    background: active
+      ? "var(--status-info-bg, #eff6ff)"
+      : "var(--surface-card, #ffffff)",
+    borderLeft: active
+      ? "3px solid var(--status-info-solid, #2563eb)"
+      : "3px solid transparent",
+    boxShadow: active
+      ? "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))"
+      : "none",
+    transition: "border-color 160ms ease, background-color 160ms ease",
   };
 }
 const resultRowHeaderStyle: React.CSSProperties = {
@@ -3079,90 +3092,10 @@ const badgeRowStyle: React.CSSProperties = {
   gap: 4,
 };
 
-function docTypeChipStyle(type: DocumentType): React.CSSProperties {
-  const palette: Record<DocumentType, { bg: string; fg: string; border: string }> = {
-    EVIDENCE: { bg: "#eff6ff", fg: "#1e40af", border: "#bfdbfe" },
-    // Phase SEARCH-REMEDIATION — palette entries for the new types.
-    CASE: { bg: "#f0f9ff", fg: "#0c4a6e", border: "#bae6fd" },
-    REPORT: { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
-    PACKAGE: { bg: "#f5f3ff", fg: "#5b21b6", border: "#ddd6fe" },
-    NOTE: { bg: "#fff7ed", fg: "#9a3412", border: "#fed7aa" },
-    WORKFLOW: { bg: "#ecfeff", fg: "#155e75", border: "#a5f3fc" },
-    WORKFLOW_STEP: { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" },
-    REVIEW_EVENT: { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
-    AUDIT_EVENT: { bg: "#f5f3ff", fg: "#5b21b6", border: "#ddd6fe" },
-    COMMUNICATION: { bg: "#fff7ed", fg: "#9a3412", border: "#fed7aa" },
-    CASE_TIMELINE: { bg: "#f0f9ff", fg: "#0c4a6e", border: "#bae6fd" },
-    INCIDENT: { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" },
-  };
-  const p = palette[type];
-  return {
-    padding: "2px 8px",
-    fontSize: 10,
-    fontWeight: 600,
-    borderRadius: 4,
-    background: p.bg,
-    color: p.fg,
-    border: `1px solid ${p.border}`,
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-    display: "inline-block",
-    whiteSpace: "nowrap",
-  };
-}
-
-function badgeChipStyle(badge: string): React.CSSProperties {
-  const map: Record<string, { bg: string; fg: string; border: string }> = {
-    "legal-hold": { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" },
-    "export-restricted": { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
-    "visibility-restricted": {
-      bg: "#f5f3ff",
-      fg: "#5b21b6",
-      border: "#ddd6fe",
-    },
-    "contributor-scoped": { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" },
-    "workflow-linked": { bg: "#eff6ff", fg: "#1e40af", border: "#bfdbfe" },
-    "review-linked": { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
-    "governance-restricted": {
-      bg: "#fef2f2",
-      fg: "#991b1b",
-      border: "#fecaca",
-    },
-    "incident-linked": { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" },
-    "communication-linked": { bg: "#fff7ed", fg: "#9a3412", border: "#fed7aa" },
-    "integrity record": { bg: "#f0f9ff", fg: "#0c4a6e", border: "#bae6fd" },
-    "matched metadata": { bg: "#f1f5f9", fg: "#334155", border: "#e2e8f0" },
-    "related evidence": { bg: "#f1f5f9", fg: "#334155", border: "#e2e8f0" },
-  };
-  const p = map[badge] ?? {
-    bg: "#f1f5f9",
-    fg: "#334155",
-    border: "#e2e8f0",
-  };
-  return {
-    padding: "2px 6px",
-    fontSize: 10,
-    fontWeight: 500,
-    borderRadius: 999,
-    background: p.bg,
-    color: p.fg,
-    border: `1px solid ${p.border}`,
-    whiteSpace: "nowrap",
-  };
-}
-
-const loadMoreButtonStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: "8px 16px",
-  width: "100%",
-  fontSize: 13,
-  fontWeight: 500,
-  border: "1px solid #cbd5e1",
-  background: "#fff",
-  color: "#334155",
-  borderRadius: 6,
-  cursor: "pointer",
-};
+// Phase 7C — document-type + backend-badge chips moved to the shared
+// <Badge> primitive (tone mapped via docTypeTone / badgeTone). The
+// bespoke docTypeChipStyle / badgeChipStyle palettes were removed, along
+// with loadMoreButtonStyle (the Load-more control is now a <Button>).
 
 const inspectorHeaderStyle: React.CSSProperties = {
   paddingBottom: 12,
@@ -3184,19 +3117,24 @@ const inspectorSubtitleStyle: React.CSSProperties = {
 
 // Inspector primary action button — single canonical CTA per result.
 // Routes to the underlying record so users don't have to recognise
-// the right monospaced UUID under "Pointers". Plain `<a>` so the
-// browser native middle-click / cmd-click open-in-new-tab works
-// without us reimplementing it.
+// the right monospaced UUID under "Pointers". Kept as a plain `<a>`
+// (NOT the shared <Button>, which renders a real <button>) so the
+// browser's native middle-click / cmd-click open-in-new-tab behaviour
+// works without us reimplementing it — route behaviour is preserved.
+// Phase 7C — restyled to the shared primary-CTA language (design-token
+// gradient + premium radius/shadow) while keeping the same padding /
+// weight the follow-up contract test pins.
 const inspectorPrimaryButtonStyle: React.CSSProperties = {
   display: "inline-block",
   marginTop: 10,
   padding: "8px 14px",
   fontSize: 13,
   fontWeight: 600,
-  background: "#0f172a",
-  color: "#ffffff",
-  border: "1px solid #0f172a",
-  borderRadius: 6,
+  background: "var(--btn-primary-bg, #0f172a)",
+  color: "var(--btn-primary-color, #ffffff)",
+  border: "1px solid var(--btn-primary-border, #0f172a)",
+  boxShadow: "var(--btn-primary-shadow, 0 12px 24px rgba(15,23,42,0.18))",
+  borderRadius: "var(--radius-md, 12px)",
   textDecoration: "none",
   cursor: "pointer",
 };
@@ -3365,19 +3303,6 @@ const semanticBackfillPanelErrorStyle: React.CSSProperties = {
   color: "#991b1b",
 };
 
-function semanticBackfillButtonStyle(running: boolean): React.CSSProperties {
-  return {
-    alignSelf: "flex-start",
-    padding: "4px 10px",
-    fontSize: 12,
-    fontWeight: 600,
-    border: "1px solid #1e293b",
-    background: running ? "#cbd5e1" : "#1e293b",
-    color: running ? "#475569" : "#fff",
-    borderRadius: 6,
-    cursor: running ? "not-allowed" : "pointer",
-  };
-}
 
 // Phase SEARCH-REMEDIATION-3 — `inlineLinkButtonStyle` removed
 // alongside the `NoResultsHelp` "Try semantic search" link.

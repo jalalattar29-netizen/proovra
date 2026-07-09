@@ -82,8 +82,20 @@ test("Search-mode picker (Keyword / Hybrid / Semantic) is removed from the UI", 
 });
 
 test("Page title is 'Search' (not 'Evidence Discovery')", () => {
-  assert.match(SEARCH_PAGE, /<h1 style=\{titleStyle\} data-search-title>\s*\n?\s*Search\s*\n?\s*<\/h1>/);
+  // Phase 7C — the /search heading migrated to the shared PageHeader,
+  // which owns the single semantic <h1>. The `data-search-title`
+  // contract hook now rides on the inner <span style={titleStyle}>
+  // that PageHeader renders inside its <h1>, so this pin was updated
+  // from `<h1 … data-search-title>` to `<span … data-search-title>`.
+  // The invariant is unchanged: the visible title text is exactly
+  // "Search" and the `data-search-title` attribute is still present in
+  // the DOM for end-to-end probes. This is a pure markup-shape update
+  // (element tag), not a copy / behaviour / honesty change.
+  assert.match(SEARCH_PAGE, /<span style=\{titleStyle\} data-search-title>\s*\n?\s*Search\s*\n?\s*<\/span>/);
   assert.doesNotMatch(SEARCH_PAGE, /\{terms\.evidence\} Discovery/);
+  // The shared PageHeader supplies the single <h1>; the title routes
+  // through its `title` prop.
+  assert.match(SEARCH_PAGE, /<PageHeader\b/);
 });
 
 test("Search input placeholder advertises the real corpus", () => {

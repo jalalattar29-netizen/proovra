@@ -39,7 +39,7 @@ import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { useTeamId } from "../../../../lib/platform-context";
+import { useActiveWorkspaceId } from "../../../../lib/platform-context";
 import {
   StepUpModal,
   useStepUpAction,
@@ -117,7 +117,12 @@ export default function AdminProvisioningPage() {
 }
 
 function AdminProvisioningInner() {
-  const teamId = useTeamId();
+  // Phase 7C — Platform Admin provisions enterprise customers from their
+  // OWN context (Personal Space is fine). `useActiveWorkspaceId` returns the
+  // active workspace id INCLUDING personal, so step-up is minted against a
+  // real workspace the admin belongs to. The product model has no separate
+  // admin-only tenant, so we never ask the operator to switch into one.
+  const teamId = useActiveWorkspaceId();
 
   return (
     <PageShell
@@ -135,9 +140,8 @@ function AdminProvisioningInner() {
     >
       {!teamId ? (
         <Card variant="admin" padding="comfortable">
-          <p style={mutedStyle}>
-            Switch to your admin workspace to continue — step-up approvals are
-            minted against the workspace you are currently in.
+          <p style={mutedStyle} data-testid="admin-provisioning-loading">
+            Preparing your platform-admin context…
           </p>
         </Card>
       ) : (

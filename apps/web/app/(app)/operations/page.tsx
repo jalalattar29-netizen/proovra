@@ -11,6 +11,12 @@
  * Wording is operational only. We say "issue", "failure", "anomaly",
  * "incident", "outage". We never say "breach", "compromise",
  * "verdict", "forensic conclusion".
+ *
+ * Phase 7C — premium ops-console visual pass. Migrated to the shared
+ * design system (PageShell / PageHeader / PageSection + Card / Badge /
+ * Button / FilterBar / DataTable / EmptyState). NO change to data
+ * fetching, gating, honest states, or the bounded per-panel state
+ * machine — a single 503 still isolates to its own panel.
  */
 
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
@@ -21,6 +27,18 @@ import { useTeamWorkspaceGate } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { HubQuickActionsBar } from "../../../components/hubs/HubQuickActionsBar";
 import { formatUserDateTime } from "../../../lib/date";
+import {
+  PageShell,
+  PageHeader,
+  PageSection,
+  DataTable,
+  FilterBar,
+  type DataTableColumn,
+} from "../../../components/ui";
+import { Card } from "../../../components/ui/Card";
+import { Badge, type BadgeTone } from "../../../components/ui/Badge";
+import { Button } from "../../../components/ui/Button";
+import { EmptyState } from "../../../components/ui/EmptyState";
 
 // Phase 32.6.4 — bounded per-panel state machine. Replaces the
 // previous `null | data` pattern where a single 503 from any of the
@@ -165,6 +183,7 @@ function OpsPageInner() {
   const [status, setStatus] = useState<IncidentStatus | "">("OPEN");
   const [severity, setSeverity] = useState<IncidentSeverity | "">("");
   const [busy, setBusy] = useState(false);
+  const [lastCheckedAtUtc, setLastCheckedAtUtc] = useState<string | null>(null);
 
   useEffect(() => {
     if (!teamId) return;
@@ -218,6 +237,8 @@ function OpsPageInner() {
           ...panelErrorMessageFor("metrics", metricsR.reason),
         });
       }
+
+      setLastCheckedAtUtc(new Date().toISOString());
     });
 
     return () => {
@@ -279,42 +300,129 @@ function OpsPageInner() {
     };
   }, [metrics]);
 
-  return (
-    <main style={pageStyle}>
-      <header>
-        <h1 style={titleStyle}>Operations Center</h1>
-        <p style={mutedStyle}>
-          Workspace-internal operations view: system health, active and
-          recent operational incidents, and the in-process metrics
-          snapshot. Wording is operational only — incidents describe
-          system behaviour, never legal or forensic conclusions.
-        </p>
-      </header>
+  const incidentColumns: DataTableColumn<Incident>[] = [
+    {
+      key: "incident",
+      header: "Incident",
+      render: (i) => (
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              flexWrap: "wrap",
+              fontWeight: 650,
+              color: "var(--ink-primary, #0f172a)",
+            }}
+          >
+            <span>{i.title}</span>
+            <Badge tone="info" subtle>
+              {i.category}
+            </Badge>
+            <Badge tone="neutral" subtle>
+              ×{i.occurrenceCount}
+            </Badge>
+          </div>
+          <div
+            style={{
+              fontSize: 13,
+              color: "var(--ink-secondary, #475569)",
+              marginTop: 3,
+            }}
+          >
+            {i.safeSummary}
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--ink-muted, #94a3b8)",
+              marginTop: 3,
+            }}
+          >
+            first {formatUserDateTime(i.firstSeenAtUtc)} · last{" "}
+            {formatUserDateTime(i.lastSeenAtUtc)}
+            {i.runbookSlug ? ` · runbook: ${i.runbookSlug}` : ""}
+            {i.requestId ? ` · req ${i.requestId.slice(0, 8)}…` : ""}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "severity",
+      header: "Severity",
+      nowrap: true,
+      render: (i) => (
+        <Badge tone={severityTone(i.severity)}>{i.severity}</Badge>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      nowrap: true,
+      render: (i) => (
+        <Badge tone={incidentStatusTone(i.status)}>{i.status}</Badge>
+      ),
+    },
+  ];
 
+  return (
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Operations"
+          title="Operations Center"
+          subtitle="Workspace-internal operations view: system health, active and recent operational incidents, and the in-process metrics snapshot. Wording is operational only — incidents describe system behaviour, never legal or forensic conclusions."
+          contextStrip={
+            lastCheckedAtUtc ? (
+              <Badge tone="neutral" subtle>
+                Last checked {formatUserDateTime(lastCheckedAtUtc)}
+              </Badge>
+            ) : null
+          }
+        />
+      }
+    >
       {workspace.status === "loading" ? (
         <p style={mutedStyle}>Loading workspace…</p>
       ) : workspace.status === "error" ? (
-        <div style={errorBoxStyle}>{workspace.message}</div>
+        <Card variant="status" tone="risk">
+          <div style={{ color: "var(--status-risk-fg, #991b1b)" }}>
+            {workspace.message}
+          </div>
+        </Card>
       ) : !teamId ? (
-        <p style={mutedStyle}>Switch to a workspace to use ops center.</p>
+        <Card>
+          <EmptyState
+            compact
+            title="No workspace selected"
+            purpose="Switch to a workspace to use the operations center."
+          />
+        </Card>
       ) : (
         <>
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>System health</h2>
+          <PageSection
+            title="System health"
+            description="Live posture for the platform runtime, providers, and open incident load."
+          >
             {healthPanel.status === "loading" ? (
-              <p style={mutedStyle}>Loading…</p>
+              <Card>
+                <p style={mutedStyle}>Loading…</p>
+              </Card>
             ) : healthPanel.status === "error" ? (
-              <div style={errorBoxStyle}>
-                {healthPanel.message}
+              <Card variant="status" tone="risk">
+                <div style={{ color: "var(--status-risk-fg, #991b1b)" }}>
+                  {healthPanel.message}
+                </div>
                 {healthPanel.requestId ? (
                   <div style={{ ...mutedStyle, marginTop: 6 }}>
                     Reference: {healthPanel.requestId}
                   </div>
                 ) : null}
-              </div>
+              </Card>
             ) : !health ? null : (
               <>
-                <div style={healthGridStyle}>
+                <div style={statGridStyle}>
                   <Stat label="Database" value={health.database} />
                   <Stat
                     label="Observability"
@@ -335,10 +443,14 @@ function OpsPageInner() {
                   <Stat
                     label="HIGH open"
                     value={String(health.incidents.openHigh)}
+                    tone={health.incidents.openHigh > 0 ? "pending" : undefined}
                   />
                   <Stat
                     label="CRITICAL open"
                     value={String(health.incidents.openCritical)}
+                    tone={
+                      health.incidents.openCritical > 0 ? "risk" : undefined
+                    }
                   />
                   <Stat
                     label="Communications"
@@ -354,328 +466,242 @@ function OpsPageInner() {
                   />
                 </div>
                 {health.violations.length > 0 ? (
-                  <div style={warnBoxStyle}>
-                    {health.violations.length} configuration issue
-                    {health.violations.length === 1 ? "" : "s"} reported:{" "}
-                    {health.violations.map((v) => v.envName).join(", ")}
-                  </div>
+                  <Card
+                    variant="status"
+                    tone="pending"
+                    padding="compact"
+                    style={{ marginTop: 12 }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: "var(--status-pending-fg, #78350f)",
+                      }}
+                    >
+                      {health.violations.length} configuration issue
+                      {health.violations.length === 1 ? "" : "s"} reported:{" "}
+                      {health.violations.map((v) => v.envName).join(", ")}
+                    </div>
+                  </Card>
                 ) : null}
               </>
             )}
-          </section>
+          </PageSection>
 
-          {metricsPanel.status === "error" ? (
-            <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>Headline counters</h2>
-              <div style={errorBoxStyle}>
-                {metricsPanel.message}
+          <PageSection
+            title="Headline counters"
+            description="In-process counters since the last API restart. All values reset on restart."
+          >
+            {metricsPanel.status === "error" ? (
+              <Card variant="status" tone="risk">
+                <div style={{ color: "var(--status-risk-fg, #991b1b)" }}>
+                  {metricsPanel.message}
+                </div>
                 {metricsPanel.requestId ? (
                   <div style={{ ...mutedStyle, marginTop: 6 }}>
                     Reference: {metricsPanel.requestId}
                   </div>
                 ) : null}
-              </div>
-            </section>
-          ) : headlineCounters ? (
-            <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>Headline counters</h2>
-              <div style={healthGridStyle}>
-                <Stat label="Jobs failed" value={String(headlineCounters.jobsFailed)} />
-                <Stat
-                  label="Invalid webhook sigs"
-                  value={String(headlineCounters.webhooksInvalid)}
-                />
-                <Stat
-                  label="Comms failed"
-                  value={String(headlineCounters.commsFailed)}
-                />
-                <Stat
-                  label="Step-up denied"
-                  value={String(headlineCounters.stepUpDenied)}
-                />
-                <Stat label="5xx" value={String(headlineCounters.requests5xx)} />
-                <Stat label="Alerts sent" value={String(headlineCounters.alertsSent)} />
-              </div>
-              {metrics ? (
-                <p style={mutedStyle}>
-                  Process uptime: {Math.floor(metrics.uptimeSeconds / 60)} min ·{" "}
-                  {Object.keys(metrics.counters).length} counters ·{" "}
-                  {Object.keys(metrics.gauges).length} gauges
-                </p>
-              ) : null}
-            </section>
-          ) : null}
+              </Card>
+            ) : headlineCounters ? (
+              <>
+                <div style={statGridStyle}>
+                  <Stat
+                    label="Jobs failed"
+                    value={String(headlineCounters.jobsFailed)}
+                    tone={headlineCounters.jobsFailed > 0 ? "pending" : undefined}
+                  />
+                  <Stat
+                    label="Invalid webhook sigs"
+                    value={String(headlineCounters.webhooksInvalid)}
+                    tone={
+                      headlineCounters.webhooksInvalid > 0 ? "pending" : undefined
+                    }
+                  />
+                  <Stat
+                    label="Comms failed"
+                    value={String(headlineCounters.commsFailed)}
+                    tone={headlineCounters.commsFailed > 0 ? "pending" : undefined}
+                  />
+                  <Stat
+                    label="Step-up denied"
+                    value={String(headlineCounters.stepUpDenied)}
+                  />
+                  <Stat
+                    label="5xx"
+                    value={String(headlineCounters.requests5xx)}
+                    tone={headlineCounters.requests5xx > 0 ? "risk" : undefined}
+                  />
+                  <Stat
+                    label="Alerts sent"
+                    value={String(headlineCounters.alertsSent)}
+                  />
+                </div>
+                {metrics ? (
+                  <p style={{ ...mutedStyle, marginTop: 12 }}>
+                    Process uptime: {Math.floor(metrics.uptimeSeconds / 60)} min ·{" "}
+                    {Object.keys(metrics.counters).length} counters ·{" "}
+                    {Object.keys(metrics.gauges).length} gauges
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <Card>
+                <p style={mutedStyle}>Loading…</p>
+              </Card>
+            )}
+          </PageSection>
 
-          <section style={cardStyle}>
-            <div style={cardHeaderStyle}>
-              <h2 style={sectionTitleStyle}>Operational incidents</h2>
-              <div style={{ display: "flex", gap: 8 }}>
-                <select
+          <PageSection
+            title="Operational incidents"
+            description="System behaviour anomalies. Acknowledge, resolve, or suppress from the row actions."
+            action={
+              <FilterBar>
+                <FilterBar.Select
+                  label="Status"
                   value={status}
-                  onChange={(e) => setStatus(e.target.value as IncidentStatus | "")}
-                  style={selectStyle}
-                >
-                  <option value="">All statuses</option>
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-                <select
+                  onChange={(v) => setStatus(v as IncidentStatus | "")}
+                  options={[
+                    { value: "", label: "All statuses" },
+                    ...STATUSES.map((s) => ({ value: s, label: s })),
+                  ]}
+                />
+                <FilterBar.Select
+                  label="Severity"
                   value={severity}
-                  onChange={(e) =>
-                    setSeverity(e.target.value as IncidentSeverity | "")
-                  }
-                  style={selectStyle}
-                >
-                  <option value="">All severities</option>
-                  {SEVERITIES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            {incidentsPanel.status === "loading" ? (
-              <p style={mutedStyle}>Loading…</p>
-            ) : incidentsPanel.status === "error" ? (
-              <div style={errorBoxStyle}>
-                {incidentsPanel.message}
+                  onChange={(v) => setSeverity(v as IncidentSeverity | "")}
+                  options={[
+                    { value: "", label: "All severities" },
+                    ...SEVERITIES.map((s) => ({ value: s, label: s })),
+                  ]}
+                />
+              </FilterBar>
+            }
+          >
+            {incidentsPanel.status === "error" ? (
+              <Card variant="status" tone="risk">
+                <div style={{ color: "var(--status-risk-fg, #991b1b)" }}>
+                  {incidentsPanel.message}
+                </div>
                 {incidentsPanel.requestId ? (
                   <div style={{ ...mutedStyle, marginTop: 6 }}>
                     Reference: {incidentsPanel.requestId}
                   </div>
                 ) : null}
-              </div>
-            ) : !incidents || incidents.length === 0 ? (
-              <p style={mutedStyle}>No incidents match the filters.</p>
+              </Card>
             ) : (
-              <ul style={listStyle}>
-                {incidents.map((i) => (
-                  <li key={i.id} style={rowStyle}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600 }}>
-                        {i.title}{" "}
-                        <span style={chipStyle}>{i.category}</span>{" "}
-                        <span style={chipStyle}>×{i.occurrenceCount}</span>
-                      </div>
-                      <div style={mutedStyle}>{i.safeSummary}</div>
-                      <div style={mutedStyle}>
-                        first {formatUserDateTime(i.firstSeenAtUtc)} ·{" "}
-                        last {formatUserDateTime(i.lastSeenAtUtc)}
-                        {i.runbookSlug ? ` · runbook: ${i.runbookSlug}` : ""}
-                        {i.requestId ? ` · req ${i.requestId.slice(0, 8)}…` : ""}
-                      </div>
-                    </div>
-                    <span style={severityBadgeStyle(i.severity)}>{i.severity}</span>
-                    <span style={statusBadgeStyle(i.status)}>{i.status}</span>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {i.status === "OPEN" ? (
-                        <button
-                          type="button"
-                          style={secondaryButtonStyle}
+              <DataTable<Incident>
+                ariaLabel="Operational incidents"
+                columns={incidentColumns}
+                rows={incidents ?? []}
+                getRowId={(i) => i.id}
+                loading={incidentsPanel.status === "loading"}
+                density="comfortable"
+                emptyState={
+                  <EmptyState
+                    compact
+                    title="No incidents match the filters"
+                    purpose="Operational anomalies matching the selected status and severity appear here."
+                  />
+                }
+                rowActions={(i) => (
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      gap: 6,
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    {i.status === "OPEN" ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => void transitionIncident(i.id, "ack")}
+                      >
+                        Ack
+                      </Button>
+                    ) : null}
+                    {i.status === "OPEN" || i.status === "ACKNOWLEDGED" ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="primary"
                           disabled={busy}
-                          onClick={() => void transitionIncident(i.id, "ack")}
+                          onClick={() =>
+                            void transitionIncident(i.id, "resolve")
+                          }
                         >
-                          Ack
-                        </button>
-                      ) : null}
-                      {i.status === "OPEN" || i.status === "ACKNOWLEDGED" ? (
-                        <>
-                          <button
-                            type="button"
-                            style={primaryButtonStyle}
-                            disabled={busy}
-                            onClick={() =>
-                              void transitionIncident(i.id, "resolve")
-                            }
-                          >
-                            Resolve
-                          </button>
-                          <button
-                            type="button"
-                            style={secondaryButtonStyle}
-                            disabled={busy}
-                            onClick={() =>
-                              void transitionIncident(i.id, "suppress")
-                            }
-                          >
-                            Suppress
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                          Resolve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={busy}
+                          onClick={() =>
+                            void transitionIncident(i.id, "suppress")
+                          }
+                        >
+                          Suppress
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
+                )}
+              />
             )}
-          </section>
+          </PageSection>
         </>
       )}
-    </main>
+    </PageShell>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: BadgeTone;
+}) {
+  const accent =
+    tone === "risk"
+      ? "var(--status-risk-fg, #991b1b)"
+      : tone === "pending"
+        ? "var(--status-pending-fg, #78350f)"
+        : "var(--ink-primary, #0f172a)";
   return (
-    <div style={statStyle}>
-      <div style={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}>
+    <Card padding="compact">
+      <div style={{ fontSize: 20, fontWeight: 700, color: accent }}>
         {value}
       </div>
-      <div style={mutedStyle}>{label}</div>
-    </div>
+      <div style={{ ...mutedStyle, marginTop: 2 }}>{label}</div>
+    </Card>
   );
 }
 
-const pageStyle: React.CSSProperties = {
-  maxWidth: 1040,
-  margin: "0 auto",
-  padding: "32px 24px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
+function severityTone(severity: IncidentSeverity): BadgeTone {
+  if (severity === "CRITICAL") return "risk";
+  if (severity === "HIGH") return "pending";
+  if (severity === "WARNING") return "pending";
+  return "info";
+}
+
+function incidentStatusTone(status: IncidentStatus): BadgeTone {
+  if (status === "RESOLVED") return "verified";
+  if (status === "ACKNOWLEDGED") return "pending";
+  if (status === "SUPPRESSED") return "neutral";
+  return "risk";
+}
+
+const mutedStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "var(--ink-muted, #94a3b8)",
 };
-const titleStyle: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 700,
-  marginBottom: 4,
-};
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 18,
-  fontWeight: 600,
-  marginBottom: 12,
-};
-const mutedStyle: React.CSSProperties = { fontSize: 13, color: "#64748b" };
-const cardStyle: React.CSSProperties = {
-  marginTop: 24,
-  padding: 20,
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  background: "#fff",
-};
-const cardHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  flexWrap: "wrap",
-  gap: 8,
-  marginBottom: 12,
-};
-const healthGridStyle: React.CSSProperties = {
+const statGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
   gap: 12,
-  marginBottom: 12,
 };
-const statStyle: React.CSSProperties = {
-  padding: 10,
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: 8,
-};
-const listStyle: React.CSSProperties = {
-  listStyle: "none",
-  padding: 0,
-  margin: 0,
-};
-const rowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: "10px 8px",
-  borderBottom: "1px solid #e2e8f0",
-};
-const chipStyle: React.CSSProperties = {
-  padding: "2px 6px",
-  fontSize: 10,
-  fontWeight: 600,
-  borderRadius: 999,
-  background: "#eff6ff",
-  color: "#1e40af",
-  border: "1px solid #93c5fd",
-  marginLeft: 6,
-};
-const errorBoxStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: 12,
-  background: "#fef2f2",
-  color: "#7f1d1d",
-  border: "1px solid #fecaca",
-  borderRadius: 8,
-  fontSize: 14,
-};
-const warnBoxStyle: React.CSSProperties = {
-  marginTop: 8,
-  padding: 12,
-  background: "#fffbeb",
-  color: "#92400e",
-  border: "1px solid #fcd34d",
-  borderRadius: 8,
-  fontSize: 13,
-};
-const selectStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontSize: 13,
-  background: "#fff",
-  color: "#0f172a",
-};
-const primaryButtonStyle: React.CSSProperties = {
-  padding: "6px 14px",
-  fontWeight: 600,
-  color: "#fff",
-  background: "#0f172a",
-  border: 0,
-  borderRadius: 8,
-  cursor: "pointer",
-  fontSize: 12,
-};
-const secondaryButtonStyle: React.CSSProperties = {
-  padding: "4px 10px",
-  fontWeight: 500,
-  color: "#0f172a",
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 12,
-};
-
-function severityBadgeStyle(severity: IncidentSeverity): React.CSSProperties {
-  const base: React.CSSProperties = {
-    padding: "4px 10px",
-    fontSize: 11,
-    fontWeight: 600,
-    borderRadius: 999,
-    border: "1px solid",
-    whiteSpace: "nowrap",
-  };
-  if (severity === "CRITICAL")
-    return { ...base, background: "#fef2f2", borderColor: "#fca5a5", color: "#7f1d1d" };
-  if (severity === "HIGH")
-    return { ...base, background: "#fff7ed", borderColor: "#fdba74", color: "#9a3412" };
-  if (severity === "WARNING")
-    return { ...base, background: "#fffbeb", borderColor: "#fcd34d", color: "#92400e" };
-  return { ...base, background: "#eff6ff", borderColor: "#93c5fd", color: "#1e40af" };
-}
-
-function statusBadgeStyle(status: IncidentStatus): React.CSSProperties {
-  const base: React.CSSProperties = {
-    padding: "4px 10px",
-    fontSize: 11,
-    fontWeight: 600,
-    borderRadius: 999,
-    border: "1px solid",
-    whiteSpace: "nowrap",
-  };
-  if (status === "RESOLVED")
-    return { ...base, background: "#f0fdf4", borderColor: "#86efac", color: "#166534" };
-  if (status === "ACKNOWLEDGED")
-    return { ...base, background: "#fffbeb", borderColor: "#fcd34d", color: "#92400e" };
-  if (status === "SUPPRESSED")
-    return { ...base, background: "#f1f5f9", borderColor: "#cbd5e1", color: "#475569" };
-  return { ...base, background: "#fef2f2", borderColor: "#fca5a5", color: "#7f1d1d" };
-}

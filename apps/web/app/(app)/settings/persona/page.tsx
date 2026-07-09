@@ -36,6 +36,10 @@ import {
   redactWorkspaceId,
 } from "../../../../lib/platform-context/state-observability";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { Badge } from "../../../../components/ui/Badge";
 import { WorkspacePersonaProfileCard } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
 
 type WizardStep = 1 | 2 | 3 | 4;
@@ -197,70 +201,70 @@ function PersonaWizardPageInner() {
   };
 
   return (
-    <main
-      className="cc-page"
+    <PageShell
       data-persona-wizard
       data-persona-current={persona.primaryProfile}
-      style={{ maxWidth: 720, margin: "0 auto" }}
+      style={{ maxWidth: 760 }}
+      header={
+        <PageHeader
+          eyebrow="Workspace personalization"
+          title="How will you use PROOVRA?"
+          subtitle="Configure workflows, operational priorities, and workspace defaults. This setting only changes ordering, defaults, and labels — it never changes what your workspace is allowed to do."
+          contextStrip={
+            <>
+              <Badge tone="neutral" data-persona-wizard-context>
+                {contextLabel}
+              </Badge>
+              <Badge tone="info" data-persona-wizard-step={`step-${step}`}>
+                Step {step} of 4
+              </Badge>
+            </>
+          }
+        />
+      }
     >
-      <header className="cc-page-header">
+      {/* Phase Final-Hidden-Feature-Surfacing — read-back of the
+          durable WorkspacePersonaProfile row from
+          `/v1/workspaces/:teamId/persona`. Confirms what is
+          actually persisted vs the wizard's draft state. */}
+      {workspaceId ? (
         <div>
-          <div className="cc-kicker">Workspace personalization</div>
-          <h1 className="cc-title">How will you use PROOVRA?</h1>
-          <p className="cc-subtitle">
-            Configure workflows, operational priorities, and workspace
-            defaults. This setting only changes ordering, defaults, and
-            labels — it never changes what your workspace is allowed to do.
-          </p>
-          {/* Phase Final-Hidden-Feature-Surfacing — read-back of the
-              durable WorkspacePersonaProfile row from
-              `/v1/workspaces/:teamId/persona`. Confirms what is
-              actually persisted vs the wizard's draft state. */}
-          {workspaceId ? (
-            <div style={{ marginTop: 12 }}>
-              <WorkspacePersonaProfileCard teamId={workspaceId} />
-            </div>
-          ) : null}
+          <WorkspacePersonaProfileCard teamId={workspaceId} />
         </div>
-        <div className="cc-meta">
-          <span data-persona-wizard-context>{contextLabel}</span>
-          <span data-persona-wizard-step={`step-${step}`}>Step {step} of 4</span>
-        </div>
-      </header>
+      ) : null}
 
       {/* ============================ STEP 1 ============================ */}
       {step === 1 ? (
-        <section className="cc-section" data-persona-wizard-step-block="1">
-          <header className="cc-section-header">
-            <h2 className="cc-section-title">Confirm the workspace context</h2>
-          </header>
-          <p>
+        <Card
+          variant="admin"
+          data-persona-wizard-step-block="1"
+          title="Confirm the workspace context"
+        >
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: "var(--ink-secondary, #475569)" }}>
             You are setting up <strong>{contextLabel}</strong>. Personal Space
             keeps things lightweight; organization workspaces unlock team,
             reviewer, and governance surfaces. You can change the persona at
             any time.
           </p>
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button
-              type="button"
-              className="cc-quick-action"
+          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+            <Button
+              variant="primary"
               data-persona-wizard-next
               onClick={() => setStep(2)}
             >
               Continue
-            </button>
+            </Button>
           </div>
-        </section>
+        </Card>
       ) : null}
 
       {/* ============================ STEP 2 ============================ */}
       {step === 2 ? (
-        <section className="cc-section" data-persona-wizard-step-block="2">
-          <header className="cc-section-header">
-            <h2 className="cc-section-title">
-              What workflows are most important to your work?
-            </h2>
-          </header>
+        <Card
+          variant="admin"
+          data-persona-wizard-step-block="2"
+          title="What workflows are most important to your work?"
+        >
           <div style={{ display: "grid", gap: 8 }}>
             {WORKSPACE_PERSONA_PROFILES.map((p) => {
               const selected = primaryProfile === p;
@@ -288,34 +292,33 @@ function PersonaWizardPageInner() {
               );
             })}
           </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button
-              type="button"
+          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+            <Button
+              variant="secondary"
               onClick={() => setStep(1)}
-              className="cases-filter-chip"
               data-persona-wizard-back
             >
               Back
-            </button>
-            <button
-              type="button"
-              className="cc-quick-action"
+            </Button>
+            <Button
+              variant="primary"
               onClick={() => setStep(3)}
               data-persona-wizard-next
             >
               Continue
-            </button>
+            </Button>
           </div>
-        </section>
+        </Card>
       ) : null}
 
       {/* ============================ STEP 3 ============================ */}
       {step === 3 ? (
-        <section className="cc-section" data-persona-wizard-step-block="3">
-          <header className="cc-section-header">
-            <h2 className="cc-section-title">Pick the goals that fit (optional)</h2>
-          </header>
-          <p style={{ fontSize: 13, color: "#475569" }}>
+        <Card
+          variant="admin"
+          data-persona-wizard-step-block="3"
+          title="Pick the goals that fit (optional)"
+        >
+          <p style={{ margin: 0, fontSize: 13, color: "var(--ink-secondary, #475569)" }}>
             We use these to choose sensible defaults for navigation, capture
             templates, and dashboard layout. You can change them later.
           </p>
@@ -364,35 +367,33 @@ function PersonaWizardPageInner() {
             )}
           </div>
 
-          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button
-              type="button"
+          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+            <Button
+              variant="secondary"
               onClick={() => setStep(2)}
-              className="cases-filter-chip"
               data-persona-wizard-back
             >
               Back
-            </button>
-            <button
-              type="button"
-              className="cc-quick-action"
+            </Button>
+            <Button
+              variant="primary"
               onClick={() => setStep(4)}
               data-persona-wizard-next
             >
               Continue
-            </button>
+            </Button>
           </div>
-        </section>
+        </Card>
       ) : null}
 
       {/* ============================ STEP 4 ============================ */}
       {step === 4 ? (
-        <section className="cc-section" data-persona-wizard-step-block="4">
-          <header className="cc-section-header">
-            <h2 className="cc-section-title">Workspace preferences</h2>
-          </header>
-
-          <h3 style={{ fontSize: 13, marginBottom: 8 }}>Operational density</h3>
+        <Card
+          variant="admin"
+          data-persona-wizard-step-block="4"
+          title="Workspace preferences"
+        >
+          <h3 style={{ fontSize: 13, marginBottom: 8, marginTop: 0 }}>Operational density</h3>
           <div style={{ display: "grid", gap: 6 }}>
             {DENSITY_OPTIONS.map((d) => {
               const selected = density === d.id;
@@ -462,44 +463,41 @@ function PersonaWizardPageInner() {
             </div>
           ) : null}
 
-          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button
-              type="button"
+          <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+            <Button
+              variant="secondary"
               onClick={() => setStep(3)}
-              className="cases-filter-chip"
               data-persona-wizard-back
             >
               Back
-            </button>
-            <button
-              type="button"
-              className="cc-quick-action"
+            </Button>
+            <Button
+              variant="primary"
               data-persona-wizard-save
-              disabled={saving}
+              loading={saving}
               onClick={() => void persistProfile({ onboardingCompleted: true })}
             >
               {saving ? "Saving…" : "Save persona"}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="ghost"
               data-persona-wizard-save-draft
               onClick={() => void persistProfile()}
-              className="cases-filter-chip"
               disabled={saving}
             >
               Save draft only
-            </button>
+            </Button>
           </div>
-        </section>
+        </Card>
       ) : null}
 
-      <section className="cc-section" data-persona-wizard-footnote>
-        <p style={{ fontSize: 12, color: "#64748b" }}>
+      <Card variant="empty" data-persona-wizard-footnote>
+        <p style={{ margin: 0, fontSize: 12, color: "var(--ink-muted, #94a3b8)", lineHeight: 1.6 }}>
           Your workflow profile tunes ordering, defaults, and labels. It does
           NOT change what your workspace is allowed to do — those rules
           continue to come from your role and your organization’s policies.
         </p>
-      </section>
-    </main>
+      </Card>
+    </PageShell>
   );
 }

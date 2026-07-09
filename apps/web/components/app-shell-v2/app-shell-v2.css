@@ -109,42 +109,40 @@
   /* FIXED RAIL — pinned to the viewport (top:0/left:0) so it NEVER
      scrolls away or gets cut while the page content scrolls. The grid
      reserves a matching 68px gutter (column 1) so content is never
-     hidden underneath. On hover the width grows to 224px as an overlay. */
+     hidden underneath. On hover the width grows to 240px as an overlay. */
   position: fixed;
   top: 0;
   left: 0;
   width: var(--sidebar-collapsed);
   height: 100vh;
   overflow: hidden;
-  /* The vertical-card artwork IS the sidebar background — shown CLEANLY,
-     no overlay / mask / blur / gradient. Full-height cover. Nav-text
-     legibility comes from a text-shadow on the labels (below), not from
-     darkening the artwork. background-color is only the load fallback. */
+  /* PREMIUM ENTERPRISE SURFACE — a calm navy → graphite gradient built
+     from the canonical sidebar tokens (--nav-surface-top / -mid /
+     -bottom). No photo backdrop, no overlay, no legibility hacks: solid
+     dark ink means nav copy reads cleanly at any width. A faint indigo
+     glow at the top ties the rail to the --brand-accent without a
+     violet wash. */
   background-color: var(--nav-surface-top);
-  background-image: url("/assets/cards/vertical-card.png");
+  background-image:
+    radial-gradient(
+      120% 60% at 50% -8%,
+      color-mix(in srgb, var(--brand-accent) 12%, transparent) 0%,
+      transparent 60%
+    ),
+    linear-gradient(
+      180deg,
+      var(--nav-surface-top) 0%,
+      var(--nav-surface-mid) 46%,
+      var(--nav-surface-bottom) 100%
+    );
   background-repeat: no-repeat;
-  background-position: center top;
   background-size: cover;
   border-right: 1px solid var(--nav-divider);
   color: var(--nav-ink);
   transition: width var(--sidebar-transition);
   z-index: 95;
   isolation: isolate;
-}
-
-/* Legibility without darkening the artwork — a soft shadow behind text
-   and icons so white nav copy reads over the lighter regions of the
-   image. This replaces the removed dark overlay. */
-.app-sidebar-v2-brand,
-.app-sidebar-v2-group-title,
-.app-sidebar-v2-link,
-.app-sidebar-v2-help {
-  text-shadow: 0 1px 3px rgba(2, 6, 20, 0.65);
-}
-
-.app-sidebar-v2-link-icon svg,
-.app-sidebar-v2-help svg {
-  filter: drop-shadow(0 1px 2px rgba(2, 6, 20, 0.6));
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.02);
 }
 
 /* Hover / keyboard-focus expands the rail; the auto grid track
@@ -256,10 +254,12 @@
    groups read as discrete enterprise sections. */
 .app-sidebar-v2-group-title {
   padding: 2px 18px 8px;
-  color: var(--nav-ink-muted);
-  font-size: 10px;
+  /* Readable group label — brighter than the deep-muted body ink so the
+     section headers scan as structure, not noise, over the navy. */
+  color: rgba(226, 232, 240, 0.6);
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   white-space: nowrap;
   opacity: 0;
@@ -324,24 +324,27 @@
 
 .app-sidebar-v2-link.is-active {
   /* Enterprise active state: an accent-tinted glass surface + a
-     rounded 3px accent rail + stronger typography. Readable over the
-     artwork; no heavy glow. The tint is derived from --brand-accent so
-     it tracks the design-token accent (currently indigo). */
-  background: color-mix(in srgb, var(--brand-accent) 20%, transparent);
+     rounded 3px accent rail + stronger typography. The tint is derived
+     from --brand-accent so it tracks the design-token accent; a hairline
+     accent inset border lifts the row off the navy without a heavy glow. */
+  background: color-mix(in srgb, var(--brand-accent) 16%, transparent);
   color: var(--nav-ink-strong);
   font-weight: 600;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--brand-accent) 22%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .app-sidebar-v2-link.is-active::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 7px;
-  bottom: 7px;
+  top: 8px;
+  bottom: 8px;
   width: 3px;
   background: var(--brand-accent);
   border-radius: 0 3px 3px 0;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--brand-accent) 55%, transparent);
 }
 
 .app-sidebar-v2-link-icon {

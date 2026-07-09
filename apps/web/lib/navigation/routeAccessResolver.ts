@@ -144,6 +144,22 @@ export function resolveRouteAccess(
         secondaryAction: null,
       };
     }
+    // Platform admin passed the elevation gate → they have full access to
+    // this platform-admin surface. The granular `requiredCapabilities`
+    // (e.g. OPS_CENTER_VIEW / OBSERVABILITY_VIEW) are workspace-scoped
+    // permissions a platform admin does not necessarily carry in their
+    // capability map; elevation SATISFIES them for platform-admin routes.
+    // Without this short-circuit, an admin would pass elevation and then be
+    // wrongly denied at the capability loop below (DENIED_NO_CAPABILITY),
+    // which is exactly why /operations* 404'd for Platform Admin.
+    return {
+      canLoad: true,
+      canSeeNav: true,
+      accessState: "ALLOWED",
+      reason: "Platform admin.",
+      primaryAction: null,
+      secondaryAction: null,
+    };
   }
 
   // -------------------------------------------------------------------------
