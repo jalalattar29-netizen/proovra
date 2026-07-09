@@ -26,6 +26,7 @@ import {
 import { MARKETING_COPY, MARKETING_LINKS } from "./tokens";
 import { MARKETING_BTN } from "../../lib/marketing-buttons";
 import { MarketingLanguageSwitcher } from "./MarketingLanguageSwitcher";
+import PublicPageView from "../analytics/PublicPageView";
 
 type DropdownItem = {
   label: string;
@@ -228,6 +229,16 @@ export function MarketingHeader() {
   }, [mobileOpen]);
 
   return (
+    <>
+      {/*
+        Public marketing page-view beacon. Fires a single `page_view`
+        AnalyticsEvent per public route (consent-gated inside trackEvent).
+        Rendered here because MarketingHeader is the shared chrome for every
+        public marketing surface. On the token pages that also reuse this
+        header (verify / share / invite / auth), the beacon's own allowlist
+        (isTrackablePublicPath) emits nothing — no tokens are ever sent.
+      */}
+      <PublicPageView />
 <header
 className="absolute top-0 left-0 right-0 z-50 w-full"style={{
   fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif",
@@ -464,5 +475,6 @@ className="w-[170px] h-auto object-contain"
         </div>
       )}
     </header>
+    </>
   );
 }

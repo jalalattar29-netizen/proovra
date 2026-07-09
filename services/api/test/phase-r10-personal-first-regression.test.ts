@@ -724,6 +724,10 @@ describe("Phase R10 — registry-page-existence invariant", () => {
     "/organizations/:id/admin/roles",
     "/organizations/:id/admin/billing",
     "/organizations/:id/admin/integrations",
+    // Platform Admin Control Center — customer organization detail. The page
+    // lives at apps/web/app/(app)/admin/organizations/[id]/page.tsx (Next.js
+    // [id] convention); the registry uses /:id documentation syntax.
+    "/admin/organizations/:id",
   ]);
 
   function pageExistsForHref(href: string): boolean {

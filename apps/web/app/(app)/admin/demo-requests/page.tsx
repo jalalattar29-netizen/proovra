@@ -1,18 +1,21 @@
 "use client";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Card,
-  Button,
-  Input,
-  Select,
+  PageShell,
+  PageHeader,
+  PageSection,
+  FilterBar,
   Skeleton,
   useToast,
 } from "../../../../components/ui";
-import DashboardShell from "../../../../components/dashboard/DashboardShell";
-import { dashboardStyles } from "../../../../components/dashboard/styles";
+import { Card } from "../../../../components/ui/Card";
+import { Badge } from "../../../../components/ui/Badge";
+import type { BadgeTone } from "../../../../components/ui/Badge";
+import { Button } from "../../../../components/ui/Button";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -154,6 +157,10 @@ type DemoRequestDetails = {
   updatedAt: string;
 };
 
+const INK_MUTED = "var(--ink-muted, #94a3b8)";
+const INK_SECONDARY = "var(--ink-secondary, #475569)";
+const INK_PRIMARY = "var(--ink-primary, #0f172a)";
+
 function formatTimestamp(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -177,98 +184,111 @@ function titleCaseToken(value?: string | null) {
     .replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
-function pillTone(kind: "green" | "gold" | "red" | "neutral" | "blue") {
-  if (kind === "green") {
-    return {
-      border: "1px solid rgba(79,112,107,0.16)",
-      background:
-        "linear-gradient(180deg, rgba(191,232,223,0.18) 0%, rgba(255,255,255,0.44) 100%)",
-      color: "#2d5b59",
-    } as const;
-  }
-
-  if (kind === "gold") {
-    return {
-      border: "1px solid rgba(183,157,132,0.20)",
-      background:
-        "linear-gradient(180deg, rgba(214,184,157,0.14) 0%, rgba(255,255,255,0.44) 100%)",
-      color: "#8a6e57",
-    } as const;
-  }
-
-  if (kind === "red") {
-    return {
-      border: "1px solid rgba(194,78,78,0.20)",
-      background:
-        "linear-gradient(180deg, rgba(164,84,84,0.14) 0%, rgba(255,255,255,0.44) 100%)",
-      color: "#965757",
-    } as const;
-  }
-
-  if (kind === "blue") {
-    return {
-      border: "1px solid rgba(74,109,169,0.18)",
-      background:
-        "linear-gradient(180deg, rgba(123,162,226,0.14) 0%, rgba(255,255,255,0.44) 100%)",
-      color: "#47638b",
-    } as const;
-  }
-
-  return {
-    border: "1px solid rgba(79,112,107,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
-    color: "#54676b",
-  } as const;
-}
-
-function statusTone(status: DemoStatus) {
+function statusTone(status: DemoStatus): BadgeTone {
   switch (status) {
     case "QUALIFIED":
-      return pillTone("green");
+      return "verified";
     case "CONTACTED":
     case "REVIEWED":
-      return pillTone("gold");
+      return "pending";
     case "REJECTED":
     case "ARCHIVED":
-      return pillTone("red");
+      return "risk";
     default:
-      return pillTone("neutral");
+      return "info";
   }
 }
 
-function priorityTone(priority: DemoPriority) {
+function priorityTone(priority: DemoPriority): BadgeTone {
   switch (priority) {
     case "HIGH":
-      return pillTone("red");
+      return "risk";
     case "LOW":
-      return pillTone("neutral");
+      return "neutral";
     default:
-      return pillTone("gold");
+      return "pending";
   }
 }
 
-function followUpTone(status: DemoFollowUpStatus) {
+function followUpTone(status: DemoFollowUpStatus): BadgeTone {
   switch (status) {
     case "ACTIVE":
-      return pillTone("green");
+      return "verified";
     case "PAUSED":
-      return pillTone("gold");
+      return "pending";
     case "COMPLETED":
     case "REPLIED":
-      return pillTone("blue");
+      return "info";
     case "STOPPED":
-      return pillTone("red");
+      return "risk";
     default:
-      return pillTone("neutral");
+      return "neutral";
   }
 }
 
-function routeTone(target?: DemoRoutingTarget | null) {
-  if (target === "ENTERPRISE_DESK") return pillTone("red");
-  if (target === "AUTO_BOOKING") return pillTone("green");
-  if (target === "MANUAL_SALES") return pillTone("gold");
-  return pillTone("neutral");
+function routeTone(target?: DemoRoutingTarget | null): BadgeTone {
+  if (target === "ENTERPRISE_DESK") return "governance";
+  if (target === "AUTO_BOOKING") return "verified";
+  if (target === "MANUAL_SALES") return "pending";
+  return "neutral";
+}
+
+/** Small labelled metric block used inside the detail panel. */
+function MetaBlock({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card variant="admin" padding="comfortable">
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: INK_MUTED,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          marginTop: 10,
+          fontSize: 13.5,
+          lineHeight: 1.7,
+          color: INK_PRIMARY,
+          wordBreak: "break-word",
+        }}
+      >
+        {children}
+      </div>
+    </Card>
+  );
+}
+
+function JsonBlock({ value }: { value: unknown }) {
+  return (
+    <pre
+      style={{
+        marginTop: 12,
+        marginBottom: 0,
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+        fontSize: 11.5,
+        lineHeight: 1.5,
+        color: INK_SECONDARY,
+        background: "var(--surface-muted, #f1f4f9)",
+        border: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
+        borderRadius: 10,
+        padding: 12,
+      }}
+    >
+      {prettyJson(value)}
+    </pre>
+  );
 }
 
 export default function AdminDemoRequestsPage() {
@@ -486,437 +506,144 @@ export default function AdminDemoRequestsPage() {
 
   }, [statusFilter, priorityFilter, spamFilter, leadTrackFilter, followUpStatusFilter]);
 
-  const statPillBase = useMemo(
-    () =>
-      ({
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: 32,
-        padding: "6px 12px",
-        borderRadius: 999,
-        fontSize: 11,
-        fontWeight: 800,
-        letterSpacing: "0.12em",
-        textTransform: "uppercase",
-        maxWidth: "100%",
-        textAlign: "center",
-        overflowWrap: "anywhere",
-        wordBreak: "break-word",
-      }) as const,
-    []
-  );
-
   const activeFollowUps = items.filter((x) => x.followUpStatus === "ACTIVE").length;
   const spamCount = items.filter((x) => x.isSpam).length;
   const enterpriseCount = items.filter((x) => x.leadTrack === "ENTERPRISE").length;
 
+  const summaryTiles: {
+    label: string;
+    value: number;
+    note: string;
+    tone: BadgeTone;
+  }[] = [
+    {
+      label: "New",
+      value: summary.NEW,
+      note: "Fresh inbound requests",
+      tone: "info",
+    },
+    {
+      label: "Active Follow-up",
+      value: activeFollowUps,
+      note: "Requests still in automated follow-up",
+      tone: "pending",
+    },
+    {
+      label: "Enterprise Track",
+      value: enterpriseCount,
+      note: "High-touch enterprise pipeline",
+      tone: "governance",
+    },
+    {
+      label: "Spam Flagged",
+      value: spamCount,
+      note: "Requests currently marked as spam",
+      tone: "risk",
+    },
+  ];
+
   return (
-    <DashboardShell
-      eyebrow="Demo Requests"
-      title="Inbound demo pipeline and"
-      highlight="request review."
-      description={
-        <>
-          Review inbound demo requests, inspect source and spam context, route
-          qualified leads, and manage follow-up execution from one controlled
-          admin surface.
-        </>
-      }
-      action={
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Button
-            className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
-            style={dashboardStyles.secondaryButton}
-            onClick={() => void loadList()}
-          >
-            Refresh
-          </Button>
-          <Button
-            className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
-            style={dashboardStyles.primaryButton}
-            onClick={() => void runDueFollowUps()}
-            disabled={runningDue}
-          >
-            {runningDue ? "Running..." : "Run Due Follow-ups"}
-          </Button>
-        </div>
+    <PageShell
+      width="full"
+      header={
+        <PageHeader
+          eyebrow="Platform admin"
+          title="Demo Requests"
+          subtitle="Review inbound demo requests, inspect source and spam context, route qualified leads, and manage follow-up execution from one controlled admin surface."
+          secondaryActions={
+            <Button variant="secondary" onClick={() => void loadList()}>
+              Refresh
+            </Button>
+          }
+          primaryAction={
+            <Button
+              variant="primary"
+              onClick={() => void runDueFollowUps()}
+              disabled={runningDue}
+            >
+              {runningDue ? "Running..." : "Run Due Follow-ups"}
+            </Button>
+          }
+        />
       }
     >
-      <style jsx global>{`
-        .admin-demo-requests-page {
-          display: grid;
-          gap: 18px;
-        }
-
-        .admin-demo-requests-page .grid-4 {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 18px;
-        }
-
-        .admin-demo-requests-page .grid-2 {
-          display: grid;
-          grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-          gap: 18px;
-          align-items: start;
-        }
-
-        .admin-demo-requests-page .card-shell {
-          position: relative;
-          overflow: hidden;
-          border-radius: 30px;
-          border: 1px solid rgba(79, 112, 107, 0.16);
-          background: transparent;
-          box-shadow:
-            0 18px 38px rgba(0, 0, 0, 0.08),
-            inset 0 1px 0 rgba(255, 255, 255, 0.48);
-        }
-
-        .admin-demo-requests-page .card-overlay {
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(
-            180deg,
-            rgba(255, 255, 255, 0.24) 0%,
-            rgba(248, 249, 246, 0.34) 42%,
-            rgba(239, 241, 238, 0.42) 100%
-          );
-        }
-
-        .admin-demo-requests-page .card-shine {
-          position: absolute;
-          inset: 0;
-          background: radial-gradient(
-            circle at 16% 12%,
-            rgba(255, 255, 255, 0.34),
-            transparent 28%
-          );
-          opacity: 0.9;
-        }
-
-        .admin-demo-requests-page .card-inner {
-          position: relative;
-          z-index: 10;
-          padding: 24px;
-          min-width: 0;
-        }
-
-        .admin-demo-requests-page .section-title {
-          font-size: 1.08rem;
-          font-weight: 700;
-          letter-spacing: -0.02em;
-          color: #21353a;
-        }
-
-        .admin-demo-requests-page .section-copy {
-          margin-top: 8px;
-          color: #5d6d71;
-          line-height: 1.7;
-          font-size: 0.94rem;
-        }
-
-        .admin-demo-requests-page .summary-label {
-          font-size: 0.78rem;
-          font-weight: 700;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: #708085;
-        }
-
-        .admin-demo-requests-page .summary-value {
-          margin-top: 10px;
-          font-size: 2rem;
-          line-height: 1;
-          font-weight: 800;
-          letter-spacing: -0.05em;
-          color: #21353a;
-        }
-
-        .admin-demo-requests-page .summary-note {
-          margin-top: 10px;
-          font-size: 0.84rem;
-          color: #6b7b7f;
-          line-height: 1.6;
-        }
-
-        .admin-demo-requests-page .filters-grid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 12px;
-          margin-top: 18px;
-        }
-
-        .admin-demo-requests-page .request-list {
-          display: grid;
-          gap: 12px;
-          margin-top: 18px;
-        }
-
-        .admin-demo-requests-page .request-row {
-          border: 1px solid rgba(79, 112, 107, 0.10);
-          background: linear-gradient(
-            180deg,
-            rgba(255, 255, 255, 0.58) 0%,
-            rgba(243, 245, 242, 0.90) 100%
-          );
-          border-radius: 22px;
-          padding: 16px;
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.42),
-            0 12px 26px rgba(0,0,0,0.06);
-          cursor: pointer;
-        }
-
-        .admin-demo-requests-page .request-row.active {
-          border-color: rgba(79,112,107,0.28);
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.42),
-            0 16px 32px rgba(0,0,0,0.08);
-        }
-
-        .admin-demo-requests-page .row-top {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 16px;
-          flex-wrap: wrap;
-        }
-
-        .admin-demo-requests-page .row-title {
-          font-size: 1rem;
-          font-weight: 800;
-          color: #21353a;
-          letter-spacing: -0.02em;
-        }
-
-        .admin-demo-requests-page .row-sub {
-          margin-top: 6px;
-          font-size: 0.84rem;
-          color: #6f7f84;
-          line-height: 1.65;
-        }
-
-        .admin-demo-requests-page .pill-row {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          margin-top: 10px;
-        }
-
-        .admin-demo-requests-page .detail-grid {
-          display: grid;
-          gap: 14px;
-          margin-top: 18px;
-        }
-
-        .admin-demo-requests-page .soft-box {
-          border: 1px solid rgba(79,112,107,0.10);
-          background: linear-gradient(
-            180deg,
-            rgba(255,255,255,0.58) 0%,
-            rgba(243,245,242,0.90) 100%
-          );
-          border-radius: 20px;
-          padding: 16px;
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.42),
-            0 12px 26px rgba(0,0,0,0.06);
-        }
-
-        .admin-demo-requests-page .meta-label {
-          font-size: 0.76rem;
-          font-weight: 700;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: #738287;
-        }
-
-        .admin-demo-requests-page .meta-value {
-          margin-top: 6px;
-          font-size: 0.92rem;
-          line-height: 1.7;
-          color: #31464a;
-          word-break: break-word;
-        }
-
-        .admin-demo-requests-page textarea,
-        .admin-demo-requests-page input[type="datetime-local"] {
-          width: 100%;
-        }
-
-        @media (max-width: 1180px) {
-          .admin-demo-requests-page .grid-4 {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-
-          .admin-demo-requests-page .grid-2 {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        @media (max-width: 860px) {
-          .admin-demo-requests-page .filters-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        @media (max-width: 640px) {
-          .admin-demo-requests-page .grid-4 {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
-
       <AdminConsoleNav />
 
-      <div className="admin-demo-requests-page">
-        <div className="grid-4">
-          {[
-            {
-              label: "New",
-              value: summary.NEW,
-              accent: "#2d5b59",
-              note: "Fresh inbound requests",
-            },
-            {
-              label: "Active Follow-up",
-              value: activeFollowUps,
-              accent: "#8a6e57",
-              note: "Requests still in automated follow-up",
-            },
-            {
-              label: "Enterprise Track",
-              value: enterpriseCount,
-              accent: "#4d6f60",
-              note: "High-touch enterprise pipeline",
-            },
-            {
-              label: "Spam Flagged",
-              value: spamCount,
-              accent: "#9a5757",
-              note: "Requests currently marked as spam",
-            },
-          ].map((item) => (
-            <Card
-              key={item.label}
-              className="card-shell"
-              style={dashboardStyles.outerCard}
+      <div
+        style={{
+          display: "grid",
+          gap: 16,
+          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+        }}
+      >
+        {summaryTiles.map((tile) => (
+          <Card key={tile.label} padding="comfortable" style={{ minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: INK_MUTED,
+              }}
             >
-              <div className="absolute inset-0">
-                <img
-                  src="/images/panel-silver.webp.png"
-                  alt=""
-                  className="h-full w-full object-cover object-center"
-                />
-              </div>
-              <div className="card-overlay" />
-              <div className="card-shine" />
-              <div className="card-inner">
-                <div className="summary-label">{item.label}</div>
-                <div className="summary-value" style={{ color: item.accent }}>
-                  {item.value}
-                </div>
-                <div className="summary-note">{item.note}</div>
-              </div>
-            </Card>
-          ))}
-        </div>
-
-        <div className="grid-2">
-          <Card className="card-shell" style={dashboardStyles.outerCard}>
-            <div className="absolute inset-0">
-              <img
-                src="/images/panel-silver.webp.png"
-                alt=""
-                className="h-full w-full object-cover object-center"
-              />
+              {tile.label}
             </div>
-            <div className="card-overlay" />
-            <div className="card-shine" />
-            <div className="card-inner">
-              <div className="section-title">Inbound Requests</div>
-              <div className="section-copy">
-                Filter and review inbound requests by status, priority, lead
-                track, follow-up state, spam state, and general search.
-              </div>
-
-              <div className="filters-grid">
-                <Select
-                  value={statusFilter}
-                  onChange={setStatusFilter}
-                  options={[
-                    { value: "NEW", label: "New" },
-                    { value: "REVIEWED", label: "Reviewed" },
-                    { value: "CONTACTED", label: "Contacted" },
-                    { value: "QUALIFIED", label: "Qualified" },
-                    { value: "REJECTED", label: "Rejected" },
-                    { value: "ARCHIVED", label: "Archived" },
-                  ]}
-                />
-
-                <Select
-                  value={priorityFilter}
-                  onChange={setPriorityFilter}
-                  options={[
-                    { value: "LOW", label: "Low" },
-                    { value: "NORMAL", label: "Normal" },
-                    { value: "HIGH", label: "High" },
-                  ]}
-                />
-
-                <Select
-                  value={leadTrackFilter}
-                  onChange={setLeadTrackFilter}
-                  options={[
-                    { value: "DISCOVERY", label: "Discovery" },
-                    { value: "SALES", label: "Sales" },
-                    { value: "ENTERPRISE", label: "Enterprise" },
-                  ]}
-                />
-
-                <Select
-                  value={followUpStatusFilter}
-                  onChange={setFollowUpStatusFilter}
-                  options={[
-                    { value: "ACTIVE", label: "Follow-up Active" },
-                    { value: "PAUSED", label: "Follow-up Paused" },
-                    { value: "COMPLETED", label: "Follow-up Completed" },
-                    { value: "REPLIED", label: "Follow-up Replied" },
-                    { value: "STOPPED", label: "Follow-up Stopped" },
-                  ]}
-                />
-
-                <Select
-                  value={spamFilter}
-                  onChange={setSpamFilter}
-                  options={[
-                    { value: "true", label: "Spam only" },
-                    { value: "false", label: "Non-spam only" },
-                  ]}
-                />
-
-                <Input
-                  value={search}
-                  onChange={setSearch}
-                  placeholder="Search name, email, org, path, use case..."
-                />
-              </div>
-
-              <div
-                style={{ marginTop: 12, display: "flex", gap: 12, flexWrap: "wrap" }}
+            <div
+              style={{
+                marginTop: 12,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 30,
+                  fontWeight: 750,
+                  letterSpacing: "-0.02em",
+                  color: INK_PRIMARY,
+                }}
               >
+                {new Intl.NumberFormat().format(tile.value)}
+              </span>
+              <Badge tone={tile.tone} dot>
+                {tile.label}
+              </Badge>
+            </div>
+            <div style={{ marginTop: 8, fontSize: 12.5, color: INK_MUTED }}>
+              {tile.note}
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gap: 18,
+          gridTemplateColumns: "minmax(0, 1.05fr) minmax(0, 0.95fr)",
+          alignItems: "start",
+        }}
+        className="admin-demo-requests-grid"
+      >
+        <PageSection
+          title="Inbound Requests"
+          description="Filter and review inbound requests by status, priority, lead track, follow-up state, spam state, and general search."
+        >
+          <FilterBar
+            actions={
+              <>
                 <Button
-                  className="app-responsive-btn rounded-[999px] border px-5 py-2.5 text-[0.88rem] font-semibold"
-                  style={dashboardStyles.primaryButton}
+                  variant="primary"
+                  size="sm"
                   onClick={() => void loadList()}
                 >
                   Search
                 </Button>
-
                 <Button
-                  className="app-responsive-btn rounded-[999px] border px-5 py-2.5 text-[0.88rem] font-semibold"
-                  style={dashboardStyles.secondaryButton}
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     setStatusFilter("");
                     setPriorityFilter("");
@@ -929,475 +656,505 @@ export default function AdminDemoRequestsPage() {
                 >
                   Clear Filters
                 </Button>
-              </div>
+              </>
+            }
+          >
+            <FilterBar.Search
+              label="Search requests"
+              value={search}
+              onChange={setSearch}
+              placeholder="Search name, email, org, path, use case..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void loadList();
+              }}
+            />
+            <FilterBar.Select
+              label="Status"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: "", label: "All statuses" },
+                { value: "NEW", label: "New" },
+                { value: "REVIEWED", label: "Reviewed" },
+                { value: "CONTACTED", label: "Contacted" },
+                { value: "QUALIFIED", label: "Qualified" },
+                { value: "REJECTED", label: "Rejected" },
+                { value: "ARCHIVED", label: "Archived" },
+              ]}
+            />
+            <FilterBar.Select
+              label="Priority"
+              value={priorityFilter}
+              onChange={setPriorityFilter}
+              options={[
+                { value: "", label: "All priorities" },
+                { value: "LOW", label: "Low" },
+                { value: "NORMAL", label: "Normal" },
+                { value: "HIGH", label: "High" },
+              ]}
+            />
+            <FilterBar.Select
+              label="Lead track"
+              value={leadTrackFilter}
+              onChange={setLeadTrackFilter}
+              options={[
+                { value: "", label: "All tracks" },
+                { value: "DISCOVERY", label: "Discovery" },
+                { value: "SALES", label: "Sales" },
+                { value: "ENTERPRISE", label: "Enterprise" },
+              ]}
+            />
+            <FilterBar.Select
+              label="Follow-up"
+              value={followUpStatusFilter}
+              onChange={setFollowUpStatusFilter}
+              options={[
+                { value: "", label: "All follow-up" },
+                { value: "ACTIVE", label: "Active" },
+                { value: "PAUSED", label: "Paused" },
+                { value: "COMPLETED", label: "Completed" },
+                { value: "REPLIED", label: "Replied" },
+                { value: "STOPPED", label: "Stopped" },
+              ]}
+            />
+            <FilterBar.Select
+              label="Spam"
+              value={spamFilter}
+              onChange={setSpamFilter}
+              options={[
+                { value: "", label: "All requests" },
+                { value: "true", label: "Spam only" },
+                { value: "false", label: "Non-spam only" },
+              ]}
+            />
+          </FilterBar>
 
-              {loading ? (
-                <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
-                  <Skeleton width="100%" height="110px" />
-                  <Skeleton width="100%" height="110px" />
-                  <Skeleton width="100%" height="110px" />
-                </div>
-              ) : items.length === 0 ? (
-                <div style={{ marginTop: 18, color: "#6f7f84" }}>
-                  No demo requests found.
-                </div>
-              ) : (
-                <div className="request-list">
-                  {items.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`request-row ${selectedId === item.id ? "active" : ""}`}
-                      onClick={() => void loadDetails(item.id)}
-                    >
-                      <div className="row-top">
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div className="row-title">{item.fullName}</div>
-
-                          <div className="row-sub">
-                            {item.workEmail} · {item.organization ?? "No organization"} ·{" "}
-                            {item.country ?? "No country"}
-                          </div>
-
-                          <div className="row-sub">
-                            Workspace size: {item.teamSize ?? "—"} · Source:{" "}
-                            {item.source ?? "—"} · Track:{" "}
-                            {titleCaseToken(item.leadTrack)}
-                          </div>
-
-                          <div className="pill-row">
-                            <span style={{ ...statPillBase, ...statusTone(item.status) }}>
-                              {item.status}
-                            </span>
-
-                            <span style={{ ...statPillBase, ...priorityTone(item.priority) }}>
-                              {item.priority}
-                            </span>
-
-                            <span
-                              style={{
-                                ...statPillBase,
-                                ...(item.isSpam ? pillTone("red") : pillTone("green")),
-                              }}
-                            >
-                              {item.isSpam
-                                ? `Spam ${item.spamScore}`
-                                : `Clean ${item.spamScore}`}
-                            </span>
-
-                            <span
-                              style={{
-                                ...statPillBase,
-                                ...followUpTone(item.followUpStatus),
-                              }}
-                            >
-                              {item.followUpStatus} · S{item.followUpStep}
-                            </span>
-
-                            {item.routingTarget ? (
-                              <span
-                                style={{
-                                  ...statPillBase,
-                                  ...routeTone(item.routingTarget),
-                                }}
-                              >
-                                {titleCaseToken(item.routingTarget)}
-                              </span>
-                            ) : null}
-                          </div>
-
-                          <div className="row-sub">
-                            Next follow-up: {formatTimestamp(item.nextFollowUpAt)} · Last sent:{" "}
-                            {formatTimestamp(item.lastFollowUpSentAt)}
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "flex-end",
-                            gap: 8,
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          <div style={{ fontSize: 12, color: "#738287" }}>
-                            {formatTimestamp(item.createdAt)}
-                          </div>
-                          <Link
-                            href={`/admin/demo-requests/${encodeURIComponent(item.id)}`}
-                            onClick={(e) => e.stopPropagation()}
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: "#21353a",
-                              textDecoration: "none",
-                              padding: "4px 10px",
-                              borderRadius: 999,
-                              border: "1px solid rgba(79,112,107,0.18)",
-                              background: "rgba(255,255,255,0.6)",
-                            }}
-                          >
-                            Open →
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+          {loading ? (
+            <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
+              <Skeleton width="100%" height="110px" />
+              <Skeleton width="100%" height="110px" />
+              <Skeleton width="100%" height="110px" />
             </div>
-          </Card>
-
-          <Card className="card-shell" style={dashboardStyles.outerCard}>
-            <div className="absolute inset-0">
-              <img
-                src="/images/panel-silver.webp.png"
-                alt=""
-                className="h-full w-full object-cover object-center"
+          ) : items.length === 0 ? (
+            <div style={{ marginTop: 18 }}>
+              <EmptyState
+                title="No demo requests found"
+                purpose="No inbound demo requests match the current filters. Adjust the filters above or clear them to see every request."
               />
             </div>
-            <div className="card-overlay" />
-            <div className="card-shine" />
-            <div className="card-inner">
-              <div className="section-title">Request Details</div>
-              <div className="section-copy">
-                Inspect request content, qualification, routing, follow-up state,
-                spam signals, and internal review controls.
-              </div>
-
-              {!details ? (
-                <div style={{ marginTop: 18, color: "#6f7f84" }}>
-                  Select a request from the list to inspect and update it.
-                </div>
-              ) : (
-                <div className="detail-grid">
-                  <div className="soft-box">
-                    <div className="meta-label">Identity</div>
-                    <div className="meta-value">
-                      <strong>{details.fullName}</strong>
-                      <br />
-                      {details.workEmail}
-                      <br />
-                      {details.organization ?? "No organization"} ·{" "}
-                      {details.jobTitle ?? "No title"} · {details.country ?? "No country"}
-                    </div>
-                  </div>
-
-                  <div className="soft-box">
-                    <div className="meta-label">Qualification</div>
-                    <div className="meta-value">
-                      Lead quality: {titleCaseToken(details.leadQuality)}
-                      <br />
-                      Lead track: {titleCaseToken(details.leadTrack)}
-                      <br />
-                      Recommended action: {titleCaseToken(details.recommendedAction)}
-                      <br />
-                      Priority: {details.priority}
-                      <br />
-                      SLA:{" "}
-                      {details.responseSlaHours != null
-                        ? `${details.responseSlaHours}h`
-                        : "—"}
-                      <br />
-                      Qualification score:{" "}
-                      {details.qualificationScore != null
-                        ? details.qualificationScore
-                        : "—"}
-                    </div>
-
-                    <pre
-                      style={{
-                        marginTop: 12,
-                        marginBottom: 0,
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                        fontSize: 11,
-                        lineHeight: 1.5,
-                        color: "#55656a",
-                        background: "rgba(255,255,255,0.55)",
-                        border: "1px solid rgba(79,112,107,0.08)",
-                        borderRadius: 14,
-                        padding: 12,
-                      }}
-                    >
-                      {prettyJson(details.qualificationReasons)}
-                    </pre>
-                  </div>
-
-                  <div className="soft-box">
-                    <div className="meta-label">Request</div>
-                    <div className="meta-value">
-                      <strong>Use case</strong>
-                      <div style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>
-                        {details.useCase}
-                      </div>
-
-                      <div style={{ marginTop: 14 }}>
-                        <strong>Message</strong>
-                      </div>
-                      <div style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>
-                        {details.message ?? "—"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="soft-box">
-                    <div className="meta-label">Source & Tracking</div>
-                    <div className="meta-value">
-                      Source: {details.source ?? "—"}
-                      <br />
-                      Path: {details.sourcePath ?? "—"}
-                      <br />
-                      Referrer: {details.referrer ?? "—"}
-                      <br />
-                      UTM source: {details.utmSource ?? "—"}
-                      <br />
-                      UTM medium: {details.utmMedium ?? "—"}
-                      <br />
-                      UTM campaign: {details.utmCampaign ?? "—"}
-                      <br />
-                      UTM term: {details.utmTerm ?? "—"}
-                      <br />
-                      UTM content: {details.utmContent ?? "—"}
-                    </div>
-                  </div>
-
-                  <div className="soft-box">
-                    <div className="meta-label">Delivery & Spam</div>
-                    <div className="meta-value">
-                      Email sent: {formatTimestamp(details.emailSentAt)}
-                      <br />
-                      Auto reply: {formatTimestamp(details.autoReplySentAt)}
-                      <br />
-                      Webhook sent: {formatTimestamp(details.webhookSentAt)}
-                      <br />
-                      Spam flag: {details.isSpam ? "Yes" : "No"} ({details.spamScore})
-                    </div>
-
-                    <pre
-                      style={{
-                        marginTop: 12,
-                        marginBottom: 0,
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                        fontSize: 11,
-                        lineHeight: 1.5,
-                        color: "#55656a",
-                        background: "rgba(255,255,255,0.55)",
-                        border: "1px solid rgba(79,112,107,0.08)",
-                        borderRadius: 14,
-                        padding: 12,
-                      }}
-                    >
-                      {prettyJson(details.spamReasons)}
-                    </pre>
-                  </div>
-
-                  <div className="soft-box">
-                    <div className="meta-label">Routing</div>
-
-                    <div className="meta-value">
-                      Current target: {titleCaseToken(details.routingTarget)}
-                      <br />
-                      Current reason: {details.routingReason ?? "—"}
-                      <br />
-                      Routed at: {formatTimestamp(details.routedAt)}
-                      <br />
-                      Routed by: {details.routedByUserId ?? "—"}
-                    </div>
-
-                    <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
-                      <Select
-                        value={routeTarget}
-                        onChange={setRouteTarget}
-                        options={[
-                          { value: "AUTO_RESOURCES", label: "Auto Resources" },
-                          { value: "AUTO_BOOKING", label: "Auto Booking" },
-                          { value: "MANUAL_SALES", label: "Manual Sales" },
-                          { value: "ENTERPRISE_DESK", label: "Enterprise Desk" },
-                        ]}
-                      />
-
-                      <Input
-                        value={routeReason}
-                        onChange={setRouteReason}
-                        placeholder="Routing reason..."
-                      />
-
-                      <Button
-                        className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
-                        style={dashboardStyles.secondaryButton}
-                        onClick={() => void saveRouting()}
-                        disabled={routing || !routeTarget}
+          ) : (
+            <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
+              {items.map((item) => (
+                <Card
+                  key={item.id}
+                  variant="action"
+                  padding="comfortable"
+                  onClick={() => void loadDetails(item.id)}
+                  style={
+                    selectedId === item.id
+                      ? { borderColor: "var(--accent-500, #6b5bff)" }
+                      : undefined
+                  }
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: 16,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: 15,
+                          fontWeight: 650,
+                          color: INK_PRIMARY,
+                          letterSpacing: "-0.01em",
+                        }}
                       >
-                        {routing ? "Saving route..." : "Save routing"}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="soft-box">
-                    <div className="meta-label">Follow-up</div>
-
-                    <div className="meta-value">
-                      Follow-up status: {details.followUpStatus}
-                      <br />
-                      Step: {details.followUpStep}
-                      <br />
-                      Next scheduled: {formatTimestamp(details.nextFollowUpAt)}
-                      <br />
-                      Last sent: {formatTimestamp(details.lastFollowUpSentAt)}
-                      <br />
-                      Template key: {details.lastFollowUpTemplateKey ?? "—"}
-                      <br />
-                      Stopped at: {formatTimestamp(details.followUpStoppedAt)}
-                    </div>
-
-                    <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <Button
-                          className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.9rem] font-semibold"
-                          style={dashboardStyles.secondaryButton}
-                          onClick={() => void sendFollowUp()}
-                          disabled={sendingFollowUp}
-                        >
-                          {sendingFollowUp ? "Sending..." : "Send Next"}
-                        </Button>
-
-                        <Button
-                          className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.9rem] font-semibold"
-                          style={dashboardStyles.secondaryButton}
-                          onClick={() => void sendFollowUp(1)}
-                          disabled={sendingFollowUp}
-                        >
-                          Send Step 1
-                        </Button>
-
-                        <Button
-                          className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.9rem] font-semibold"
-                          style={dashboardStyles.secondaryButton}
-                          onClick={() => void sendFollowUp(2)}
-                          disabled={sendingFollowUp}
-                        >
-                          Send Step 2
-                        </Button>
-
-                        <Button
-                          className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.9rem] font-semibold"
-                          style={dashboardStyles.secondaryButton}
-                          onClick={() => void sendFollowUp(3)}
-                          disabled={sendingFollowUp}
-                        >
-                          Send Step 3
-                        </Button>
+                        {item.fullName}
                       </div>
-                    </div>
-                  </div>
 
-                  <div className="soft-box">
-                    <div className="meta-label">Review Controls</div>
+                      <div
+                        style={{
+                          marginTop: 6,
+                          fontSize: 13,
+                          color: INK_SECONDARY,
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {item.workEmail} · {item.organization ?? "No organization"} ·{" "}
+                        {item.country ?? "No country"}
+                      </div>
 
-                    <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
-                      <Select
-                        value={editStatus}
-                        onChange={setEditStatus}
-                        options={[
-                          { value: "NEW", label: "New" },
-                          { value: "REVIEWED", label: "Reviewed" },
-                          { value: "CONTACTED", label: "Contacted" },
-                          { value: "QUALIFIED", label: "Qualified" },
-                          { value: "REJECTED", label: "Rejected" },
-                          { value: "ARCHIVED", label: "Archived" },
-                        ]}
-                      />
+                      <div
+                        style={{
+                          marginTop: 4,
+                          fontSize: 13,
+                          color: INK_SECONDARY,
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        Workspace size: {item.teamSize ?? "—"} · Source:{" "}
+                        {item.source ?? "—"} · Track:{" "}
+                        {titleCaseToken(item.leadTrack)}
+                      </div>
 
-                      <Select
-                        value={editPriority}
-                        onChange={setEditPriority}
-                        options={[
-                          { value: "LOW", label: "Low" },
-                          { value: "NORMAL", label: "Normal" },
-                          { value: "HIGH", label: "High" },
-                        ]}
-                      />
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          flexWrap: "wrap",
+                          marginTop: 10,
+                        }}
+                      >
+                        <Badge tone={statusTone(item.status)}>{item.status}</Badge>
+                        <Badge tone={priorityTone(item.priority)}>
+                          {item.priority}
+                        </Badge>
+                        <Badge tone={item.isSpam ? "risk" : "verified"} dot>
+                          {item.isSpam
+                            ? `Spam ${item.spamScore}`
+                            : `Clean ${item.spamScore}`}
+                        </Badge>
+                        <Badge tone={followUpTone(item.followUpStatus)}>
+                          {item.followUpStatus} · S{item.followUpStep}
+                        </Badge>
+                        {item.routingTarget ? (
+                          <Badge tone={routeTone(item.routingTarget)}>
+                            {titleCaseToken(item.routingTarget)}
+                          </Badge>
+                        ) : null}
+                      </div>
 
-                      <Select
-                        value={editFollowUpStatus}
-                        onChange={setEditFollowUpStatus}
-                        options={[
-                          { value: "ACTIVE", label: "Active" },
-                          { value: "PAUSED", label: "Paused" },
-                          { value: "COMPLETED", label: "Completed" },
-                          { value: "REPLIED", label: "Replied" },
-                          { value: "STOPPED", label: "Stopped" },
-                        ]}
-                      />
-
-                      <input
-                        className="input"
-                        type="datetime-local"
-                        value={editNextFollowUpAt}
-                        onChange={(e) => setEditNextFollowUpAt(e.target.value)}
-                      />
-
-                      <textarea
-                        className="input min-h-[140px] resize-y"
-                        value={editNotes}
-                        onChange={(e) => setEditNotes(e.target.value)}
-                        placeholder="Internal review notes..."
-                      />
-
-                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                        <Button
-                          className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
-                          style={dashboardStyles.primaryButton}
-                          onClick={() => void saveCurrent()}
-                          disabled={saving}
-                        >
-                          {saving ? "Saving..." : "Save changes"}
-                        </Button>
-
-                        <Button
-                          className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
-                          style={dashboardStyles.secondaryButton}
-                          onClick={() => {
-                            setEditStatus("CONTACTED");
-                            setEditPriority(details.priority);
-                            setEditFollowUpStatus(details.followUpStatus);
-                            setEditNotes(details.notes ?? "");
-                          }}
-                        >
-                          Set Contacted
-                        </Button>
-
-                        <Button
-                          className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
-                          style={dashboardStyles.secondaryButton}
-                          onClick={() => {
-                            setEditStatus("QUALIFIED");
-                            setEditPriority("HIGH");
-                          }}
-                        >
-                          Mark Qualified
-                        </Button>
+                      <div
+                        style={{
+                          marginTop: 8,
+                          fontSize: 12.5,
+                          color: INK_MUTED,
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        Next follow-up: {formatTimestamp(item.nextFollowUpAt)} · Last
+                        sent: {formatTimestamp(item.lastFollowUpSentAt)}
                       </div>
                     </div>
 
-                    <div className="meta-value" style={{ marginTop: 14 }}>
-                      Reviewed at: {formatTimestamp(details.reviewedAt)}
-                      <br />
-                      Reviewed by: {details.reviewedByUserId ?? "—"}
-                      <br />
-                      IP: {details.ipAddress ?? "—"}
-                      <br />
-                      User agent: {details.userAgent ?? "—"}
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-end",
+                        gap: 8,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <div style={{ fontSize: 12, color: INK_MUTED }}>
+                        {formatTimestamp(item.createdAt)}
+                      </div>
+                      <Link
+                        href={`/admin/demo-requests/${encodeURIComponent(item.id)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ textDecoration: "none" }}
+                      >
+                        <Button variant="secondary" size="sm">
+                          Open →
+                        </Button>
+                      </Link>
                     </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </PageSection>
+
+        <PageSection
+          title="Request Details"
+          description="Inspect request content, qualification, routing, follow-up state, spam signals, and internal review controls."
+        >
+          {!details ? (
+            <EmptyState
+              title="No request selected"
+              purpose="Select a request from the list to inspect and update it."
+            />
+          ) : (
+            <div style={{ display: "grid", gap: 14 }}>
+              <MetaBlock label="Identity">
+                <strong>{details.fullName}</strong>
+                <br />
+                {details.workEmail}
+                <br />
+                {details.organization ?? "No organization"} ·{" "}
+                {details.jobTitle ?? "No title"} · {details.country ?? "No country"}
+              </MetaBlock>
+
+              <MetaBlock label="Qualification">
+                Lead quality: {titleCaseToken(details.leadQuality)}
+                <br />
+                Lead track: {titleCaseToken(details.leadTrack)}
+                <br />
+                Recommended action: {titleCaseToken(details.recommendedAction)}
+                <br />
+                Priority: {details.priority}
+                <br />
+                SLA:{" "}
+                {details.responseSlaHours != null
+                  ? `${details.responseSlaHours}h`
+                  : "—"}
+                <br />
+                Qualification score:{" "}
+                {details.qualificationScore != null
+                  ? details.qualificationScore
+                  : "—"}
+                <JsonBlock value={details.qualificationReasons} />
+              </MetaBlock>
+
+              <MetaBlock label="Request">
+                <strong>Use case</strong>
+                <div style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>
+                  {details.useCase}
+                </div>
+                <div style={{ marginTop: 14 }}>
+                  <strong>Message</strong>
+                </div>
+                <div style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>
+                  {details.message ?? "—"}
+                </div>
+              </MetaBlock>
+
+              <MetaBlock label="Source & Tracking">
+                Source: {details.source ?? "—"}
+                <br />
+                Path: {details.sourcePath ?? "—"}
+                <br />
+                Referrer: {details.referrer ?? "—"}
+                <br />
+                UTM source: {details.utmSource ?? "—"}
+                <br />
+                UTM medium: {details.utmMedium ?? "—"}
+                <br />
+                UTM campaign: {details.utmCampaign ?? "—"}
+                <br />
+                UTM term: {details.utmTerm ?? "—"}
+                <br />
+                UTM content: {details.utmContent ?? "—"}
+              </MetaBlock>
+
+              <MetaBlock label="Delivery & Spam">
+                Email sent: {formatTimestamp(details.emailSentAt)}
+                <br />
+                Auto reply: {formatTimestamp(details.autoReplySentAt)}
+                <br />
+                Webhook sent: {formatTimestamp(details.webhookSentAt)}
+                <br />
+                Spam flag: {details.isSpam ? "Yes" : "No"} ({details.spamScore})
+                <JsonBlock value={details.spamReasons} />
+              </MetaBlock>
+
+              <MetaBlock label="Routing">
+                Current target: {titleCaseToken(details.routingTarget)}
+                <br />
+                Current reason: {details.routingReason ?? "—"}
+                <br />
+                Routed at: {formatTimestamp(details.routedAt)}
+                <br />
+                Routed by: {details.routedByUserId ?? "—"}
+                <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+                  <FilterBar.Select
+                    label="Routing target"
+                    value={routeTarget}
+                    onChange={setRouteTarget}
+                    options={[
+                      { value: "", label: "Select target…" },
+                      { value: "AUTO_RESOURCES", label: "Auto Resources" },
+                      { value: "AUTO_BOOKING", label: "Auto Booking" },
+                      { value: "MANUAL_SALES", label: "Manual Sales" },
+                      { value: "ENTERPRISE_DESK", label: "Enterprise Desk" },
+                    ]}
+                  />
+                  <FilterBar.Search
+                    label="Routing reason"
+                    value={routeReason}
+                    onChange={setRouteReason}
+                    placeholder="Routing reason..."
+                  />
+                  <div>
+                    <Button
+                      variant="secondary"
+                      onClick={() => void saveRouting()}
+                      disabled={routing || !routeTarget}
+                    >
+                      {routing ? "Saving route..." : "Save routing"}
+                    </Button>
                   </div>
                 </div>
-              )}
+              </MetaBlock>
+
+              <MetaBlock label="Follow-up">
+                Follow-up status: {details.followUpStatus}
+                <br />
+                Step: {details.followUpStep}
+                <br />
+                Next scheduled: {formatTimestamp(details.nextFollowUpAt)}
+                <br />
+                Last sent: {formatTimestamp(details.lastFollowUpSentAt)}
+                <br />
+                Template key: {details.lastFollowUpTemplateKey ?? "—"}
+                <br />
+                Stopped at: {formatTimestamp(details.followUpStoppedAt)}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
+                    marginTop: 14,
+                  }}
+                >
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void sendFollowUp()}
+                    disabled={sendingFollowUp}
+                  >
+                    {sendingFollowUp ? "Sending..." : "Send Next"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void sendFollowUp(1)}
+                    disabled={sendingFollowUp}
+                  >
+                    Send Step 1
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void sendFollowUp(2)}
+                    disabled={sendingFollowUp}
+                  >
+                    Send Step 2
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void sendFollowUp(3)}
+                    disabled={sendingFollowUp}
+                  >
+                    Send Step 3
+                  </Button>
+                </div>
+              </MetaBlock>
+
+              <MetaBlock label="Review Controls">
+                <div style={{ display: "grid", gap: 12 }}>
+                  <FilterBar.Select
+                    label="Status"
+                    value={editStatus}
+                    onChange={setEditStatus}
+                    options={[
+                      { value: "NEW", label: "New" },
+                      { value: "REVIEWED", label: "Reviewed" },
+                      { value: "CONTACTED", label: "Contacted" },
+                      { value: "QUALIFIED", label: "Qualified" },
+                      { value: "REJECTED", label: "Rejected" },
+                      { value: "ARCHIVED", label: "Archived" },
+                    ]}
+                  />
+                  <FilterBar.Select
+                    label="Priority"
+                    value={editPriority}
+                    onChange={setEditPriority}
+                    options={[
+                      { value: "LOW", label: "Low" },
+                      { value: "NORMAL", label: "Normal" },
+                      { value: "HIGH", label: "High" },
+                    ]}
+                  />
+                  <FilterBar.Select
+                    label="Follow-up status"
+                    value={editFollowUpStatus}
+                    onChange={setEditFollowUpStatus}
+                    options={[
+                      { value: "ACTIVE", label: "Active" },
+                      { value: "PAUSED", label: "Paused" },
+                      { value: "COMPLETED", label: "Completed" },
+                      { value: "REPLIED", label: "Replied" },
+                      { value: "STOPPED", label: "Stopped" },
+                    ]}
+                  />
+
+                  <input
+                    className="input"
+                    type="datetime-local"
+                    value={editNextFollowUpAt}
+                    onChange={(e) => setEditNextFollowUpAt(e.target.value)}
+                    style={{ width: "100%" }}
+                  />
+
+                  <textarea
+                    className="input min-h-[140px] resize-y"
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    placeholder="Internal review notes..."
+                    style={{ width: "100%" }}
+                  />
+
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <Button
+                      variant="primary"
+                      onClick={() => void saveCurrent()}
+                      disabled={saving}
+                    >
+                      {saving ? "Saving..." : "Save changes"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setEditStatus("CONTACTED");
+                        setEditPriority(details.priority);
+                        setEditFollowUpStatus(details.followUpStatus);
+                        setEditNotes(details.notes ?? "");
+                      }}
+                    >
+                      Set Contacted
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setEditStatus("QUALIFIED");
+                        setEditPriority("HIGH");
+                      }}
+                    >
+                      Mark Qualified
+                    </Button>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 14, color: INK_SECONDARY }}>
+                  Reviewed at: {formatTimestamp(details.reviewedAt)}
+                  <br />
+                  Reviewed by: {details.reviewedByUserId ?? "—"}
+                  <br />
+                  IP: {details.ipAddress ?? "—"}
+                  <br />
+                  User agent: {details.userAgent ?? "—"}
+                </div>
+              </MetaBlock>
             </div>
-          </Card>
-        </div>
+          )}
+        </PageSection>
       </div>
-    </DashboardShell>
+
+      <style jsx global>{`
+        @media (max-width: 1180px) {
+          .admin-demo-requests-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+    </PageShell>
   );
 }

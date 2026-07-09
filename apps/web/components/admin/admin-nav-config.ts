@@ -22,7 +22,20 @@ export type AdminNavItem = {
 
 export const ADMIN_NAV_ITEMS: ReadonlyArray<AdminNavItem> = [
   { href: "/admin", label: "Console Home" },
+  { href: "/admin/executive", label: "Executive" },
+  // Platform Admin Control Center — customer/org/user/ops/billing/security.
+  { href: "/admin/organizations", label: "Customers & Orgs" },
+  { href: "/admin/users", label: "Users & Identity" },
+  { href: "/admin/search", label: "Search" },
   { href: "/admin/dashboard", label: "Platform Analytics" },
+  { href: "/admin/evidence-ops", label: "Evidence Ops" },
+  { href: "/admin/adoption", label: "Adoption" },
+  { href: "/admin/billing", label: "Billing & Revenue" },
+  { href: "/admin/costs", label: "Costs" },
+  { href: "/admin/security", label: "Security & Incidents" },
+  { href: "/admin/platform-health", label: "Platform Health" },
+  { href: "/admin/alerts", label: "Alerts" },
+  { href: "/admin/timeline", label: "Timeline" },
   // Enterprise provisioning was reachable only by direct URL — surface it.
   { href: "/admin/provisioning", label: "Enterprise Provisioning" },
   { href: "/admin/demo-requests", label: "Demo Requests" },

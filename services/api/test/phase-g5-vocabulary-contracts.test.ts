@@ -313,6 +313,18 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   // -------------------------------------------------------------------
   "components/reports-experience/FreeReportsLockedNotice.tsx",
   "components/home-experience/SelfServeHomeDashboard.tsx",
+  // -------------------------------------------------------------------
+  // Platform Admin Control Center (P0/P1) — pricing-plan vocabulary.
+  //
+  // The billing-plan enum has a tier literally named "Team" (the public
+  // pricing page's mid tier — see FreeReportsLockedNotice above). The
+  // customers/organizations roster's plan filter and the billing detail
+  // console's subscriptions-by-plan breakdown render that plan's
+  // canonical name. This is the pricing tier, NOT a Collaboration Team
+  // and NOT a Workspace — renaming it would break the pricing mirror.
+  // -------------------------------------------------------------------
+  "app/(app)/admin/organizations/page.tsx",
+  "app/(app)/admin/billing/page.tsx",
 ]);
 
 describe("Phase G5.2 — Team → Workspace carryover", () => {

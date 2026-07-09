@@ -9,14 +9,17 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Card,
-  Button,
+  PageShell,
+  PageHeader,
   Input,
   Select,
   Skeleton,
   useToast,
 } from "../../../../components/ui";
-import DashboardShell from "../../../../components/dashboard/DashboardShell";
+import { Card } from "../../../../components/ui/Card";
+import { Badge } from "../../../../components/ui/Badge";
+import type { BadgeTone } from "../../../../components/ui/Badge";
+import { Button } from "../../../../components/ui/Button";
 import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -79,49 +82,40 @@ function formatTimestamp(value?: string | null) {
   return Number.isNaN(d.getTime()) ? value : formatUserDateTime(value);
 }
 
-const STATUS_TONE: Record<Status, string> = {
-  NEW: "#1d4ed8",
-  REVIEWED: "#0e7490",
-  CONTACTED: "#7c3aed",
-  QUALIFIED: "#0f9b6c",
-  REJECTED: "#9c2626",
-  ARCHIVED: "#475569",
+const STATUS_TONE: Record<Status, BadgeTone> = {
+  NEW: "info",
+  REVIEWED: "info",
+  CONTACTED: "governance",
+  QUALIFIED: "verified",
+  REJECTED: "risk",
+  ARCHIVED: "neutral",
 };
 
-const PRIORITY_TONE: Record<Priority, string> = {
-  LOW: "#475569",
-  NORMAL: "#1d4ed8",
-  HIGH: "#9d174d",
+const STATUS_LABEL: Record<Status, string> = {
+  NEW: "New",
+  REVIEWED: "Reviewed",
+  CONTACTED: "Contacted",
+  QUALIFIED: "Qualified",
+  REJECTED: "Rejected",
+  ARCHIVED: "Archived",
+};
+
+const PRIORITY_TONE: Record<Priority, BadgeTone> = {
+  LOW: "neutral",
+  NORMAL: "info",
+  HIGH: "risk",
 };
 
 function StatusPill({ value }: { value: Status }) {
   return (
-    <span
-      className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em]"
-      style={{
-        borderColor: `${STATUS_TONE[value]}33`,
-        background: `${STATUS_TONE[value]}10`,
-        color: STATUS_TONE[value],
-      }}
-    >
-      {value}
-    </span>
+    <Badge tone={STATUS_TONE[value]} dot>
+      {STATUS_LABEL[value]}
+    </Badge>
   );
 }
 
 function PriorityPill({ value }: { value: Priority }) {
-  return (
-    <span
-      className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em]"
-      style={{
-        borderColor: `${PRIORITY_TONE[value]}33`,
-        background: `${PRIORITY_TONE[value]}10`,
-        color: PRIORITY_TONE[value],
-      }}
-    >
-      {value}
-    </span>
-  );
+  return <Badge tone={PRIORITY_TONE[value]} subtle>{value}</Badge>;
 }
 
 export default function AdminContactSalesPage() {
@@ -213,316 +207,482 @@ export default function AdminContactSalesPage() {
   }
 
   return (
-    <DashboardShell
-      eyebrow="Contact Sales"
-      title="Contact Sales inquiries"
-      description={
-        <>
-          Submissions from the public <code>/contact-sales</code> form.
-          Records persist even when notification email is unavailable, so
-          operators can replay any missed delivery from the table below.
-        </>
+    <PageShell
+      width="full"
+      header={
+        <PageHeader
+          eyebrow="Platform admin"
+          title="Contact Sales"
+          subtitle="Submissions from the public /contact-sales form. Records persist even when the notification email is unavailable, so operators can replay any missed delivery from the table below."
+        />
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        <AdminConsoleNav />
+      <AdminConsoleNav />
 
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="sr-only">Filters</div>
+      <Card>
+        {summary ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {(
+              [
+                "NEW",
+                "REVIEWED",
+                "CONTACTED",
+                "QUALIFIED",
+                "REJECTED",
+                "ARCHIVED",
+              ] as Status[]
+            ).map((s) => {
+                  const active = statusFilter === s;
+                  return (
+                    <button
+                      type="button"
+                      key={s}
+                      onClick={() => setStatusFilter(active ? "" : s)}
+                      style={{
+                        appearance: "none",
+                        cursor: "pointer",
+                        background: active
+                          ? "var(--accent-050, #f2f0ff)"
+                          : "var(--surface-card, #ffffff)",
+                        border: active
+                          ? "1px solid var(--accent-500, #6b5bff)"
+                          : "1px solid var(--border-default, #e2e8f0)",
+                        borderRadius: 999,
+                        padding: "5px 12px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "var(--ink-secondary, #475569)",
+                        transition: "background 120ms ease, border-color 120ms ease",
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: "50%",
+                          background: "var(--accent-500, #6b5bff)",
+                          opacity: active ? 1 : 0.45,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span>{STATUS_LABEL[s]}</span>
+                      <span style={{ color: "var(--ink-primary, #0f172a)", fontWeight: 700 }}>
+                        {summary[s] ?? 0}
+                      </span>
+                    </button>
+                  );
+                })}
           </div>
+        ) : null}
 
-          {summary ? (
-            <div className="mt-4 flex flex-wrap gap-2 text-[12px]">
-              {(
-                [
-                  "NEW",
-                  "REVIEWED",
-                  "CONTACTED",
-                  "QUALIFIED",
-                  "REJECTED",
-                  "ARCHIVED",
-                ] as Status[]
-              ).map((s) => (
-                <button
-                  type="button"
-                  key={s}
-                  onClick={() => setStatusFilter(statusFilter === s ? "" : s)}
-                  className="inline-flex items-center gap-2 rounded-full border px-3 py-1 transition"
-                  style={{
-                    borderColor: `${STATUS_TONE[s]}33`,
-                    background:
-                      statusFilter === s
-                        ? `${STATUS_TONE[s]}1A`
-                        : "transparent",
-                    color: STATUS_TONE[s],
-                  }}
-                >
-                  <span className="font-semibold">{s}</span>
-                  <span>{summary[s] ?? 0}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
+        <div
+          style={{
+            marginTop: summary ? 16 : 0,
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "flex-end",
+            gap: 12,
+          }}
+        >
+          <Input
+            value={search}
+            onChange={(v) => setSearch(v)}
+            placeholder="Search name, email, organization"
+            className="min-w-[260px]"
+          />
+          <Select
+            value={statusFilter}
+            onChange={(v) => setStatusFilter(v as Status | "")}
+            options={[
+              { value: "", label: "All statuses" },
+              { value: "NEW", label: "New" },
+              { value: "REVIEWED", label: "Reviewed" },
+              { value: "CONTACTED", label: "Contacted" },
+              { value: "QUALIFIED", label: "Qualified" },
+              { value: "REJECTED", label: "Rejected" },
+              { value: "ARCHIVED", label: "Archived" },
+            ]}
+          />
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setStatusFilter("");
+              setSearch("");
+            }}
+          >
+            Reset
+          </Button>
+        </div>
+      </Card>
 
-          <div className="mt-4 flex flex-wrap items-end gap-3">
-            <Input
-              value={search}
-              onChange={(v) => setSearch(v)}
-              placeholder="Search name, email, organization"
-              className="min-w-[260px]"
-            />
-            <Select
-              value={statusFilter}
-              onChange={(v) => setStatusFilter(v as Status | "")}
-              options={[
-                { value: "", label: "All statuses" },
-                { value: "NEW", label: "New" },
-                { value: "REVIEWED", label: "Reviewed" },
-                { value: "CONTACTED", label: "Contacted" },
-                { value: "QUALIFIED", label: "Qualified" },
-                { value: "REJECTED", label: "Rejected" },
-                { value: "ARCHIVED", label: "Archived" },
-              ]}
-            />
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setStatusFilter("");
-                setSearch("");
-              }}
-            >
-              Reset
-            </Button>
-          </div>
-        </Card>
-
-        <Card className="mt-5 p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-[13.5px]">
-              <thead className="bg-[#F8FAFC]">
-                <tr className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#475569]">
-                  <th className="px-5 py-3">Submitted</th>
-                  <th className="px-5 py-3">Name</th>
-                  <th className="px-5 py-3">Organization</th>
-                  <th className="px-5 py-3">Topic</th>
-                  <th className="px-5 py-3">Stage</th>
-                  <th className="px-5 py-3">Priority</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Email</th>
-                  <th className="px-5 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {loading
-                  ? Array.from({ length: 6 }).map((_, i) => (
-                      <tr key={i} className="border-t border-[#E2E8F0]">
-                        <td className="px-5 py-3" colSpan={9}>
-                          <Skeleton height="18px" />
-                        </td>
-                      </tr>
-                    ))
-                  : items.length === 0
-                    ? (
-                        <tr className="border-t border-[#E2E8F0]">
-                          <td
-                            className="px-5 py-8 text-center text-[#64748B]"
-                            colSpan={9}
-                          >
-                            No contact-sales inquiries match your filters.
-                          </td>
-                        </tr>
-                      )
-                    : items.map((it) => (
-                        <tr
-                          key={it.id}
-                          className="border-t border-[#E2E8F0] hover:bg-[#F8FAFC]"
-                        >
-                          <td className="px-5 py-3 text-[#475569]">
-                            {formatTimestamp(it.createdAt)}
-                          </td>
-                          <td className="px-5 py-3">
-                            <div className="font-semibold text-[#0F172A]">
-                              {it.fullName}
-                            </div>
-                            <div className="text-[12px] text-[#475569]">
-                              {it.workEmail}
-                            </div>
-                          </td>
-                          <td className="px-5 py-3 text-[#0F172A]">
-                            {it.organization}
-                          </td>
-                          <td className="px-5 py-3 text-[#475569]">
-                            {it.discussionTopic}
-                          </td>
-                          <td className="px-5 py-3 text-[#475569]">
-                            {it.stage}
-                          </td>
-                          <td className="px-5 py-3">
-                            <PriorityPill value={it.priority} />
-                          </td>
-                          <td className="px-5 py-3">
-                            <StatusPill value={it.status} />
-                          </td>
-                          <td className="px-5 py-3 text-[12px] text-[#64748B]">
-                            {it.emailSentAt ? "Sent" : "—"}
-                          </td>
-                          <td className="px-5 py-3 text-right">
-                            <div className="inline-flex items-center gap-2">
-                              <Button
-                                variant="secondary"
-                                onClick={() => openDetails(it.id)}
-                              >
-                                Quick view
-                              </Button>
-                              <Link
-                                href={`/admin/contact-sales/${encodeURIComponent(it.id)}`}
-                                className="inline-flex items-center rounded-full border border-[#E2E8F0] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#0F172A] hover:bg-[#F8FAFC]"
-                              >
-                                Open →
-                              </Link>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        {selectedId ? (
-          <Card className="mt-5 p-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-[1.1rem] font-semibold tracking-[-0.01em] text-[#0F172A]">
-                {detailLoading
-                  ? "Loading…"
-                  : details
-                    ? `${details.fullName} · ${details.organization}`
-                    : "Record"}
-              </h2>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setSelectedId(null);
-                  setDetails(null);
+      <Card padding="none">
+        <div style={{ overflowX: "auto" }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              textAlign: "left",
+              fontSize: 13.5,
+            }}
+          >
+            <thead style={{ background: "var(--surface-muted, #f8fafc)" }}>
+              <tr
+                style={{
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "var(--ink-secondary, #475569)",
                 }}
               >
-                Close
-              </Button>
-            </div>
+                <th style={{ padding: "12px 20px" }}>Submitted</th>
+                <th style={{ padding: "12px 20px" }}>Name</th>
+                <th style={{ padding: "12px 20px" }}>Organization</th>
+                <th style={{ padding: "12px 20px" }}>Topic</th>
+                <th style={{ padding: "12px 20px" }}>Stage</th>
+                <th style={{ padding: "12px 20px" }}>Priority</th>
+                <th style={{ padding: "12px 20px" }}>Status</th>
+                <th style={{ padding: "12px 20px" }}>Email</th>
+                <th style={{ padding: "12px 20px" }} />
+              </tr>
+            </thead>
+            <tbody>
+              {loading
+                ? Array.from({ length: 6 }).map((_, i) => (
+                    <tr
+                      key={i}
+                      style={{ borderTop: "1px solid var(--border-default, #e2e8f0)" }}
+                    >
+                      <td style={{ padding: "12px 20px" }} colSpan={9}>
+                        <Skeleton height="18px" />
+                      </td>
+                    </tr>
+                  ))
+                : items.length === 0
+                  ? (
+                      <tr style={{ borderTop: "1px solid var(--border-default, #e2e8f0)" }}>
+                        <td
+                          style={{
+                            padding: "32px 20px",
+                            textAlign: "center",
+                            color: "var(--ink-muted, #64748b)",
+                          }}
+                          colSpan={9}
+                        >
+                          No contact-sales inquiries match your filters.
+                        </td>
+                      </tr>
+                    )
+                  : items.map((it) => (
+                      <tr
+                        key={it.id}
+                        style={{ borderTop: "1px solid var(--border-default, #e2e8f0)" }}
+                      >
+                        <td
+                          style={{
+                            padding: "12px 20px",
+                            color: "var(--ink-secondary, #475569)",
+                          }}
+                        >
+                          {formatTimestamp(it.createdAt)}
+                        </td>
+                        <td style={{ padding: "12px 20px" }}>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              color: "var(--ink-primary, #0f172a)",
+                            }}
+                          >
+                            {it.fullName}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "var(--ink-secondary, #475569)",
+                            }}
+                          >
+                            {it.workEmail}
+                          </div>
+                        </td>
+                        <td
+                          style={{
+                            padding: "12px 20px",
+                            color: "var(--ink-primary, #0f172a)",
+                          }}
+                        >
+                          {it.organization}
+                        </td>
+                        <td
+                          style={{
+                            padding: "12px 20px",
+                            color: "var(--ink-secondary, #475569)",
+                          }}
+                        >
+                          {it.discussionTopic}
+                        </td>
+                        <td
+                          style={{
+                            padding: "12px 20px",
+                            color: "var(--ink-secondary, #475569)",
+                          }}
+                        >
+                          {it.stage}
+                        </td>
+                        <td style={{ padding: "12px 20px" }}>
+                          <PriorityPill value={it.priority} />
+                        </td>
+                        <td style={{ padding: "12px 20px" }}>
+                          <StatusPill value={it.status} />
+                        </td>
+                        <td
+                          style={{
+                            padding: "12px 20px",
+                            fontSize: 12,
+                            color: "var(--ink-muted, #64748b)",
+                          }}
+                        >
+                          {it.emailSentAt ? "Sent" : "—"}
+                        </td>
+                        <td style={{ padding: "12px 20px", textAlign: "right" }}>
+                          <div
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => openDetails(it.id)}
+                            >
+                              Quick view
+                            </Button>
+                            <Link
+                              href={`/admin/contact-sales/${encodeURIComponent(it.id)}`}
+                              style={{ textDecoration: "none" }}
+                            >
+                              <Button variant="ghost" size="sm">
+                                Open →
+                              </Button>
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
-            {details ? (
-              <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_320px]">
-                <div className="space-y-4 text-[14px] text-[#0F172A]">
-                  <div className="flex flex-wrap gap-2">
-                    <StatusPill value={details.status} />
-                    <PriorityPill value={details.priority} />
-                    {details.isSpam ? (
-                      <span className="inline-flex items-center rounded-full border border-[#FCA5A5] bg-[#FEF2F2] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9C1C1C]">
-                        Spam
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                      Email
-                    </div>
-                    <div className="mt-1 text-[#0F172A]">{details.workEmail}</div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label="Job title" value={details.jobTitle} />
-                    <Field label="Country" value={details.country} />
-                    <Field label="Workspace size" value={details.teamSize} />
-                    <Field
-                      label="Deployment timeline"
-                      value={details.deploymentTimeline}
-                    />
-                    <Field
-                      label="Estimated users"
-                      value={details.estimatedUsers}
-                    />
-                    <Field label="Topic" value={details.discussionTopic} />
-                    <Field label="Stage" value={details.stage} />
-                    <Field label="Source page" value={details.sourcePage} />
-                  </div>
-
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                      Current challenge
-                    </div>
-                    <p className="mt-2 whitespace-pre-wrap rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-[13.5px] leading-[1.6] text-[#0F172A]">
-                      {details.currentChallenge}
-                    </p>
-                  </div>
-
-                  {details.additionalDetails ? (
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                        Additional details
-                      </div>
-                      <p className="mt-2 whitespace-pre-wrap rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-[13.5px] leading-[1.6] text-[#0F172A]">
-                        {details.additionalDetails}
-                      </p>
-                    </div>
-                  ) : null}
+      {selectedId ? (
+        <Card
+          title={
+            detailLoading
+              ? "Loading…"
+              : details
+                ? `${details.fullName} · ${details.organization}`
+                : "Record"
+          }
+          headerAction={
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setSelectedId(null);
+                setDetails(null);
+              }}
+            >
+              Close
+            </Button>
+          }
+        >
+          {details ? (
+            <div
+              style={{
+                display: "grid",
+                gap: 24,
+                gridTemplateColumns: "minmax(0, 1fr) 320px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                  fontSize: 14,
+                  color: "var(--ink-primary, #0f172a)",
+                  minWidth: 0,
+                }}
+              >
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  <StatusPill value={details.status} />
+                  <PriorityPill value={details.priority} />
+                  {details.isSpam ? <Badge tone="risk">Spam</Badge> : null}
                 </div>
 
-                <aside className="space-y-3 text-[12.5px] text-[#475569]">
-                  <Field
-                    label="Submitted"
-                    value={formatTimestamp(details.createdAt)}
-                  />
-                  <Field
-                    label="Email sent"
-                    value={
-                      details.emailSentAt
-                        ? formatTimestamp(details.emailSentAt)
-                        : "Not sent"
-                    }
-                  />
-                  <Field
-                    label="Reviewed"
-                    value={formatTimestamp(details.reviewedAt)}
-                  />
-                  <Field label="UTM source" value={details.utmSource} />
-                  <Field label="UTM campaign" value={details.utmCampaign} />
-                  <Field label="Referrer" value={details.referrer} />
-                  <Field label="Source path" value={details.sourcePath} />
-
-                  <div className="border-t border-[#E2E8F0] pt-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                      Set status
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {(
-                        [
-                          "REVIEWED",
-                          "CONTACTED",
-                          "QUALIFIED",
-                          "REJECTED",
-                          "ARCHIVED",
-                        ] as Status[]
-                      ).map((s) => (
-                        <Button
-                          key={s}
-                          variant="secondary"
-                          disabled={updating || details.status === s}
-                          onClick={() => patchStatus(details.id, s)}
-                        >
-                          {s}
-                        </Button>
-                      ))}
-                    </div>
+                <div>
+                  <FieldLabel>Email</FieldLabel>
+                  <div
+                    style={{ marginTop: 4, color: "var(--ink-primary, #0f172a)" }}
+                  >
+                    {details.workEmail}
                   </div>
-                </aside>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 12,
+                    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                  }}
+                >
+                  <Field label="Job title" value={details.jobTitle} />
+                  <Field label="Country" value={details.country} />
+                  <Field label="Workspace size" value={details.teamSize} />
+                  <Field
+                    label="Deployment timeline"
+                    value={details.deploymentTimeline}
+                  />
+                  <Field label="Estimated users" value={details.estimatedUsers} />
+                  <Field label="Topic" value={details.discussionTopic} />
+                  <Field label="Stage" value={details.stage} />
+                  <Field label="Source page" value={details.sourcePage} />
+                </div>
+
+                <div>
+                  <FieldLabel>Current challenge</FieldLabel>
+                  <p
+                    style={{
+                      marginTop: 8,
+                      whiteSpace: "pre-wrap",
+                      borderRadius: 10,
+                      border: "1px solid var(--border-default, #e2e8f0)",
+                      background: "var(--surface-muted, #f8fafc)",
+                      padding: 12,
+                      fontSize: 13.5,
+                      lineHeight: 1.6,
+                      color: "var(--ink-primary, #0f172a)",
+                    }}
+                  >
+                    {details.currentChallenge}
+                  </p>
+                </div>
+
+                {details.additionalDetails ? (
+                  <div>
+                    <FieldLabel>Additional details</FieldLabel>
+                    <p
+                      style={{
+                        marginTop: 8,
+                        whiteSpace: "pre-wrap",
+                        borderRadius: 10,
+                        border: "1px solid var(--border-default, #e2e8f0)",
+                        background: "var(--surface-muted, #f8fafc)",
+                        padding: 12,
+                        fontSize: 13.5,
+                        lineHeight: 1.6,
+                        color: "var(--ink-primary, #0f172a)",
+                      }}
+                    >
+                      {details.additionalDetails}
+                    </p>
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </Card>
-        ) : null}
-      </div>
-    </DashboardShell>
+
+              <aside
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                  fontSize: 12.5,
+                  color: "var(--ink-secondary, #475569)",
+                }}
+              >
+                <Field
+                  label="Submitted"
+                  value={formatTimestamp(details.createdAt)}
+                />
+                <Field
+                  label="Email sent"
+                  value={
+                    details.emailSentAt
+                      ? formatTimestamp(details.emailSentAt)
+                      : "Not sent"
+                  }
+                />
+                <Field
+                  label="Reviewed"
+                  value={formatTimestamp(details.reviewedAt)}
+                />
+                <Field label="UTM source" value={details.utmSource} />
+                <Field label="UTM campaign" value={details.utmCampaign} />
+                <Field label="Referrer" value={details.referrer} />
+                <Field label="Source path" value={details.sourcePath} />
+
+                <div
+                  style={{
+                    borderTop: "1px solid var(--border-default, #e2e8f0)",
+                    paddingTop: 12,
+                  }}
+                >
+                  <FieldLabel>Set status</FieldLabel>
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 8,
+                    }}
+                  >
+                    {(
+                      [
+                        "REVIEWED",
+                        "CONTACTED",
+                        "QUALIFIED",
+                        "REJECTED",
+                        "ARCHIVED",
+                      ] as Status[]
+                    ).map((s) => (
+                      <Button
+                        key={s}
+                        variant="secondary"
+                        size="sm"
+                        disabled={updating || details.status === s}
+                        onClick={() => patchStatus(details.id, s)}
+                      >
+                        {s}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </aside>
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
+    </PageShell>
+  );
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: "0.14em",
+        textTransform: "uppercase",
+        color: "var(--ink-muted, #64748b)",
+      }}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -535,10 +695,10 @@ function Field({
 }) {
   return (
     <div>
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-        {label}
+      <FieldLabel>{label}</FieldLabel>
+      <div style={{ marginTop: 4, color: "var(--ink-primary, #0f172a)" }}>
+        {value && value.trim() ? value : "—"}
       </div>
-      <div className="mt-1 text-[#0F172A]">{value && value.trim() ? value : "—"}</div>
     </div>
   );
 }

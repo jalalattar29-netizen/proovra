@@ -316,6 +316,26 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // contract still holds.
       "platform.queue_ops",
       "platform.admin",
+      // Platform Admin Control Center — read-only admin surfaces.
+      "platform.organizations",
+      "platform.organization_detail",
+      "platform.users",
+      "platform.evidence_ops",
+      "platform.security",
+      "platform.billing",
+      // Platform Admin Control Center — final-completion read-only surfaces.
+      "platform.platform_health",
+      "platform.costs",
+      "platform.adoption",
+      "platform.search",
+      "platform.timeline",
+      "platform.alerts",
+      "platform.executive",
+      // P0-6 — previously-unregistered admin console pages.
+      "platform.dashboard",
+      "platform.demo_requests",
+      "platform.audit",
+      "platform.contact_sales",
     ],
   },
 ];

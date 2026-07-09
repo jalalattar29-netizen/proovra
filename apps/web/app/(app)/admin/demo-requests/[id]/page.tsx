@@ -16,12 +16,15 @@ import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Card,
-  Button,
+  PageShell,
+  PageHeader,
   Skeleton,
   useToast,
 } from "../../../../../components/ui";
-import DashboardShell from "../../../../../components/dashboard/DashboardShell";
+import { Card } from "../../../../../components/ui/Card";
+import { Badge } from "../../../../../components/ui/Badge";
+import type { BadgeTone } from "../../../../../components/ui/Badge";
+import { Button } from "../../../../../components/ui/Button";
 import AdminConsoleNav from "../../../../../components/admin/AdminConsoleNav";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../lib/api";
@@ -139,6 +142,32 @@ function titleCaseToken(value?: string | null) {
     .replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
+function statusTone(status: DemoStatus): BadgeTone {
+  switch (status) {
+    case "QUALIFIED":
+      return "verified";
+    case "CONTACTED":
+    case "REVIEWED":
+      return "pending";
+    case "REJECTED":
+    case "ARCHIVED":
+      return "risk";
+    default:
+      return "info";
+  }
+}
+
+function priorityTone(priority: DemoPriority): BadgeTone {
+  switch (priority) {
+    case "HIGH":
+      return "risk";
+    case "LOW":
+      return "neutral";
+    default:
+      return "pending";
+  }
+}
+
 type LoadState =
   | { kind: "loading" }
   | { kind: "ok"; details: Details }
@@ -201,43 +230,76 @@ export default function AdminDemoRequestDetailPage({
     }
   }
 
+  const requestTitle =
+    state.kind === "ok" ? state.details.fullName : "Request detail";
+  const requestSubtitle =
+    state.kind === "ok" && state.details.organization
+      ? `${state.details.organization} · One-record view of an inbound demo request.`
+      : "One-record view of an inbound demo request. Routing, follow-up, and review controls are managed from the list page; this page is a focused inspection surface for the deep-link landing.";
+
   return (
     <PageRouteGate routeId="admin.demoRequests">
-    <DashboardShell
-      eyebrow="Demo Requests"
-      title="Request detail"
-      description={
-        <>
-          One-record view of an inbound demo request. Routing, follow-up,
-          and review controls are managed from the list page; this page is
-          a focused inspection surface for the deep-link landing.
-        </>
+    <PageShell
+      width="full"
+      header={
+        <PageHeader
+          eyebrow="Platform admin"
+          title={requestTitle}
+          subtitle={requestSubtitle}
+          secondaryActions={
+            <Link href="/admin/demo-requests" style={{ textDecoration: "none" }}>
+              <Button variant="ghost" size="sm">
+                ← Back to list
+              </Button>
+            </Link>
+          }
+        />
       }
     >
+      <AdminConsoleNav />
+
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-        <AdminConsoleNav />
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            href="/admin/demo-requests"
-            className="inline-flex items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-4 py-2 text-[13px] font-semibold text-[#0F172A] transition hover:bg-[#F8FAFC]"
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              borderRadius: 999,
+              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+              background: "var(--surface-card, #ffffff)",
+              padding: "6px 12px",
+              fontSize: 12,
+              color: "var(--ink-secondary, #475569)",
+            }}
           >
-            <span aria-hidden>←</span> Back to list
-          </Link>
-
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-3 py-1.5 text-[12px] text-[#475569]">
-            <span className="font-semibold uppercase tracking-[0.14em] text-[#64748B]">
+            <span
+              style={{
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.14em",
+                color: "var(--ink-muted, #94a3b8)",
+              }}
+            >
               Request ID
             </span>
-            <code className="font-mono text-[12px] text-[#0F172A]">{id}</code>
-            <button
-              type="button"
+            <code
+              style={{
+                fontFamily: "var(--font-mono, ui-monospace, monospace)",
+                fontSize: 12,
+                color: "var(--ink-primary, #0f172a)",
+              }}
+            >
+              {id}
+            </code>
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => void copyId()}
-              className="rounded-md border border-[#E2E8F0] px-2 py-0.5 text-[11px] font-semibold text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
               aria-label="Copy request ID"
             >
               {copied ? "Copied" : "Copy"}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -314,21 +376,17 @@ export default function AdminDemoRequestDetailPage({
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <span className="inline-flex items-center rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#0F172A]">
+                <Badge tone={statusTone(state.details.status)}>
                   {state.details.status}
-                </span>
-                <span className="inline-flex items-center rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#0F172A]">
+                </Badge>
+                <Badge tone={priorityTone(state.details.priority)}>
                   {state.details.priority}
-                </span>
-                {state.details.isSpam ? (
-                  <span className="inline-flex items-center rounded-full border border-[#FCA5A5] bg-[#FEF2F2] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9C1C1C]">
-                    Spam {state.details.spamScore}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center rounded-full border border-[#BBF7D0] bg-[#F0FDF4] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#15803D]">
-                    Clean {state.details.spamScore}
-                  </span>
-                )}
+                </Badge>
+                <Badge tone={state.details.isSpam ? "risk" : "verified"} dot>
+                  {state.details.isSpam
+                    ? `Spam ${state.details.spamScore}`
+                    : `Clean ${state.details.spamScore}`}
+                </Badge>
               </div>
             </div>
 
@@ -418,7 +476,7 @@ export default function AdminDemoRequestDetailPage({
           </Card>
         )}
       </div>
-    </DashboardShell>
+    </PageShell>
     </PageRouteGate>
   );
 }

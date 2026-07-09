@@ -176,7 +176,18 @@ export async function adminAuditRoutes(app: FastifyInstance) {
           ? query.cursor
           : null;
 
-      const { items } = await listAdminAuditLogs({
+      // Item L (additive) — optional list filters. `action`, `category`, and
+      // `severity` are pushed into the tamper-evident query via
+      // listAdminAuditLogs (backward compatible — omitted → no filter). The
+      // `source` column is not a listAdminAuditLogs parameter, so it is
+      // applied here as a bounded, exact-match post-filter over the returned
+      // page. The verify + pagination paths are untouched.
+      const sourceFilter =
+        typeof query.source === "string" && query.source.trim().length > 0
+          ? query.source.trim()
+          : null;
+
+      const { items: rawItems } = await listAdminAuditLogs({
         limit,
         cursorId,
         action: query.action ?? null,
@@ -185,6 +196,10 @@ export async function adminAuditRoutes(app: FastifyInstance) {
         outcome: query.outcome ?? null,
         search: query.search ?? null,
       });
+
+      const items = sourceFilter
+        ? rawItems.filter((item) => item.source === sourceFilter)
+        : rawItems;
 
       auditAdminAuditAccess(req, {
         action: "admin.audit_log_list_view",
@@ -195,6 +210,7 @@ export async function adminAuditRoutes(app: FastifyInstance) {
           action: query.action ?? null,
           category: query.category ?? null,
           severity: query.severity ?? null,
+          source: sourceFilter,
           outcomeFilter: query.outcome ?? null,
           search: query.search ?? null,
           resultCount: items.length,

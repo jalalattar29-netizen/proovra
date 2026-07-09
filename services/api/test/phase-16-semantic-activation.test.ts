@@ -403,13 +403,21 @@ describe("Phase 16 — bounded guards (no duplication, no leak, no Search v2)", 
     const matches = walk(appDir, (name) =>
       name === "page.tsx" || name === "page.ts" || name === "page.jsx",
     ).filter((p) => /[\\/]search[\\/]/i.test(p) || /[\\/]search-/i.test(p));
-    // Only the canonical /search/page.tsx survives.
+    // Only the canonical /search/page.tsx survives — plus the Platform Admin
+    // Control Center global search at /admin/search, which is a PLATFORM_ADMIN
+    // cross-entity ROSTER search (organizations/users/workspaces/leads/IDs),
+    // NOT the semantic evidence "Search v2" this guard exists to prevent. It
+    // reuses no semantic component and adds no /v1/semantic* route.
+    const isCanonicalSearch = (p: string) =>
+      p.endsWith(resolve(WEB_ROOT, "app/(app)/search/page.tsx")) ||
+      p.endsWith("app\\(app)\\search\\page.tsx") ||
+      p.endsWith("app/(app)/search/page.tsx");
+    const isAdminGlobalSearch = (p: string) =>
+      p.endsWith(resolve(WEB_ROOT, "app/(app)/admin/search/page.tsx")) ||
+      p.endsWith("app\\(app)\\admin\\search\\page.tsx") ||
+      p.endsWith("app/(app)/admin/search/page.tsx");
     const offenders = matches.filter(
-      (p) =>
-        !p.endsWith(
-          resolve(WEB_ROOT, "app/(app)/search/page.tsx"),
-        ) && !p.endsWith("app\\(app)\\search\\page.tsx") &&
-        !p.endsWith("app/(app)/search/page.tsx"),
+      (p) => !isCanonicalSearch(p) && !isAdminGlobalSearch(p),
     );
     expect(offenders, offenders.join("\n")).toEqual([]);
     // And the canonical file exists.

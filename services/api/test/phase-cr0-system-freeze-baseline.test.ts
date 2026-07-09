@@ -103,6 +103,14 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
     { page: "admin/identity/scim/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/identity/sessions/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/identity/timeline/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
+    // Platform Admin Control Center (P0/P1) — gated by /admin/layout.tsx's
+    // <PageRouteGate routeId="platform.admin"> wrapper (same model as every
+    // other /admin page above). /admin/organizations{,/[id]} additionally
+    // self-wrap PageRouteGate so they are not listed here.
+    { page: "admin/users/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
+    { page: "admin/evidence-ops/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
+    { page: "admin/security/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
+    { page: "admin/billing/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
 
     // Redirect-only pages — CR1 Part 2 PURGED all 8. The 8 backward-
     // compat redirects (dashboard, archive, deleted, locked, operations,

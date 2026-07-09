@@ -262,6 +262,26 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["account.organization-detail", "ADMIN"],
   ["account.organization-setup", "ADMIN"],
   ["platform.provisioning", "ADMIN"],
+  // Platform Admin Control Center — read-only admin surfaces.
+  ["platform.organizations", "ADMIN"],
+  ["platform.organization_detail", "ADMIN"],
+  ["platform.users", "ADMIN"],
+  ["platform.evidence_ops", "ADMIN"],
+  ["platform.security", "ADMIN"],
+  ["platform.billing", "ADMIN"],
+  // Platform Admin Control Center — final-completion read-only surfaces.
+  ["platform.platform_health", "ADMIN"],
+  ["platform.costs", "ADMIN"],
+  ["platform.adoption", "ADMIN"],
+  ["platform.search", "ADMIN"],
+  ["platform.timeline", "ADMIN"],
+  ["platform.alerts", "ADMIN"],
+  ["platform.executive", "ADMIN"],
+  // P0-6 — previously-unregistered admin console pages.
+  ["platform.dashboard", "ADMIN"],
+  ["platform.demo_requests", "ADMIN"],
+  ["platform.audit", "ADMIN"],
+  ["platform.contact_sales", "ADMIN"],
   ["account.org-invite-accept", "ADMIN"],
   // Phase 8 — Organization Admin shell (tabbed surface at
   // /organizations/:id/admin). Org-admin tabs are administrative

@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
+import PublicPageView from "../../../components/analytics/PublicPageView";
 import { LegalHero } from "../../../components/legal/LegalHero";
 import { MARKETING_BTN } from "../../../lib/marketing-buttons";
 import {
@@ -36,6 +37,9 @@ export default async function LegalPage({
 
   return (
     <div className="page legal-center-page" style={{ background: "#F6F9FC" }}>
+      {/* Legal pages don't use MarketingHeader, so mount the public
+          page-view beacon directly (consent-gated inside trackEvent). */}
+      <PublicPageView />
       <LegalHero
         label={hero.label}
         title={hero.title}

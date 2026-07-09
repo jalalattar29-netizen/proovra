@@ -17,12 +17,15 @@ import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Card,
-  Button,
+  PageShell,
+  PageHeader,
   Skeleton,
   useToast,
 } from "../../../../../components/ui";
-import DashboardShell from "../../../../../components/dashboard/DashboardShell";
+import { Card } from "../../../../../components/ui/Card";
+import { Badge } from "../../../../../components/ui/Badge";
+import type { BadgeTone } from "../../../../../components/ui/Badge";
+import { Button } from "../../../../../components/ui/Button";
 import AdminConsoleNav from "../../../../../components/admin/AdminConsoleNav";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../lib/api";
@@ -81,48 +84,55 @@ function formatTimestamp(value?: string | null) {
   return Number.isNaN(d.getTime()) ? value : formatUserDateTime(value);
 }
 
-const STATUS_TONE: Record<Status, string> = {
-  NEW: "#1d4ed8",
-  REVIEWED: "#0e7490",
-  CONTACTED: "#7c3aed",
-  QUALIFIED: "#0f9b6c",
-  REJECTED: "#9c2626",
-  ARCHIVED: "#475569",
+const STATUS_TONE: Record<Status, BadgeTone> = {
+  NEW: "info",
+  REVIEWED: "info",
+  CONTACTED: "governance",
+  QUALIFIED: "verified",
+  REJECTED: "risk",
+  ARCHIVED: "neutral",
 };
 
-const PRIORITY_TONE: Record<Priority, string> = {
-  LOW: "#475569",
-  NORMAL: "#1d4ed8",
-  HIGH: "#9d174d",
+const STATUS_LABEL: Record<Status, string> = {
+  NEW: "New",
+  REVIEWED: "Reviewed",
+  CONTACTED: "Contacted",
+  QUALIFIED: "Qualified",
+  REJECTED: "Rejected",
+  ARCHIVED: "Archived",
+};
+
+const PRIORITY_TONE: Record<Priority, BadgeTone> = {
+  LOW: "neutral",
+  NORMAL: "info",
+  HIGH: "risk",
 };
 
 function StatusPill({ value }: { value: Status }) {
   return (
-    <span
-      className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em]"
-      style={{
-        borderColor: `${STATUS_TONE[value]}33`,
-        background: `${STATUS_TONE[value]}10`,
-        color: STATUS_TONE[value],
-      }}
-    >
-      {value}
-    </span>
+    <Badge tone={STATUS_TONE[value]} dot>
+      {STATUS_LABEL[value]}
+    </Badge>
   );
 }
 
 function PriorityPill({ value }: { value: Priority }) {
+  return <Badge tone={PRIORITY_TONE[value]} subtle>{value}</Badge>;
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span
-      className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em]"
+    <div
       style={{
-        borderColor: `${PRIORITY_TONE[value]}33`,
-        background: `${PRIORITY_TONE[value]}10`,
-        color: PRIORITY_TONE[value],
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: "0.16em",
+        textTransform: "uppercase",
+        color: "var(--ink-muted, #64748b)",
       }}
     >
-      {value}
-    </span>
+      {children}
+    </div>
   );
 }
 
@@ -135,10 +145,8 @@ function Field({
 }) {
   return (
     <div>
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-        {label}
-      </div>
-      <div className="mt-1 text-[#0F172A]">
+      <FieldLabel>{label}</FieldLabel>
+      <div style={{ marginTop: 4, color: "var(--ink-primary, #0f172a)" }}>
         {value && String(value).trim() ? value : "—"}
       </div>
     </div>
@@ -235,139 +243,227 @@ export default function AdminContactSalesDetailPage({
 
   return (
     <PageRouteGate routeId="admin.contactSales">
-    <DashboardShell
-      eyebrow="Contact Sales"
-      title="Inquiry detail"
-      description={
-        <>
-          One-record view of a contact-sales inquiry submitted via the public
-          form. Status updates flow through the same admin API as the list
-          view.
-        </>
-      }
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <PageShell
+        width="full"
+        header={
+          <PageHeader
+            eyebrow="Platform admin"
+            title="Contact Sales inquiry"
+            subtitle="One-record view of a contact-sales inquiry submitted via the public form. Status updates flow through the same admin API as the list view."
+            secondaryActions={
+              <Link href="/admin/contact-sales" style={{ textDecoration: "none" }}>
+                <Button variant="ghost" size="sm">
+                  ← Back to list
+                </Button>
+              </Link>
+            }
+          />
+        }
+      >
         <AdminConsoleNav />
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            href="/admin/contact-sales"
-            className="inline-flex items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-4 py-2 text-[13px] font-semibold text-[#0F172A] transition hover:bg-[#F8FAFC]"
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            gap: 8,
+          }}
+        >
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              borderRadius: 999,
+              border: "1px solid var(--border-default, #e2e8f0)",
+              background: "var(--surface-card, #ffffff)",
+              padding: "6px 12px",
+              fontSize: 12,
+              color: "var(--ink-secondary, #475569)",
+            }}
           >
-            <span aria-hidden>←</span> Back to list
-          </Link>
-
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-3 py-1.5 text-[12px] text-[#475569]">
-            <span className="font-semibold uppercase tracking-[0.14em] text-[#64748B]">
+            <span
+              style={{
+                fontWeight: 600,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "var(--ink-muted, #64748b)",
+              }}
+            >
               Record ID
             </span>
-            <code className="font-mono text-[12px] text-[#0F172A]">{id}</code>
-            <button
-              type="button"
+            <code
+              style={{
+                fontFamily:
+                  "ui-monospace, SFMono-Regular, Menlo, monospace",
+                fontSize: 12,
+                color: "var(--ink-primary, #0f172a)",
+              }}
+            >
+              {id}
+            </code>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => void copyId()}
-              className="rounded-md border border-[#E2E8F0] px-2 py-0.5 text-[11px] font-semibold text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
               aria-label="Copy record ID"
             >
               {copied ? "Copied" : "Copy"}
-            </button>
+            </Button>
           </div>
         </div>
 
         {state.kind === "loading" && (
-          <Card className="p-6">
+          <Card>
             <Skeleton height="20px" />
-            <div className="mt-3">
+            <div style={{ marginTop: 12 }}>
               <Skeleton height="14px" />
             </div>
-            <div className="mt-3">
+            <div style={{ marginTop: 12 }}>
               <Skeleton height="14px" />
             </div>
           </Card>
         )}
 
         {state.kind === "notFound" && (
-          <Card className="p-8 text-center">
-            <div className="text-[15px] font-semibold text-[#0F172A]">
-              Record not found
-            </div>
-            <p className="mt-2 text-[13.5px] text-[#475569]">
-              The contact-sales inquiry you’re looking for has been removed or
-              the link is incorrect. Use the list page to find the current
-              record.
-            </p>
-            <div className="mt-4">
-              <Link
-                href="/admin/contact-sales"
-                className="inline-flex items-center gap-2 rounded-full bg-[#0F172A] px-5 py-2 text-[13px] font-semibold text-white"
+          <Card variant="empty">
+            <div style={{ textAlign: "center", padding: "24px 8px" }}>
+              <div
+                style={{
+                  fontSize: 15,
+                  fontWeight: 650,
+                  color: "var(--ink-primary, #0f172a)",
+                }}
               >
-                Open list
-              </Link>
+                Record not found
+              </div>
+              <p
+                style={{
+                  marginTop: 8,
+                  fontSize: 13.5,
+                  color: "var(--ink-secondary, #475569)",
+                }}
+              >
+                The contact-sales inquiry you’re looking for has been removed or
+                the link is incorrect. Use the list page to find the current
+                record.
+              </p>
+              <div style={{ marginTop: 16 }}>
+                <Link href="/admin/contact-sales" style={{ textDecoration: "none" }}>
+                  <Button variant="primary" size="sm">
+                    Open list
+                  </Button>
+                </Link>
+              </div>
             </div>
           </Card>
         )}
 
         {state.kind === "forbidden" && (
-          <Card className="p-8 text-center">
-            <div className="text-[15px] font-semibold text-[#0F172A]">
-              Admin access required
+          <Card variant="empty">
+            <div style={{ textAlign: "center", padding: "24px 8px" }}>
+              <div
+                style={{
+                  fontSize: 15,
+                  fontWeight: 650,
+                  color: "var(--ink-primary, #0f172a)",
+                }}
+              >
+                Admin access required
+              </div>
+              <p
+                style={{
+                  marginTop: 8,
+                  fontSize: 13.5,
+                  color: "var(--ink-secondary, #475569)",
+                }}
+              >
+                You don’t have permission to view this record. Contact your
+                workspace administrator if you believe this is in error.
+              </p>
             </div>
-            <p className="mt-2 text-[13.5px] text-[#475569]">
-              You don’t have permission to view this record. Contact your
-              workspace administrator if you believe this is in error.
-            </p>
           </Card>
         )}
 
         {state.kind === "error" && (
-          <Card className="p-8 text-center">
-            <div className="text-[15px] font-semibold text-[#0F172A]">
-              Couldn’t load this record
-            </div>
-            <p className="mt-2 text-[13.5px] text-[#475569]">
-              {state.message}
-            </p>
-            <div className="mt-4">
-              <Button variant="secondary" onClick={() => void load()}>
-                Retry
-              </Button>
+          <Card variant="empty">
+            <div style={{ textAlign: "center", padding: "24px 8px" }}>
+              <div
+                style={{
+                  fontSize: 15,
+                  fontWeight: 650,
+                  color: "var(--ink-primary, #0f172a)",
+                }}
+              >
+                Couldn’t load this record
+              </div>
+              <p
+                style={{
+                  marginTop: 8,
+                  fontSize: 13.5,
+                  color: "var(--ink-secondary, #475569)",
+                }}
+              >
+                {state.message}
+              </p>
+              <div style={{ marginTop: 16 }}>
+                <Button variant="secondary" size="sm" onClick={() => void load()}>
+                  Retry
+                </Button>
+              </div>
             </div>
           </Card>
         )}
 
         {state.kind === "ok" && (
-          <Card className="p-6">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-[1.15rem] font-semibold tracking-[-0.01em] text-[#0F172A]">
-                {state.details.fullName} · {state.details.organization}
-              </h2>
-              <div className="flex flex-wrap gap-2">
+          <Card
+            title={`${state.details.fullName} · ${state.details.organization}`}
+            headerAction={
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 <StatusPill value={state.details.status} />
                 <PriorityPill value={state.details.priority} />
-                {state.details.isSpam ? (
-                  <span className="inline-flex items-center rounded-full border border-[#FCA5A5] bg-[#FEF2F2] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9C1C1C]">
-                    Spam
-                  </span>
-                ) : null}
+                {state.details.isSpam ? <Badge tone="risk">Spam</Badge> : null}
               </div>
-            </div>
-
-            <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_320px]">
-              <div className="space-y-4 text-[14px] text-[#0F172A]">
+            }
+          >
+            <div
+              style={{
+                display: "grid",
+                gap: 24,
+                gridTemplateColumns: "minmax(0, 1fr) 320px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                  fontSize: 14,
+                  color: "var(--ink-primary, #0f172a)",
+                  minWidth: 0,
+                }}
+              >
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                    Email
-                  </div>
-                  <div className="mt-1">
+                  <FieldLabel>Email</FieldLabel>
+                  <div style={{ marginTop: 4 }}>
                     <a
                       href={`mailto:${state.details.workEmail}`}
-                      className="text-[#2563EB] hover:underline"
+                      style={{ color: "var(--accent-500, #6b5bff)" }}
                     >
                       {state.details.workEmail}
                     </a>
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 12,
+                    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                  }}
+                >
                   <Field label="Job title" value={state.details.jobTitle} />
                   <Field label="Country" value={state.details.country} />
                   <Field label="Workspace size" value={state.details.teamSize} />
@@ -385,27 +481,55 @@ export default function AdminContactSalesDetailPage({
                 </div>
 
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                    Current challenge
-                  </div>
-                  <p className="mt-2 whitespace-pre-wrap rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-[13.5px] leading-[1.6] text-[#0F172A]">
+                  <FieldLabel>Current challenge</FieldLabel>
+                  <p
+                    style={{
+                      marginTop: 8,
+                      whiteSpace: "pre-wrap",
+                      borderRadius: 10,
+                      border: "1px solid var(--border-default, #e2e8f0)",
+                      background: "var(--surface-muted, #f8fafc)",
+                      padding: 12,
+                      fontSize: 13.5,
+                      lineHeight: 1.6,
+                      color: "var(--ink-primary, #0f172a)",
+                    }}
+                  >
                     {state.details.currentChallenge}
                   </p>
                 </div>
 
                 {state.details.additionalDetails ? (
                   <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                      Additional details
-                    </div>
-                    <p className="mt-2 whitespace-pre-wrap rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-[13.5px] leading-[1.6] text-[#0F172A]">
+                    <FieldLabel>Additional details</FieldLabel>
+                    <p
+                      style={{
+                        marginTop: 8,
+                        whiteSpace: "pre-wrap",
+                        borderRadius: 10,
+                        border: "1px solid var(--border-default, #e2e8f0)",
+                        background: "var(--surface-muted, #f8fafc)",
+                        padding: 12,
+                        fontSize: 13.5,
+                        lineHeight: 1.6,
+                        color: "var(--ink-primary, #0f172a)",
+                      }}
+                    >
                       {state.details.additionalDetails}
                     </p>
                   </div>
                 ) : null}
               </div>
 
-              <aside className="space-y-3 text-[12.5px] text-[#475569]">
+              <aside
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                  fontSize: 12.5,
+                  color: "var(--ink-secondary, #475569)",
+                }}
+              >
                 <Field
                   label="Submitted"
                   value={formatTimestamp(state.details.createdAt)}
@@ -434,26 +558,27 @@ export default function AdminContactSalesDetailPage({
                   label="Reviewed"
                   value={formatTimestamp(state.details.reviewedAt)}
                 />
-                <Field
-                  label="UTM source"
-                  value={state.details.utmSource}
-                />
-                <Field
-                  label="UTM medium"
-                  value={state.details.utmMedium}
-                />
-                <Field
-                  label="UTM campaign"
-                  value={state.details.utmCampaign}
-                />
+                <Field label="UTM source" value={state.details.utmSource} />
+                <Field label="UTM medium" value={state.details.utmMedium} />
+                <Field label="UTM campaign" value={state.details.utmCampaign} />
                 <Field label="Referrer" value={state.details.referrer} />
                 <Field label="Source path" value={state.details.sourcePath} />
 
-                <div className="border-t border-[#E2E8F0] pt-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                    Set status
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
+                <div
+                  style={{
+                    borderTop: "1px solid var(--border-default, #e2e8f0)",
+                    paddingTop: 12,
+                  }}
+                >
+                  <FieldLabel>Set status</FieldLabel>
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 8,
+                    }}
+                  >
                     {(
                       [
                         "REVIEWED",
@@ -466,6 +591,7 @@ export default function AdminContactSalesDetailPage({
                       <Button
                         key={s}
                         variant="secondary"
+                        size="sm"
                         disabled={updating || state.details.status === s}
                         onClick={() => void patchStatus(s)}
                       >
@@ -478,8 +604,7 @@ export default function AdminContactSalesDetailPage({
             </div>
           </Card>
         )}
-      </div>
-    </DashboardShell>
+      </PageShell>
     </PageRouteGate>
   );
 }

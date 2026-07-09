@@ -71,6 +71,20 @@ import { organizationsGovernanceRoutes } from "./routes/organizations-governance
 import { organizationsBulkInviteRoutes } from "./routes/organizations-bulk-invite.routes.js";
 import { organizationsReportsRoutes } from "./routes/organizations-reports.routes.js";
 import { operationsReadinessRoutes } from "./routes/operations-readiness.routes.js";
+// Platform Admin Control Center — read-only admin aggregation APIs.
+import { adminOverviewRoutes } from "./routes/admin-overview.routes.js";
+import { adminPlatformHealthRoutes } from "./routes/admin-platform-health.routes.js";
+import { adminCostsRoutes } from "./routes/admin-costs.routes.js";
+import { adminAdoptionRoutes } from "./routes/admin-adoption.routes.js";
+import { adminSearchRoutes } from "./routes/admin-search.routes.js";
+import { adminTimelineRoutes } from "./routes/admin-timeline.routes.js";
+import { adminAlertsRoutes } from "./routes/admin-alerts.routes.js";
+import { adminExecutiveRoutes } from "./routes/admin-executive.routes.js";
+import { adminOrganizationsRoutes } from "./routes/admin-organizations.routes.js";
+import { adminUsersRoutes } from "./routes/admin-users.routes.js";
+import { adminEvidenceOpsRoutes } from "./routes/admin-evidence-ops.routes.js";
+import { adminSecurityRoutes } from "./routes/admin-security.routes.js";
+import { adminBillingRoutes } from "./routes/admin-billing.routes.js";
 // Phase 3 — Enterprise Identity: DNS-verified organization domain ownership.
 import { organizationDomainsRoutes } from "./routes/organization-domains.routes.js";
 // Phase A.1C — Account-level operational priorities (above-workspace surface).
@@ -958,6 +972,20 @@ allowedHeaders: [
   await app.register(organizationsBulkInviteRoutes);
   await app.register(organizationsReportsRoutes);
   await app.register(operationsReadinessRoutes);
+  // Platform Admin Control Center — read-only admin aggregation APIs.
+  await app.register(adminOverviewRoutes);
+  await app.register(adminPlatformHealthRoutes);
+  await app.register(adminCostsRoutes);
+  await app.register(adminAdoptionRoutes);
+  await app.register(adminSearchRoutes);
+  await app.register(adminTimelineRoutes);
+  await app.register(adminAlertsRoutes);
+  await app.register(adminExecutiveRoutes);
+  await app.register(adminOrganizationsRoutes);
+  await app.register(adminUsersRoutes);
+  await app.register(adminEvidenceOpsRoutes);
+  await app.register(adminSecurityRoutes);
+  await app.register(adminBillingRoutes);
   // Phase 3 — Enterprise Identity: organization domain verification write
   // surfaces (add / verify / list / remove). Enterprise-gated + step-up.
   await app.register(organizationDomainsRoutes);

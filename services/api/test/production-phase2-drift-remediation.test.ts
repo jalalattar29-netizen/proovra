@@ -1043,7 +1043,19 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // organizations-bulk-invite, organizations-reports, operations-readiness
 // (96 → 99). Each is argued for in the Phase 8 brief (bulk invite + CSV,
 // enterprise report exports, platform readiness posture).
-const ROUTE_COUNT_PHASE_2_BASELINE = 99;
+// Platform Admin Control Center (P0/P1) added 5 read-only admin aggregation
+// route files: admin-organizations, admin-users, admin-evidence-ops,
+// admin-security, admin-billing (99 → 104). Each is a PLATFORM_ADMIN-gated,
+// read-only cross-tenant roster/health surface argued for in the control-
+// center brief (customers/orgs, users/identity, evidence pipeline health,
+// security & incidents, billing detail). No tenant/evidence mutation.
+// Platform Admin Control Center (Final Completion) added 8 more read-only
+// admin route files: admin-overview, admin-platform-health, admin-costs,
+// admin-adoption, admin-search, admin-timeline, admin-alerts, admin-executive
+// (104 → 112). Each is a PLATFORM_ADMIN-gated read-only aggregation surface
+// argued for in the control-center brief (overview, platform health, costs,
+// adoption, global search, timeline, alerts, executive). No mutation.
+const ROUTE_COUNT_PHASE_2_BASELINE = 112;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {
