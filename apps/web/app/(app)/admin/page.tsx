@@ -4,9 +4,12 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Card, Button, Skeleton, useToast } from "../../../components/ui";
+import { Skeleton, useToast } from "../../../components/ui";
+import { PageShell, PageHeader, PageSection } from "../../../components/ui";
+import { Card } from "../../../components/ui/Card";
+import { Button } from "../../../components/ui/Button";
+import { Badge, type BadgeTone } from "../../../components/ui/Badge";
 import { apiFetch } from "../../../lib/api";
-import { dashboardStyles } from "../../../components/dashboard/styles";
 import { ADMIN_NAV_ITEMS } from "../../../components/admin/admin-nav-config";
 // Phase Final-PageGate-Closure — `/admin/*` gate lives in
 // `apps/web/app/(app)/admin/layout.tsx` so EVERY admin page (root +
@@ -133,42 +136,6 @@ function formatMoneyCents(cents: number) {
   }).format((cents || 0) / 100);
 }
 
-function pillTone(kind: "green" | "gold" | "red" | "neutral") {
-  if (kind === "green") {
-    return {
-      border: "1px solid rgba(79,112,107,0.16)",
-      background:
-        "linear-gradient(180deg, rgba(191,232,223,0.18) 0%, rgba(255,255,255,0.44) 100%)",
-      color: "#2d5b59",
-    } as const;
-  }
-
-  if (kind === "gold") {
-    return {
-      border: "1px solid rgba(183,157,132,0.20)",
-      background:
-        "linear-gradient(180deg, rgba(214,184,157,0.14) 0%, rgba(255,255,255,0.44) 100%)",
-      color: "#8a6e57",
-    } as const;
-  }
-
-  if (kind === "red") {
-    return {
-      border: "1px solid rgba(194,78,78,0.20)",
-      background:
-        "linear-gradient(180deg, rgba(164,84,84,0.14) 0%, rgba(255,255,255,0.44) 100%)",
-      color: "#965757",
-    } as const;
-  }
-
-  return {
-    border: "1px solid rgba(79,112,107,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
-    color: "#54676b",
-  } as const;
-}
-
 export default function AdminPage() {
   const pathname = usePathname();
   const { addToast } = useToast();
@@ -206,15 +173,14 @@ export default function AdminPage() {
           summary != null
             ? `${summary.totalUsers} users, ${summary.totalEvidence} evidence items, ${summary.reportsGenerated} reports, and ${summary.billing.activeSubscriptions} active subscriptions visible from one analytics surface.`
             : "Global analytics, funnel visibility, geography, top routes, billing health, and recent platform activity.",
-        accent: "#2d5b59",
         eyebrow: "Analytics",
         meta: summary
           ? [
-              { label: "Users", value: summary.totalUsers, tone: "green" as const },
+              { label: "Users", value: summary.totalUsers, tone: "verified" as BadgeTone },
               {
                 label: "Revenue",
                 value: formatMoneyCents(summary.billing.grossRevenueCents),
-                tone: "gold" as const,
+                tone: "governance" as BadgeTone,
               },
             ]
           : [],
@@ -226,19 +192,18 @@ export default function AdminPage() {
           summary != null
             ? `${summary.workspaceHealth.storageLimitReachedTeams} storage-critical teams, ${summary.workspaceHealth.seatLimitReachedTeams} seat-critical teams, and privileged action review from the tamper-evident audit chain.`
             : "Tamper-evident administrative audit log, integrity verification, and privileged action review.",
-        accent: "#8a6e57",
         eyebrow: "Integrity",
         meta: summary
           ? [
               {
                 label: "Storage Risk",
                 value: summary.workspaceHealth.storageLimitReachedTeams,
-                tone: "red" as const,
+                tone: "risk" as BadgeTone,
               },
               {
                 label: "Seat Risk",
                 value: summary.workspaceHealth.seatLimitReachedTeams,
-                tone: "gold" as const,
+                tone: "pending" as BadgeTone,
               },
             ]
           : [],
@@ -250,19 +215,18 @@ export default function AdminPage() {
           summary != null
             ? `${summary.teams.total} workspaces, ${summary.teams.active} active billed workspaces, and a controlled path for reviewing inbound commercial demand alongside platform growth.`
             : "Review inbound demo requests, inspect source context, assess spam signals, and move qualified leads through the internal pipeline.",
-        accent: "#2f6965",
         eyebrow: "Pipeline",
         meta: summary
           ? [
               {
                 label: "Teams",
                 value: summary.teams.total,
-                tone: "neutral" as const,
+                tone: "neutral" as BadgeTone,
               },
               {
                 label: "Past Due",
                 value: summary.teams.pastDue,
-                tone: "red" as const,
+                tone: "risk" as BadgeTone,
               },
             ]
           : [],
@@ -287,175 +251,104 @@ export default function AdminPage() {
     };
   }, [bundle, cards.length]);
 
+  const metrics = useMemo(
+    () => [
+      {
+        key: "modules",
+        label: "Modules",
+        value: headlineStats.modules,
+        copy: "Analytics, audit integrity, and demo request operations available from here.",
+      },
+      {
+        key: "routes",
+        label: "Admin Routes",
+        value: headlineStats.routes,
+        copy: "Console home, platform analytics, audit integrity, demo requests, and identity governance.",
+      },
+      {
+        key: "users",
+        label: "Platform Users",
+        value: headlineStats.totalUsers,
+        copy: "Registered and guest identities visible in the admin analytics summary.",
+      },
+      {
+        key: "evidence",
+        label: "Evidence Items",
+        value: headlineStats.totalEvidence,
+        copy: "Stored evidence volume across the platform, excluding deleted records.",
+      },
+    ],
+    [headlineStats],
+  );
+
   return (
     <div className="admin-console-page">
       <style jsx global>{`
-        .admin-console-page .admin-shell {
-          display: grid;
-          gap: 18px;
-          padding-bottom: 72px;
-        }
-
         .admin-console-page .admin-nav-row {
           display: flex;
           gap: 10px;
           flex-wrap: wrap;
         }
 
-        .admin-console-page .admin-summary-grid {
+        .admin-console-page .admin-metric-grid {
           display: grid;
-          grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-          gap: 18px;
-          align-items: stretch;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 16px;
         }
 
         .admin-console-page .admin-cards-grid {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 18px;
         }
 
-        .admin-console-page .admin-card {
-          position: relative;
-          overflow: hidden;
-          border-radius: 30px;
-          border: 1px solid rgba(79, 112, 107, 0.16);
-          background: transparent;
-          box-shadow:
-            0 18px 38px rgba(0, 0, 0, 0.08),
-            inset 0 1px 0 rgba(255, 255, 255, 0.48);
-        }
-
-        .admin-console-page .admin-card-overlay {
-          position: absolute;
-          inset: 0;
-          background:
-            linear-gradient(
-              180deg,
-              rgba(255, 255, 255, 0.24) 0%,
-              rgba(248, 249, 246, 0.34) 42%,
-              rgba(239, 241, 238, 0.42) 100%
-            );
-        }
-
-        .admin-console-page .admin-card-shine {
-          position: absolute;
-          inset: 0;
-          background: radial-gradient(
-            circle at 16% 12%,
-            rgba(255, 255, 255, 0.34),
-            transparent 28%
-          );
-          opacity: 0.9;
-        }
-
-        .admin-console-page .admin-card-inner {
-          position: relative;
-          z-index: 10;
-          padding: 24px;
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-          min-width: 0;
-        }
-
-        .admin-console-page .admin-card-title {
-          font-size: 1.08rem;
-          font-weight: 700;
-          letter-spacing: -0.02em;
-          color: #21353a;
-          overflow-wrap: anywhere;
-          word-break: break-word;
-        }
-
-        .admin-console-page .admin-card-copy {
-          margin-top: 8px;
-          color: #5d6d71;
-          line-height: 1.7;
-          font-size: 0.94rem;
-          overflow-wrap: anywhere;
-          word-break: break-word;
-        }
-
-        .admin-console-page .admin-card-eyebrow {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          min-height: 30px;
-          padding: 6px 12px;
-          border-radius: 999px;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          border: 1px solid rgba(183, 157, 132, 0.16);
-          background:
-            linear-gradient(
-              180deg,
-              rgba(214, 184, 157, 0.12) 0%,
-              rgba(255, 255, 255, 0.44) 100%
-            );
-          color: #8a6e57;
-          width: fit-content;
-          max-width: 100%;
-        }
-
-        .admin-console-page .admin-dot {
-          width: 7px;
-          height: 7px;
-          border-radius: 999px;
-          background: #b79d84;
-          flex-shrink: 0;
-        }
-
-        .admin-console-page .admin-hero-note {
-          border: 1px solid rgba(183, 157, 132, 0.14);
-          background: linear-gradient(
-            135deg,
-            rgba(214, 184, 157, 0.1),
-            rgba(255, 255, 255, 0.36)
-          );
-          border-radius: 22px;
-          padding: 18px;
-          min-width: 0;
-        }
-
-        .admin-console-page .admin-hero-note-title {
-          font-size: 0.82rem;
-          font-weight: 800;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: #7b6a5d;
-        }
-
-        .admin-console-page .admin-hero-note-value {
-          margin-top: 10px;
-          font-size: 1.9rem;
+        .admin-console-page .admin-metric-value {
+          font-size: 2rem;
           line-height: 1;
           font-weight: 800;
-          letter-spacing: -0.05em;
-          color: #8a6e57;
+          letter-spacing: -0.03em;
+          color: var(--ink-primary, #0f172a);
           overflow-wrap: anywhere;
           word-break: break-word;
         }
 
-        .admin-console-page .admin-hero-note-copy {
+        .admin-console-page .admin-metric-label {
+          font-size: 0.72rem;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: var(--ink-muted, #64748b);
+        }
+
+        .admin-console-page .admin-metric-copy {
           margin-top: 10px;
-          font-size: 0.85rem;
+          font-size: 0.82rem;
+          line-height: 1.55;
+          color: var(--ink-secondary, #475569);
+        }
+
+        .admin-console-page .admin-module-title {
+          font-size: 1.06rem;
+          font-weight: 700;
+          letter-spacing: -0.01em;
+          color: var(--ink-primary, #0f172a);
+        }
+
+        .admin-console-page .admin-module-copy {
+          margin-top: 8px;
+          color: var(--ink-secondary, #475569);
           line-height: 1.65;
-          color: #6f665d;
-          overflow-wrap: anywhere;
-          word-break: break-word;
+          font-size: 0.9rem;
         }
 
-        .admin-console-page .admin-note-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-          margin-top: 18px;
+        .admin-console-page .admin-module-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 16px;
         }
 
-        .admin-console-page .admin-card-actions {
+        .admin-console-page .admin-module-actions {
           display: flex;
           gap: 10px;
           flex-wrap: wrap;
@@ -463,41 +356,23 @@ export default function AdminPage() {
           padding-top: 18px;
         }
 
-        .admin-console-page .admin-card-link {
+        .admin-console-page .admin-link {
           text-decoration: none;
         }
 
-        .admin-console-page .admin-card-meta-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-          margin-top: 18px;
-        }
+        @media (max-width: 1080px) {
+          .admin-console-page .admin-metric-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
 
-        .admin-console-page .admin-card-meta-pill {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 34px;
-          padding: 8px 14px;
-          border-radius: 999px;
-          font-size: 0.82rem;
-          font-weight: 800;
-          letter-spacing: 0.06em;
-          text-transform: uppercase;
-          text-align: center;
-        }
-
-        @media (max-width: 980px) {
-          .admin-console-page .admin-summary-grid,
           .admin-console-page .admin-cards-grid {
             grid-template-columns: 1fr;
           }
         }
 
-        @media (max-width: 720px) {
-          .admin-console-page .admin-card-inner {
-            padding: 20px;
+        @media (max-width: 640px) {
+          .admin-console-page .admin-metric-grid {
+            grid-template-columns: 1fr;
           }
 
           .admin-console-page .admin-nav-row {
@@ -506,312 +381,121 @@ export default function AdminPage() {
             gap: 10px;
           }
 
-          .admin-console-page .admin-nav-row a,
-          .admin-console-page .admin-nav-row a > * {
-            width: 100%;
-          }
-
-          .admin-console-page .admin-card-actions {
+          .admin-console-page .admin-module-actions {
             flex-direction: column;
             align-items: stretch;
           }
 
-          .admin-console-page .admin-card-actions a,
-          .admin-console-page .admin-card-actions a > * {
+          .admin-console-page .admin-module-actions a,
+          .admin-console-page .admin-module-actions a > * {
             width: 100%;
-          }
-
-          .admin-console-page .admin-card-meta-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        @media (max-width: 640px) {
-          .admin-console-page .admin-note-grid {
-            grid-template-columns: 1fr;
           }
         }
       `}</style>
 
-      <div className="app-hero app-hero-full">
-        <div className="container">
-          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
-            <div style={{ maxWidth: 860 }}>
-              <div style={dashboardStyles.heroChip}>
-                <span style={dashboardStyles.heroDot} />
-                Admin Console
-              </div>
+      <PageShell
+        header={
+          <PageHeader
+            eyebrow="Platform admin"
+            title="Admin Console"
+            subtitle="Platform-wide analytics, billing posture, audit integrity, and commercial operations from one controlled surface."
+            primaryAction={
+              <Link href="/admin/provisioning" className="admin-link">
+                <Button variant="primary" data-testid="admin-provision-cta">
+                  Provision Enterprise Customer
+                </Button>
+              </Link>
+            }
+          />
+        }
+      >
+        <nav className="admin-nav-row" aria-label="Admin sections">
+          {ADMIN_NAV_ITEMS.map((item) => {
+            const active = pathname === item.href;
 
-              <h1 className="mt-5 max-w-[820px] text-[1.72rem] font-medium leading-[1.01] tracking-[-0.045em] text-[#edf1ef] md:text-[2.28rem] lg:text-[2.95rem]">
-                Global operations, audit, and
-                <span className="text-[#bfe8df]"> platform visibility</span>.
-              </h1>
+            return (
+              <Link key={item.href} href={item.href} className="admin-link">
+                <Button variant={active ? "secondary" : "ghost"} size="sm">
+                  {item.label}
+                </Button>
+              </Link>
+            );
+          })}
+        </nav>
 
-              <p className="mt-5 max-w-[780px] text-[0.98rem] leading-[1.82] text-[#c7cfcc]">
-                Use the admin console to review platform-wide analytics, billing posture,
-                audit integrity, route activity, and operational oversight from one
-                controlled surface.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="app-body app-body-full">
-        <div className="container admin-shell">
-          <div className="admin-nav-row">
-            {ADMIN_NAV_ITEMS.map((item) => {
-              const active = pathname === item.href;
-
-              return (
-                <Link key={item.href} href={item.href} className="admin-card-link">
-                  <Button
-                    className="app-responsive-btn rounded-[999px] border px-5 py-2.5 text-[0.88rem] font-semibold"
-                    style={
-                      active
-                        ? dashboardStyles.primaryButton
-                        : dashboardStyles.secondaryButton
-                    }
-                  >
-                    {item.label}
-                  </Button>
-                </Link>
-              );
-            })}
-          </div>
-
+        <PageSection
+          title="Platform at a glance"
+          description="Live totals sourced from the admin analytics summary."
+        >
           {loading ? (
-            <div className="admin-summary-grid">
-              <Card className="admin-card" style={dashboardStyles.outerCard}>
-                <div className="admin-card-inner">
-                  <Skeleton width="100%" height="250px" />
-                </div>
-              </Card>
-              <Card className="admin-card" style={dashboardStyles.outerCard}>
-                <div className="admin-card-inner">
-                  <Skeleton width="100%" height="250px" />
-                </div>
-              </Card>
+            <div className="admin-metric-grid">
+              {metrics.map((metric) => (
+                <Card key={metric.key} variant="summary">
+                  <Skeleton width="100%" height="120px" />
+                </Card>
+              ))}
             </div>
           ) : (
-            <div className="admin-summary-grid">
-              <Card className="admin-card" style={dashboardStyles.outerCard}>
-                <div className="absolute inset-0">
-                  <img
-                    src="/images/panel-silver.webp.png"
-                    alt=""
-                    className="h-full w-full object-cover object-center"
-                  />
-                </div>
-                <div className="admin-card-overlay" />
-                <div className="admin-card-shine" />
-
-                <div className="admin-card-inner">
-                  <div className="admin-card-title">Admin entry point</div>
-                  <div className="admin-card-copy">
-                    Move between analytics, audit oversight, and commercial admin
-                    workflows from one clean control surface with live platform totals.
+            <div className="admin-metric-grid">
+              {metrics.map((metric) => (
+                <Card key={metric.key} variant="summary">
+                  <div className="admin-metric-label">{metric.label}</div>
+                  <div className="admin-metric-value" style={{ marginTop: 10 }}>
+                    {metric.value}
                   </div>
-
-                  <div className="admin-note-grid">
-                    <div className="admin-hero-note">
-                      <div className="admin-hero-note-title">Modules</div>
-                      <div className="admin-hero-note-value">
-                        {headlineStats.modules}
-                      </div>
-                      <div className="admin-hero-note-copy">
-                        Analytics, audit integrity, and demo request operations are
-                        available from here.
-                      </div>
-                    </div>
-
-                    <div className="admin-hero-note">
-                      <div className="admin-hero-note-title">Admin Routes</div>
-                      <div className="admin-hero-note-value">
-                        {headlineStats.routes}
-                      </div>
-                      <div className="admin-hero-note-copy">
-                        Navigate quickly across console home, platform analytics, audit
-                        integrity, demo requests, and identity governance.
-                      </div>
-                    </div>
-
-                    <div className="admin-hero-note">
-                      <div className="admin-hero-note-title">Platform Users</div>
-                      <div className="admin-hero-note-value">
-                        {headlineStats.totalUsers}
-                      </div>
-                      <div className="admin-hero-note-copy">
-                        Registered and guest identities currently visible in the admin
-                        analytics summary.
-                      </div>
-                    </div>
-
-                    <div className="admin-hero-note">
-                      <div className="admin-hero-note-title">Evidence Items</div>
-                      <div className="admin-hero-note-value">
-                        {headlineStats.totalEvidence}
-                      </div>
-                      <div className="admin-hero-note-copy">
-                        Stored evidence volume across the platform, excluding deleted
-                        records.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="admin-card" style={dashboardStyles.outerCard}>
-                <div className="absolute inset-0">
-                  <img
-                    src="/images/panel-silver.webp.png"
-                    alt=""
-                    className="h-full w-full object-cover object-center"
-                  />
-                </div>
-                <div className="admin-card-overlay" />
-                <div className="admin-card-shine" />
-
-                <div className="admin-card-inner">
-                  <div className="admin-card-title">Operational overview</div>
-                  <div className="admin-card-copy">
-                    Choose the surface that matches your task: analytics for
-                    platform-level visibility, audit for integrity review, or pipeline
-                    tools for commercial follow-up.
-                  </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: 12,
-                      marginTop: 18,
-                    }}
-                  >
-                    <div
-                      style={{
-                        border: "1px solid rgba(79,112,107,0.10)",
-                        background:
-                          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-                        borderRadius: 20,
-                        padding: 16,
-                        boxShadow:
-                          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
-                      }}
-                    >
-                      <div className="admin-card-eyebrow">
-                        <span className="admin-dot" />
-                        Analytics
-                      </div>
-                      <div
-                        style={{
-                          marginTop: 10,
-                          fontSize: 13,
-                          lineHeight: 1.7,
-                          color: "#67777c",
-                        }}
-                      >
-                        {bundle?.summary
-                          ? `${headlineStats.activeSubscriptions} active subscriptions, ${headlineStats.activeTeams} active teams, and live platform activity are available inside the analytics dashboard.`
-                          : "Review funnel performance, geography, top routes, and platform activity."}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        border: "1px solid rgba(79,112,107,0.10)",
-                        background:
-                          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-                        borderRadius: 20,
-                        padding: 16,
-                        boxShadow:
-                          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
-                      }}
-                    >
-                      <div className="admin-card-eyebrow">
-                        <span className="admin-dot" />
-                        Integrity
-                      </div>
-                      <div
-                        style={{
-                          marginTop: 10,
-                          fontSize: 13,
-                          lineHeight: 1.7,
-                          color: "#67777c",
-                        }}
-                      >
-                        {bundle?.summary
-                          ? `${headlineStats.storageRisk} storage-risk teams and ${headlineStats.overSeatLimit} over-seat-limit teams need the most urgent administrative attention.`
-                          : "Inspect tamper-evident audit entries and verify the current chain status."}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Card>
+                  <div className="admin-metric-copy">{metric.copy}</div>
+                </Card>
+              ))}
             </div>
           )}
+        </PageSection>
 
+        <PageSection
+          title="Admin modules"
+          description="Choose the surface that matches your task."
+        >
           <div className="admin-cards-grid">
             {cards.map((card) => (
               <Card
                 key={card.href}
-                className="admin-card"
-                style={dashboardStyles.outerCard}
+                variant="action"
+                style={{ height: "100%" }}
               >
-                <div className="absolute inset-0">
-                  <img
-                    src="/images/panel-silver.webp.png"
-                    alt=""
-                    className="h-full w-full object-cover object-center"
-                  />
-                </div>
-                <div className="admin-card-overlay" />
-                <div className="admin-card-shine" />
-
-                <div className="admin-card-inner">
-                  <div className="admin-card-eyebrow">
-                    <span className="admin-dot" />
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    height: "100%",
+                  }}
+                >
+                  <Badge tone="governance" subtle dot>
                     {card.eyebrow}
-                  </div>
+                  </Badge>
 
-                  <div
-                    className="admin-card-title"
-                    style={{ marginTop: 16, color: card.accent }}
-                  >
+                  <div className="admin-module-title" style={{ marginTop: 14 }}>
                     {card.title}
                   </div>
 
-                  <p className="admin-card-copy">{card.body}</p>
+                  <p className="admin-module-copy">{card.body}</p>
 
                   {card.meta.length > 0 ? (
-                    <div className="admin-card-meta-grid">
+                    <div className="admin-module-meta">
                       {card.meta.map((item) => (
-                        <div
+                        <Badge
                           key={`${card.href}-${item.label}`}
-                          className="admin-card-meta-pill"
-                          style={pillTone(item.tone)}
+                          tone={item.tone}
+                          subtle
                         >
                           {item.label}: {item.value}
-                        </div>
+                        </Badge>
                       ))}
                     </div>
                   ) : null}
 
-                  <div className="admin-card-actions">
-                    <Link href={card.href} className="admin-card-link">
-                      <Button
-                        className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={dashboardStyles.primaryButton}
-                      >
+                  <div className="admin-module-actions">
+                    <Link href={card.href} className="admin-link">
+                      <Button variant="secondary" size="sm">
                         Open
-                      </Button>
-                    </Link>
-
-                    <Link href={card.href} className="admin-card-link">
-                      <Button
-                        className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={dashboardStyles.secondaryButton}
-                      >
-                        Review
                       </Button>
                     </Link>
                   </div>
@@ -819,8 +503,8 @@ export default function AdminPage() {
               </Card>
             ))}
           </div>
-        </div>
-      </div>
+        </PageSection>
+      </PageShell>
     </div>
   );
 }

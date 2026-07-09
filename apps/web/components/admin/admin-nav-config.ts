@@ -23,7 +23,14 @@ export type AdminNavItem = {
 export const ADMIN_NAV_ITEMS: ReadonlyArray<AdminNavItem> = [
   { href: "/admin", label: "Console Home" },
   { href: "/admin/dashboard", label: "Platform Analytics" },
-  { href: "/admin/audit", label: "Audit Integrity" },
+  // Enterprise provisioning was reachable only by direct URL — surface it.
+  { href: "/admin/provisioning", label: "Enterprise Provisioning" },
   { href: "/admin/demo-requests", label: "Demo Requests" },
+  { href: "/admin/audit", label: "Audit Integrity" },
   { href: "/admin/identity", label: "Identity Governance" },
+  // Platform operations surfaces (platform-admin only, reachable from the
+  // admin console so no internal route requires guessing a URL).
+  { href: "/operations/readiness", label: "Operations Readiness" },
+  { href: "/operations/observability", label: "Observability" },
+  { href: "/tools", label: "Tools" },
 ] as const;

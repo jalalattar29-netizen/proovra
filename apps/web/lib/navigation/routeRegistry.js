@@ -1140,8 +1140,8 @@ export const ROUTE_REGISTRY = [
         fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
         workflowTags: ["OPERATIONAL_ADMINISTRATION"],
         advancedByDefault: true,
-        commandPaletteVisible: false,
-        allToolsVisible: false,
+        commandPaletteVisible: true,
+        allToolsVisible: true,
         sidebarEligible: false,
     },
     // ---------------------------------------------------------------------------

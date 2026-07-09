@@ -46,19 +46,14 @@ import {
 } from "../../../../components/identity-security/StepUpModal";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
-import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
+import {
+  PageShell,
+  PageHeader,
+  PageSection,
+} from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
-import {
-  errorBoxStyle,
-  inputStyle,
-  mutedStyle,
-  monoStyle,
-  sectionTitleStyle,
-  subtitleStyle,
-  successBoxStyle,
-  TOKENS,
-} from "../identity/ui-tokens";
+import { Badge } from "../../../../components/ui/Badge";
 
 // ---------------------------------------------------------------------------
 // Response shapes (match services/api/src/services/enterprise-provisioning.service.ts)
@@ -139,18 +134,158 @@ function AdminProvisioningInner() {
       }
     >
       {!teamId ? (
-        <Card variant="admin" padding="comfortable">
+        <Card variant="summary" padding="comfortable">
           <p style={mutedStyle} data-testid="admin-provisioning-loading">
             Preparing your platform-admin context…
           </p>
         </Card>
       ) : (
         <>
-          <ProvisionPanel teamId={teamId} />
-          <GrantPlanPanel teamId={teamId} />
+          <PageSection
+            title="Provision new enterprise customer"
+            description="Stand up a brand-new organization and its enterprise workspace, or invite an owner who doesn't have an account yet."
+          >
+            <ProvisionPanel teamId={teamId} />
+          </PageSection>
+
+          <PageSection
+            title="Grant enterprise to an existing organization"
+            description="Apply the ENTERPRISE plan to every workspace in an organization that already exists."
+          >
+            <GrantPlanPanel teamId={teamId} />
+          </PageSection>
+
+          <PageSection
+            title="Recent provisioning events"
+            description="Every provision and plan grant is written to the platform audit log."
+          >
+            <RecentEventsCard />
+          </PageSection>
         </>
       )}
     </PageShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Premium local styles — the provisioning console's own presentation layer.
+// (No product logic; the identity ui-tokens were the older, denser look.)
+// ---------------------------------------------------------------------------
+
+const labelStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  fontSize: 13,
+  fontWeight: 600,
+  color: "var(--ink-primary, #0f172a)",
+} as const;
+
+const inputStyle = {
+  padding: "10px 12px",
+  border: "1px solid var(--border-default, rgba(15,23,42,0.14))",
+  borderRadius: 10,
+  fontSize: 14,
+  fontWeight: 400,
+  background: "var(--surface-card, #ffffff)",
+  color: "var(--ink-primary, #0f172a)",
+  width: "100%",
+  outline: "none",
+} as const;
+
+const mutedStyle = {
+  fontSize: 12.5,
+  lineHeight: 1.55,
+  color: "var(--ink-secondary, #475569)",
+} as const;
+
+const monoStyle = {
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+  fontSize: 12,
+  color: "var(--ink-primary, #0f172a)",
+} as const;
+
+const errorBoxStyle = {
+  marginTop: 14,
+  padding: "12px 14px",
+  background: "var(--status-risk-bg, #fef2f2)",
+  color: "var(--status-risk-fg, #991b1b)",
+  border: "1px solid var(--status-risk-border, #fecaca)",
+  borderRadius: 10,
+  fontSize: 13,
+  lineHeight: 1.5,
+} as const;
+
+const successBoxStyle = {
+  marginTop: 14,
+  padding: "12px 14px",
+  background: "var(--status-verified-bg, #ecfdf5)",
+  color: "var(--status-verified-fg, #065f46)",
+  border: "1px solid var(--status-verified-border, #a7f3d0)",
+  borderRadius: 10,
+  fontSize: 13,
+  lineHeight: 1.55,
+} as const;
+
+const fieldGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gap: 16,
+  maxWidth: 760,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Section 3 — Recent provisioning events (honest audit-log link).
+//
+// No dedicated provisioning-events read endpoint exists that this page may
+// call without adding data-fetching, so we point the operator at the
+// platform audit log — where every provision + plan grant is recorded —
+// rather than fabricate an events list.
+// ---------------------------------------------------------------------------
+
+function RecentEventsCard() {
+  return (
+    <Card variant="summary" padding="comfortable" data-section="recent-events">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 16,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 6,
+            }}
+          >
+            <strong style={{ fontSize: 14, color: "var(--ink-primary, #0f172a)" }}>
+              Recorded in the platform audit log
+            </strong>
+            <Badge tone="governance" subtle>
+              Tamper-evident
+            </Badge>
+          </div>
+          <p style={{ ...mutedStyle, margin: 0, maxWidth: 560 }}>
+            Each enterprise provision and plan grant is written to the platform
+            audit log with the operator, timestamp and outcome. Open the audit
+            log to review recent provisioning activity.
+          </p>
+        </div>
+        <a
+          href="/admin/audit"
+          style={{ textDecoration: "none", flexShrink: 0 }}
+          data-testid="recent-events-audit-link"
+        >
+          <Button variant="secondary">Open audit log</Button>
+        </a>
+      </div>
+    </Card>
   );
 }
 
@@ -263,26 +398,18 @@ function ProvisionPanel({ teamId }: { teamId: string }) {
 
   return (
     <Card
-      variant="admin"
+      variant="summary"
       padding="comfortable"
       data-section="provision-new-customer"
     >
-      <h3 style={sectionTitleStyle}>Provision a new enterprise customer</h3>
-      <p style={{ ...subtitleStyle, marginTop: 4, marginBottom: 12 }}>
+      <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 18, maxWidth: 640 }}>
         Creates the organization. If the owner already has an account, an
         enterprise workspace is created and they can sign in immediately. If
         not, the owner is invited — copy the invite URL, and once they accept,
         return here to grant the plan on the new organization.
       </p>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: 12,
-          maxWidth: 720,
-        }}
-      >
+      <div style={fieldGridStyle}>
         <label style={labelStyle}>
           <span>Company / organization name</span>
           <input
@@ -331,9 +458,9 @@ function ProvisionPanel({ teamId }: { teamId: string }) {
         </label>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
         <Button
-          variant="enterprise"
+          variant="primary"
           disabled={busy}
           loading={busy}
           onClick={submit}
@@ -483,27 +610,17 @@ function GrantPlanPanel({ teamId }: { teamId: string }) {
 
   return (
     <Card
-      variant="admin"
+      variant="summary"
       padding="comfortable"
       data-section="grant-existing-org"
     >
-      <h3 style={sectionTitleStyle}>
-        Grant enterprise to an existing organization
-      </h3>
-      <p style={{ ...subtitleStyle, marginTop: 4, marginBottom: 12 }}>
+      <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 18, maxWidth: 640 }}>
         Sets every workspace in the organization to the ENTERPRISE plan. Use
         this after an invited owner accepts, or for any existing organization
         that needs the plan applied.
       </p>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: 12,
-          maxWidth: 720,
-        }}
-      >
+      <div style={fieldGridStyle}>
         <label style={labelStyle}>
           <span>Organization id</span>
           <input
@@ -529,9 +646,9 @@ function GrantPlanPanel({ teamId }: { teamId: string }) {
         </label>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
         <Button
-          variant="enterprise"
+          variant="primary"
           disabled={busy}
           loading={busy}
           onClick={submit}
@@ -564,11 +681,3 @@ function GrantPlanPanel({ teamId }: { teamId: string }) {
     </Card>
   );
 }
-
-const labelStyle = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 4,
-  fontSize: 12,
-  color: TOKENS.inkMuted,
-} as const;

@@ -1276,8 +1276,11 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
-    commandPaletteVisible: false,
-    allToolsVisible: false,
+    // Surfaced so a Platform Admin can reach provisioning from the command
+    // palette / All Tools (and the /admin console nav) — never a direct-URL
+    // guess. Non-admins never see it (HIDDEN_IF_NO_CAPABILITY + PLATFORM_ADMIN).
+    commandPaletteVisible: true,
+    allToolsVisible: true,
     sidebarEligible: false,
   },
 
