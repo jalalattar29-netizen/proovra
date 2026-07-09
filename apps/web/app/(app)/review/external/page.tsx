@@ -48,7 +48,9 @@ import { apiFetch } from "../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { useToast } from "../../../../components/ui";
+import { useToast, PageShell, PageHeader } from "../../../../components/ui";
+import { Card } from "../../../../components/ui/Card";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 import {
   useActiveSpace,
   useCan,
@@ -345,81 +347,62 @@ function ExternalReviewManagementConsole() {
   }, [caps.canBulkRevoke, multiSelected, refresh]);
 
   return (
-    <div
+    <PageShell
       data-external-review-console
-      style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
+      header={
+        <PageHeader
+          eyebrow="Enterprise"
+          title="External Review Management Console"
+          subtitle="Bounded enterprise surface for external reviewer invitations, delivery, federation, and audit. Workspace-anchored — every action you take here is recorded on the grant's audit timeline."
+          primaryAction={
+            <button
+              type="button"
+              data-bulk-revoke-action
+              data-capability-allowed={caps.canBulkRevoke ? "true" : "false"}
+              onClick={onBulkRevoke}
+              disabled={!caps.canBulkRevoke || multiSelected.size === 0}
+              title={
+                !caps.canBulkRevoke
+                  ? "You do not have permission to bulk revoke invitations"
+                  : multiSelected.size === 0
+                  ? "Select at least one row to bulk revoke"
+                  : undefined
+              }
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                minHeight: 42,
+                padding: "0 18px",
+                borderRadius: "var(--radius-md, 12px)",
+                border: "1px solid var(--status-risk-solid, #dc2626)",
+                background:
+                  !caps.canBulkRevoke || multiSelected.size === 0
+                    ? "var(--status-risk-bg, #fee2e2)"
+                    : "var(--status-risk-solid, #dc2626)",
+                color:
+                  !caps.canBulkRevoke || multiSelected.size === 0
+                    ? "var(--status-risk-fg, #7f1d1d)"
+                    : "#fff",
+                fontSize: 14,
+                fontWeight: 650,
+                cursor:
+                  !caps.canBulkRevoke || multiSelected.size === 0
+                    ? "not-allowed"
+                    : "pointer",
+              }}
+            >
+              Bulk revoke ({multiSelected.size})
+            </button>
+          }
+        />
+      }
     >
-      <header
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          marginBottom: 12,
-          gap: 12,
-        }}
-      >
-        <div>
-          <h1 style={{ fontSize: 22, marginBottom: 4, marginTop: 0 }}>
-            External Review Management Console
-          </h1>
-          <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-            Bounded enterprise surface for external reviewer invitations,
-            delivery, federation, and audit. Workspace-anchored — every
-            action you take here is recorded on the grant's audit timeline.
-          </p>
-        </div>
-        <div>
-          <button
-            type="button"
-            data-bulk-revoke-action
-            data-capability-allowed={caps.canBulkRevoke ? "true" : "false"}
-            onClick={onBulkRevoke}
-            disabled={!caps.canBulkRevoke || multiSelected.size === 0}
-            title={
-              !caps.canBulkRevoke
-                ? "You do not have permission to bulk revoke invitations"
-                : multiSelected.size === 0
-                ? "Select at least one row to bulk revoke"
-                : undefined
-            }
-            style={{
-              padding: "6px 12px",
-              borderRadius: 8,
-              border: "1px solid #dc2626",
-              background:
-                !caps.canBulkRevoke || multiSelected.size === 0
-                  ? "#fee2e2"
-                  : "#dc2626",
-              color:
-                !caps.canBulkRevoke || multiSelected.size === 0
-                  ? "#7f1d1d"
-                  : "#fff",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor:
-                !caps.canBulkRevoke || multiSelected.size === 0
-                  ? "not-allowed"
-                  : "pointer",
-            }}
-          >
-            Bulk revoke ({multiSelected.size})
-          </button>
-        </div>
-      </header>
-
       <nav
         data-console-tabs
         style={{
           display: "flex",
           gap: 4,
-          borderBottom: "1px solid #e2e8f0",
-          marginBottom: 12,
+          borderBottom: "1px solid var(--border-default, #e2e8f0)",
         }}
       >
         {TAB_ORDER.map((t) => (
@@ -433,14 +416,19 @@ function ExternalReviewManagementConsole() {
               setSelected(null);
             }}
             style={{
-              padding: "8px 14px",
+              padding: "9px 14px",
               border: "none",
               background: "transparent",
               borderBottom:
-                tab === t.id ? "2px solid #0f172a" : "2px solid transparent",
-              color: tab === t.id ? "#0f172a" : "#475569",
-              fontWeight: tab === t.id ? 600 : 500,
-              fontSize: 13,
+                tab === t.id
+                  ? "2px solid var(--ink-primary, #0f172a)"
+                  : "2px solid transparent",
+              color:
+                tab === t.id
+                  ? "var(--ink-primary, #0f172a)"
+                  : "var(--ink-secondary, #475569)",
+              fontWeight: tab === t.id ? 650 : 500,
+              fontSize: 13.5,
               cursor: "pointer",
             }}
           >
@@ -450,11 +438,12 @@ function ExternalReviewManagementConsole() {
                 data-tab-count={t.id}
                 style={{
                   marginLeft: 6,
-                  background: "rgba(15, 23, 42, 0.06)",
+                  background: "var(--surface-muted, rgba(15, 23, 42, 0.06))",
+                  color: "var(--ink-secondary, #475569)",
                   borderRadius: 999,
-                  padding: "1px 6px",
+                  padding: "1px 7px",
                   fontSize: 11,
-                  fontWeight: 600,
+                  fontWeight: 650,
                 }}
               >
                 {counts[t.id] ?? 0}
@@ -465,48 +454,34 @@ function ExternalReviewManagementConsole() {
       </nav>
 
       {listDenied ? (
-        <div
+        <Card
           data-external-review-list-denied
-          style={{
-            marginBottom: 10,
-            padding: "8px 12px",
-            borderRadius: 8,
-            fontSize: 12,
-            background: "rgba(15, 23, 42, 0.04)",
-            border: "1px solid rgba(15, 23, 42, 0.12)",
-            color: "#0f172a",
-          }}
+          variant="status"
+          tone="neutral"
+          padding="compact"
+          style={{ fontSize: 13 }}
         >
           You do not have permission to view external reviewer
           invitations. Ask a workspace administrator or supervisor.
-        </div>
+        </Card>
       ) : null}
 
       {banner ? (
-        <div
+        <Card
           data-console-banner
-          style={{
-            marginBottom: 10,
-            padding: "8px 12px",
-            borderRadius: 8,
-            fontSize: 12,
-            background:
-              banner.tone === "ok"
-                ? "rgba(34, 197, 94, 0.08)"
-                : banner.tone === "warn"
-                ? "rgba(239, 68, 68, 0.08)"
-                : "rgba(15, 23, 42, 0.05)",
-            border:
-              banner.tone === "ok"
-                ? "1px solid rgba(34, 197, 94, 0.4)"
-                : banner.tone === "warn"
-                ? "1px solid rgba(239, 68, 68, 0.4)"
-                : "1px solid rgba(15, 23, 42, 0.12)",
-            color: banner.tone === "warn" ? "#7f1d1d" : "#0f172a",
-          }}
+          variant="status"
+          tone={
+            banner.tone === "ok"
+              ? "verified"
+              : banner.tone === "warn"
+              ? "risk"
+              : "info"
+          }
+          padding="compact"
+          style={{ fontSize: 13 }}
         >
           {banner.text}
-        </div>
+        </Card>
       ) : null}
 
       {tab === "bulk" ? (
@@ -555,7 +530,7 @@ function ExternalReviewManagementConsole() {
       {/* Single centrally-hosted step-up modal — drives the challenge
           flow for bulk issue + break-glass reveal. */}
       <StepUpModal control={stepUp} />
-    </div>
+    </PageShell>
   );
 }
 
@@ -620,18 +595,12 @@ function InvitationsTable({
 }) {
   if (rows.length === 0) {
     return (
-      <section
-        data-invitations-empty
-        style={{
-          padding: 20,
-          background: "#fff",
-          border: "1px solid rgba(15, 23, 42, 0.08)",
-          borderRadius: 12,
-          color: "#475569",
-          fontSize: 13,
-        }}
-      >
-        No invitations match this tab.
+      <section data-invitations-empty>
+        <EmptyState
+          framed
+          title="No invitations match this tab"
+          purpose="External reviewer invitations in this lifecycle state will appear here."
+        />
       </section>
     );
   }
@@ -639,19 +608,19 @@ function InvitationsTable({
     <section
       data-invitations-table-wrap
       style={{
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 12,
+        background: "var(--surface-card, #fff)",
+        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.08))",
+        borderRadius: "var(--radius-card, 12px)",
         padding: 8,
         overflowX: "auto",
       }}
     >
       <table
         data-invitations-table
-        style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}
+        style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}
       >
         <thead>
-          <tr style={{ textAlign: "left", color: "#475569" }}>
+          <tr style={{ textAlign: "left", color: "var(--ink-muted, #94a3b8)" }}>
             <th style={th}></th>
             <th style={th}>Email</th>
             <th style={th}>Role</th>
@@ -675,7 +644,9 @@ function InvitationsTable({
                 onClick={() => onSelect(r.grantId)}
                 style={{
                   cursor: "pointer",
-                  background: isSelected ? "rgba(15, 23, 42, 0.04)" : undefined,
+                  background: isSelected
+                    ? "var(--surface-muted, rgba(15, 23, 42, 0.04))"
+                    : undefined,
                 }}
               >
                 <td style={td} onClick={(e) => e.stopPropagation()}>
@@ -707,7 +678,7 @@ function InvitationsTable({
                       label={r.latestDelivery.status}
                     />
                   ) : (
-                    <span style={{ color: "#94a3b8" }}>—</span>
+                    <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
                   )}
                 </td>
                 <td style={td}>
@@ -829,17 +800,18 @@ function InvitationDetailDrawer({
       data-invitation-detail-drawer
       data-grant-id={row.grantId}
       style={{
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.1)",
-        borderRadius: 12,
-        padding: 14,
+        background: "var(--surface-card, #fff)",
+        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.1))",
+        borderRadius: "var(--radius-card, 12px)",
+        boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
+        padding: 16,
         display: "flex",
         flexDirection: "column",
         gap: 12,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <h2 style={{ fontSize: 15, margin: 0, flex: 1 }}>
+        <h2 style={{ fontSize: 15, margin: 0, flex: 1, color: "var(--ink-primary, #0f172a)" }}>
           {row.inviteEmail}
         </h2>
         <button
@@ -905,8 +877,8 @@ function InvitationDetailDrawer({
             ...(caps.canResend
               ? {}
               : {
-                  background: "#94a3b8",
-                  border: "1px solid #94a3b8",
+                  background: "var(--ink-muted, #94a3b8)",
+                  border: "1px solid var(--ink-muted, #94a3b8)",
                   cursor: "not-allowed",
                 }),
           }}
@@ -929,8 +901,8 @@ function InvitationDetailDrawer({
             ...(caps.canRevoke
               ? {}
               : {
-                  color: "#94a3b8",
-                  borderColor: "#cbd5e1",
+                  color: "var(--ink-muted, #94a3b8)",
+                  borderColor: "var(--border-default, #cbd5e1)",
                   cursor: "not-allowed",
                 }),
           }}
@@ -942,12 +914,12 @@ function InvitationDetailDrawer({
       <section
         data-drawer-break-glass
         style={{
-          background: "rgba(245, 158, 11, 0.08)",
-          border: "1px dashed rgba(245, 158, 11, 0.5)",
-          borderRadius: 8,
+          background: "var(--status-pending-bg, rgba(245, 158, 11, 0.08))",
+          border: "1px dashed var(--status-pending-solid, rgba(245, 158, 11, 0.5))",
+          borderRadius: "var(--radius-md, 8px)",
           padding: 8,
           fontSize: 11,
-          color: "#78350f",
+          color: "var(--status-pending-fg, #78350f)",
         }}
       >
         <strong style={{ display: "block", marginBottom: 4 }}>
@@ -978,9 +950,9 @@ function InvitationDetailDrawer({
               ...(caps.canRevealToken
                 ? {}
                 : {
-                    color: "#94a3b8",
+                    color: "var(--ink-muted, #94a3b8)",
                     cursor: "not-allowed",
-                    background: "#f8fafc",
+                    background: "var(--surface-muted, #f8fafc)",
                   }),
             }}
           >
@@ -1013,11 +985,11 @@ function InvitationDetailDrawer({
                 width: "100%",
                 marginTop: 4,
                 padding: 6,
-                border: "1px solid #fcd34d",
-                borderRadius: 6,
+                border: "1px solid var(--status-pending-border, #fcd34d)",
+                borderRadius: "var(--radius-sm, 6px)",
                 fontFamily: "ui-monospace, SFMono-Regular, monospace",
                 fontSize: 11,
-                background: "#fff",
+                background: "var(--surface-card, #fff)",
               }}
             />
             <button
@@ -1047,7 +1019,7 @@ function InvitationDetailDrawer({
             style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}
           >
             <thead>
-              <tr style={{ textAlign: "left", color: "#475569" }}>
+              <tr style={{ textAlign: "left", color: "var(--ink-muted, #94a3b8)" }}>
                 <th style={th}>Status</th>
                 <th style={th}>Attempt</th>
                 <th style={th}>Provider</th>
@@ -1080,7 +1052,7 @@ function InvitationDetailDrawer({
                   </td>
                   <td style={td}>
                     {d.failureReason ? (
-                      <code style={{ color: "#7f1d1d" }}>
+                      <code style={{ color: "var(--status-risk-fg, #991b1b)" }}>
                         {d.failureReason}
                       </code>
                     ) : (
@@ -1099,7 +1071,7 @@ function InvitationDetailDrawer({
         style={cardStyle}
       >
         <strong style={cardTitleStyle}>SSO federation</strong>
-        <div style={{ fontSize: 12, color: "#0f172a" }}>
+        <div style={{ fontSize: 12, color: "var(--ink-primary, #0f172a)" }}>
           <p style={{ margin: 0, marginBottom: 4 }}>
             Auth method: <code data-sso-auth-method>{row.authMethod}</code>
           </p>
@@ -1158,7 +1130,7 @@ function InvitationDetailDrawer({
                 key={a.id}
                 data-activity-row={a.code}
                 style={{
-                  borderTop: "1px solid #f1f5f9",
+                  borderTop: "1px solid var(--border-subtle, #f1f5f9)",
                   padding: "4px 0",
                   fontSize: 11,
                   display: "flex",
@@ -1166,7 +1138,7 @@ function InvitationDetailDrawer({
                 }}
               >
                 <code style={{ minWidth: 220 }}>{a.code}</code>
-                <span style={{ color: "#475569" }}>
+                <span style={{ color: "var(--ink-secondary, #475569)" }}>
                   {formatUserDateTime(a.occurredAtUtc)}
                 </span>
               </li>
@@ -1254,13 +1226,13 @@ function BreakGlassReveal({
           width: "100%",
           padding: 6,
           marginBottom: 4,
-          border: "1px solid #fcd34d",
-          borderRadius: 6,
+          border: "1px solid var(--status-pending-border, #fcd34d)",
+          borderRadius: "var(--radius-sm, 6px)",
           fontSize: 11,
         }}
       />
       {err ? (
-        <p style={{ color: "#7f1d1d", fontSize: 11, margin: "0 0 4px" }}>
+        <p style={{ color: "var(--status-risk-fg, #991b1b)", fontSize: 11, margin: "0 0 4px" }}>
           {err}
         </p>
       ) : null}
@@ -1272,7 +1244,7 @@ function BreakGlassReveal({
           disabled={busy}
           style={{
             ...primaryActionStyle,
-            background: busy ? "#94a3b8" : "#b45309",
+            background: busy ? "var(--ink-muted, #94a3b8)" : "#b45309",
             border: "1px solid #b45309",
           }}
         >
@@ -1455,17 +1427,18 @@ function BulkInvitePanel({
     <section
       data-bulk-invite-panel
       style={{
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 12,
-        padding: 14,
+        background: "var(--surface-card, #fff)",
+        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.08))",
+        borderRadius: "var(--radius-card, 12px)",
+        boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
+        padding: 16,
         display: "grid",
         gap: 12,
       }}
     >
       <header>
-        <h2 style={{ fontSize: 15, margin: 0 }}>Bulk invite external reviewers</h2>
-        <p style={{ color: "#475569", fontSize: 12, margin: "4px 0 0" }}>
+        <h2 style={{ fontSize: 15, margin: 0, color: "var(--ink-primary, #0f172a)" }}>Bulk invite external reviewers</h2>
+        <p style={{ color: "var(--ink-secondary, #475569)", fontSize: 12, margin: "4px 0 0" }}>
           Paste one reviewer per line. Accepted formats:
         </p>
         <ul
@@ -1473,7 +1446,7 @@ function BulkInvitePanel({
             margin: "4px 0",
             paddingLeft: 18,
             fontSize: 11,
-            color: "#475569",
+            color: "var(--ink-secondary, #475569)",
           }}
         >
           <li>
@@ -1486,7 +1459,7 @@ function BulkInvitePanel({
             <code>reviewer@example.com,Display Name,Organization</code>
           </li>
         </ul>
-        <p style={{ color: "#475569", fontSize: 11, margin: 0 }}>
+        <p style={{ color: "var(--ink-secondary, #475569)", fontSize: 11, margin: 0 }}>
           Bounded ≤ {BULK_INVITATION_MAX_ROWS} rows per call. One failing
           row never aborts the batch.
         </p>
@@ -1511,14 +1484,16 @@ function BulkInvitePanel({
               padding: 8,
               fontSize: 12,
               fontFamily: "ui-monospace, SFMono-Regular, monospace",
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
+              border: "1px solid var(--border-default, #cbd5e1)",
+              borderRadius: "var(--radius-md, 8px)",
+              background: "var(--surface-card, #fff)",
+              color: "var(--ink-primary, #0f172a)",
               boxSizing: "border-box",
             }}
           />
           <small
             data-bulk-paste-count
-            style={{ color: "#475569", fontSize: 11 }}
+            style={{ color: "var(--ink-secondary, #475569)", fontSize: 11 }}
           >
             {parsed.length} rows parsed · invalid rows are flagged inline.
           </small>
@@ -1533,7 +1508,7 @@ function BulkInvitePanel({
               }}
             >
               <thead>
-                <tr style={{ textAlign: "left", color: "#475569" }}>
+                <tr style={{ textAlign: "left", color: "var(--ink-muted, #94a3b8)" }}>
                   <th style={th}>Email</th>
                   <th style={th}>Display</th>
                   <th style={th}>Org</th>
@@ -1628,11 +1603,11 @@ function BulkInvitePanel({
           <hr
             style={{
               border: "none",
-              borderTop: "1px solid #e2e8f0",
+              borderTop: "1px solid var(--border-default, #e2e8f0)",
               margin: "4px 0",
             }}
           />
-          <strong style={{ fontSize: 12, color: "#0f172a" }}>
+          <strong style={{ fontSize: 12, color: "var(--ink-primary, #0f172a)" }}>
             SSO controls
           </strong>
           <Field label="Auth method">
@@ -1696,8 +1671,8 @@ function BulkInvitePanel({
               busy ||
               parsed.length === 0 ||
               parsed.length > BULK_INVITATION_MAX_ROWS
-                ? "#94a3b8"
-                : "#0f172a",
+                ? "var(--ink-muted, #94a3b8)"
+                : "var(--ink-primary, #0f172a)",
             cursor:
               !caps.canBulkInvite ||
               busy ||
@@ -1737,7 +1712,7 @@ function BulkInvitePanel({
             }}
           >
             <thead>
-              <tr style={{ textAlign: "left", color: "#475569" }}>
+              <tr style={{ textAlign: "left", color: "var(--ink-muted, #94a3b8)" }}>
                 <th style={th}>Email</th>
                 <th style={th}>Outcome</th>
                 <th style={th}>Grant</th>
@@ -1841,10 +1816,26 @@ function Chip({
   tone: "ok" | "info" | "muted" | "warn";
 } & React.HTMLAttributes<HTMLSpanElement>) {
   const palette = {
-    ok: { bg: "rgba(34, 197, 94, 0.12)", fg: "#166534", border: "rgba(34, 197, 94, 0.4)" },
-    info: { bg: "rgba(59, 130, 246, 0.1)", fg: "#1e3a8a", border: "rgba(59, 130, 246, 0.4)" },
-    muted: { bg: "rgba(15, 23, 42, 0.06)", fg: "#0f172a", border: "rgba(15, 23, 42, 0.18)" },
-    warn: { bg: "rgba(239, 68, 68, 0.1)", fg: "#7f1d1d", border: "rgba(239, 68, 68, 0.4)" },
+    ok: {
+      bg: "var(--status-verified-bg, #ecfdf5)",
+      fg: "var(--status-verified-fg, #065f46)",
+      border: "var(--status-verified-border, #a7f3d0)",
+    },
+    info: {
+      bg: "var(--status-info-bg, #eff6ff)",
+      fg: "var(--status-info-fg, #1e40af)",
+      border: "var(--status-info-border, #bfdbfe)",
+    },
+    muted: {
+      bg: "var(--status-neutral-bg, #f1f5f9)",
+      fg: "var(--status-neutral-fg, #475569)",
+      border: "var(--status-neutral-border, #cbd5e1)",
+    },
+    warn: {
+      bg: "var(--status-risk-bg, #fef2f2)",
+      fg: "var(--status-risk-fg, #991b1b)",
+      border: "var(--status-risk-border, #fecaca)",
+    },
   }[tone];
   return (
     <span
@@ -1876,7 +1867,7 @@ function Field({
 }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <small style={{ fontSize: 11, color: "#475569", fontWeight: 600 }}>
+      <small style={{ fontSize: 11, color: "var(--ink-secondary, #475569)", fontWeight: 600 }}>
         {label}
       </small>
       {children}
@@ -1891,28 +1882,41 @@ function Field({
 const inputStyle = {
   width: "100%",
   padding: "6px 8px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
+  border: "1px solid var(--border-default, #cbd5e1)",
+  borderRadius: "var(--radius-sm, 6px)",
   fontSize: 12,
+  background: "var(--surface-card, #fff)",
+  color: "var(--ink-primary, #0f172a)",
   boxSizing: "border-box" as const,
 };
 
-const th = { padding: "6px 8px", borderBottom: "1px solid #e2e8f0" } as const;
-const td = { padding: "6px 8px", borderBottom: "1px solid #f1f5f9" } as const;
+const th = {
+  padding: "6px 8px",
+  borderBottom: "1px solid var(--border-default, #e2e8f0)",
+} as const;
+const td = {
+  padding: "6px 8px",
+  borderBottom: "1px solid var(--border-subtle, #f1f5f9)",
+} as const;
 
 const cardStyle = {
-  background: "rgba(15, 23, 42, 0.03)",
-  border: "1px solid rgba(15, 23, 42, 0.06)",
-  borderRadius: 10,
+  background: "var(--surface-muted, rgba(15, 23, 42, 0.03))",
+  border: "1px solid var(--border-subtle, rgba(15, 23, 42, 0.06))",
+  borderRadius: "var(--radius-md, 10px)",
   padding: 10,
 } as const;
 const cardTitleStyle = {
   display: "block",
   fontSize: 12,
+  fontWeight: 650,
   marginBottom: 6,
-  color: "#0f172a",
+  color: "var(--ink-primary, #0f172a)",
 } as const;
-const mutedStyle = { color: "#475569", fontSize: 12, margin: 0 } as const;
+const mutedStyle = {
+  color: "var(--ink-secondary, #475569)",
+  fontSize: 12,
+  margin: 0,
+} as const;
 const chipsRowStyle = {
   display: "flex",
   gap: 4,
@@ -1920,38 +1924,39 @@ const chipsRowStyle = {
 };
 const drawerCloseStyle = {
   background: "transparent",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
+  border: "1px solid var(--border-default, #cbd5e1)",
+  borderRadius: "var(--radius-sm, 6px)",
   padding: "3px 10px",
   fontSize: 11,
+  color: "var(--ink-secondary, #475569)",
   cursor: "pointer",
 } as const;
 const primaryActionStyle = {
-  padding: "6px 12px",
-  border: "1px solid #0f172a",
-  background: "#0f172a",
-  color: "#fafafa",
-  fontWeight: 600,
-  fontSize: 12,
-  borderRadius: 8,
+  padding: "8px 14px",
+  border: "1px solid var(--ink-primary, #0f172a)",
+  background: "var(--ink-primary, #0f172a)",
+  color: "var(--ink-inverse, #fafafa)",
+  fontWeight: 650,
+  fontSize: 12.5,
+  borderRadius: "var(--radius-md, 8px)",
   cursor: "pointer",
 } as const;
 const dangerActionStyle = {
-  padding: "6px 12px",
-  border: "1px solid #dc2626",
-  background: "#fff",
-  color: "#dc2626",
-  fontWeight: 600,
-  fontSize: 12,
-  borderRadius: 8,
+  padding: "8px 14px",
+  border: "1px solid var(--status-risk-solid, #dc2626)",
+  background: "var(--surface-card, #fff)",
+  color: "var(--status-risk-solid, #dc2626)",
+  fontWeight: 650,
+  fontSize: 12.5,
+  borderRadius: "var(--radius-md, 8px)",
   cursor: "pointer",
 } as const;
 const subtleActionStyle = {
-  padding: "4px 10px",
-  border: "1px solid #cbd5e1",
-  background: "#fff",
-  color: "#0f172a",
+  padding: "5px 10px",
+  border: "1px solid var(--border-default, #cbd5e1)",
+  background: "var(--surface-card, #fff)",
+  color: "var(--ink-primary, #0f172a)",
   fontSize: 11,
-  borderRadius: 6,
+  borderRadius: "var(--radius-sm, 6px)",
   cursor: "pointer",
 } as const;

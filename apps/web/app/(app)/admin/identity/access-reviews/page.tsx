@@ -18,21 +18,16 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
 import {
-  cardStyle,
   errorBoxStyle,
   formatDateTime,
-  ghostButtonStyle,
-  headerRowStyle,
   mutedStyle,
-  pageStyle,
-  selectStyle,
   statusBadgeStyle,
-  subtitleStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  titleStyle,
 } from "../ui-tokens";
+import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
+import { Button } from "../../../../../components/ui/Button";
+import { FilterBar } from "../../../../../components/ui/FilterBar";
+import { EmptyState } from "../../../../../components/ui/EmptyState";
+import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 
 type AccessReview = {
   id: string;
@@ -123,150 +118,153 @@ const load = useCallback(() => {
 
   if (!teamId) {
     return (
-      <main style={pageStyle}>
-        <p style={mutedStyle}>Switch to a workspace.</p>
-      </main>
+      <PageShell header={<PageHeader eyebrow="Identity operations" title="Access Reviews" />}>
+        <EmptyState
+          framed
+          title="No workspace selected"
+          purpose="Switch to a workspace to view and act on its access-review queue."
+        />
+      </PageShell>
     );
   }
 
-  return (
-    <main style={pageStyle}>
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Access Reviews</h1>
-          <p style={subtitleStyle}>
-            Periodic and triggered access reviews from the Phase 17 access-
-            review queue. Certify, revoke, or suspend; every decision is
-            audited via the immutable platform audit log.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <select
-            style={selectStyle}
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s || "All statuses"}
-              </option>
-            ))}
-          </select>
-          <button type="button" style={ghostButtonStyle} onClick={load}>
-            Refresh
-          </button>
-        </div>
-      </header>
+  const columns: DataTableColumn<AccessReview>[] = [
+    {
+      key: "kind",
+      header: "Kind",
+      render: (r) => <span style={{ ...mutedStyle, fontSize: 11 }}>{r.kind}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => (
+        <span style={statusBadgeStyle(r.status.split("_")[0])}>
+          {r.status.toLowerCase().replace(/_/g, " ")}
+        </span>
+      ),
+    },
+    {
+      key: "subject",
+      header: "Subject",
+      render: (r) => (
+        <code
+          style={{
+            fontFamily:
+              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+            fontSize: 11,
+          }}
+        >
+          {r.subjectKind}{" "}
+          {(r.subjectUserId ?? r.subjectApiCredentialId ?? "").slice(0, 12)}
+          …
+        </code>
+      ),
+    },
+    {
+      key: "initiated",
+      header: "Initiated",
+      nowrap: true,
+      render: (r) => <span style={mutedStyle}>{formatDateTime(r.initiatedAtUtc)}</span>,
+    },
+    {
+      key: "due",
+      header: "Due",
+      nowrap: true,
+      render: (r) => <span style={mutedStyle}>{formatDateTime(r.dueAtUtc)}</span>,
+    },
+    {
+      key: "note",
+      header: "Note",
+      render: (r) => (
+        <span
+          style={{
+            ...mutedStyle,
+            fontSize: 11,
+            maxWidth: 240,
+            display: "block",
+          }}
+        >
+          {r.decisionNote ?? "—"}
+        </span>
+      ),
+    },
+  ];
 
+  return (
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Identity operations"
+          title="Access Reviews"
+          subtitle="Periodic and triggered access reviews from the Phase 17 access-review queue. Certify, revoke, or suspend; every decision is audited via the immutable platform audit log."
+          secondaryActions={
+            <Button variant="secondary" onClick={load}>
+              Refresh
+            </Button>
+          }
+        />
+      }
+    >
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
-      <section style={{ ...cardStyle, marginTop: 16, padding: 0 }}>
-        {reviews === null ? (
-          <p style={{ ...mutedStyle, padding: 16 }}>Loading…</p>
-        ) : reviews.length === 0 ? (
-          <p style={{ ...mutedStyle, padding: 24 }}>
-            No access reviews match this filter.
-          </p>
-        ) : (
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Kind</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Subject</th>
-                <th style={thStyle}>Initiated</th>
-                <th style={thStyle}>Due</th>
-                <th style={thStyle}>Note</th>
-                <th style={thStyle}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reviews.map((r) => (
-                <tr key={r.id}>
-                  <td style={tdStyle}>
-                    <span style={{ ...mutedStyle, fontSize: 11 }}>{r.kind}</span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={statusBadgeStyle(r.status.split("_")[0])}>
-                      {r.status.toLowerCase().replace(/_/g, " ")}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <code
-                      style={{
-                        fontFamily:
-                          "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                        fontSize: 11,
-                      }}
-                    >
-                      {r.subjectKind}{" "}
-                      {(
-                        r.subjectUserId ?? r.subjectApiCredentialId ?? ""
-                      ).slice(0, 12)}
-                      …
-                    </code>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
-                      {formatDateTime(r.initiatedAtUtc)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>{formatDateTime(r.dueAtUtc)}</span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span
-                      style={{
-                        ...mutedStyle,
-                        fontSize: 11,
-                        maxWidth: 240,
-                        display: "block",
-                      }}
-                    >
-                      {r.decisionNote ?? "—"}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    {r.status === "PENDING" || r.status === "IN_PROGRESS" ? (
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                        <button
-                          type="button"
-                          style={ghostButtonStyle}
-                          disabled={busy === r.id}
-                          onClick={() => decide(r.id, "COMPLETED_KEEP")}
-                        >
-                          Certify
-                        </button>
-                        <button
-                          type="button"
-                          style={{
-                            ...ghostButtonStyle,
-                            color: "#991b1b",
-                            borderColor: "#fecaca",
-                            background: "#fef2f2",
-                          }}
-                          disabled={busy === r.id}
-                          onClick={() => decide(r.id, "COMPLETED_REVOKED")}
-                        >
-                          Revoke
-                        </button>
-                        <button
-                          type="button"
-                          style={ghostButtonStyle}
-                          disabled={busy === r.id}
-                          onClick={() => decide(r.id, "COMPLETED_SUSPENDED")}
-                        >
-                          Suspend
-                        </button>
-                      </div>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </main>
+      <PageSection>
+        <FilterBar>
+          <FilterBar.Select
+            label="Status"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={STATUS_OPTIONS.map((s) => ({
+              value: s,
+              label: s || "All statuses",
+            }))}
+          />
+        </FilterBar>
+        <div style={{ marginTop: 12 }}>
+          <DataTable
+            columns={columns}
+            rows={reviews ?? []}
+            getRowId={(r) => r.id}
+            loading={reviews === null}
+            ariaLabel="Access reviews"
+            emptyState={
+              <EmptyState
+                title="No access-review campaigns"
+                purpose="No access reviews match this filter. Periodic and triggered reviews will appear here for certification."
+              />
+            }
+            rowActions={(r) =>
+              r.status === "PENDING" || r.status === "IN_PROGRESS" ? (
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={busy === r.id}
+                    onClick={() => decide(r.id, "COMPLETED_KEEP")}
+                  >
+                    Certify
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={busy === r.id}
+                    onClick={() => decide(r.id, "COMPLETED_REVOKED")}
+                  >
+                    Revoke
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={busy === r.id}
+                    onClick={() => decide(r.id, "COMPLETED_SUSPENDED")}
+                  >
+                    Suspend
+                  </Button>
+                </div>
+              ) : null
+            }
+          />
+        </div>
+      </PageSection>
+    </PageShell>
   );
 }

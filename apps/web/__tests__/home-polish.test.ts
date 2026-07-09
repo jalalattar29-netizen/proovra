@@ -318,11 +318,30 @@ test("no Home CTA points at /workspaces, bare /evidence-requests, or /v/", () =>
 });
 
 // ---------------------------------------------------------------------------
-// 11 — Search routes to /search?q=…
+// 11 — Search is owned ONCE by the global header (Phase 7 de-dup).
 // ---------------------------------------------------------------------------
 
-test("the header search routes to /search with the query", () => {
-  assert.match(DASH_SRC, /router\.push\(q \? `\/search\?q=\$\{encodeURIComponent\(q\)\}` : "\/search"\)/);
+test("Home does not duplicate global search (owned by the header command palette)", () => {
+  // Phase 7 consolidation: the global header owns Search (its search button
+  // dispatches Cmd/Ctrl+K to open the command palette) and `/search` remains
+  // a registered route. The Home header intentionally does NOT re-implement
+  // its own search box — see the HomeHeader comment "the global header owns
+  // Search …". This guards against a duplicate page-level search creeping back.
+  assert.doesNotMatch(
+    DASH_SRC,
+    /router\.push\(q \? `\/search/,
+    "Home must not embed its own /search router.push (global header owns search)",
+  );
+  assert.doesNotMatch(
+    DASH_SRC,
+    /type=["']search["']/,
+    "Home must not render a duplicate page-level search input",
+  );
+  assert.match(
+    DASH_SRC,
+    /global header owns Search/i,
+    "HomeHeader should document that search is owned by the global header",
+  );
 });
 
 // ---------------------------------------------------------------------------

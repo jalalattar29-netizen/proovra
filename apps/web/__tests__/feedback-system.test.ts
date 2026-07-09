@@ -57,7 +57,7 @@ test("toast: error/warning are assertive alerts, success/info are polite status"
 });
 
 test("toast: container is an accessible region and errors last longer than success", () => {
-  const ui = read("components/ui.tsx");
+  const ui = read("components/ui-legacy.tsx");
   assert.ok(ui.includes('role="region"'), "toast container is a region");
   assert.match(ui, /error"\s*\|\|\s*type === "warning"\s*\?\s*7000\s*:\s*4500/);
 });

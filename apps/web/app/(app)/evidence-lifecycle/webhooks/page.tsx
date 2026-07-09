@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
+import { EmptyState } from "../../../../components/ui/EmptyState";
+import { StatusBadge, statusBadgeStyle } from "../../../../components/ui/StatusBadge";
 import { apiFetch, ApiError } from "../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import { LifecycleSectionBoundary } from "../_shared";
@@ -41,14 +47,6 @@ const AVAILABLE_EVENTS = [
   "lifecycle.destruction_certified",
   "lifecycle.tier_transitioned",
 ];
-
-const DELIVERY_STATE_COLORS: Record<string, string> = {
-  PENDING: "#fef3c7",
-  DELIVERED: "#d1fae5",
-  FAILED: "#fee2e2",
-  RETRYING: "#dbeafe",
-  DEAD_LETTERED: "#fce7f3",
-};
 
 function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void): void {
   const e = err as { statusCode?: number; details?: Record<string, unknown> };
@@ -193,25 +191,32 @@ function Shell() {
   }, [refresh]);
 
   return (
-    <div
+    <PageShell
       data-webhooks-page
-      style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
+      header={
+        <PageHeader
+          eyebrow="Evidence Lifecycle"
+          title="Webhooks"
+          subtitle="Deliver lifecycle events to your own endpoints and replay failed deliveries."
+          primaryAction={
+            <Button
+              type="button"
+              variant="primary"
+              loading={busy}
+              disabled={busy}
+              onClick={() => void refresh()}
+            >
+              {busy ? "Loading…" : "Refresh"}
+            </Button>
+          }
+          contextStrip={
+            <a href="/evidence-lifecycle" style={{ fontSize: 12 }}>
+              ← Back to Evidence Lifecycle
+            </a>
+          }
+        />
+      }
     >
-      <header style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, marginTop: 0 }}>Webhooks</h1>
-        <p>
-          <a href="/evidence-lifecycle" style={{ fontSize: 12 }}>
-            ← Back to Evidence Lifecycle
-          </a>
-        </p>
-      </header>
-
       {denial ? (
         <div
           data-permission-denied={denial.denial}
@@ -265,18 +270,7 @@ function Shell() {
       ) : null}
 
       {/* Create endpoint form */}
-      <section
-        style={{
-          background: "rgba(15,23,42,0.03)",
-          border: "1px solid rgba(15,23,42,0.06)",
-          borderRadius: 10,
-          padding: 14,
-          marginBottom: 16,
-        }}
-      >
-        <strong style={{ display: "block", marginBottom: 10, fontSize: 14 }}>
-          Create Webhook Endpoint
-        </strong>
+      <Card variant="admin" title="Create Webhook Endpoint">
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
           <label style={labelStyle}>
             URL
@@ -313,177 +307,108 @@ function Shell() {
             </div>
           </div>
           <div style={{ alignSelf: "flex-end" }}>
-            <button
+            <Button
               type="button"
+              variant="primary"
+              loading={creating}
               disabled={creating || !url || selectedEvents.length === 0}
               onClick={() => void createEndpoint()}
-              style={primaryButton}
             >
               {creating ? "Creating…" : "Create Endpoint"}
-            </button>
+            </Button>
           </div>
         </div>
-      </section>
-
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void refresh()}
-        style={primaryButton}
-      >
-        {busy ? "Loading…" : "Refresh"}
-      </button>
+      </Card>
 
       {/* Endpoints */}
-      <section
-        style={{
-          background: "#fff",
-          border: "1px solid rgba(15,23,42,0.08)",
-          borderRadius: 10,
-          padding: 8,
-          marginTop: 12,
-          overflowX: "auto",
-        }}
-      >
-        <strong style={{ fontSize: 14, display: "block", marginBottom: 8 }}>Endpoints</strong>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "#475569" }}>
-              <th style={th}>URL</th>
-              <th style={th}>Events</th>
-              <th style={th}>State</th>
-              <th style={th}>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {endpoints.length === 0 ? (
-              <tr>
-                <td colSpan={4} style={{ ...td, color: "#475569" }}>
-                  No endpoints.
-                </td>
-              </tr>
-            ) : (
-              endpoints.map((ep) => (
-                <tr key={ep.id} data-webhook-endpoint-row={ep.id}>
-                  <td style={td}>
-                    <code style={{ wordBreak: "break-all" }}>{ep.url}</code>
-                  </td>
-                  <td style={td}>{ep.subscribedEvents.join(", ")}</td>
-                  <td style={td}>
-                    <strong>{ep.state}</strong>
-                  </td>
-                  <td style={td}>{safeDate(ep.createdAtUtc)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </section>
+      <PageSection title="Endpoints">
+        <DataTable<WebhookEndpoint>
+          ariaLabel="Webhook endpoints"
+          columns={ENDPOINT_COLUMNS}
+          rows={endpoints}
+          getRowId={(ep) => ep.id}
+          emptyState={
+            <EmptyState
+              title="No webhook endpoints configured"
+              purpose="Register an endpoint above to receive lifecycle events (retention, legal holds, destruction, tier transitions) at your own server."
+            />
+          }
+        />
+      </PageSection>
 
       {/* Deliveries */}
-      <section
-        style={{
-          background: "#fff",
-          border: "1px solid rgba(15,23,42,0.08)",
-          borderRadius: 10,
-          padding: 8,
-          marginTop: 12,
-          overflowX: "auto",
-        }}
-      >
-        <strong style={{ fontSize: 14, display: "block", marginBottom: 8 }}>
-          Recent Lifecycle Webhook Deliveries
-        </strong>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "#475569" }}>
-              <th style={th}>Endpoint</th>
-              <th style={th}>Event</th>
-              <th style={th}>State</th>
-              <th style={th}>Attempts</th>
-              <th style={th}>Status</th>
-              <th style={th}>Next Attempt</th>
-              <th style={th}>Enqueued</th>
-              <th style={th}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {deliveries.length === 0 ? (
-              <tr>
-                <td colSpan={8} style={{ ...td, color: "#475569" }}>
-                  No deliveries.
-                </td>
-              </tr>
-            ) : (
-              deliveries.map((d) => (
-                <tr key={d.id} data-webhook-delivery-row={d.id}>
-                  <td style={td}>
-                    <code style={{ fontSize: 10 }}>{d.endpointId.slice(0, 8)}…</code>
-                  </td>
-                  <td style={td}>{d.eventKind}</td>
-                  <td style={td}>
-                    <span
-                      style={{
-                        padding: "2px 6px",
-                        borderRadius: 4,
-                        background: DELIVERY_STATE_COLORS[d.state] ?? "#f1f5f9",
-                        fontWeight: 700,
-                        fontSize: 11,
-                      }}
-                    >
-                      {d.state}
-                    </span>
-                  </td>
-                  <td style={td}>{d.attemptCount}</td>
-                  <td style={td}>{d.responseStatus ?? "—"}</td>
-                  <td style={td}>
-                    {d.nextAttemptAtUtc
-                      ? formatUserDateTime(d.nextAttemptAtUtc)
-                      : "—"}
-                  </td>
-                  <td style={td}>{formatUserDateTime(d.enqueuedAtUtc)}</td>
-                  <td style={td}>
-                    <button
-                      type="button"
-                      data-webhook-replay-button={d.id}
-                      disabled={replayingId === d.id}
-                      onClick={() => void replayDelivery(d.id)}
-                      style={{
-                        padding: "2px 8px",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        border: "1px solid #0f172a",
-                        background: "#fff",
-                        borderRadius: 5,
-                        cursor: replayingId === d.id ? "not-allowed" : "pointer",
-                        color: "#0f172a",
-                      }}
-                    >
-                      {replayingId === d.id ? "…" : "Replay"}
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </section>
-    </div>
+      <PageSection title="Recent Lifecycle Webhook Deliveries">
+        <DataTable<WebhookDelivery>
+          ariaLabel="Recent lifecycle webhook deliveries"
+          columns={DELIVERY_COLUMNS}
+          rows={deliveries}
+          getRowId={(d) => d.id}
+          rowActions={(d) => (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              data-webhook-replay-button={d.id}
+              loading={replayingId === d.id}
+              disabled={replayingId === d.id}
+              onClick={() => void replayDelivery(d.id)}
+            >
+              {replayingId === d.id ? "…" : "Replay"}
+            </Button>
+          )}
+          emptyState={
+            <EmptyState
+              title="No webhook deliveries yet"
+              purpose="Once lifecycle events fire, their delivery attempts to your endpoints appear here with status and replay controls."
+            />
+          }
+        />
+      </PageSection>
+    </PageShell>
   );
 }
 
-const primaryButton = {
-  padding: "6px 12px",
-  border: "1px solid #0f172a",
-  background: "#0f172a",
-  color: "#fafafa",
-  fontWeight: 600,
-  fontSize: 12,
-  borderRadius: 8,
-  cursor: "pointer",
-} as const;
-const th = { padding: "6px 8px", borderBottom: "1px solid #e2e8f0" } as const;
-const td = { padding: "6px 8px", borderBottom: "1px solid #f1f5f9" } as const;
+const ENDPOINT_COLUMNS: DataTableColumn<WebhookEndpoint>[] = [
+  {
+    key: "url",
+    header: "URL",
+    render: (ep) => (
+      <code data-webhook-endpoint-row={ep.id} style={{ wordBreak: "break-all" }}>
+        {ep.url}
+      </code>
+    ),
+  },
+  { key: "events", header: "Events", render: (ep) => ep.subscribedEvents.join(", ") },
+  { key: "state", header: "State", render: (ep) => <StatusBadge status={ep.state} /> },
+  { key: "created", header: "Created", render: (ep) => safeDate(ep.createdAtUtc) },
+];
+
+const DELIVERY_COLUMNS: DataTableColumn<WebhookDelivery>[] = [
+  {
+    key: "endpoint",
+    header: "Endpoint",
+    render: (d) => (
+      <code data-webhook-delivery-row={d.id} style={{ fontSize: 10 }}>
+        {d.endpointId.slice(0, 8)}…
+      </code>
+    ),
+  },
+  { key: "event", header: "Event", render: (d) => d.eventKind },
+  {
+    key: "state",
+    header: "State",
+    render: (d) => <span style={statusBadgeStyle(d.state)}>{d.state}</span>,
+  },
+  { key: "attempts", header: "Attempts", render: (d) => d.attemptCount },
+  { key: "status", header: "Status", render: (d) => d.responseStatus ?? "—" },
+  {
+    key: "nextAttempt",
+    header: "Next Attempt",
+    render: (d) => (d.nextAttemptAtUtc ? formatUserDateTime(d.nextAttemptAtUtc) : "—"),
+  },
+  { key: "enqueued", header: "Enqueued", render: (d) => formatUserDateTime(d.enqueuedAtUtc) },
+];
+
 const labelStyle = { display: "flex", flexDirection: "column" as const, gap: 2, fontSize: 11, fontWeight: 600 };
 const inputStyle = {
   fontSize: 12,

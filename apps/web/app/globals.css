@@ -145,12 +145,93 @@ textarea {
   --nav-bg: rgba(8, 18, 22, 0.78);
   --nav-border: rgba(255, 255, 255, 0.1);
 
-  --btn-primary-bg: linear-gradient(135deg, #3e8f95 0%, #2f686d 50%, #1d3d42 100%);
-  --btn-primary-color: #f4f7f6;
-  --btn-primary-border: rgba(169, 201, 196, 0.28);
-  --btn-primary-hover-bg: linear-gradient(135deg, #4ca3a8 0%, #36757a 50%, #22474d 100%);
-  --btn-primary-hover-border: rgba(191, 232, 223, 0.44);
-  --btn-primary-shadow: 0 12px 30px rgba(20, 48, 52, 0.26);
+  /* --------------------------------------------------------------------
+   * PRIMARY CTA — PROOVRA public design language (Phase 7).
+   * Refined coral → pink → warm-coral gradient sampled from the login
+   * page primary button (`#E64880 → #FF6B6B → #FF8A6A`). Premium shadow
+   * tinted with the coral hue + soft radius handled by consumers.
+   * These var NAMES are unchanged (backward compatible) — only the
+   * values were refreshed from the old teal gradient.
+   * ------------------------------------------------------------------ */
+  --btn-primary-bg: linear-gradient(90deg, #e64880 0%, #ff6b6b 52%, #ff8a6a 100%);
+  --btn-primary-color: #ffffff;
+  --btn-primary-border: rgba(230, 72, 128, 0.45);
+  --btn-primary-hover-bg: linear-gradient(90deg, #d63e76 0%, #f75f5f 52%, #f97d5c 100%);
+  --btn-primary-hover-border: rgba(230, 72, 128, 0.58);
+  --btn-primary-shadow: 0 14px 28px rgba(230, 72, 128, 0.22);
+  --btn-primary-radius: 14px;
+
+  /* --------------------------------------------------------------------
+   * PROOVRA design-language tokens (Phase 7 foundation).
+   *
+   * These are ADDITIVE. Every legacy var above still resolves — nothing
+   * was renamed or removed. New shared components in components/ui/*
+   * consume these; the modern internal scale lives in
+   * lib/design-tokens/tokens.css (--ink-*, --surface-*, --border-*,
+   * --accent-500, --success/--warning/--error/--info, --radius-*,
+   * --shadow-*, --space-*). The tokens below fill the gaps that scale
+   * doesn't cover: the coral CTA aliases, a violet/indigo ENTERPRISE
+   * accent surface, pearl/lavender neutrals, and named semantic STATUS
+   * tokens (color + on-color text, never color-only).
+   * ------------------------------------------------------------------ */
+
+  /* Coral CTA aliases (semantic names for the gradient above) */
+  --cta-coral-from: #e64880;
+  --cta-coral-mid: #ff6b6b;
+  --cta-coral-to: #ff8a6a;
+  --cta-coral-ink: #ffffff;
+  --cta-coral-ring: rgba(230, 72, 128, 0.32);
+
+  /* Violet / indigo ENTERPRISE accent (trust-center / governance tone).
+     Mirrors the internal --accent-500 (#6B5BFF) so both scales agree. */
+  --enterprise-accent: #6b5bff;
+  --enterprise-accent-strong: #5949e4;
+  --enterprise-accent-050: #eeebff;
+  --enterprise-accent-ink: #ffffff;
+  --enterprise-gradient: linear-gradient(135deg, #6b5bff 0%, #4e3ee8 100%);
+
+  /* Structure + neutral surfaces (navy / pearl / lavender) */
+  --structure-navy: #0f172a;
+  --structure-ink: #0f172a;
+  --pearl-bg: #f7f8fc;
+  --pearl-surface: #ffffff;
+  --lavender-surface: #f4f2ff;
+  --lavender-border: rgba(107, 91, 255, 0.16);
+
+  /* Semantic STATUS tokens — color + text pairs (never color-only).
+     verified = restrained green, pending = amber, risk/destructive = red,
+     neutral/draft = slate, governance = violet. Backgrounds are the
+     light 050 tints; -fg is the accessible on-tint text; -border is the
+     hairline. These align with StatusBadge's TONE_PALETTE. */
+  --status-verified-bg: #ecfdf5;
+  --status-verified-fg: #065f46;
+  --status-verified-border: #a7f3d0;
+  --status-verified-solid: #10b981;
+
+  --status-pending-bg: #fef3c7;
+  --status-pending-fg: #78350f;
+  --status-pending-border: #fde68a;
+  --status-pending-solid: #f59e0b;
+
+  --status-risk-bg: #fef2f2;
+  --status-risk-fg: #991b1b;
+  --status-risk-border: #fecaca;
+  --status-risk-solid: #dc2626;
+
+  --status-neutral-bg: #f1f5f9;
+  --status-neutral-fg: #475569;
+  --status-neutral-border: #cbd5e1;
+  --status-neutral-solid: #64748b;
+
+  --status-governance-bg: #eeebff;
+  --status-governance-fg: #4634c9;
+  --status-governance-border: #d6cffb;
+  --status-governance-solid: #6b5bff;
+
+  --status-info-bg: #eff6ff;
+  --status-info-fg: #1e40af;
+  --status-info-border: #bfdbfe;
+  --status-info-solid: #2563eb;
 
   --color-bg: var(--page-bg);
   --color-card: var(--surface);
@@ -169,6 +250,90 @@ textarea {
 
 * {
   box-sizing: border-box;
+}
+
+/* =========================================================
+   PROOVRA SHARED UI PRIMITIVES (Phase 7 foundation)
+   Hover / focus / motion polish for components/ui/* that
+   inline-styles cannot express. Values come from tokens.
+   ========================================================= */
+
+.ui-button:not(:disabled):hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+}
+
+.ui-button:not(:disabled):active {
+  transform: translateY(0);
+  filter: brightness(0.99);
+}
+
+.ui-button[data-variant="secondary"]:not(:disabled):hover {
+  border-color: var(--border-strong, rgba(15, 23, 42, 0.14));
+  background: var(--surface-muted, #f1f4f9);
+}
+
+.ui-button[data-variant="ghost"]:not(:disabled):hover {
+  background: var(--surface-muted, #f1f4f9);
+  color: var(--ink-primary, #0f172a);
+}
+
+.ui-button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--surface-card, #fff),
+    0 0 0 4px var(--cta-coral-ring, rgba(230, 72, 128, 0.32));
+}
+
+.ui-button[data-variant="enterprise"]:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--surface-card, #fff),
+    0 0 0 4px rgba(107, 91, 255, 0.32);
+}
+
+.ui-button[data-variant="destructive"]:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--surface-card, #fff),
+    0 0 0 4px rgba(220, 38, 38, 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-button,
+  .ui-card,
+  .ui-datatable__row {
+    transition: none !important;
+  }
+
+  .ui-button:not(:disabled):hover,
+  .ui-button:not(:disabled):active {
+    transform: none;
+  }
+}
+
+.ui-card[data-interactive="true"]:hover {
+  border-color: var(--border-strong, rgba(15, 23, 42, 0.14));
+  box-shadow: var(--shadow-elevated, 0 8px 24px rgba(15, 23, 42, 0.08));
+  transform: translateY(-1px);
+}
+
+.ui-datatable__row[data-clickable="true"]:hover {
+  background: var(--surface-muted, #f1f4f9);
+}
+
+.ui-filterbar__input:focus-visible,
+.ui-filterbar__select:focus-visible {
+  outline: none;
+  border-color: var(--accent-500, #6b5bff);
+  box-shadow: var(--focus-ring, 0 0 0 3px rgba(107, 91, 255, 0.28));
+}
+
+@keyframes pf-indeterminate-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 img,

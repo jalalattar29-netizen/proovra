@@ -1085,10 +1085,10 @@ function EvidenceDetailPageInner() {
             role="alert"
             aria-live="polite"
             style={{
-              border: "1px solid rgba(176, 50, 50, 0.55)",
-              background: "rgba(176, 50, 50, 0.06)",
-              color: "#5a1414",
-              borderRadius: 12,
+              border: "1px solid var(--status-risk-border, rgba(176, 50, 50, 0.55))",
+              background: "var(--status-risk-bg, rgba(176, 50, 50, 0.06))",
+              color: "var(--status-risk-fg, #5a1414)",
+              borderRadius: "var(--radius-card, 12px)",
               padding: "16px 18px",
               marginBottom: 16,
               display: "flex",
@@ -1127,10 +1127,10 @@ function EvidenceDetailPageInner() {
             aria-live="polite"
             data-evidence-trash-banner="true"
             style={{
-              border: "1px solid rgba(180, 130, 40, 0.55)",
-              background: "rgba(180, 130, 40, 0.06)",
-              color: "#5a3a14",
-              borderRadius: 12,
+              border: "1px solid var(--status-pending-border, rgba(180, 130, 40, 0.55))",
+              background: "var(--status-pending-bg, rgba(180, 130, 40, 0.06))",
+              color: "var(--status-pending-fg, #5a3a14)",
+              borderRadius: "var(--radius-card, 12px)",
               padding: "16px 18px",
               marginBottom: 16,
               display: "flex",
@@ -1160,10 +1160,10 @@ function EvidenceDetailPageInner() {
                 padding: "8px 14px",
                 fontSize: 13,
                 fontWeight: 600,
-                background: "#0f172a",
+                background: "var(--ink-primary, #0f172a)",
                 color: "#ffffff",
-                border: "1px solid #0f172a",
-                borderRadius: 6,
+                border: "1px solid var(--ink-primary, #0f172a)",
+                borderRadius: "var(--radius-md, 6px)",
                 cursor: actionBusy ? "wait" : "pointer",
                 opacity: actionBusy ? 0.7 : 1,
               }}
@@ -1809,7 +1809,7 @@ function EvidenceDetailPageInner() {
             display: "block",
             marginTop: 12,
             fontSize: 13,
-            color: "#1f2937",
+            color: "var(--ink-primary, #1f2937)",
           }}
         >
           <span style={{ display: "block", marginBottom: 4 }}>
@@ -1825,8 +1825,8 @@ function EvidenceDetailPageInner() {
             style={{
               width: "100%",
               padding: "6px 8px",
-              borderRadius: 4,
-              border: "1px solid rgba(15, 23, 42, 0.2)",
+              borderRadius: "var(--radius-sm, 4px)",
+              border: "1px solid var(--border-default, rgba(15, 23, 42, 0.2))",
               fontSize: 13,
             }}
           />
@@ -2008,13 +2008,13 @@ function WhatNeedsAttentionStrip({
         flexDirection: "column",
         gap: 8,
         padding: "12px 14px",
-        borderLeft: "4px solid #d97706",
-        background: "#fffbeb",
-        borderRadius: 8,
+        borderLeft: "4px solid var(--status-pending-solid, #d97706)",
+        background: "var(--status-pending-bg, #fffbeb)",
+        borderRadius: "var(--radius-md, 8px)",
         marginBottom: 12,
       }}
     >
-      <strong style={{ fontSize: 13, color: "#7c2d12", letterSpacing: 0.02 }}>
+      <strong style={{ fontSize: 13, color: "var(--status-pending-fg, #7c2d12)", letterSpacing: 0.02 }}>
         What needs attention
       </strong>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -2097,9 +2097,9 @@ function WhatNeedsAttentionStrip({
 }
 
 const pillButtonStyle: React.CSSProperties = {
-  border: "1px solid #d97706",
-  background: "white",
-  color: "#7c2d12",
+  border: "1px solid var(--status-pending-solid, #d97706)",
+  background: "var(--surface-card, white)",
+  color: "var(--status-pending-fg, #7c2d12)",
   padding: "4px 10px",
   borderRadius: 999,
   fontSize: 12.5,

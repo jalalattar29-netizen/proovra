@@ -55,6 +55,7 @@ import {
 // so they cannot be quick-navigated to via Cmd+K.
 import { canAccessSurface } from "../../lib/surface/access";
 import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
+import { Badge, type BadgeTone } from "../ui/Badge";
 import { WORKFLOW_SAFETY_STATEMENT } from "./WorkflowSafetyNotice";
 
 type IndexedItem = {
@@ -66,55 +67,20 @@ type IndexedItem = {
 
 const MAX_RESULTS = 20;
 
-function badgeForAccessState(state: string): {
-  label: string;
-  background: string;
-  color: string;
-  border: string;
-} {
+function badgeForAccessState(state: string): { label: string; tone: BadgeTone } {
   switch (state) {
     case "ALLOWED":
-      return {
-        label: "Available",
-        background: "#ecfdf5",
-        color: "#065f46",
-        border: "#a7f3d0",
-      };
+      return { label: "Available", tone: "verified" };
     case "NEEDS_ORGANIZATION":
-      return {
-        label: "Requires organization",
-        background: "#fef3c7",
-        color: "#78350f",
-        border: "#fde68a",
-      };
+      return { label: "Requires organization", tone: "pending" };
     case "NEEDS_PERSONAL_OR_ORG":
-      return {
-        label: "Requires workspace",
-        background: "#fef3c7",
-        color: "#78350f",
-        border: "#fde68a",
-      };
+      return { label: "Requires workspace", tone: "pending" };
     case "DENIED_NO_CAPABILITY":
-      return {
-        label: "Requires permission",
-        background: "#fef2f2",
-        color: "#7f1d1d",
-        border: "#fecaca",
-      };
+      return { label: "Requires permission", tone: "risk" };
     case "NEEDS_UPGRADE":
-      return {
-        label: "Requires upgrade",
-        background: "#eef2ff",
-        color: "#3730a3",
-        border: "#c7d2fe",
-      };
+      return { label: "Requires upgrade", tone: "governance" };
     default:
-      return {
-        label: "Unavailable",
-        background: "#f1f5f9",
-        color: "#475569",
-        border: "#cbd5e1",
-      };
+      return { label: "Unavailable", tone: "neutral" };
   }
 }
 
@@ -427,55 +393,30 @@ export function CommandPalette() {
                         {item.route.label}
                       </strong>
                       {opGroup ? (
-                        <span
+                        <Badge
+                          tone="governance"
+                          subtle
                           data-command-palette-group-chip={opGroup.id}
-                          style={{
-                            fontSize: 10,
-                            padding: "1px 6px",
-                            fontWeight: 600,
-                            background: "#eef2ff",
-                            color: "#3730a3",
-                            border: "1px solid #c7d2fe",
-                            borderRadius: 999,
-                            textTransform: "uppercase",
-                            letterSpacing: 0.4,
-                          }}
                         >
                           {opGroup.title}
-                        </span>
+                        </Badge>
                       ) : null}
                       {item.route.advancedByDefault ? (
-                        <span
+                        <Badge
+                          tone="neutral"
+                          subtle
                           data-command-palette-advanced-chip
-                          style={{
-                            fontSize: 10,
-                            padding: "1px 6px",
-                            fontWeight: 600,
-                            background: "#f1f5f9",
-                            color: "#475569",
-                            border: "1px solid #cbd5e1",
-                            borderRadius: 999,
-                            textTransform: "uppercase",
-                            letterSpacing: 0.4,
-                          }}
                         >
                           Advanced
-                        </span>
+                        </Badge>
                       ) : null}
-                      <span
+                      <Badge
+                        tone={badge.tone}
+                        subtle
                         data-command-palette-status={item.access.accessState}
-                        style={{
-                          fontSize: 10,
-                          padding: "1px 6px",
-                          fontWeight: 600,
-                          background: badge.background,
-                          color: badge.color,
-                          border: `1px solid ${badge.border}`,
-                          borderRadius: 999,
-                        }}
                       >
                         {badge.label}
-                      </span>
+                      </Badge>
                     </div>
                     <div
                       style={{
@@ -494,7 +435,7 @@ export function CommandPalette() {
                         data-command-palette-reason
                         style={{
                           fontSize: 11,
-                          color: "#7c2d12",
+                          color: "var(--status-risk-fg, #991b1b)",
                           marginTop: 2,
                         }}
                       >

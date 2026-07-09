@@ -28,6 +28,9 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader } from "../../../components/ui/PageShell";
+import { Card } from "../../../components/ui/Card";
+import { Button } from "../../../components/ui/Button";
 import { apiFetch, ApiError } from "../../../lib/api";
 
 // ---------------------------------------------------------------------------
@@ -334,80 +337,74 @@ function Shell() {
       : "Refresh";
 
   return (
-    <div
+    <PageShell
       data-evidence-lifecycle
       data-evidence-lifecycle-phase={state.phase}
-      style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
+      header={
+        <PageHeader
+          eyebrow="Evidence Lifecycle"
+          title="Lifecycle Operations"
+          subtitle="Mutation-first operator console for retention, legal holds, archive tiers, destruction, webhooks, and chain transfers."
+          primaryAction={
+            <Button
+              type="button"
+              variant="primary"
+              data-evidence-lifecycle-refresh
+              loading={busy}
+              disabled={busy}
+              onClick={() => void refresh()}
+            >
+              {buttonLabel}
+            </Button>
+          }
+          contextStrip={
+            <nav
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                alignItems: "center",
+                width: "100%",
+              }}
+            >
+              {SUB_PAGES.map(({ href, label }) => (
+                <a key={href} href={href} style={navLink}>
+                  {label}
+                </a>
+              ))}
+              <span style={{ flex: 1 }} />
+              <a
+                href="/governance/lifecycle"
+                data-lifecycle-cross-link
+                style={crossLinkStyle}
+              >
+                Open Governance Posture →
+              </a>
+            </nav>
+          }
+        />
+      }
     >
-      <header style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, marginTop: 0 }}>Lifecycle Operations</h1>
-        <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-          Mutation-first operator console for retention, legal holds, archive
-          tiers, destruction, webhooks, and chain transfers.
-        </p>
-        <div
-          data-lifecycle-copy-callout
-          style={{
-            background: "#eff6ff",
-            border: "1px solid #bfdbfe",
-            color: "#1e3a8a",
-            padding: "8px 10px",
-            borderRadius: 8,
-            fontSize: 12,
-            marginTop: 8,
-          }}
+      <div
+        data-lifecycle-copy-callout
+        style={{
+          background: "#eff6ff",
+          border: "1px solid #bfdbfe",
+          color: "#1e3a8a",
+          padding: "8px 10px",
+          borderRadius: 8,
+          fontSize: 12,
+        }}
+      >
+        This console is for lifecycle actions. For read-only lifecycle posture
+        and governance overview, open{" "}
+        <a
+          href="/governance/lifecycle"
+          style={{ color: "#1e3a8a", fontWeight: 600, textDecoration: "underline" }}
         >
-          This console is for lifecycle actions. For read-only lifecycle posture
-          and governance overview, open{" "}
-          <a
-            href="/governance/lifecycle"
-            style={{ color: "#1e3a8a", fontWeight: 600, textDecoration: "underline" }}
-          >
-            Governance Posture
-          </a>
-          .
-        </div>
-        <nav
-          style={{
-            display: "flex",
-            gap: 10,
-            flexWrap: "wrap",
-            marginTop: 10,
-            alignItems: "center",
-          }}
-        >
-          {SUB_PAGES.map(({ href, label }) => (
-            <a key={href} href={href} style={navLink}>
-              {label}
-            </a>
-          ))}
-          <span style={{ flex: 1 }} />
-          <a
-            href="/governance/lifecycle"
-            data-lifecycle-cross-link
-            style={crossLinkStyle}
-          >
-            Open Governance Posture →
-          </a>
-        </nav>
-      </header>
-
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
-        <button
-          type="button"
-          data-evidence-lifecycle-refresh
-          disabled={busy}
-          onClick={() => void refresh()}
-          style={primaryButton}
-        >
-          {buttonLabel}
-        </button>
+          Governance Posture
+        </a>
+        .
       </div>
 
       {state.phase === "loading" ? (
@@ -482,7 +479,7 @@ function Shell() {
       {state.phase === "loaded" ? (
         <LoadedDashboard dashboard={state.dashboard} />
       ) : null}
-    </div>
+    </PageShell>
   );
 }
 
@@ -576,18 +573,11 @@ function CapabilityLauncherRow({
   caps: LifecycleDashboardCapabilities | undefined;
 }) {
   return (
-    <section
+    <Card
+      variant="admin"
       data-lifecycle-launcher-row
-      style={{
-        padding: 12,
-        background: "rgba(15,23,42,0.03)",
-        border: "1px solid rgba(15,23,42,0.06)",
-        borderRadius: 10,
-      }}
+      title="Capability operations"
     >
-      <strong style={{ fontSize: 14, display: "block", marginBottom: 8 }}>
-        Capability operations
-      </strong>
       <div
         style={{
           display: "grid",
@@ -662,7 +652,7 @@ function CapabilityLauncherRow({
           );
         })}
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -687,15 +677,10 @@ function TileGroup({
     ? CAPABILITY_COLOR[status]
     : null;
   return (
-    <section
+    <Card
+      variant="admin"
       data-lifecycle-tile-group={anchor}
       data-capability-status={status ?? "UNKNOWN"}
-      style={{
-        padding: 12,
-        background: "rgba(15,23,42,0.03)",
-        border: "1px solid rgba(15,23,42,0.06)",
-        borderRadius: 10,
-      }}
     >
       <div
         style={{
@@ -755,7 +740,7 @@ function TileGroup({
           ))}
         </div>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -775,15 +760,7 @@ function ViolationsTileGroup({ violations }: { violations: LifecycleViolations }
   };
   const total = violations.totalBounded ?? Object.values(byCode).reduce((s, v) => s + v, 0);
   return (
-    <section
-      data-lifecycle-tile-group="violations"
-      style={{
-        padding: 12,
-        background: "rgba(15,23,42,0.03)",
-        border: "1px solid rgba(15,23,42,0.06)",
-        borderRadius: 10,
-      }}
-    >
+    <Card variant="admin" data-lifecycle-tile-group="violations">
       <strong style={{ fontSize: 14, display: "block", marginBottom: 2 }}>Violations</strong>
       <small style={{ color: "#64748b", fontSize: 11, display: "block", marginBottom: 8 }}>
         Bounded POLICY_VIOLATION_* events — last 30 days ({total} total)
@@ -821,7 +798,7 @@ function ViolationsTileGroup({ violations }: { violations: LifecycleViolations }
           </div>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -829,16 +806,6 @@ function ViolationsTileGroup({ violations }: { violations: LifecycleViolations }
 // Styles
 // ---------------------------------------------------------------------------
 
-const primaryButton = {
-  padding: "6px 12px",
-  border: "1px solid #0f172a",
-  background: "#0f172a",
-  color: "#fafafa",
-  fontWeight: 600,
-  fontSize: 12,
-  borderRadius: 8,
-  cursor: "pointer",
-} as const;
 const navLink = {
   fontSize: 12,
   color: "#0f172a",

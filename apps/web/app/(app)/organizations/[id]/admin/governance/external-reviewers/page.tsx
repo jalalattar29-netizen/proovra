@@ -33,6 +33,13 @@
  *     teamId-scoped, so the view derives the active workspace via the
  *     canonical platform-context `useTeamId()` and passes it explicitly.
  *   - Strong TypeScript types throughout.
+ *
+ * Phase 7 (Enterprise UX): presentation migrated to the shared design
+ * system (PageSection + Card + DataTable + Badge + Button + EmptyState).
+ * This sub-tab renders INSIDE the org admin layout shell (which already
+ * owns the org title + tab bar), so it uses PageSection headings — not a
+ * second PageHeader — to avoid a duplicate title. All data reads, gating,
+ * testids, data-state markers and honest "—"/empty behaviour are unchanged.
  */
 
 import Link from "next/link";
@@ -44,6 +51,15 @@ import { apiFetch, ApiError } from "../../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../../lib/feedback/toSafeUserError";
 import { formatUtcAuditDateTime } from "../../../../../../../lib/date";
 import { useTeamId } from "../../../../../../../lib/platform-context";
+import { PageSection } from "../../../../../../../components/ui/PageShell";
+import { Card } from "../../../../../../../components/ui/Card";
+import { Badge } from "../../../../../../../components/ui/Badge";
+import { Button } from "../../../../../../../components/ui/Button";
+import { EmptyState } from "../../../../../../../components/ui/EmptyState";
+import {
+  DataTable,
+  type DataTableColumn,
+} from "../../../../../../../components/ui/DataTable";
 
 // ---------------------------------------------------------------------------
 // Wire types — mirror GET /v1/external-review/grants (ExternalReviewGrantRow)
@@ -152,14 +168,106 @@ function ExternalReviewerGovernanceView() {
   const grants = state.kind === "ready" ? state.data.grants : [];
   const counts = summarize(grants);
 
+  const grantColumns: DataTableColumn<GrantRow>[] = [
+    {
+      key: "reviewer",
+      header: "Reviewer",
+      render: (g) => (
+        <span data-testid="external-reviewer-grant-row" data-grant-state={g.state}>
+          <div style={{ fontWeight: 600 }}>
+            {g.reviewerDisplayName ?? g.reviewerEmail}
+          </div>
+          {g.reviewerDisplayName ? (
+            <div style={{ fontSize: 11.5, color: "var(--ink-muted, #94a3b8)" }}>
+              {g.reviewerEmail}
+            </div>
+          ) : null}
+        </span>
+      ),
+    },
+    {
+      key: "state",
+      header: "State",
+      render: (g) => <StatePill state={g.state} />,
+      nowrap: true,
+    },
+    {
+      key: "scope",
+      header: "Scope",
+      render: (g) => (
+        <>
+          <code>{g.scopeKind}</code>
+          <div style={{ fontSize: 11.5, color: "var(--ink-muted, #94a3b8)" }}>
+            {scopeTarget(g)}
+          </div>
+        </>
+      ),
+    },
+    { key: "downloads", header: "Downloads", render: (g) => downloadPolicy(g), nowrap: true },
+    {
+      key: "redaction",
+      header: "Redaction",
+      render: (g) =>
+        g.redactionPolicyVersion ? (
+          <code>{g.redactionPolicyVersion}</code>
+        ) : (
+          <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
+        ),
+      nowrap: true,
+    },
+    {
+      key: "issued",
+      header: "Issued",
+      render: (g) => formatUtcAuditDateTime(g.createdAtUtc),
+      nowrap: true,
+    },
+    {
+      key: "expires",
+      header: "Expires",
+      render: (g) => formatUtcAuditDateTime(g.expiresAtUtc),
+      nowrap: true,
+    },
+    {
+      key: "revoked",
+      header: "Revoked",
+      render: (g) =>
+        g.revokedAtUtc ? formatUtcAuditDateTime(g.revokedAtUtc) : "—",
+      nowrap: true,
+    },
+    {
+      key: "lastAccess",
+      header: "Last access",
+      render: (g) =>
+        g.lastAccessedAtUtc ? formatUtcAuditDateTime(g.lastAccessedAtUtc) : "—",
+      nowrap: true,
+    },
+    { key: "accesses", header: "Accesses", render: (g) => g.accessCount, align: "right", nowrap: true },
+  ];
+
   return (
-    <section data-testid="org-admin-external-reviewers" data-team-id={teamId ?? ""}>
+    <section
+      data-testid="org-admin-external-reviewers"
+      data-team-id={teamId ?? ""}
+      style={{ display: "flex", flexDirection: "column", gap: 24 }}
+    >
       {/* ---------------------------------------------------------------
           Intro — what this governance view is.
           --------------------------------------------------------------- */}
-      <section data-section="external-reviewers-intro" style={cardStyle}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>External reviewer grants</h2>
-        <p style={{ fontSize: 13, opacity: 0.85, marginTop: 8 }}>
+      <Card
+        variant="status"
+        tone="governance"
+        data-section="external-reviewers-intro"
+        title="External reviewer grants"
+        headerAction={<Badge tone="governance" dot>Read-only</Badge>}
+      >
+        <p
+          style={{
+            margin: 0,
+            fontSize: 13.5,
+            lineHeight: 1.6,
+            color: "var(--ink-secondary, #475569)",
+          }}
+        >
           A read-only governance view of external sharing: every scoped
           grant that lets an outside reviewer see workspace evidence, its
           lifecycle state, who issued and who revoked it, its scope,
@@ -167,43 +275,51 @@ function ExternalReviewerGovernanceView() {
           history. Issuing, revoking, and rotating grants happens on the
           operator console linked below — this view never mutates.
         </p>
-        <DeepLink
-          testId="ext-reviewers-link-console"
-          label="External Review Management Console"
-          href="/review/external"
-        />
-      </section>
+        <div style={{ marginTop: 12 }}>
+          <Link
+            href="/review/external"
+            data-testid="ext-reviewers-link-console"
+            style={{ textDecoration: "none" }}
+          >
+            <Button variant="secondary" size="sm">
+              External Review Management Console →
+            </Button>
+          </Link>
+        </div>
+      </Card>
 
       {state.kind === "loading" ? (
-        <div
-          data-state="loading"
-          style={{ ...cardStyle, marginTop: "1rem", fontSize: 13, opacity: 0.7 }}
-        >
-          Loading external-reviewer grants…
-        </div>
+        <Card variant="admin" data-state="loading">
+          <span style={{ fontSize: 13, color: "var(--ink-muted, #94a3b8)" }}>
+            Loading external-reviewer grants…
+          </span>
+        </Card>
       ) : state.kind === "error" ? (
-        <div
+        <Card
+          variant="status"
+          tone="risk"
           data-state="error"
           data-testid="external-reviewers-error"
           role="alert"
-          style={{ ...cardStyle, marginTop: "1rem", fontSize: 13 }}
         >
-          {state.status === 403 || state.status === 404
-            ? "You don't have access to external-reviewer governance for this workspace. This view requires audit-read on the workspace."
-            : state.message}
+          <div style={{ fontSize: 13.5, color: "var(--ink-primary, #0f172a)" }}>
+            {state.status === 403 || state.status === 404
+              ? "You don't have access to external-reviewer governance for this workspace. This view requires audit-read on the workspace."
+              : state.message}
+          </div>
           {state.requestId ? (
             <div
               style={{
                 marginTop: 4,
                 fontSize: 11,
                 fontFamily: "monospace",
-                opacity: 0.7,
+                color: "var(--ink-muted, #94a3b8)",
               }}
             >
               Request id: {state.requestId}
             </div>
           ) : null}
-        </div>
+        </Card>
       ) : (
         <>
           {/* -----------------------------------------------------------
@@ -213,9 +329,8 @@ function ExternalReviewerGovernanceView() {
             data-section="external-reviewers-kpis"
             style={{
               display: "grid",
-              gap: 10,
+              gap: 12,
               gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-              margin: "1rem 0 1.25rem",
             }}
           >
             <Kpi testId="kpi-active-grants" label="Active" value={counts.active} />
@@ -231,121 +346,54 @@ function ExternalReviewerGovernanceView() {
           {/* -----------------------------------------------------------
               Grant table — the reviewable governance detail.
               ----------------------------------------------------------- */}
-          <section
+          <PageSection
             data-testid="section-external-reviewer-grants"
-            style={{ ...cardStyle, marginBottom: "1.25rem" }}
-          >
-            <header
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "baseline",
-                gap: 12,
-                flexWrap: "wrap",
-                marginBottom: "0.5rem",
-              }}
-            >
-              <h2 style={{ margin: 0, fontSize: 16 }}>All grants</h2>
-              <span style={{ fontSize: 12, opacity: 0.7 }}>
+            title="All grants"
+            action={
+              <span style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)" }}>
                 {grants.length} grant{grants.length === 1 ? "" : "s"}
               </span>
-            </header>
-
+            }
+          >
             {grants.length === 0 ? (
-              <div
-                data-state="empty"
-                data-testid="external-reviewers-empty"
-                style={{ marginTop: 8, fontSize: 13, opacity: 0.75 }}
-              >
-                No external-reviewer grants have been issued for this
-                workspace.
+              <div data-state="empty">
+                <EmptyState
+                  data-testid="external-reviewers-empty"
+                  framed
+                  title="No external reviewers have access"
+                  purpose="No external-reviewer grants have been issued for this workspace. Grants let an outside reviewer see scoped evidence under governance — with expiration, watermark, download policy, and a full access audit."
+                  action={
+                    <Link href="/review/external" style={{ textDecoration: "none" }}>
+                      <Button variant="secondary" size="sm">
+                        Open the External Review Console →
+                      </Button>
+                    </Link>
+                  }
+                  note="Issuing grants requires REVIEWER_OPS_ACT on the operator console; this governance view is read-only."
+                />
               </div>
             ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table
-                  data-testid="external-reviewer-grants-table"
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: 12,
-                  }}
-                >
-                  <thead>
-                    <tr style={{ textAlign: "left", opacity: 0.7 }}>
-                      <th style={th}>Reviewer</th>
-                      <th style={th}>State</th>
-                      <th style={th}>Scope</th>
-                      <th style={th}>Downloads</th>
-                      <th style={th}>Redaction</th>
-                      <th style={th}>Issued</th>
-                      <th style={th}>Expires</th>
-                      <th style={th}>Revoked</th>
-                      <th style={th}>Last access</th>
-                      <th style={th}>Accesses</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {grants.map((g) => (
-                      <tr key={g.id} data-testid="external-reviewer-grant-row" data-grant-state={g.state}>
-                        <td style={td}>
-                          <div style={{ fontWeight: 500 }}>
-                            {g.reviewerDisplayName ?? g.reviewerEmail}
-                          </div>
-                          {g.reviewerDisplayName ? (
-                            <div style={{ fontSize: 11, opacity: 0.7 }}>
-                              {g.reviewerEmail}
-                            </div>
-                          ) : null}
-                        </td>
-                        <td style={td}>
-                          <StatePill state={g.state} />
-                        </td>
-                        <td style={td}>
-                          <code>{g.scopeKind}</code>
-                          <div style={{ fontSize: 11, opacity: 0.7 }}>
-                            {scopeTarget(g)}
-                          </div>
-                        </td>
-                        <td style={td}>{downloadPolicy(g)}</td>
-                        <td style={td}>
-                          {g.redactionPolicyVersion ? (
-                            <code>{g.redactionPolicyVersion}</code>
-                          ) : (
-                            <span style={{ opacity: 0.6 }}>—</span>
-                          )}
-                        </td>
-                        <td style={td}>{formatUtcAuditDateTime(g.createdAtUtc)}</td>
-                        <td style={td}>{formatUtcAuditDateTime(g.expiresAtUtc)}</td>
-                        <td style={td}>
-                          {g.revokedAtUtc
-                            ? formatUtcAuditDateTime(g.revokedAtUtc)
-                            : "—"}
-                        </td>
-                        <td style={td}>
-                          {g.lastAccessedAtUtc
-                            ? formatUtcAuditDateTime(g.lastAccessedAtUtc)
-                            : "—"}
-                        </td>
-                        <td style={td}>{g.accessCount}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div data-testid="external-reviewer-grants-table">
+                <DataTable<GrantRow>
+                  columns={grantColumns}
+                  rows={grants}
+                  getRowId={(g) => g.id}
+                  density="compact"
+                  ariaLabel="External reviewer grants"
+                />
               </div>
             )}
-          </section>
+          </PageSection>
 
           {/* -----------------------------------------------------------
               Canonical surfaces — deep-links (mutation lives elsewhere).
               ----------------------------------------------------------- */}
-          <section data-section="external-reviewers-deep-links" style={cardStyle}>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Canonical surfaces</h2>
-            <p style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-              This governance view is read-only. Grant issuance, revocation,
-              rotation, and delivery live on their canonical operator
-              surface.
-            </p>
-            <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
+          <PageSection
+            data-section="external-reviewers-deep-links"
+            title="Canonical surfaces"
+            description="This governance view is read-only. Grant issuance, revocation, rotation, and delivery live on their canonical operator surface."
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <DeepLinkRow
                 testId="ext-reviewers-deep-link-console"
                 label="External Review Management Console"
@@ -358,8 +406,8 @@ function ExternalReviewerGovernanceView() {
                 description="Org-wide governance posture, including active external-sharing counts."
                 href={`/organizations/${orgId}/admin/governance`}
               />
-            </ul>
-          </section>
+            </div>
+          </PageSection>
         </>
       )}
     </section>
@@ -410,15 +458,6 @@ function downloadPolicy(g: GrantRow): string {
 // Presentational helpers.
 // ---------------------------------------------------------------------------
 
-const cardStyle = {
-  padding: "1rem 1.1rem",
-  border: "1px solid rgba(127,127,127,0.3)",
-  borderRadius: 8,
-} as const;
-
-const th = { padding: "6px 8px", borderBottom: "1px solid rgba(127,127,127,0.25)" } as const;
-const td = { padding: "6px 8px", borderBottom: "1px solid rgba(127,127,127,0.14)" } as const;
-
 function Kpi({
   testId,
   label,
@@ -429,83 +468,47 @@ function Kpi({
   value: number;
 }) {
   return (
-    <div
-      data-testid={testId}
-      style={{
-        padding: "0.75rem 0.9rem",
-        border: "1px solid rgba(127,127,127,0.3)",
-        borderRadius: 8,
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        minHeight: 76,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          opacity: 0.7,
-          letterSpacing: 0.5,
-          textTransform: "uppercase",
-        }}
-      >
-        {label}
+    <Card variant="summary" padding="compact" data-testid={testId}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, minHeight: 76 }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: "var(--ink-muted, #94a3b8)",
+          }}
+        >
+          {label}
+        </div>
+        <div
+          style={{
+            fontSize: 24,
+            fontWeight: 700,
+            lineHeight: 1.1,
+            color: "var(--ink-primary, #0f172a)",
+          }}
+        >
+          {value}
+        </div>
       </div>
-      <div style={{ fontSize: 24, fontWeight: 700 }}>{value}</div>
-    </div>
+    </Card>
   );
 }
 
 function StatePill({ state }: { state: GrantState }) {
-  const tone: "ok" | "warn" | "muted" =
+  const tone: "verified" | "pending" | "neutral" =
     state === "ACTIVE"
-      ? "ok"
+      ? "verified"
       : state === "INVITED"
-        ? "warn"
-        : "muted";
-  const bg =
-    tone === "ok"
-      ? "rgba(16,185,129,0.18)"
-      : tone === "warn"
-        ? "rgba(245,158,11,0.18)"
-        : "rgba(127,127,127,0.15)";
+        ? "pending"
+        : "neutral";
   return (
-    <span
-      data-state={state}
-      style={{
-        fontSize: 11,
-        padding: "1px 8px",
-        borderRadius: 999,
-        background: bg,
-        display: "inline-block",
-        fontWeight: 600,
-        letterSpacing: 0.3,
-        textTransform: "uppercase",
-      }}
-    >
-      {state}
+    <span data-state={state}>
+      <Badge tone={tone} subtle>
+        {state}
+      </Badge>
     </span>
-  );
-}
-
-function DeepLink({
-  testId,
-  label,
-  href,
-}: {
-  testId: string;
-  label: string;
-  href: string;
-}) {
-  return (
-    <Link
-      href={href}
-      data-testid={testId}
-      className="cases-filter-chip"
-      style={{ marginTop: 8, display: "inline-block" }}
-    >
-      {label} →
-    </Link>
   );
 }
 
@@ -521,24 +524,36 @@ function DeepLinkRow({
   href: string;
 }) {
   return (
-    <li
-      style={{
-        padding: "0.5rem 0",
-        borderBottom: "1px solid rgba(127,127,127,0.18)",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 12,
-        flexWrap: "wrap",
-      }}
+    <Card
+      variant="summary"
+      padding="compact"
+      style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
     >
       <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-        <div style={{ fontWeight: 500 }}>{label}</div>
-        <div style={{ fontSize: 12, opacity: 0.75 }}>{description}</div>
+        <div
+          style={{
+            fontWeight: 600,
+            fontSize: 14,
+            color: "var(--ink-primary, #0f172a)",
+          }}
+        >
+          {label}
+        </div>
+        <div
+          style={{
+            fontSize: 12.5,
+            color: "var(--ink-secondary, #475569)",
+            marginTop: 2,
+          }}
+        >
+          {description}
+        </div>
       </div>
-      <Link href={href} data-testid={testId} className="cases-filter-chip">
-        Open →
+      <Link href={href} data-testid={testId} style={{ textDecoration: "none", flexShrink: 0 }}>
+        <Button variant="secondary" size="sm">
+          Open →
+        </Button>
       </Link>
-    </li>
+    </Card>
   );
 }

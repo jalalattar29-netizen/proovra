@@ -26,6 +26,12 @@
  *   - No raw window.confirm — destructive remove uses ConfirmActionModal.
  *   - toSafeUserError is the ONLY error-display path.
  *   - Strong TypeScript types throughout.
+ *
+ * Phase 7 (Enterprise UX): presentation migrated to the shared design
+ * system (Card / Badge / Button / EmptyState). This tab renders INSIDE the
+ * org admin layout shell (which owns the org title + tab bar), so it uses
+ * Card headings — not a second PageHeader. All data reads, mutations,
+ * step-up, confirm, testids and DNS-challenge markers are unchanged.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -40,6 +46,10 @@ import {
   useStepUpAction,
 } from "../../../../../../components/identity-security/StepUpModal";
 import { useConfirmAction } from "../../../../../../components/ui/ConfirmActionModal";
+import { Card } from "../../../../../../components/ui/Card";
+import { Badge } from "../../../../../../components/ui/Badge";
+import { Button } from "../../../../../../components/ui/Button";
+import { EmptyState } from "../../../../../../components/ui/EmptyState";
 
 // ---------------------------------------------------------------------------
 // Wire types — mirror /v1/orgs/:orgId/domains.
@@ -76,12 +86,6 @@ export default function OrganizationAdminDomainsPage() {
     </PageRouteGate>
   );
 }
-
-const cardBaseStyle = {
-  padding: "1rem 1.1rem",
-  border: "1px solid rgba(127,127,127,0.3)",
-  borderRadius: 8,
-} as const;
 
 function DomainsTab() {
   const params = useParams<{ id: string }>();
@@ -230,21 +234,30 @@ function DomainsTab() {
   );
 
   return (
-    <section data-testid="org-admin-domains" data-org-id={orgId}>
+    <section
+      data-testid="org-admin-domains"
+      data-org-id={orgId}
+      style={{ display: "flex", flexDirection: "column", gap: 24 }}
+    >
       {/* Intro + add form */}
-      <section data-section="domains-add" style={{ ...cardBaseStyle, marginBottom: "1rem" }}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>Verified domains</h2>
-        <p style={{ fontSize: 13, opacity: 0.85, marginTop: 8 }}>
-          Claim the email domains your organization owns. Verified domains let
-          you enforce SSO and auto-associate members. Verification is proven by
-          publishing a DNS <strong>TXT</strong> record we generate for you.
-        </p>
-
+      <Card
+        variant="summary"
+        data-section="domains-add"
+        title="Verified domains"
+        subtitle={
+          <>
+            Claim the email domains your organization owns. Verified domains
+            let you enforce SSO and auto-associate members. Verification is
+            proven by publishing a DNS <strong>TXT</strong> record we generate
+            for you.
+          </>
+        }
+      >
         <div
           style={{
             display: "flex",
             gap: 8,
-            marginTop: 12,
+            marginTop: 4,
             flexWrap: "wrap",
             alignItems: "center",
           }}
@@ -258,52 +271,47 @@ function DomainsTab() {
             style={{
               flex: "1 1 260px",
               minWidth: 200,
-              padding: "8px 10px",
-              borderRadius: 6,
-              border: "1px solid rgba(127,127,127,0.4)",
+              minHeight: 40,
+              padding: "0 12px",
+              borderRadius: "var(--radius-md, 8px)",
+              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
               fontSize: 14,
+              background: "var(--surface-card, #ffffff)",
+              color: "var(--ink-primary, #0f172a)",
             }}
           />
-          <button
+          <Button
             type="button"
             data-testid="org-domain-add-submit"
-            className="cases-filter-chip"
+            variant="primary"
+            size="sm"
+            loading={busy === "add"}
             disabled={busy === "add" || !addDomain.trim()}
             onClick={submitAdd}
           >
             {busy === "add" ? "Adding…" : "Add domain"}
-          </button>
+          </Button>
         </div>
-      </section>
+      </Card>
 
       {error ? (
-        <div
+        <Card
+          variant="status"
+          tone="risk"
           data-testid="org-domains-error"
           role="alert"
-          style={{
-            ...cardBaseStyle,
-            marginBottom: "1rem",
-            borderColor: "rgba(220,38,38,0.4)",
-            background: "rgba(220,38,38,0.08)",
-            fontSize: 13,
-          }}
         >
-          {error}
-        </div>
+          <span style={{ fontSize: 13 }}>{error}</span>
+        </Card>
       ) : null}
       {notice ? (
-        <div
+        <Card
+          variant="status"
+          tone="verified"
           data-testid="org-domains-notice"
-          style={{
-            ...cardBaseStyle,
-            marginBottom: "1rem",
-            borderColor: "rgba(16,185,129,0.4)",
-            background: "rgba(16,185,129,0.08)",
-            fontSize: 13,
-          }}
         >
-          {notice}
-        </div>
+          <span style={{ fontSize: 13 }}>{notice}</span>
+        </Card>
       ) : null}
 
       {/* DNS challenge callout (from the most recent add). */}
@@ -315,21 +323,24 @@ function DomainsTab() {
       ) : null}
 
       {/* Domain list */}
-      <section data-section="domains-list" style={cardBaseStyle}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>Claimed domains</h2>
+      <Card variant="admin" data-section="domains-list" title="Claimed domains">
         {domains === null ? (
-          <p style={{ fontSize: 13, opacity: 0.75, marginTop: 12 }}>Loading…</p>
-        ) : domains.length === 0 ? (
-          <p
-            data-testid="org-domains-empty"
-            style={{ fontSize: 13, opacity: 0.75, marginTop: 12 }}
-          >
-            No domains claimed yet. Add one above to get started.
+          <p style={{ fontSize: 13, color: "var(--ink-muted, #94a3b8)" }}>
+            Loading…
           </p>
+        ) : domains.length === 0 ? (
+          <div data-testid="org-domains-empty">
+            <EmptyState
+              compact
+              framed
+              title="No verified domains yet"
+              purpose="Claim an email domain your organization owns to enforce SSO and auto-associate members. Verify it by publishing the DNS TXT record we generate."
+            />
+          </div>
         ) : (
           <ul
             data-testid="org-domains-list"
-            style={{ listStyle: "none", padding: 0, margin: "0.75rem 0 0" }}
+            style={{ listStyle: "none", padding: 0, margin: 0 }}
           >
             {domains.map((d) => (
               <li
@@ -337,8 +348,9 @@ function DomainsTab() {
                 data-testid={`org-domain-row-${d.id}`}
                 data-verified={d.verified ? "true" : "false"}
                 style={{
-                  padding: "0.6rem 0",
-                  borderBottom: "1px solid rgba(127,127,127,0.18)",
+                  padding: "12px 0",
+                  borderBottom:
+                    "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
@@ -354,7 +366,7 @@ function DomainsTab() {
                       style={{
                         marginTop: 6,
                         fontSize: 11,
-                        opacity: 0.8,
+                        color: "var(--ink-secondary, #475569)",
                         fontFamily: "monospace",
                         wordBreak: "break-all",
                       }}
@@ -365,32 +377,34 @@ function DomainsTab() {
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {!d.verified ? (
-                    <button
+                    <Button
                       type="button"
                       data-testid={`org-domain-verify-${d.id}`}
-                      className="cases-filter-chip"
+                      variant="secondary"
+                      size="sm"
+                      loading={busy === d.id}
                       disabled={busy === d.id}
                       onClick={() => verify(d)}
                     >
                       {busy === d.id ? "Verifying…" : "Verify"}
-                    </button>
+                    </Button>
                   ) : null}
-                  <button
+                  <Button
                     type="button"
                     data-testid={`org-domain-remove-${d.id}`}
-                    className="cases-filter-chip"
+                    variant="destructive"
+                    size="sm"
                     disabled={busy === d.id}
                     onClick={() => remove(d)}
-                    style={{ color: "#991b1b" }}
                   >
                     Remove
-                  </button>
+                  </Button>
                 </div>
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
       <StepUpModal control={stepUp} />
     </section>
@@ -405,28 +419,18 @@ function StatusPill({
   verifiedAt: string | null;
 }) {
   return (
-    <div
+    <span
       data-state={verified ? "verified" : "unverified"}
-      style={{
-        fontSize: 11,
-        marginTop: 4,
-        padding: "1px 8px",
-        borderRadius: 999,
-        background: verified
-          ? "rgba(16,185,129,0.18)"
-          : "rgba(245,158,11,0.18)",
-        display: "inline-block",
-        fontWeight: 600,
-        letterSpacing: 0.3,
-        textTransform: "uppercase",
-      }}
+      style={{ display: "inline-block", marginTop: 4 }}
     >
-      {verified
-        ? verifiedAt
-          ? `Verified ${new Date(verifiedAt).toLocaleDateString()}`
-          : "Verified"
-        : "Unverified"}
-    </div>
+      <Badge tone={verified ? "verified" : "pending"} subtle>
+        {verified
+          ? verifiedAt
+            ? `Verified ${new Date(verifiedAt).toLocaleDateString()}`
+            : "Verified"
+          : "Unverified"}
+      </Badge>
+    </span>
   );
 }
 
@@ -438,19 +442,19 @@ function ChallengeCallout({
   challenge: DnsChallenge;
 }) {
   return (
-    <section
+    <Card
+      variant="status"
+      tone="info"
       data-testid="org-domain-challenge"
-      style={{
-        ...cardBaseStyle,
-        marginBottom: "1rem",
-        background: "rgba(59,130,246,0.06)",
-        borderColor: "rgba(59,130,246,0.35)",
-      }}
+      title={`Publish this DNS record for ${domain}`}
     >
-      <h3 style={{ margin: 0, fontSize: 14 }}>
-        Publish this DNS record for {domain}
-      </h3>
-      <p style={{ fontSize: 12, opacity: 0.8, marginTop: 6 }}>
+      <p
+        style={{
+          fontSize: 12,
+          color: "var(--ink-secondary, #475569)",
+          marginTop: 0,
+        }}
+      >
         Add the following <strong>TXT</strong> record at your DNS provider, then
         click <em>Verify</em> on the domain below. DNS changes can take a few
         minutes to propagate.
@@ -464,18 +468,18 @@ function ChallengeCallout({
           gap: "4px 12px",
         }}
       >
-        <dt style={{ opacity: 0.7 }}>Type</dt>
+        <dt style={{ color: "var(--ink-muted, #94a3b8)" }}>Type</dt>
         <dd style={{ margin: 0, fontFamily: "monospace" }}>
           {challenge.recordType}
         </dd>
-        <dt style={{ opacity: 0.7 }}>Name</dt>
+        <dt style={{ color: "var(--ink-muted, #94a3b8)" }}>Name</dt>
         <dd
           data-testid="org-domain-challenge-name"
           style={{ margin: 0, fontFamily: "monospace", wordBreak: "break-all" }}
         >
           {challenge.recordName}
         </dd>
-        <dt style={{ opacity: 0.7 }}>Value</dt>
+        <dt style={{ color: "var(--ink-muted, #94a3b8)" }}>Value</dt>
         <dd
           data-testid="org-domain-challenge-value"
           style={{ margin: 0, fontFamily: "monospace", wordBreak: "break-all" }}
@@ -483,6 +487,6 @@ function ChallengeCallout({
           {challenge.recordValue}
         </dd>
       </dl>
-    </section>
+    </Card>
   );
 }

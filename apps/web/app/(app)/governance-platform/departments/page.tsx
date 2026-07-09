@@ -5,6 +5,11 @@ import { useCallback, useEffect, useState } from "react";
 import type { DepartmentProjection } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 
@@ -57,100 +62,97 @@ function Shell() {
     void refresh();
   }, [refresh]);
 
+  const columns: DataTableColumn<DepartmentProjection>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (d) => (
+        <span data-department-row={d.id} data-department-state={d.state}>
+          {d.name}
+        </span>
+      ),
+    },
+    { key: "slug", header: "Slug", render: (d) => <code>{d.slug}</code> },
+    { key: "organization", header: "Organization", render: (d) => <code>{d.organizationId.slice(0, 8)}…</code> },
+    { key: "state", header: "State", render: (d) => d.state },
+    { key: "created", header: "Created", render: (d) => formatUserDate(d.createdAtUtc) },
+  ];
+
   return (
-    <div
+    <PageShell
       data-departments-page
-      style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
+      header={
+        <PageHeader
+          eyebrow="Governance"
+          title="Departments"
+          subtitle="Department isolation for visibility + governance separation."
+          contextStrip={
+            <a href="/governance-platform" style={{ fontSize: 12 }}>← Back to Governance Platform</a>
+          }
+        />
+      }
     >
-      <header style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, marginTop: 0 }}>Departments</h1>
-        <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-          Department isolation for visibility + governance separation.
-        </p>
-        <p><a href="/governance-platform" style={{ fontSize: 12 }}>← Back to Governance Platform</a></p>
-      </header>
+      <PageSection title="Create department">
+        <Card variant="admin" padding="compact" data-department-create-form>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <input
+              data-department-org-id
+              placeholder="Organization UUID"
+              value={orgId}
+              onChange={(e) => setOrgId(e.target.value)}
+              style={input}
+            />
+            <input
+              data-department-name
+              placeholder="Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={input}
+            />
+            <input
+              data-department-slug
+              placeholder="slug (lowercase)"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              style={input}
+            />
+            <Button
+              variant="enterprise"
+              data-department-create-submit
+              disabled={busy || !orgId || !name || !slug}
+              onClick={() => void create()}
+            >
+              Create
+            </Button>
+          </div>
+        </Card>
+      </PageSection>
 
-      <section
-        data-department-create-form
-        style={{
-          background: "#fff",
-          border: "1px solid rgba(15, 23, 42, 0.08)",
-          borderRadius: 10,
-          padding: 12,
-          marginBottom: 12,
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
-        <input
-          data-department-org-id
-          placeholder="Organization UUID"
-          value={orgId}
-          onChange={(e) => setOrgId(e.target.value)}
-          style={input}
-        />
-        <input
-          data-department-name
-          placeholder="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={input}
-        />
-        <input
-          data-department-slug
-          placeholder="slug (lowercase)"
-          value={slug}
-          onChange={(e) => setSlug(e.target.value)}
-          style={input}
-        />
-        <button
-          type="button"
-          data-department-create-submit
-          disabled={busy || !orgId || !name || !slug}
-          onClick={() => void create()}
-          style={primaryButton}
-        >
-          Create
-        </button>
-      </section>
-
-      <section style={{ background: "#fff", border: "1px solid rgba(15, 23, 42, 0.08)", borderRadius: 10, padding: 8, overflowX: "auto" }}>
-        <table data-departments-table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "#475569" }}>
-              <th style={th}>Name</th>
-              <th style={th}>Slug</th>
-              <th style={th}>Organization</th>
-              <th style={th}>State</th>
-              <th style={th}>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr><td colSpan={5} style={{ ...td, color: "#475569" }}>No departments.</td></tr>
-            ) : (
-              rows.map((d) => (
-                <tr key={d.id} data-department-row={d.id} data-department-state={d.state}>
-                  <td style={td}>{d.name}</td>
-                  <td style={td}><code>{d.slug}</code></td>
-                  <td style={td}><code>{d.organizationId.slice(0, 8)}…</code></td>
-                  <td style={td}>{d.state}</td>
-                  <td style={td}>{formatUserDate(d.createdAtUtc)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </section>
-    </div>
+      <PageSection title="Departments">
+        <div data-departments-table>
+          <DataTable<DepartmentProjection>
+            ariaLabel="Departments"
+            columns={columns}
+            rows={rows as DepartmentProjection[]}
+            getRowId={(d) => d.id}
+            loading={busy && rows.length === 0}
+            emptyState={
+              <EmptyState
+                title="No departments"
+                purpose="Departments isolate visibility and governance within an organization. Create one above to get started."
+              />
+            }
+          />
+        </div>
+      </PageSection>
+    </PageShell>
   );
 }
 
@@ -161,15 +163,3 @@ const input = {
   fontSize: 12,
   minWidth: 180,
 } as const;
-const primaryButton = {
-  padding: "6px 12px",
-  border: "1px solid #0f172a",
-  background: "#0f172a",
-  color: "#fafafa",
-  fontWeight: 600,
-  fontSize: 12,
-  borderRadius: 8,
-  cursor: "pointer",
-} as const;
-const th = { padding: "6px 8px", borderBottom: "1px solid #e2e8f0" } as const;
-const td = { padding: "6px 8px", borderBottom: "1px solid #f1f5f9" } as const;

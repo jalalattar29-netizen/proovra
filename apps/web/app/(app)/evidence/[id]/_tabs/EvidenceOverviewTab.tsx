@@ -175,32 +175,32 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                     <div
                       key={text.id}
                       style={{
-                        border: "1px solid #e2e8f0",
-                        borderRadius: 8,
+                        border: "1px solid var(--border-default, #e2e8f0)",
+                        borderRadius: "var(--radius-md, 8px)",
                         padding: 10,
-                        background: "#f8fafc",
+                        background: "var(--surface-muted, #f8fafc)",
                         fontSize: 12,
-                        color: "#0f172a",
+                        color: "var(--ink-primary, #0f172a)",
                         display: "flex",
                         flexDirection: "column",
                         gap: 4,
                       }}
                     >
-                      <strong style={{ fontSize: 11, color: "#334155" }}>
+                      <strong style={{ fontSize: 11, color: "var(--ink-secondary, #334155)" }}>
                         {text.kind.replace(/_/g, " ")}
                       </strong>
-                      <span style={{ color: "#475569" }}>
+                      <span style={{ color: "var(--ink-secondary, #475569)" }}>
                         Provider: {text.provider}
                         {text.providerVersion ? ` (${text.providerVersion})` : ""}
                       </span>
-                      <span style={{ color: "#475569" }}>
+                      <span style={{ color: "var(--ink-secondary, #475569)" }}>
                         Status: {text.status}
                         {text.wordCount != null
                           ? ` · ${text.wordCount} words`
                           : ""}
                       </span>
                       {text.confidence != null ? (
-                        <span style={{ color: "#475569" }}>
+                        <span style={{ color: "var(--ink-secondary, #475569)" }}>
                           Confidence:{" "}
                           {Math.round(
                             Math.max(0, Math.min(1, text.confidence)) * 100,

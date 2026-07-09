@@ -33,7 +33,13 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
 import { RetentionInheritanceSummary } from "../../../../components/governance/RetentionInheritanceSummary";
 import { RetentionConflictAlert } from "../../../../components/governance/RetentionConflictAlert";
-import { statusBadgeStyle } from "../../../../components/ui/StatusBadge";
+import { StatusBadge } from "../../../../components/ui/StatusBadge";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Button } from "../../../../components/ui/Button";
+import { Badge } from "../../../../components/ui/Badge";
+import { EmptyState } from "../../../../components/ui/EmptyState";
+import { FilterBar } from "../../../../components/ui/FilterBar";
+import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 
 type PolicyStatus = "ACTIVE" | "PAUSED" | "SUPERSEDED" | "ARCHIVED";
 type PolicyScope = "WORKSPACE" | "EVIDENCE_TYPE" | "CASE" | "REGULATORY";
@@ -67,13 +73,6 @@ type Version = {
   authoredByUserId: string;
   changeNote: string | null;
   authoredAtUtc: string;
-};
-
-const STATUS_LABEL: Record<PolicyStatus, string> = {
-  ACTIVE: "Active",
-  PAUSED: "Paused",
-  SUPERSEDED: "Superseded",
-  ARCHIVED: "Archived",
 };
 
 const SCOPE_LABEL: Record<PolicyScope, string> = {
@@ -185,24 +184,93 @@ function RetentionPoliciesPageInner() {
 
   const visiblePolicies = useMemo(() => policies ?? [], [policies]);
 
-  return (
-    <main style={pageStyle}>
-      <OperationalBreadcrumb
-        routeId="governance.retention"
-        items={[
-          { label: "Governance", href: "/governance" },
-          { label: "Retention policies" },
-        ]}
-      />
-      <header>
-        <h1 style={titleStyle}>Retention policies</h1>
-        <p style={mutedStyle}>
-          Versioned retention rules. Most-specific scope wins (CASE →
-          EVIDENCE_TYPE → REGULATORY → WORKSPACE). Mutations are
-          append-only — every change writes a new immutable version row.
-        </p>
-      </header>
+  const columns: DataTableColumn<Policy>[] = [
+    {
+      key: "policy",
+      header: "Policy",
+      render: (p) => (
+        <div>
+          <div style={{ fontWeight: 600 }}>{p.displayName}</div>
+          {p.description ? (
+            <div style={mutedStyle}>{p.description}</div>
+          ) : null}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+            {p.immutable ? (
+              <Badge tone="governance" subtle>
+                Immutable
+              </Badge>
+            ) : null}
+            {p.autoExtensionEnabled ? (
+              <Badge tone="info" subtle>
+                Auto-extend
+              </Badge>
+            ) : null}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "scope",
+      header: "Scope",
+      render: (p) => (
+        <div>
+          {SCOPE_LABEL[p.scope]}
+          {p.scopeQualifier ? (
+            <div style={mutedStyle}>{p.scopeQualifier}</div>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: "retention",
+      header: "Retention",
+      nowrap: true,
+      render: (p) =>
+        p.retentionDays === null
+          ? "Indefinite"
+          : `${p.retentionDays.toLocaleString()} days`,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (p) => <StatusBadge status={p.status} />,
+    },
+    {
+      key: "version",
+      header: "Version",
+      nowrap: true,
+      render: (p) => `v${p.currentVersion}`,
+    },
+  ];
 
+  return (
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Governance"
+          title="Retention policies"
+          subtitle="Versioned retention rules. Most-specific scope wins (CASE → EVIDENCE_TYPE → REGULATORY → WORKSPACE). Mutations are append-only — every change writes a new immutable version row."
+          contextStrip={
+            <OperationalBreadcrumb
+              routeId="governance.retention"
+              items={[
+                { label: "Governance", href: "/governance" },
+                { label: "Retention policies" },
+              ]}
+            />
+          }
+          primaryAction={
+            <Button
+              variant="enterprise"
+              onClick={() => setShowCreate(true)}
+              disabled={!teamId}
+            >
+              New policy
+            </Button>
+          }
+        />
+      }
+    >
       <nav style={navStyle}>
         <Link href="/governance/lifecycle" style={navLinkStyle}>
           ← Governance operations
@@ -216,7 +284,7 @@ function RetentionPoliciesPageInner() {
           operators see at a glance whether this workspace is
           governed by a local policy, an inherited org template, or
           no policy at all. */}
-      <div style={{ marginBottom: 16 }}>
+      <div>
         <RetentionInheritanceSummary teamId={teamId ?? null} />
       </div>
 
@@ -225,148 +293,115 @@ function RetentionPoliciesPageInner() {
           of buried in the dashboard signal. */}
       <RetentionConflictAlert teamId={teamId ?? null} />
 
-      <div style={toolbarStyle}>
-        <label style={filterLabelStyle}>
-          Status
-          <select
-            style={inputStyle}
-            value={statusFilter}
-            onChange={(e) =>
-              setStatusFilter(e.target.value as PolicyStatus | "ALL")
+      <PageSection
+        title="Policies"
+        action={
+          <FilterBar>
+            <FilterBar.Select
+              label="Status"
+              showLabel
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as PolicyStatus | "ALL")}
+              options={[
+                { value: "ALL", label: "All" },
+                { value: "ACTIVE", label: "Active" },
+                { value: "PAUSED", label: "Paused" },
+                { value: "SUPERSEDED", label: "Superseded" },
+                { value: "ARCHIVED", label: "Archived" },
+              ]}
+            />
+          </FilterBar>
+        }
+      >
+        {error ? <div style={errorBoxStyle}>{error}</div> : null}
+
+        {!teamId ? (
+          <EmptyState
+            framed
+            title="No workspace selected"
+            purpose="Switch to an organization workspace to view and manage its retention policies."
+          />
+        ) : (
+          <DataTable
+            ariaLabel="Retention policies"
+            columns={columns}
+            rows={visiblePolicies}
+            getRowId={(p) => p.id}
+            loading={!policies}
+            rowActions={(p) => (
+              <div style={actionRowStyle}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => loadVersions(p.id)}
+                >
+                  Versions
+                </Button>
+                {p.status === "ACTIVE" ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => transition(p, "PAUSED")}
+                  >
+                    Pause
+                  </Button>
+                ) : null}
+                {p.status === "PAUSED" ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => transition(p, "ACTIVE")}
+                  >
+                    Resume
+                  </Button>
+                ) : null}
+                {p.status === "ACTIVE" || p.status === "PAUSED" ? (
+                  <>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => transition(p, "SUPERSEDED")}
+                    >
+                      Supersede
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => transition(p, "ARCHIVED")}
+                    >
+                      Archive
+                    </Button>
+                  </>
+                ) : null}
+                {p.status === "SUPERSEDED" ? (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => transition(p, "ARCHIVED")}
+                  >
+                    Archive
+                  </Button>
+                ) : null}
+              </div>
+            )}
+            emptyState={
+              <EmptyState
+                title="No retention policy configured"
+                purpose="No policies match the current filter. Create a scoped retention policy to govern how long sealed evidence is preserved."
+                action={
+                  <Button
+                    variant="enterprise"
+                    onClick={() => setShowCreate(true)}
+                    disabled={!teamId}
+                  >
+                    New policy
+                  </Button>
+                }
+              />
             }
-          >
-            <option value="ALL">All</option>
-            <option value="ACTIVE">Active</option>
-            <option value="PAUSED">Paused</option>
-            <option value="SUPERSEDED">Superseded</option>
-            <option value="ARCHIVED">Archived</option>
-          </select>
-        </label>
-        <button
-          type="button"
-          style={primaryButtonStyle}
-          onClick={() => setShowCreate(true)}
-          disabled={!teamId}
-        >
-          New policy
-        </button>
-      </div>
-
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
-
-      {!teamId ? (
-        <p style={mutedStyle}>Switch to a workspace to manage policies.</p>
-      ) : !policies ? (
-        <p style={mutedStyle}>Loading policies…</p>
-      ) : visiblePolicies.length === 0 ? (
-        <p style={mutedStyle}>No policies match the current filter.</p>
-      ) : (
-        <section style={cardStyle}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Policy</th>
-                <th style={thStyle}>Scope</th>
-                <th style={thStyle}>Retention</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Version</th>
-                <th style={thStyle}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visiblePolicies.map((p) => (
-                <tr key={p.id}>
-                  <td style={tdStyle}>
-                    <div style={{ fontWeight: 600 }}>{p.displayName}</div>
-                    {p.description ? (
-                      <div style={mutedStyle}>{p.description}</div>
-                    ) : null}
-                    {p.immutable ? (
-                      <span style={immutableBadgeStyle}>Immutable</span>
-                    ) : null}
-                    {p.autoExtensionEnabled ? (
-                      <span style={autoExtendBadgeStyle}>Auto-extend</span>
-                    ) : null}
-                  </td>
-                  <td style={tdStyle}>
-                    {SCOPE_LABEL[p.scope]}
-                    {p.scopeQualifier ? (
-                      <div style={mutedStyle}>{p.scopeQualifier}</div>
-                    ) : null}
-                  </td>
-                  <td style={tdStyle}>
-                    {p.retentionDays === null
-                      ? "Indefinite"
-                      : `${p.retentionDays.toLocaleString()} days`}
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={statusBadgeStyle(p.status)}>
-                      {STATUS_LABEL[p.status]}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>v{p.currentVersion}</td>
-                  <td style={tdStyle}>
-                    <div style={actionRowStyle}>
-                      <button
-                        type="button"
-                        style={secondaryButtonStyle}
-                        onClick={() => loadVersions(p.id)}
-                      >
-                        Versions
-                      </button>
-                      {p.status === "ACTIVE" ? (
-                        <button
-                          type="button"
-                          style={secondaryButtonStyle}
-                          onClick={() => transition(p, "PAUSED")}
-                        >
-                          Pause
-                        </button>
-                      ) : null}
-                      {p.status === "PAUSED" ? (
-                        <button
-                          type="button"
-                          style={secondaryButtonStyle}
-                          onClick={() => transition(p, "ACTIVE")}
-                        >
-                          Resume
-                        </button>
-                      ) : null}
-                      {p.status === "ACTIVE" || p.status === "PAUSED" ? (
-                        <>
-                          <button
-                            type="button"
-                            style={secondaryButtonStyle}
-                            onClick={() => transition(p, "SUPERSEDED")}
-                          >
-                            Supersede
-                          </button>
-                          <button
-                            type="button"
-                            style={dangerButtonStyle}
-                            onClick={() => transition(p, "ARCHIVED")}
-                          >
-                            Archive
-                          </button>
-                        </>
-                      ) : null}
-                      {p.status === "SUPERSEDED" ? (
-                        <button
-                          type="button"
-                          style={dangerButtonStyle}
-                          onClick={() => transition(p, "ARCHIVED")}
-                        >
-                          Archive
-                        </button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
+          />
+        )}
+      </PageSection>
 
       {selectedVersionsFor ? (
         <VersionsModal
@@ -388,7 +423,7 @@ function RetentionPoliciesPageInner() {
           }}
         />
       ) : null}
-    </main>
+    </PageShell>
   );
 }
 
@@ -697,33 +732,11 @@ function Toggle({
 // Styles
 // -----------------------------------------------------------------------------
 
-const pageStyle: React.CSSProperties = {
-  maxWidth: 1100,
-  margin: "0 auto",
-  padding: "32px 24px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
-};
-const titleStyle: React.CSSProperties = {
-  fontSize: 26,
-  fontWeight: 700,
-  marginBottom: 4,
-  letterSpacing: -0.4,
-};
 const mutedStyle: React.CSSProperties = { fontSize: 13, color: "#64748b" };
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 600,
   marginBottom: 8,
-};
-const cardStyle: React.CSSProperties = {
-  marginTop: 16,
-  padding: 0,
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  background: "#fff",
-  overflow: "hidden",
 };
 const navStyle: React.CSSProperties = {
   display: "flex",
@@ -738,21 +751,6 @@ const navLinkStyle: React.CSSProperties = {
   fontWeight: 600,
   textDecoration: "none",
 };
-const toolbarStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "flex-end",
-  justifyContent: "space-between",
-  gap: 12,
-  marginTop: 16,
-  marginBottom: 12,
-};
-const filterLabelStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 4,
-  fontSize: 12,
-  color: "#475569",
-};
 const inputStyle: React.CSSProperties = {
   padding: "8px 12px",
   border: "1px solid #cbd5e1",
@@ -763,27 +761,6 @@ const inputStyle: React.CSSProperties = {
   background: "#fff",
   boxSizing: "border-box",
   width: "100%",
-};
-const tableStyle: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  fontSize: 14,
-};
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  padding: "12px 16px",
-  background: "#f8fafc",
-  borderBottom: "1px solid #e2e8f0",
-  fontWeight: 600,
-  fontSize: 12,
-  textTransform: "uppercase",
-  letterSpacing: 0.5,
-  color: "#475569",
-};
-const tdStyle: React.CSSProperties = {
-  padding: "14px 16px",
-  borderBottom: "1px solid #f1f5f9",
-  verticalAlign: "top",
 };
 const actionRowStyle: React.CSSProperties = {
   display: "flex",
@@ -806,16 +783,6 @@ const secondaryButtonStyle: React.CSSProperties = {
   color: "#0f172a",
   background: "#f1f5f9",
   border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 12,
-};
-const dangerButtonStyle: React.CSSProperties = {
-  padding: "6px 12px",
-  fontWeight: 600,
-  color: "#991b1b",
-  background: "#fef2f2",
-  border: "1px solid #fca5a5",
   borderRadius: 6,
   cursor: "pointer",
   fontSize: 12,
@@ -888,29 +855,5 @@ const preStyle: React.CSSProperties = {
   wordBreak: "break-word",
   marginTop: 4,
 };
-const immutableBadgeStyle: React.CSSProperties = {
-  display: "inline-block",
-  marginTop: 4,
-  marginRight: 4,
-  padding: "2px 8px",
-  fontSize: 11,
-  fontWeight: 600,
-  background: "#f5f3ff",
-  border: "1px solid #ddd6fe",
-  color: "#5b21b6",
-  borderRadius: 999,
-};
-const autoExtendBadgeStyle: React.CSSProperties = {
-  display: "inline-block",
-  marginTop: 4,
-  padding: "2px 8px",
-  fontSize: 11,
-  fontWeight: 600,
-  background: "#eff6ff",
-  border: "1px solid #bfdbfe",
-  color: "#1e40af",
-  borderRadius: 999,
-};
-
 // Phase Final-Closure — local statusBadgeStyle removed; canonical
 // version lives in components/ui/StatusBadge.tsx.

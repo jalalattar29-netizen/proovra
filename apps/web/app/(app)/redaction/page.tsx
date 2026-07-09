@@ -19,6 +19,12 @@ import Link from "next/link";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../lib/api";
 import { formatUserDateTime } from "../../../lib/date";
+import { PageShell, PageHeader, PageSection } from "../../../components/ui/PageShell";
+import { Card } from "../../../components/ui/Card";
+import { Button } from "../../../components/ui/Button";
+import { Badge, type BadgeTone } from "../../../components/ui/Badge";
+import { DataTable } from "../../../components/ui/DataTable";
+import { EmptyState } from "../../../components/ui/EmptyState";
 
 type ProjectRow = {
   id: string;
@@ -89,27 +95,16 @@ function RedactionProjectsShell() {
   }, [refresh]);
 
   return (
-    <div
+    <PageShell
       data-redaction-projects-page
-      style={{
-        padding: 20,
-        maxWidth: 1180,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
+      header={
+        <PageHeader
+          eyebrow="Redaction"
+          title="Enterprise Redaction Platform"
+          subtitle="Workspace-anchored redaction projects. Original evidence is NEVER modified — every approved version generates a derivative artifact with its own bounded audit trail."
+        />
+      }
     >
-      <header style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, marginBottom: 4, marginTop: 0 }}>
-          Enterprise Redaction Platform
-        </h1>
-        <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-          Workspace-anchored redaction projects. Original evidence is
-          NEVER modified — every approved version generates a
-          derivative artifact with its own bounded audit trail.
-        </p>
-      </header>
-
       <SummaryTiles summary={summary} />
 
       <ProviderHealthRibbon providers={providers} />
@@ -118,13 +113,12 @@ function RedactionProjectsShell() {
         <div
           data-redaction-banner
           style={{
-            marginBottom: 10,
-            padding: "8px 12px",
-            borderRadius: 8,
-            background: "rgba(239, 68, 68, 0.08)",
-            border: "1px solid rgba(239, 68, 68, 0.35)",
-            color: "#7f1d1d",
-            fontSize: 12,
+            padding: "10px 12px",
+            borderRadius: "var(--radius-md, 8px)",
+            background: "var(--status-risk-bg, #fef2f2)",
+            border: "1px solid var(--status-risk-border, #fecaca)",
+            color: "var(--status-risk-fg, #991b1b)",
+            fontSize: 12.5,
           }}
         >
           {banner}
@@ -140,7 +134,7 @@ function RedactionProjectsShell() {
       />
 
       <ProjectsTable rows={rows ?? []} />
-    </div>
+    </PageShell>
   );
 }
 
@@ -171,20 +165,15 @@ function SummaryTiles({ summary }: { summary: WorkspaceSummary | null }) {
       data-redaction-summary-tiles
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-        gap: 10,
-        marginBottom: 14,
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
+        gap: 12,
       }}
     >
       {tiles.map((t) => (
-        <div
-          key={t.key}
-          data-redaction-summary-tile={t.key}
-          style={tileStyle}
-        >
+        <Card key={t.key} padding="compact" data-redaction-summary-tile={t.key}>
           <small style={tileLabelStyle}>{t.label}</small>
           <strong style={tileValueStyle}>{t.value}</strong>
-        </div>
+        </Card>
       ))}
     </div>
   );
@@ -207,19 +196,11 @@ function ProviderHealthRibbon({
   }
   if (providers.length === 0) return null;
   return (
-    <section
+    <Card
       data-redaction-provider-health
-      style={{
-        marginBottom: 14,
-        padding: 10,
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 10,
-      }}
+      padding="compact"
+      title="Detection provider health"
     >
-      <strong style={{ display: "block", fontSize: 12, marginBottom: 6 }}>
-        Detection provider health
-      </strong>
       <div
         style={{
           display: "flex",
@@ -228,63 +209,42 @@ function ProviderHealthRibbon({
         }}
       >
         {providers.map((p) => {
-          const tone =
+          const tone: BadgeTone =
             p.state === "READY"
-              ? "ok"
+              ? "verified"
               : p.state === "RATE_LIMITED" || p.state === "DISABLED_BY_POLICY"
               ? "info"
               : p.state === "ERROR"
-              ? "warn"
-              : "muted";
+              ? "risk"
+              : "neutral";
           return (
-            <span
+            <Badge
               key={p.provider}
+              tone={tone}
+              subtle
               data-redaction-provider-health-row={p.provider}
               data-redaction-provider-health-state={p.state}
               title={p.reason ?? ""}
-              style={{
-                padding: "3px 8px",
-                borderRadius: 999,
-                background:
-                  tone === "ok"
-                    ? "rgba(34, 197, 94, 0.12)"
-                    : tone === "info"
-                    ? "rgba(59, 130, 246, 0.1)"
-                    : tone === "warn"
-                    ? "rgba(239, 68, 68, 0.1)"
-                    : "rgba(15, 23, 42, 0.06)",
-                color:
-                  tone === "ok"
-                    ? "#166534"
-                    : tone === "info"
-                    ? "#1e3a8a"
-                    : tone === "warn"
-                    ? "#7f1d1d"
-                    : "#0f172a",
-                fontSize: 11,
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-              }}
             >
               {p.provider} · {p.state}
               {p.policyAllowed ? "" : " · disabled"}
-            </span>
+            </Badge>
           );
         })}
       </div>
       <small
         style={{
           display: "block",
-          marginTop: 6,
-          color: "#475569",
-          fontSize: 11,
+          marginTop: 8,
+          color: "var(--ink-secondary, #475569)",
+          fontSize: 11.5,
         }}
       >
         READY = provider credentials are bound for this workspace.
         NOT_CONFIGURED is honest — the provider is wired but the
         credentials are not yet present.
       </small>
-    </section>
+    </Card>
   );
 }
 
@@ -326,16 +286,15 @@ function RedactionOpenForm({
     }
   }, [evidenceId, artifactKind, title, onOpened, onRefuse]);
   return (
-    <section
+    <Card
       data-redaction-open-form
+      title="Open a redaction project"
+      subtitle="Original evidence is never modified — this opens a bounded, workspace-anchored project."
+    >
+      <div
       style={{
-        marginBottom: 16,
-        padding: 12,
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 10,
         display: "grid",
-        gridTemplateColumns: "2fr 1fr 1fr auto",
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
         gap: 10,
         alignItems: "end",
       }}
@@ -374,149 +333,101 @@ function RedactionOpenForm({
           style={inputStyle}
         />
       </Field>
-      <button
-        type="button"
+      <Button
+        variant="primary"
         data-redaction-open-submit
         onClick={onOpen}
         disabled={busy || !evidenceId}
-        style={{
-          padding: "8px 14px",
-          borderRadius: 8,
-          border: "1px solid #0f172a",
-          background: busy || !evidenceId ? "#94a3b8" : "#0f172a",
-          color: "#fafafa",
-          fontWeight: 600,
-          fontSize: 13,
-          cursor: busy || !evidenceId ? "not-allowed" : "pointer",
-        }}
+        loading={busy}
       >
         Open project
-      </button>
-    </section>
+      </Button>
+      </div>
+    </Card>
   );
 }
 
 function ProjectsTable({ rows }: { rows: ReadonlyArray<ProjectRow> }) {
-  if (rows.length === 0) {
-    return (
-      <div
-        data-redaction-projects-empty
-        style={{
-          padding: 20,
-          background: "#fff",
-          border: "1px solid rgba(15, 23, 42, 0.08)",
-          borderRadius: 10,
-          color: "#475569",
-          fontSize: 13,
-        }}
-      >
-        No redaction projects yet. Open one above to begin.
+  return (
+    <PageSection title="Redaction projects">
+      <div data-redaction-projects-table-wrap>
+        <DataTable
+          ariaLabel="Redaction projects"
+          rows={[...rows]}
+          getRowId={(p) => p.id}
+          columns={[
+            {
+              key: "project",
+              header: "Project",
+              render: (p) => (
+                <strong data-redaction-project-row={p.id}>
+                  {p.title ?? `Project ${p.id.slice(0, 8)}`}
+                </strong>
+              ),
+            },
+            {
+              key: "evidence",
+              header: "Evidence",
+              render: (p) => <code>{p.evidenceId.slice(0, 8)}…</code>,
+            },
+            {
+              key: "artifact",
+              header: "Artifact",
+              render: (p) => <code>{p.artifactKind}</code>,
+            },
+            {
+              key: "state",
+              header: "State",
+              render: (p) => (
+                <Badge tone={stateTone(p.state)} subtle>
+                  {p.state}
+                </Badge>
+              ),
+            },
+            {
+              key: "created",
+              header: "Created",
+              nowrap: true,
+              render: (p) => formatUserDateTime(p.createdAtUtc),
+            },
+          ]}
+          rowActions={(p) => (
+            <Link
+              data-redaction-project-open={p.id}
+              href={`/redaction/${p.id}`}
+              style={{
+                color: "var(--ink-primary, #0f172a)",
+                textDecoration: "underline",
+                fontWeight: 600,
+              }}
+            >
+              Open →
+            </Link>
+          )}
+          emptyState={
+            <EmptyState
+              data-redaction-projects-empty
+              title="No redaction projects yet"
+              purpose="Open a project above to redact an evidence artifact. The original is never modified."
+            />
+          }
+        />
       </div>
-    );
-  }
-  return (
-    <section
-      data-redaction-projects-table-wrap
-      style={{
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 10,
-        padding: 10,
-      }}
-    >
-      <table
-        data-redaction-projects-table
-        style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}
-      >
-        <thead>
-          <tr style={{ textAlign: "left", color: "#475569" }}>
-            <th style={th}>Project</th>
-            <th style={th}>Evidence</th>
-            <th style={th}>Artifact</th>
-            <th style={th}>State</th>
-            <th style={th}>Created</th>
-            <th style={th}>Open</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((p) => (
-            <tr key={p.id} data-redaction-project-row={p.id}>
-              <td style={td}>
-                <strong>{p.title ?? `Project ${p.id.slice(0, 8)}`}</strong>
-              </td>
-              <td style={td}>
-                <code>{p.evidenceId.slice(0, 8)}…</code>
-              </td>
-              <td style={td}>
-                <code>{p.artifactKind}</code>
-              </td>
-              <td style={td}>
-                <Chip label={p.state} tone={stateTone(p.state)} />
-              </td>
-              <td style={td}>
-                {formatUserDateTime(p.createdAtUtc)}
-              </td>
-              <td style={td}>
-                <Link
-                  data-redaction-project-open={p.id}
-                  href={`/redaction/${p.id}`}
-                  style={{
-                    color: "#0f172a",
-                    textDecoration: "underline",
-                    fontWeight: 600,
-                  }}
-                >
-                  Open →
-                </Link>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
+    </PageSection>
   );
 }
 
-function Chip({
-  label,
-  tone,
-}: {
-  label: string;
-  tone: "ok" | "info" | "muted" | "warn";
-}) {
-  const palette = {
-    ok: { bg: "rgba(34, 197, 94, 0.12)", fg: "#166534" },
-    info: { bg: "rgba(59, 130, 246, 0.1)", fg: "#1e3a8a" },
-    muted: { bg: "rgba(15, 23, 42, 0.06)", fg: "#0f172a" },
-    warn: { bg: "rgba(239, 68, 68, 0.1)", fg: "#7f1d1d" },
-  }[tone];
-  return (
-    <span
-      style={{
-        padding: "1px 8px",
-        borderRadius: 999,
-        background: palette.bg,
-        color: palette.fg,
-        fontSize: 11,
-        fontWeight: 600,
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
-function stateTone(state: string): "ok" | "info" | "muted" | "warn" {
+function stateTone(state: string): BadgeTone {
   switch (state) {
     case "PUBLISHED":
-      return "ok";
+      return "verified";
     case "APPROVED":
     case "IN_REVIEW":
       return "info";
     case "REJECTED":
-      return "warn";
+      return "risk";
     default:
-      return "muted";
+      return "neutral";
   }
 }
 
@@ -544,23 +455,6 @@ const inputStyle = {
   borderRadius: 6,
   fontSize: 12,
   boxSizing: "border-box" as const,
-};
-const th = {
-  padding: "6px 8px",
-  borderBottom: "1px solid #e2e8f0",
-} as const;
-const td = {
-  padding: "6px 8px",
-  borderBottom: "1px solid #f1f5f9",
-} as const;
-const tileStyle = {
-  padding: 10,
-  background: "#fff",
-  border: "1px solid rgba(15, 23, 42, 0.08)",
-  borderRadius: 10,
-  display: "flex",
-  flexDirection: "column" as const,
-  gap: 4,
 };
 const tileLabelStyle = {
   fontSize: 11,

@@ -31,6 +31,10 @@ import { formatUserDateTime } from "../../../../lib/date";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
 import { OperationalEmptyState } from "../../../../components/operational";
 import { fetchReviewerMetrics } from "../../../../lib/reviewer-workspace/reviewer-api";
+import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Badge } from "../../../../components/ui/Badge";
+import { Button } from "../../../../components/ui/Button";
 
 type Metrics = {
   throughput7d: number;
@@ -117,49 +121,41 @@ function MetricsShell() {
 
   if (!teamId) {
     return (
-      <div
-        data-reviewer-metrics-page
-        style={{ padding: 24, maxWidth: 900, margin: "0 auto", color: "#0f172a" }}
-      >
+      <PageShell data-reviewer-metrics-page>
         <OperationalEmptyState
           title="Select a workspace"
           reason="Choose an active workspace before loading reviewer metrics."
         />
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div
+    <PageShell
       data-reviewer-metrics-page
       data-reviewer-metrics-state={state.kind}
-      style={{ padding: 24, maxWidth: 900, margin: "0 auto", color: "#0f172a" }}
+      header={
+        <PageHeader
+          eyebrow="Review operations"
+          title="Reviewer metrics (7d)"
+          subtitle="Operational metrics describing reviewer activity. Not authenticity claims about content; not legal weight."
+          contextStrip={
+            <>
+              <Badge tone="neutral" subtle>
+                Workspace-wide activity
+              </Badge>
+              <Badge tone="neutral" subtle>
+                Period: last 7 days
+              </Badge>
+              <Badge tone="info" subtle>
+                Updated:{" "}
+                {loadedAt ? formatUserDateTime(loadedAt) : "Not yet loaded"}
+              </Badge>
+            </>
+          }
+        />
+      }
     >
-      <h1 style={{ fontSize: 22, margin: "0 0 8px" }}>Reviewer metrics (7d)</h1>
-      <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-        Operational metrics describing reviewer activity. Not authenticity
-        claims about content; not legal weight.
-      </p>
-      <div
-        style={{
-          marginTop: 12,
-          padding: "10px 12px",
-          borderRadius: 10,
-          border: "1px solid #e2e8f0",
-          background: "#f8fafc",
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-          color: "#475569",
-          fontSize: 12,
-        }}
-      >
-        <strong style={{ color: "#0f172a" }}>Scope</strong>
-        <span>Workspace-wide reviewer activity</span>
-        <span>Period: last 7 days</span>
-        <span>Updated: {loadedAt ? formatUserDateTime(loadedAt) : "Not yet loaded"}</span>
-      </div>
-
       {state.kind === "LOADING" ? (
         <div data-reviewer-metrics-loading style={mutedStyle}>
           Loading reviewer metrics…
@@ -167,88 +163,56 @@ function MetricsShell() {
       ) : null}
 
       {state.kind === "FORBIDDEN" ? (
-        <div
+        <Card
+          variant="status"
+          tone="neutral"
           data-reviewer-metrics-forbidden
-          style={{
-            marginTop: 14,
-            padding: "12px 14px",
-            background: "rgba(15, 23, 42, 0.04)",
-            border: "1px solid rgba(15, 23, 42, 0.12)",
-            borderRadius: 10,
-            color: "#0f172a",
-            fontSize: 13,
-          }}
         >
           You do not have permission to view team-wide reviewer
           metrics. Ask a workspace administrator or supervisor.
-        </div>
+        </Card>
       ) : null}
 
       {state.kind === "ERROR" ? (
-        <div
+        <Card
+          variant="status"
+          tone="risk"
           data-reviewer-metrics-error
-          style={{
-            marginTop: 14,
-            padding: "12px 14px",
-            background: "rgba(220, 38, 38, 0.08)",
-            border: "1px solid rgba(220, 38, 38, 0.32)",
-            borderRadius: 10,
-            color: "#7f1d1d",
-            fontSize: 13,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 8,
-          }}
+          footer={
+            <Button
+              variant="secondary"
+              size="sm"
+              data-reviewer-metrics-retry
+              onClick={() => void load()}
+            >
+              Retry
+            </Button>
+          }
         >
-          <span>Could not load reviewer metrics — please retry.</span>
-          <button
-            type="button"
-            data-reviewer-metrics-retry
-            onClick={() => void load()}
-            style={{
-              background: "#fff",
-              border: "1px solid #fecaca",
-              borderRadius: 6,
-              padding: "4px 10px",
-              fontSize: 12,
-              color: "#7f1d1d",
-              cursor: "pointer",
-            }}
-          >
-            Retry
-          </button>
-        </div>
+          Could not load reviewer metrics — please retry.
+        </Card>
       ) : null}
 
       {state.kind === "READY" ? (
         <>
           {isMetricsEmpty(state.metrics) ? (
-            <div
+            <Card
+              variant="empty"
               data-reviewer-metrics-empty
-              style={{
-                marginTop: 14,
-                padding: "12px 14px",
-                background: "rgba(15, 23, 42, 0.03)",
-                border: "1px dashed rgba(15, 23, 42, 0.18)",
-                borderRadius: 10,
-                color: "#475569",
-                fontSize: 13,
-                lineHeight: 1.5,
-              }}
+              style={{ fontSize: 13, lineHeight: 1.5, color: "var(--ink-secondary, #475569)" }}
             >
               No reviewer activity in the last 7 days for this workspace. The
               cards stay visible below so this reads as a true zero state, not a
               hidden or broken metric fetch.{" "}
-              <Link href="/review/queues?queue=UNASSIGNED" style={{ color: "#0f172a" }}>
+              <Link href="/review/queues?queue=UNASSIGNED" style={{ color: "var(--ink-primary, #0f172a)" }}>
                 Open reviewer queues
               </Link>{" "}
               or{" "}
-              <Link href="/reviewer-ops/sla" style={{ color: "#0f172a" }}>
+              <Link href="/reviewer-ops/sla" style={{ color: "var(--ink-primary, #0f172a)" }}>
                 review SLA pressure
               </Link>
               .
-            </div>
+            </Card>
           ) : null}
           <div
             data-reviewer-metrics-grid
@@ -256,7 +220,6 @@ function MetricsShell() {
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
               gap: 12,
-              marginTop: 14,
             }}
           >
             <MetricCard label="Throughput" value={state.metrics.throughput7d} />
@@ -283,7 +246,7 @@ function MetricsShell() {
           </div>
         </>
       ) : null}
-    </div>
+    </PageShell>
   );
 }
 
@@ -295,23 +258,17 @@ function MetricCard({
   value: string | number;
 }) {
   return (
-    <div
-      data-reviewer-metric-card={label}
-      style={{
-        padding: "14px 16px",
-        background: "#fff",
-        borderRadius: 12,
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-      }}
-    >
-      <div style={{ fontSize: 11, color: "#475569" }}>{label}</div>
+    <Card padding="compact" data-reviewer-metric-card={label}>
+      <div style={{ fontSize: 11, color: "var(--ink-secondary, #475569)" }}>
+        {label}
+      </div>
       <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>{value}</div>
-    </div>
+    </Card>
   );
 }
 
 const mutedStyle: React.CSSProperties = {
   color: "#475569",
   fontSize: 13,
-  marginTop: 14,
+  marginTop: 4,
 };

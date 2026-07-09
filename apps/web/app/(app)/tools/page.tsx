@@ -25,6 +25,12 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
+import { PageShell, PageHeader, PageSection } from "../../../components/ui/PageShell";
+import { Card } from "../../../components/ui/Card";
+import { Badge, type BadgeTone } from "../../../components/ui/Badge";
+import { Button } from "../../../components/ui/Button";
+import { FilterBar } from "../../../components/ui/FilterBar";
+import { EmptyState } from "../../../components/ui/EmptyState";
 import {
   usePersonaProfile,
   usePersonalSpaceFragment,
@@ -172,249 +178,176 @@ function AllToolsPageBody() {
     );
   }
 
-  return (
-    <main className="cc-page" data-all-tools-page>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">All Tools</div>
-          <h1 className="cc-title">Browse every product surface</h1>
-          <p className="cc-subtitle">
-            Workflow profiles personalize layout, defaults, and
-            recommendations. They do not change permissions or remove tools.
-          </p>
-        </div>
-        <div className="cc-meta">
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search tools…"
-            data-all-tools-search
-            aria-label="Search tools"
-            style={{
-              padding: "6px 10px",
-              border: "1px solid #cbd5e1",
-              borderRadius: 6,
-              fontSize: 13,
-              minWidth: 240,
-            }}
-          />
-        </div>
-      </header>
+  const visibleGroups = (Object.keys(GROUP_LABEL) as GroupId[])
+    .map((groupId) => ({
+      groupId,
+      items: groups[groupId].filter((i) =>
+        matchesSearch(i.route.label, i.route.description),
+      ),
+    }))
+    .filter((g) => g.items.length > 0);
 
-      {(Object.keys(GROUP_LABEL) as GroupId[]).map((groupId) => {
-        const items = groups[groupId].filter((i) =>
-          matchesSearch(i.route.label, i.route.description),
-        );
-        if (items.length === 0) return null;
-        return (
-          <section
+  return (
+    <PageShell data-all-tools-page>
+      <PageHeader
+        eyebrow="All Tools"
+        title="Browse every product surface"
+        subtitle="Workflow profiles personalize layout, defaults, and recommendations. They do not change permissions or remove tools."
+      />
+
+      <FilterBar>
+        <FilterBar.Search
+          value={query}
+          onChange={setQuery}
+          label="Search tools"
+          placeholder="Search tools…"
+          data-all-tools-search
+        />
+      </FilterBar>
+
+      {visibleGroups.length === 0 ? (
+        <EmptyState
+          framed
+          title="No tools match your search"
+          purpose="Try a different term, or clear the search to see every surface available to you."
+        />
+      ) : (
+        visibleGroups.map(({ groupId, items }) => (
+          <PageSection
             key={groupId}
-            className="cc-section"
+            title={GROUP_LABEL[groupId]}
             data-all-tools-group={groupId}
           >
-            <header className="cc-section-header">
-              <h2 className="cc-section-title">{GROUP_LABEL[groupId]}</h2>
-            </header>
-            <ul
-              className="cases-list"
+            <div
               data-all-tools-items
-              style={{ display: "grid", gap: 8 }}
+              style={{
+                display: "grid",
+                gap: 12,
+                gridTemplateColumns:
+                  "repeat(auto-fill, minmax(min(100%, 340px), 1fr))",
+              }}
             >
               {items.map((item) => {
                 const isRecommended = recommendedIds.has(item.route.id);
                 const isAvailable = item.access.canLoad;
                 const badge = badgeForAccess(item.access.accessState);
                 return (
-                  <li
+                  <Card
                     key={item.route.id}
-                    className="cases-row"
+                    padding="compact"
                     data-all-tools-route-id={item.route.id}
                     data-all-tools-access-state={item.access.accessState}
                     data-all-tools-recommended={
                       isRecommended ? "true" : "false"
                     }
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 12,
-                    }}
                   >
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <strong className="cases-row-title">
-                          {item.route.label}
-                        </strong>
-                        {isRecommended ? (
-                          <span
-                            data-all-tools-recommended-chip
-                            style={{
-                              fontSize: 10,
-                              padding: "2px 6px",
-                              fontWeight: 600,
-                              background: "#eef2ff",
-                              color: "#3730a3",
-                              border: "1px solid #c7d2fe",
-                              borderRadius: 999,
-                              textTransform: "uppercase",
-                              letterSpacing: 0.4,
-                            }}
-                          >
-                            Recommended
-                          </span>
-                        ) : null}
-                        {item.route.advancedByDefault ? (
-                          <span
-                            data-all-tools-advanced-chip
-                            style={{
-                              fontSize: 10,
-                              padding: "2px 6px",
-                              fontWeight: 600,
-                              background: "#f1f5f9",
-                              color: "#475569",
-                              border: "1px solid #cbd5e1",
-                              borderRadius: 999,
-                              textTransform: "uppercase",
-                              letterSpacing: 0.4,
-                            }}
-                          >
-                            Advanced
-                          </span>
-                        ) : null}
-                        <span
-                          data-all-tools-status-chip={item.access.accessState}
-                          style={{
-                            fontSize: 10,
-                            padding: "2px 6px",
-                            fontWeight: 600,
-                            background: badge.background,
-                            color: badge.color,
-                            border: `1px solid ${badge.border}`,
-                            borderRadius: 999,
-                          }}
-                        >
-                          {badge.label}
-                        </span>
-                      </div>
-                      <div
-                        className="cases-row-scope"
-                        style={{ fontSize: 12, color: "#475569", marginTop: 4 }}
-                      >
-                        {item.route.description}
-                      </div>
-                      {!isAvailable && item.access.reason ? (
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: "#7c2d12",
-                            marginTop: 4,
-                          }}
-                          data-all-tools-reason
-                        >
-                          {item.access.reason}
-                        </div>
-                      ) : null}
-                    </div>
                     <div
                       style={{
                         display: "flex",
-                        gap: 6,
-                        flexWrap: "wrap",
                         alignItems: "center",
+                        gap: 8,
+                        flexWrap: "wrap",
                       }}
                     >
-                      {isAvailable ? (
-                        <Link
-                          href={item.route.href}
-                          className="cc-quick-action"
-                          data-all-tools-open
+                      <strong style={{ fontSize: 14, fontWeight: 650 }}>
+                        {item.route.label}
+                      </strong>
+                      {isRecommended ? (
+                        <Badge
+                          tone="governance"
+                          subtle
+                          data-all-tools-recommended-chip
                         >
-                          Open
+                          Recommended
+                        </Badge>
+                      ) : null}
+                      {item.route.advancedByDefault ? (
+                        <Badge
+                          tone="neutral"
+                          subtle
+                          data-all-tools-advanced-chip
+                        >
+                          Advanced
+                        </Badge>
+                      ) : null}
+                      <Badge
+                        tone={badge.tone}
+                        subtle
+                        data-all-tools-status-chip={item.access.accessState}
+                      >
+                        {badge.label}
+                      </Badge>
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 12.5,
+                        color: "var(--ink-secondary, #475569)",
+                        marginTop: 6,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {item.route.description}
+                    </div>
+
+                    {!isAvailable && item.access.reason ? (
+                      <div
+                        style={{
+                          fontSize: 11.5,
+                          color: "var(--status-risk-fg, #991b1b)",
+                          marginTop: 6,
+                        }}
+                        data-all-tools-reason
+                      >
+                        {item.access.reason}
+                      </div>
+                    ) : null}
+
+                    <div style={{ marginTop: 12 }}>
+                      {isAvailable ? (
+                        <Link href={item.route.href} data-all-tools-open>
+                          <Button variant="secondary" size="sm">
+                            Open
+                          </Button>
                         </Link>
                       ) : item.access.primaryAction ? (
                         <Link
                           href={item.access.primaryAction.href}
-                          className="cases-filter-chip"
                           data-all-tools-primary-action
                         >
-                          {item.access.primaryAction.label}
+                          <Button variant="secondary" size="sm">
+                            {item.access.primaryAction.label}
+                          </Button>
                         </Link>
                       ) : null}
                     </div>
-                  </li>
+                  </Card>
                 );
               })}
-            </ul>
-          </section>
-        );
-      })}
-    </main>
+            </div>
+          </PageSection>
+        ))
+      )}
+    </PageShell>
   );
 }
 
-function badgeForAccess(state: string): {
-  label: string;
-  background: string;
-  color: string;
-  border: string;
-} {
+function badgeForAccess(state: string): { label: string; tone: BadgeTone } {
   switch (state) {
     case "ALLOWED":
-      return {
-        label: "Available",
-        background: "#ecfdf5",
-        color: "#065f46",
-        border: "#a7f3d0",
-      };
+      return { label: "Available", tone: "verified" };
     case "NEEDS_ORGANIZATION":
-      return {
-        label: "Requires organization",
-        background: "#fef3c7",
-        color: "#78350f",
-        border: "#fde68a",
-      };
+      return { label: "Requires organization", tone: "pending" };
     case "NEEDS_PERSONAL_OR_ORG":
-      return {
-        label: "Requires workspace",
-        background: "#fef3c7",
-        color: "#78350f",
-        border: "#fde68a",
-      };
+      return { label: "Requires workspace", tone: "pending" };
     case "DENIED_NO_CAPABILITY":
-      return {
-        label: "Requires permission",
-        background: "#fef2f2",
-        color: "#7f1d1d",
-        border: "#fecaca",
-      };
+      return { label: "Requires permission", tone: "risk" };
     case "NEEDS_UPGRADE":
-      return {
-        label: "Requires upgrade",
-        background: "#eef2ff",
-        color: "#3730a3",
-        border: "#c7d2fe",
-      };
+      return { label: "Requires upgrade", tone: "governance" };
     case "RECOVERY_REQUIRED":
-      return {
-        label: "Recovery required",
-        background: "#fef2f2",
-        color: "#7f1d1d",
-        border: "#fecaca",
-      };
+      return { label: "Recovery required", tone: "risk" };
     default:
-      return {
-        label: "Unavailable",
-        background: "#f1f5f9",
-        color: "#475569",
-        border: "#cbd5e1",
-      };
+      return { label: "Unavailable", tone: "neutral" };
   }
 }
 

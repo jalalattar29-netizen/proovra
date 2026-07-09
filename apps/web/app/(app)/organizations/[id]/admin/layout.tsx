@@ -230,6 +230,33 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
       "ORG_AUDITOR",
     ],
   },
+  // ---- Phase 8 — Enterprise Production Readiness ----
+  {
+    id: "bulk-invite",
+    segment: "bulk-invite",
+    label: "Bulk invite",
+    description:
+      "Invite many members at once (paste or CSV) with validation, dry-run preview, and partial-success handling.",
+    // Member provisioning — full admins only (ORG_ADMIN+ enforced server-side).
+    roles: ["ORG_OWNER", "ORG_ADMIN"],
+  },
+  {
+    id: "reports",
+    segment: "reports",
+    label: "Reports",
+    description:
+      "Operational report CSV exports — members, seats, audit, governance, external access. Real data only.",
+    // Auditor-tier read; seats export additionally needs billing-admin (gated per-endpoint).
+    roles: ["ORG_OWNER", "ORG_ADMIN", "ORG_BILLING_ADMIN", "ORG_AUDITOR"],
+  },
+  {
+    id: "readiness",
+    segment: "readiness",
+    label: "Readiness",
+    description:
+      "Organization operational readiness — status, SSO/integration health, evidence-operations signals.",
+    roles: ["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN", "ORG_AUDITOR"],
+  },
   // ---- Audit ----
   {
     id: "audit",

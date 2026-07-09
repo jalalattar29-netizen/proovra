@@ -714,6 +714,10 @@ describe("Phase R10 — registry-page-existence invariant", () => {
     "/organizations/:id/admin/access-reviews",
     "/organizations/:id/admin/retention",
     "/organizations/:id/admin/audit",
+    // Phase 8 (Enterprise Production Readiness) — dynamic org-admin tabs.
+    "/organizations/:id/admin/bulk-invite",
+    "/organizations/:id/admin/reports",
+    "/organizations/:id/admin/readiness",
     "/organizations/:id/admin/security",
     "/organizations/:id/admin/trust",
     // Phase 4 (Enterprise Administration) — Roles, Billing, Integrations.

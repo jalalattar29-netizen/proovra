@@ -274,7 +274,10 @@ describe("Escalations page (proof-point wiring)", () => {
   });
 
   it("renders NoEscalationsEmptyState when rows array is empty", () => {
-    expect(src).toMatch(/rows\.length === 0[\s\S]*?NoEscalationsEmptyState/);
+    // P7 — the page now renders through the shared <DataTable>, which shows
+    // its `emptyState` slot when there are no rows. The empty preset is wired
+    // into that slot (functionally equivalent to the old rows.length===0 gate).
+    expect(src).toMatch(/emptyState=\{[\s\S]*?NoEscalationsEmptyState/);
   });
 
   it("removed the old static 'No escalations match these filters' text", () => {
@@ -282,11 +285,13 @@ describe("Escalations page (proof-point wiring)", () => {
   });
 
   it("renders the runtime banner above the main escalations table", () => {
+    // P7 — the raw <section> table wrapper was replaced by the shared
+    // <DataTable>. The banner still renders above the table (the DataTable).
     const bannerIdx = src.indexOf("RuntimeStatusBanner teamId");
-    const sectionIdx = src.indexOf("<section style={{ ...cardStyle, marginTop: 16, padding: 0 }}>");
+    const tableIdx = src.indexOf("<DataTable");
     expect(bannerIdx).toBeGreaterThan(0);
-    expect(sectionIdx).toBeGreaterThan(0);
-    expect(bannerIdx).toBeLessThan(sectionIdx);
+    expect(tableIdx).toBeGreaterThan(0);
+    expect(bannerIdx).toBeLessThan(tableIdx);
   });
 
   it("only renders the banner when teamId is known (avoids null render)", () => {

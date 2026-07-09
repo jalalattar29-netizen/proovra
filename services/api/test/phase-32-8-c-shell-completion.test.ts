@@ -130,7 +130,9 @@ describe("Phase 32.8C FINAL-4 — grouped workspace switcher", () => {
 describe("Phase 32.8C FINAL-4 — topbar CSS", () => {
   it("defines the workspace pill button styles", () => {
     expect(TOPBAR_CSS).toMatch(/\.app-topbar-v2-workspace-button\s*\{/);
-    expect(TOPBAR_CSS).toMatch(/\.app-topbar-v2-workspace-copy\s*\{/);
+    // P7-2 grouped the copy selector with siblings (comma-grouped rule) —
+    // the style is still defined, now as `.app-topbar-v2-workspace-copy,`.
+    expect(TOPBAR_CSS).toMatch(/\.app-topbar-v2-workspace-copy\s*[,{]/);
     expect(TOPBAR_CSS).toMatch(/data-workspace-name/);
   });
 

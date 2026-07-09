@@ -22,14 +22,16 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import {
   DenialBanner,
-  EmptyState,
-  LifecyclePageHeader,
   LifecycleSectionBoundary,
-  RefreshButton,
   SectionLoadingSkeleton,
   useLifecycleFetch,
 } from "../_shared";
@@ -174,39 +176,48 @@ function Shell() {
   const expirations = data?.expirations ?? [];
 
   return (
-    <div
+    <PageShell
       data-retention-page
-      style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
+      header={
+        <PageHeader
+          eyebrow="Evidence Lifecycle"
+          title="Retention Policies"
+          subtitle="Define how long evidence is retained and what happens when it expires."
+          primaryAction={
+            <Button
+              type="button"
+              variant="primary"
+              loading={busy}
+              disabled={busy}
+              onClick={() => void refresh()}
+            >
+              {busy ? "Loading…" : "Refresh"}
+            </Button>
+          }
+          contextStrip={
+            <a
+              href="/evidence-lifecycle"
+              style={{
+                fontSize: 12,
+                color: "#4338ca",
+                fontWeight: 600,
+                textDecoration: "none",
+              }}
+            >
+              ← Back to Lifecycle Operations
+            </a>
+          }
+        />
+      }
     >
-      <LifecyclePageHeader
-        title="Retention Policies"
-        subtitle="Define how long evidence is retained and what happens when it expires."
-      >
-        <RefreshButton busy={busy} onClick={() => void refresh()} />
-      </LifecyclePageHeader>
-
       {denial ? <DenialBanner denial={denial} /> : null}
 
       {/* Create form */}
-      <section
+      <Card
+        variant="admin"
         data-retention-create
-        style={{
-          background: "rgba(15,23,42,0.03)",
-          border: "1px solid rgba(15,23,42,0.06)",
-          borderRadius: 10,
-          padding: 14,
-          marginBottom: 16,
-        }}
+        title="Create retention policy"
       >
-        <strong style={{ display: "block", marginBottom: 4, fontSize: 14 }}>
-          Create retention policy
-        </strong>
         <p style={{ margin: 0, fontSize: 12, color: "#475569", marginBottom: 10 }}>
           Policies apply to the chosen scope. Create one per workspace, department,
           or case. Use <code>CORPORATE_5Y</code> for most workspaces, or{" "}
@@ -272,11 +283,12 @@ function Shell() {
               placeholder="optional UUID"
             />
           </label>
-          <button
+          <Button
             type="button"
+            variant="primary"
+            loading={creating}
             disabled={creating || !name || (template === "CUSTOM" && !years)}
             onClick={() => void create()}
-            style={primaryButton}
             title={
               !name
                 ? "Enter a policy name first"
@@ -286,7 +298,7 @@ function Shell() {
             }
           >
             {creating ? "Creating…" : "Create policy"}
-          </button>
+          </Button>
         </div>
         {createError ? (
           <div
@@ -304,131 +316,87 @@ function Shell() {
             <strong>Could not create policy:</strong> {createError}
           </div>
         ) : null}
-      </section>
+      </Card>
 
       {/* Policies table */}
-      <section
+      <PageSection
         data-retention-policies
-        style={{
-          background: "#fff",
-          border: "1px solid rgba(15,23,42,0.08)",
-          borderRadius: 10,
-          padding: 8,
-          marginTop: 12,
-          overflowX: "auto",
-        }}
-      >
-        <header style={tableHeaderStyle}>
-          <strong style={{ fontSize: 14 }}>Policies</strong>
+        title="Policies"
+        action={
           <small style={{ color: "#64748b", fontSize: 11 }}>
             {policies.length} active
           </small>
-        </header>
+        }
+      >
         {loading ? (
-          <SectionLoadingSkeleton rows={3} />
-        ) : policies.length === 0 ? (
-          <EmptyState
-            title="No retention policies"
-            hint="Create one above to start applying retention windows to evidence in this workspace."
-          />
+          <Card padding="compact">
+            <SectionLoadingSkeleton rows={3} />
+          </Card>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ textAlign: "left", color: "#475569" }}>
-                <th style={th}>Name</th>
-                <th style={th}>Template</th>
-                <th style={th}>Scope</th>
-                <th style={th}>Target</th>
-                <th style={th}>State</th>
-                <th style={th}>Expires</th>
-                <th style={th}>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {policies.map((p) => (
-                <tr key={p.id}>
-                  <td style={td}>{p.name}</td>
-                  <td style={td}>
-                    <code>{p.template}</code>
-                  </td>
-                  <td style={td}>{p.scopeKind}</td>
-                  <td style={td}>{p.scopeTargetId ?? "—"}</td>
-                  <td style={td}>
-                    <strong>{p.state}</strong>
-                  </td>
-                  <td style={td}>{formatDate(p.expiresAtUtc)}</td>
-                  <td style={td}>{formatDate(p.createdAtUtc)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable<RetentionPolicy>
+            ariaLabel="Retention policies"
+            columns={POLICY_COLUMNS}
+            rows={policies}
+            getRowId={(p) => p.id}
+            emptyState={
+              <EmptyState
+                title="No retention policy configured"
+                purpose="Create a policy above to start applying retention windows to evidence in this workspace."
+              />
+            }
+          />
         )}
-      </section>
+      </PageSection>
 
       {/* Upcoming expirations */}
-      <section
+      <PageSection
         data-retention-expirations
-        style={{
-          background: "#fff",
-          border: "1px solid rgba(15,23,42,0.08)",
-          borderRadius: 10,
-          padding: 8,
-          marginTop: 12,
-          overflowX: "auto",
-        }}
-      >
-        <header style={tableHeaderStyle}>
-          <strong style={{ fontSize: 14 }}>Upcoming expirations (30 days)</strong>
+        title="Upcoming expirations (30 days)"
+        action={
           <small style={{ color: "#64748b", fontSize: 11 }}>
             {expirations.length} evidence item{expirations.length === 1 ? "" : "s"}
           </small>
-        </header>
+        }
+      >
         {loading ? (
-          <SectionLoadingSkeleton rows={2} />
-        ) : expirations.length === 0 ? (
-          <EmptyState
-            title="No evidence expiring in the next 30 days"
-            hint="Nothing in scope will hit its retention boundary in the near term."
-          />
+          <Card padding="compact">
+            <SectionLoadingSkeleton rows={2} />
+          </Card>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ textAlign: "left", color: "#475569" }}>
-                <th style={th}>Evidence ID</th>
-                <th style={th}>Policy</th>
-                <th style={th}>Expires</th>
-              </tr>
-            </thead>
-            <tbody>
-              {expirations.map((e) => (
-                <tr key={e.evidenceId}>
-                  <td style={td}>
-                    <code>{e.evidenceId}</code>
-                  </td>
-                  <td style={td}>{e.policyName}</td>
-                  <td style={td}>{formatDate(e.expiresAtUtc)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable<UpcomingExpiration>
+            ariaLabel="Upcoming expirations"
+            columns={EXPIRATION_COLUMNS}
+            rows={expirations}
+            getRowId={(e) => e.evidenceId}
+            emptyState={
+              <EmptyState
+                title="No evidence expiring in the next 30 days"
+                purpose="Nothing in scope will hit its retention boundary in the near term."
+              />
+            }
+          />
         )}
-      </section>
-    </div>
+      </PageSection>
+    </PageShell>
   );
 }
 
-const primaryButton = {
-  padding: "6px 12px",
-  border: "1px solid #0f172a",
-  background: "#0f172a",
-  color: "#fafafa",
-  fontWeight: 600,
-  fontSize: 12,
-  borderRadius: 8,
-  cursor: "pointer",
-} as const;
-const th = { padding: "6px 8px", borderBottom: "1px solid #e2e8f0" } as const;
-const td = { padding: "6px 8px", borderBottom: "1px solid #f1f5f9" } as const;
+const POLICY_COLUMNS: DataTableColumn<RetentionPolicy>[] = [
+  { key: "name", header: "Name", render: (p) => p.name },
+  { key: "template", header: "Template", render: (p) => <code>{p.template}</code> },
+  { key: "scope", header: "Scope", render: (p) => p.scopeKind },
+  { key: "target", header: "Target", render: (p) => p.scopeTargetId ?? "—" },
+  { key: "state", header: "State", render: (p) => <strong>{p.state}</strong> },
+  { key: "expires", header: "Expires", render: (p) => formatDate(p.expiresAtUtc) },
+  { key: "created", header: "Created", render: (p) => formatDate(p.createdAtUtc) },
+];
+
+const EXPIRATION_COLUMNS: DataTableColumn<UpcomingExpiration>[] = [
+  { key: "evidenceId", header: "Evidence ID", render: (e) => <code>{e.evidenceId}</code> },
+  { key: "policy", header: "Policy", render: (e) => e.policyName },
+  { key: "expires", header: "Expires", render: (e) => formatDate(e.expiresAtUtc) },
+];
+
 const labelStyle = {
   display: "flex",
   flexDirection: "column" as const,
@@ -443,12 +411,4 @@ const inputStyle = {
   borderRadius: 6,
   background: "#fff",
   minWidth: 140,
-} as const;
-const tableHeaderStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  padding: "4px 4px 8px",
-  borderBottom: "1px solid #e2e8f0",
-  marginBottom: 4,
 } as const;

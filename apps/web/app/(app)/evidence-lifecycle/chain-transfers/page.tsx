@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
+import { EmptyState } from "../../../../components/ui/EmptyState";
+import { statusBadgeStyle } from "../../../../components/ui/StatusBadge";
 import { apiFetch, ApiError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { LifecycleSectionBoundary } from "../_shared";
@@ -18,14 +24,6 @@ interface ChainTransfer {
   createdAtUtc: string;
   updatedAtUtc: string;
 }
-
-const STATE_COLORS: Record<string, string> = {
-  PENDING: "#fef3c7",
-  ACCEPTED: "#d1fae5",
-  REJECTED: "#fee2e2",
-  REVOKED: "#f3f4f6",
-  COMPLETED: "#f0fdf4",
-};
 
 function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void): void {
   const e = err as { statusCode?: number; details?: Record<string, unknown> };
@@ -143,26 +141,49 @@ function Shell() {
     void refresh();
   }, [refresh]);
 
-  return (
-    <div
-      data-chain-transfers-page
-      style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
-    >
-      <header style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, marginTop: 0 }}>Chain of Custody Transfers</h1>
-        <p>
-          <a href="/evidence-lifecycle" style={{ fontSize: 12 }}>
-            ← Back to Evidence Lifecycle
-          </a>
-        </p>
-      </header>
+  const columns: DataTableColumn<ChainTransfer>[] = [
+    {
+      key: "toOrganization",
+      header: "To Organization",
+      render: (t) => <code>{t.toOrganizationSlug}</code>,
+    },
+    { key: "evidenceCount", header: "Evidence Count", render: (t) => t.evidenceIds.length },
+    { key: "reason", header: "Reason", render: (t) => t.reasonNote ?? "—" },
+    {
+      key: "state",
+      header: "State",
+      render: (t) => <span style={statusBadgeStyle(t.state)}>{t.state}</span>,
+    },
+    { key: "created", header: "Created", render: (t) => safeDate(t.createdAtUtc) },
+  ];
 
+  return (
+    <PageShell
+      data-chain-transfers-page
+      header={
+        <PageHeader
+          eyebrow="Evidence Lifecycle"
+          title="Chain of Custody Transfers"
+          subtitle="Transfer custody of evidence to another organization with a full, tamper-evident chain-of-custody record."
+          primaryAction={
+            <Button
+              type="button"
+              variant="primary"
+              loading={busy}
+              disabled={busy}
+              onClick={() => void refresh()}
+            >
+              {busy ? "Loading…" : "Refresh"}
+            </Button>
+          }
+          contextStrip={
+            <a href="/evidence-lifecycle" style={{ fontSize: 12 }}>
+              ← Back to Evidence Lifecycle
+            </a>
+          }
+        />
+      }
+    >
       {denial ? (
         <div
           data-permission-denied={denial.denial}
@@ -181,18 +202,7 @@ function Shell() {
       ) : null}
 
       {/* Create form */}
-      <section
-        style={{
-          background: "rgba(15,23,42,0.03)",
-          border: "1px solid rgba(15,23,42,0.06)",
-          borderRadius: 10,
-          padding: 14,
-          marginBottom: 16,
-        }}
-      >
-        <strong style={{ display: "block", marginBottom: 10, fontSize: 14 }}>
-          Create Transfer
-        </strong>
+      <Card variant="admin" title="Create Transfer">
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <label style={labelStyle}>
             To Organization Slug
@@ -221,146 +231,78 @@ function Shell() {
               placeholder="optional"
             />
           </label>
-          <button
+          <Button
             type="button"
+            variant="primary"
+            loading={creating}
             disabled={creating || !toOrganizationSlug || !evidenceIds}
             onClick={() => void create()}
-            style={primaryButton}
           >
             {creating ? "Creating…" : "Create Transfer"}
-          </button>
+          </Button>
         </div>
-      </section>
+      </Card>
 
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void refresh()}
-        style={primaryButton}
-      >
-        {busy ? "Loading…" : "Refresh"}
-      </button>
-
-      <section
-        style={{
-          background: "#fff",
-          border: "1px solid rgba(15,23,42,0.08)",
-          borderRadius: 10,
-          padding: 8,
-          marginTop: 12,
-          overflowX: "auto",
-        }}
-      >
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "#475569" }}>
-              <th style={th}>To Organization</th>
-              <th style={th}>Evidence Count</th>
-              <th style={th}>Reason</th>
-              <th style={th}>State</th>
-              <th style={th}>Created</th>
-              <th style={th}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transfers.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={{ ...td, color: "#475569" }}>
-                  No chain transfers.
-                </td>
-              </tr>
-            ) : (
-              transfers.map((t) => (
-                <tr key={t.id}>
-                  <td style={td}>
-                    <code>{t.toOrganizationSlug}</code>
-                  </td>
-                  <td style={td}>{t.evidenceIds.length}</td>
-                  <td style={td}>{t.reasonNote ?? "—"}</td>
-                  <td style={td}>
-                    <span
-                      style={{
-                        padding: "2px 6px",
-                        borderRadius: 4,
-                        background: STATE_COLORS[t.state] ?? "#f1f5f9",
-                        fontWeight: 700,
-                        fontSize: 11,
-                      }}
-                    >
-                      {t.state}
-                    </span>
-                  </td>
-                  <td style={td}>{safeDate(t.createdAtUtc)}</td>
-                  <td style={td}>
-                    <span style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      {t.state === "PENDING" && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => void doAction(t.id, "accept")}
-                            style={secondaryButton}
-                          >
-                            Accept
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void doAction(t.id, "reject")}
-                            style={{ ...secondaryButton, color: "#dc2626", borderColor: "#dc2626" }}
-                          >
-                            Reject
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void doAction(t.id, "revoke")}
-                            style={secondaryButton}
-                          >
-                            Revoke
-                          </button>
-                        </>
-                      )}
-                      {t.state === "ACCEPTED" && (
-                        <button
-                          type="button"
-                          onClick={() => void doAction(t.id, "complete")}
-                          style={{ ...secondaryButton, background: "#0f172a", color: "#fafafa" }}
-                        >
-                          Complete
-                        </button>
-                      )}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </section>
-    </div>
+      <PageSection title="Chain-of-custody transfers">
+        <DataTable<ChainTransfer>
+          ariaLabel="Chain of custody transfers"
+          columns={columns}
+          rows={transfers}
+          getRowId={(t) => t.id}
+          rowActions={(t) => (
+            <span style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              {t.state === "PENDING" && (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void doAction(t.id, "accept")}
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => void doAction(t.id, "reject")}
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void doAction(t.id, "revoke")}
+                  >
+                    Revoke
+                  </Button>
+                </>
+              )}
+              {t.state === "ACCEPTED" && (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => void doAction(t.id, "complete")}
+                >
+                  Complete
+                </Button>
+              )}
+            </span>
+          )}
+          emptyState={
+            <EmptyState
+              title="No chain-of-custody transfers"
+              purpose="Create a transfer above to hand custody of evidence to another organization with a tamper-evident chain-of-custody record."
+            />
+          }
+        />
+      </PageSection>
+    </PageShell>
   );
 }
 
-const primaryButton = {
-  padding: "6px 12px",
-  border: "1px solid #0f172a",
-  background: "#0f172a",
-  color: "#fafafa",
-  fontWeight: 600,
-  fontSize: 12,
-  borderRadius: 8,
-  cursor: "pointer",
-} as const;
-const secondaryButton = {
-  padding: "4px 8px",
-  border: "1px solid #0f172a",
-  background: "#fff",
-  color: "#0f172a",
-  fontWeight: 600,
-  fontSize: 11,
-  borderRadius: 6,
-  cursor: "pointer",
-} as const;
-const th = { padding: "6px 8px", borderBottom: "1px solid #e2e8f0" } as const;
-const td = { padding: "6px 8px", borderBottom: "1px solid #f1f5f9" } as const;
 const labelStyle = { display: "flex", flexDirection: "column" as const, gap: 2, fontSize: 11, fontWeight: 600 };
 const inputStyle = {
   fontSize: 12,

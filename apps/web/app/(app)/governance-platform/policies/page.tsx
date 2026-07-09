@@ -8,6 +8,12 @@ import {
 } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { Badge } from "../../../../components/ui/Badge";
+import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch, ApiError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 
@@ -73,98 +79,107 @@ function Shell() {
     void refresh();
   }, [refresh]);
 
-  return (
-    <div
-      data-governance-policies-page
-      style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
-    >
-      <header style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, marginTop: 0 }}>Governance Policies</h1>
-        <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-          Policy registry. Kinds: {GOVERNANCE_POLICY_KINDS.join(", ")}.
-          Inheritance + override + audit. Enforcement: BLOCK / WARN / AUDIT_ONLY.
-        </p>
-        <p><a href="/governance-platform" style={{ fontSize: 12 }}>← Back to Governance Platform</a></p>
-      </header>
+  const columns: DataTableColumn<GovernancePolicyProjection>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (p) => (
+        <span
+          data-governance-policy-row={p.id}
+          data-governance-policy-state={p.state}
+          data-governance-policy-kind={p.kind}
+        >
+          {p.name}
+        </span>
+      ),
+    },
+    { key: "kind", header: "Kind", render: (p) => <code>{p.kind}</code> },
+    { key: "slug", header: "Slug", render: (p) => <code>{p.slug}</code> },
+    {
+      key: "state",
+      header: "State",
+      render: (p) => <Badge tone="governance">{p.state}</Badge>,
+    },
+    { key: "enforcementMode", header: "Enforcement", render: (p) => p.enforcementMode },
+    { key: "version", header: "Version", render: (p) => `v${p.version}` },
+    { key: "createdAtUtc", header: "Created", render: (p) => formatUserDate(p.createdAtUtc) },
+  ];
 
+  return (
+    <PageShell
+      data-governance-policies-page
+      header={
+        <PageHeader
+          eyebrow="Governance"
+          title="Governance Policies"
+          subtitle={`Policy registry. Kinds: ${GOVERNANCE_POLICY_KINDS.join(", ")}. Inheritance + override + audit. Enforcement: BLOCK / WARN / AUDIT_ONLY.`}
+          contextStrip={
+            <a href="/governance-platform" style={{ fontSize: 12 }}>← Back to Governance Platform</a>
+          }
+          primaryAction={
+            <Button
+              variant="enterprise"
+              data-governance-policies-refresh
+              disabled={busy}
+              loading={busy}
+              onClick={() => void refresh()}
+            >
+              {busy ? "Loading…" : "Refresh"}
+            </Button>
+          }
+        />
+      }
+    >
       {denial ? (
-        <div
+        <Card
+          variant="status"
+          tone="risk"
+          padding="compact"
           data-permission-denied={denial.denial}
-          style={{
-            padding: 10,
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#991b1b",
-            borderRadius: 8,
-            fontSize: 12,
-            marginBottom: 10,
-          }}
         >
           <strong>Permission required:</strong> {denial.tier}
-        </div>
+        </Card>
       ) : null}
 
-      <button
-        type="button"
-        data-governance-policies-refresh
-        disabled={busy}
-        onClick={() => void refresh()}
-        style={primaryButton}
-      >
-        {busy ? "Loading…" : "Refresh"}
-      </button>
-
-      <section style={{ background: "#fff", border: "1px solid rgba(15, 23, 42, 0.08)", borderRadius: 10, padding: 8, marginTop: 12, overflowX: "auto" }}>
-        <table data-governance-policies-table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "#475569" }}>
-              <th style={th}>Name</th>
-              <th style={th}>Kind</th>
-              <th style={th}>Slug</th>
-              <th style={th}>State</th>
-              <th style={th}>Enforcement</th>
-              <th style={th}>Version</th>
-              <th style={th}>Created</th>
-              <th style={th}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr><td colSpan={8} style={{ ...td, color: "#475569" }}>No policies.</td></tr>
+      <div data-governance-policies-table>
+        <DataTable<GovernancePolicyProjection>
+          ariaLabel="Governance policies"
+          columns={columns}
+          rows={rows as GovernancePolicyProjection[]}
+          getRowId={(p) => p.id}
+          loading={busy && rows.length === 0}
+          emptyState={
+            <EmptyState
+              title="No governance policies defined"
+              purpose="Retention, access and compliance policies for this organization appear here once they are created."
+            />
+          }
+          rowActions={(p) =>
+            p.state === "DRAFT" ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                data-governance-policy-activate={p.id}
+                onClick={() => void activate(p.id)}
+              >
+                Activate
+              </Button>
+            ) : p.state === "ACTIVE" ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                data-governance-policy-deprecate={p.id}
+                onClick={() => void deprecate(p.id)}
+              >
+                Deprecate
+              </Button>
             ) : (
-              rows.map((p) => (
-                <tr key={p.id} data-governance-policy-row={p.id} data-governance-policy-state={p.state} data-governance-policy-kind={p.kind}>
-                  <td style={td}>{p.name}</td>
-                  <td style={td}><code>{p.kind}</code></td>
-                  <td style={td}><code>{p.slug}</code></td>
-                  <td style={td}><strong>{p.state}</strong></td>
-                  <td style={td}>{p.enforcementMode}</td>
-                  <td style={td}>v{p.version}</td>
-                  <td style={td}>{formatUserDate(p.createdAtUtc)}</td>
-                  <td style={td}>
-                    {p.state === "DRAFT" ? (
-                      <button data-governance-policy-activate={p.id} type="button" onClick={() => void activate(p.id)} style={secondaryButton}>
-                        Activate
-                      </button>
-                    ) : p.state === "ACTIVE" ? (
-                      <button data-governance-policy-deprecate={p.id} type="button" onClick={() => void deprecate(p.id)} style={secondaryButton}>
-                        Deprecate
-                      </button>
-                    ) : "—"}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </section>
-    </div>
+              <span>—</span>
+            )
+          }
+        />
+      </div>
+    </PageShell>
   );
 }
 
@@ -207,26 +222,3 @@ function applyDenial(
     setDenial({ denial: detailsDenial, tier });
   }
 }
-
-const primaryButton = {
-  padding: "6px 12px",
-  border: "1px solid #0f172a",
-  background: "#0f172a",
-  color: "#fafafa",
-  fontWeight: 600,
-  fontSize: 12,
-  borderRadius: 8,
-  cursor: "pointer",
-} as const;
-const secondaryButton = {
-  padding: "4px 8px",
-  border: "1px solid #0f172a",
-  background: "#fff",
-  color: "#0f172a",
-  fontWeight: 600,
-  fontSize: 11,
-  borderRadius: 6,
-  cursor: "pointer",
-} as const;
-const th = { padding: "6px 8px", borderBottom: "1px solid #e2e8f0" } as const;
-const td = { padding: "6px 8px", borderBottom: "1px solid #f1f5f9" } as const;

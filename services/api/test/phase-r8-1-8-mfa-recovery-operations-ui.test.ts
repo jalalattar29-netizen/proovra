@@ -208,10 +208,12 @@ describe("R8.1.8 — digest preview endpoint + UI", () => {
     expect(ADMIN_SPA).toMatch(/data-cc-mfa-recovery-digest-preview-card/);
     expect(ADMIN_SPA).toMatch(/data-cc-mfa-recovery-digest-preview-teams/);
     // The preview card span never includes the approve/reject
-    // confirmation-modal triggers. We grep the section between
-    // its card open and the next `</section>`.
+    // confirmation-modal triggers. We grep the block between
+    // its card open and the matching `</Card>` close.
+    // P7 — the preview region migrated from a raw <section> to the shared
+    // <Card variant="admin" ...>, so the block now closes at </Card>.
     const previewBlock = ADMIN_SPA.match(
-      /data-cc-mfa-recovery-digest-preview-card[\s\S]*?<\/section>/,
+      /data-cc-mfa-recovery-digest-preview-card[\s\S]*?<\/Card>/,
     );
     expect(previewBlock).toBeTruthy();
     expect(previewBlock![0]).not.toMatch(/data-cc-mfa-recovery-approve\b/);

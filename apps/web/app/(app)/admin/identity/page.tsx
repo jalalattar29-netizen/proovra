@@ -33,15 +33,9 @@ import Link from "next/link";
 
 import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import {
-  cardStyle,
-  headerRowStyle,
-  pageStyle,
-  sectionTitleStyle,
-  subtitleStyle,
-  titleStyle,
-  TOKENS,
-} from "./ui-tokens";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { TOKENS } from "./ui-tokens";
 
 type Surface = {
   href: string;
@@ -130,34 +124,24 @@ export default function AdminIdentityHubPage() {
 
 function AdminIdentityHubInner() {
   return (
-    <main style={pageStyle} data-testid="admin-identity-hub">
-      <AdminConsoleNav />
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Identity operations</h1>
-          <p style={subtitleStyle}>
-            The procurement-grade identity + security operations entry
-            point. Every surface here is backed by an audited backend
-            endpoint and respects the workspace + organization tenancy
-            boundaries. Destructive operations require step-up where
-            flagged by the workspace step-up policy.
-          </p>
+    <PageShell
+      data-testid="admin-identity-hub"
+      header={
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <AdminConsoleNav />
+          <PageHeader
+            eyebrow="Identity operations"
+            title="Identity operations"
+            subtitle="The procurement-grade identity + security operations entry point. Every surface here is backed by an audited backend endpoint and respects the workspace + organization tenancy boundaries. Destructive operations require step-up where flagged by the workspace step-up policy."
+          />
         </div>
-      </header>
-
-      <section style={{ marginTop: 20 }} data-section="admin-identity-primary">
-        <h3 style={sectionTitleStyle}>Primary admin surfaces</h3>
-        <p
-          style={{
-            ...subtitleStyle,
-            marginTop: 4,
-            marginBottom: 10,
-            fontSize: 12,
-          }}
-        >
-          The canonical SAML / SCIM / Audit surfaces for enterprise
-          procurement reviews.
-        </p>
+      }
+    >
+      <PageSection
+        data-section="admin-identity-primary"
+        title="Primary admin surfaces"
+        description="The canonical SAML / SCIM / Audit surfaces for enterprise procurement reviews."
+      >
         <div
           style={{
             display: "grid",
@@ -171,40 +155,28 @@ function AdminIdentityHubInner() {
               href={s.href}
               data-admin-identity-card={s.canonicalPath}
               style={{
-                ...cardStyle,
                 textDecoration: "none",
                 color: TOKENS.ink,
                 display: "block",
-                borderLeft: `3px solid ${TOKENS.accent}`,
               }}
             >
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{s.title}</div>
-              <div
-                style={{ fontSize: 12, color: TOKENS.inkMuted, marginTop: 4 }}
-              >
-                {s.description}
-              </div>
+              <Card
+                variant="status"
+                tone="governance"
+                padding="compact"
+                title={s.title}
+                subtitle={s.description}
+              />
             </Link>
           ))}
         </div>
-      </section>
+      </PageSection>
 
-      <section
-        style={{ marginTop: 24 }}
+      <PageSection
         data-section="admin-identity-secondary"
+        title="Operational surfaces"
+        description="Live session governance, RBAC inspection, access reviews, MFA posture, and recovery operations."
       >
-        <h3 style={sectionTitleStyle}>Operational surfaces</h3>
-        <p
-          style={{
-            ...subtitleStyle,
-            marginTop: 4,
-            marginBottom: 10,
-            fontSize: 12,
-          }}
-        >
-          Live session governance, RBAC inspection, access reviews, MFA
-          posture, and recovery operations.
-        </p>
         <div
           style={{
             display: "grid",
@@ -218,45 +190,33 @@ function AdminIdentityHubInner() {
               href={s.href}
               data-admin-identity-card={s.canonicalPath}
               style={{
-                ...cardStyle,
                 textDecoration: "none",
                 color: TOKENS.ink,
                 display: "block",
               }}
             >
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{s.title}</div>
-              <div
-                style={{ fontSize: 12, color: TOKENS.inkMuted, marginTop: 4 }}
-              >
-                {s.description}
-              </div>
+              <Card
+                variant="summary"
+                padding="compact"
+                title={s.title}
+                subtitle={s.description}
+              />
             </Link>
           ))}
         </div>
-      </section>
+      </PageSection>
 
-      <section
-        style={{ marginTop: 24 }}
+      <PageSection
         data-section="admin-identity-honest-scope"
+        title="Honest scope disclosure"
+        description="These capabilities are NOT shipped today and are bounded follow-up work. The platform never surfaces fake controls."
       >
-        <h3 style={sectionTitleStyle}>Honest scope disclosure</h3>
-        <p
-          style={{
-            ...subtitleStyle,
-            marginTop: 4,
-            marginBottom: 10,
-            fontSize: 12,
-          }}
-        >
-          These capabilities are NOT shipped today and are bounded
-          follow-up work. The platform never surfaces fake controls.
-        </p>
         <ul
           style={{
-            ...subtitleStyle,
-            marginTop: 6,
-            paddingLeft: 18,
             fontSize: 12,
+            color: TOKENS.inkSubtle,
+            margin: 0,
+            paddingLeft: 18,
             lineHeight: 1.6,
           }}
           data-admin-identity-bounded-followups
@@ -290,7 +250,7 @@ function AdminIdentityHubInner() {
             workspace-flag driven (per-action, on or off).
           </li>
         </ul>
-      </section>
-    </main>
+      </PageSection>
+    </PageShell>
   );
 }

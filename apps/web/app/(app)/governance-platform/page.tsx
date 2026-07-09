@@ -13,6 +13,10 @@ import { useCallback, useEffect, useState } from "react";
 import type { GovernanceDashboardProjection } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader, PageSection } from "../../../components/ui/PageShell";
+import { Card } from "../../../components/ui/Card";
+import { Button } from "../../../components/ui/Button";
+import { EmptyState } from "../../../components/ui/EmptyState";
 import { apiFetch } from "../../../lib/api";
 
 export default function GovernancePlatformPage() {
@@ -44,45 +48,46 @@ function Shell() {
   }, [refresh]);
 
   return (
-    <div
+    <PageShell
       data-governance-platform
-      style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
+      header={
+        <PageHeader
+          eyebrow="Governance"
+          title="Governance Platform"
+          subtitle="Compliance · access reviews · delegated administration · cross-org · policy violations · audit health · security health · trust health."
+          primaryAction={
+            <Button
+              variant="enterprise"
+              data-governance-platform-refresh
+              disabled={busy}
+              loading={busy}
+              onClick={() => void refresh()}
+            >
+              {busy ? "Loading…" : "Refresh"}
+            </Button>
+          }
+        />
+      }
     >
-      <header style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, marginTop: 0 }}>Governance Platform</h1>
-        <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-          Compliance · access reviews · delegated administration · cross-org
-          · policy violations · audit health · security health · trust health.
-        </p>
-        <nav data-governance-platform-nav style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
-          <a data-governance-platform-link="departments" href="/governance-platform/departments" style={navLink}>Departments</a>
-          <a data-governance-platform-link="delegated-admin" href="/governance-platform/delegated-admin" style={navLink}>Delegated Admin</a>
-          <a data-governance-platform-link="policies" href="/governance-platform/policies" style={navLink}>Policies</a>
-          <a data-governance-platform-link="access-reviews" href="/governance-platform/access-reviews" style={navLink}>Access Reviews</a>
-          <a data-governance-platform-link="cross-org" href="/governance-platform/cross-org" style={navLink}>Cross-Org</a>
-        </nav>
-      </header>
-
-      <button
-        type="button"
-        data-governance-platform-refresh
-        disabled={busy}
-        onClick={() => void refresh()}
-        style={primaryButton}
+      <nav
+        data-governance-platform-nav
+        style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
       >
-        {busy ? "Loading…" : "Refresh"}
-      </button>
+        <a data-governance-platform-link="departments" href="/governance-platform/departments" style={navLink}>Departments</a>
+        <a data-governance-platform-link="delegated-admin" href="/governance-platform/delegated-admin" style={navLink}>Delegated Admin</a>
+        <a data-governance-platform-link="policies" href="/governance-platform/policies" style={navLink}>Policies</a>
+        <a data-governance-platform-link="access-reviews" href="/governance-platform/access-reviews" style={navLink}>Access Reviews</a>
+        <a data-governance-platform-link="cross-org" href="/governance-platform/cross-org" style={navLink}>Cross-Org</a>
+      </nav>
 
       {!dashboard ? (
-        <p style={{ color: "#475569", marginTop: 12 }}>Loading…</p>
+        <EmptyState
+          framed
+          title="Loading governance metrics…"
+          purpose="Compliance, access-review, delegated-admin and cross-org posture appears here once the governance dashboard loads."
+        />
       ) : (
-        <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+        <>
           <Family title="Policy compliance" anchor="data-governance-compliance">
             <Tile label="Policies" value={dashboard.compliance.policyCount} />
             <Tile label="Active" value={dashboard.compliance.policiesActive} />
@@ -128,28 +133,21 @@ function Shell() {
             <Tile label="Security" value={dashboard.trustHealth.publishedSecurityArticles} />
             <Tile label="Subprocessors" value={dashboard.trustHealth.activeSubprocessors} />
           </Family>
-          <footer
+          <Card
+            variant="admin"
+            padding="compact"
             data-governance-platform-limitations
-            style={{
-              marginTop: 12,
-              padding: 10,
-              background: "rgba(15, 23, 42, 0.04)",
-              border: "1px dashed rgba(15, 23, 42, 0.18)",
-              borderRadius: 8,
-              fontSize: 11,
-              color: "#475569",
-            }}
           >
-            <strong style={{ color: "#0f172a" }}>Standing limitations</strong>
-            <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+            <strong style={{ color: "var(--ink-primary, #0f172a)", fontSize: 12 }}>Standing limitations</strong>
+            <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 11, color: "var(--ink-secondary, #475569)" }}>
               {dashboard.limitations.map((l) => (
                 <li key={l}><code>{l}</code></li>
               ))}
             </ul>
-          </footer>
-        </div>
+          </Card>
+        </>
       )}
-    </div>
+    </PageShell>
   );
 }
 
@@ -163,16 +161,7 @@ function Family({
   children: React.ReactNode;
 }) {
   return (
-    <section
-      {...({ [anchor]: "" } as Record<string, string>)}
-      style={{
-        padding: 12,
-        background: "rgba(15, 23, 42, 0.03)",
-        border: "1px solid rgba(15, 23, 42, 0.06)",
-        borderRadius: 10,
-      }}
-    >
-      <strong style={{ fontSize: 14, display: "block", marginBottom: 6 }}>{title}</strong>
+    <PageSection title={title} {...({ [anchor]: "" } as Record<string, string>)}>
       <div
         style={{
           display: "grid",
@@ -182,40 +171,22 @@ function Family({
       >
         {children}
       </div>
-    </section>
+    </PageSection>
   );
 }
 
 function Tile({ label, value }: { label: string; value: string | number }) {
   return (
-    <div
-      data-governance-tile={label}
-      style={{
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 10,
-        padding: 10,
-      }}
-    >
-      <small style={{ fontSize: 11, color: "#475569", fontWeight: 600 }}>{label}</small>
+    <Card variant="summary" padding="compact" data-governance-tile={label}>
+      <small style={{ fontSize: 11, color: "var(--ink-secondary, #475569)", fontWeight: 600 }}>{label}</small>
       <strong style={{ fontSize: 22, display: "block", marginTop: 4 }}>{value}</strong>
-    </div>
+    </Card>
   );
 }
 
-const primaryButton = {
-  padding: "6px 12px",
-  border: "1px solid #0f172a",
-  background: "#0f172a",
-  color: "#fafafa",
-  fontWeight: 600,
-  fontSize: 12,
-  borderRadius: 8,
-  cursor: "pointer",
-} as const;
 const navLink = {
   fontSize: 12,
-  color: "#0f172a",
+  color: "var(--ink-primary, #0f172a)",
   textDecoration: "underline",
   fontWeight: 600,
 } as const;

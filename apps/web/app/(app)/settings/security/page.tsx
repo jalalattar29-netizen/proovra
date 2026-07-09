@@ -43,6 +43,7 @@
 import Link from "next/link";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
 import { PersonalSecuritySections } from "../../security-center/components/PersonalSecuritySections";
 // Phase IA-self-serve-simplification — gate the inline "Identity &
 // Security" deep link in the page header on /security-center
@@ -66,61 +67,42 @@ function AccountSecurityPageInner() {
     "/security-center",
   );
   return (
-    <main style={pageStyle} data-testid="account-security-page">
-      <header style={headerStyle}>
-        <h1 style={titleStyle}>Account security</h1>
-        <p style={subtitleStyle}>
-          Personal account controls — change your password, review and
-          revoke your active sessions, and inspect the bounded timeline
-          of identity and auth events tied to your account.
-          {canSeeWorkspaceSecurity ? (
-            <>
-              {" "}
-              Workspace identity operations (MFA policy, trusted devices,
-              recovery approvals) live in{" "}
-              <Link href="/security-center" style={linkStyle}>
-                Identity &amp; Security
-              </Link>
-              .
-            </>
-          ) : null}
-        </p>
-      </header>
-
-      {/* The three user-scoped sections (password, sessions, events). */}
-      <PersonalSecuritySections />
-    </main>
+    <div data-testid="account-security-page">
+      <PageShell
+        header={
+          <PageHeader
+            eyebrow="Personal"
+            title="Account security"
+            subtitle={
+              <>
+                Personal account controls — change your password, review and
+                revoke your active sessions, and inspect the bounded timeline
+                of identity and auth events tied to your account.
+                {canSeeWorkspaceSecurity ? (
+                  <>
+                    {" "}
+                    Workspace identity operations (MFA policy, trusted devices,
+                    recovery approvals) live in{" "}
+                    <Link href="/security-center" style={linkStyle}>
+                      Identity &amp; Security
+                    </Link>
+                    .
+                  </>
+                ) : null}
+              </>
+            }
+          />
+        }
+      >
+        {/* The three user-scoped sections (password, sessions, events). */}
+        <PersonalSecuritySections />
+      </PageShell>
+    </div>
   );
 }
 
-const pageStyle: React.CSSProperties = {
-  maxWidth: 920,
-  margin: "0 auto",
-  padding: "32px 24px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
-};
-
-const headerStyle: React.CSSProperties = {
-  marginBottom: 12,
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 700,
-  marginBottom: 4,
-};
-
-const subtitleStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: "#64748b",
-  lineHeight: 1.55,
-  marginTop: 0,
-};
-
 const linkStyle: React.CSSProperties = {
-  color: "#0f172a",
+  color: "var(--ink-primary, #0f172a)",
   textDecoration: "underline",
   fontWeight: 600,
 };

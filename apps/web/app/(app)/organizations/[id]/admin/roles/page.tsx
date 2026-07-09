@@ -21,6 +21,13 @@
  * ENTERPRISE-tier (lib/surface/tiers.ts), so this is enterprise-only by
  * construction. The caller's own role is surfaced (READ for any org member;
  * ORG_ADMIN+ additionally see the "assign on Members tab" affordance).
+ *
+ * Phase 7 (Enterprise UX): presentation migrated to the shared design system
+ * (PageSection + Card + DataTable + Badge + Button + EmptyState). This tab
+ * renders INSIDE the org admin layout shell (which already owns the org title +
+ * tab bar), so it uses PageSection headings — not a second PageHeader — to
+ * avoid a duplicate <h1>. All data reads, gating, testids, data-section markers
+ * and the honest error/empty behaviour are unchanged.
  */
 
 import Link from "next/link";
@@ -30,6 +37,13 @@ import { useCallback, useEffect, useState } from "react";
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
+import { PageSection } from "../../../../../../components/ui/PageShell";
+import { Card } from "../../../../../../components/ui/Card";
+import { Badge } from "../../../../../../components/ui/Badge";
+import {
+  DataTable,
+  type DataTableColumn,
+} from "../../../../../../components/ui/DataTable";
 import {
   ALL_ORG_ROLES,
   CAPABILITY_DEFS,
@@ -59,6 +73,9 @@ export default function OrganizationAdminRolesPage() {
     </PageRouteGate>
   );
 }
+
+// A row of the capability matrix — one capability, plus every role's level.
+type CapabilityRow = (typeof CAPABILITY_DEFS)[number];
 
 function RolesTab() {
   const params = useParams<{ id: string }>();
@@ -95,19 +112,66 @@ function RolesTab() {
   const callerRole = caller.kind === "ready" ? caller.callerRole : null;
   const callerCanAssign = callerRole !== null && canManageMembers(callerRole);
 
+  // Capability matrix columns: leading capability description + one column per
+  // built-in org role. Data + testids are unchanged; only the rendering moves
+  // to the shared DataTable primitive.
+  const matrixColumns: DataTableColumn<CapabilityRow>[] = [
+    {
+      key: "capability",
+      header: "Capability",
+      render: (cap) => (
+        <div data-capability={cap.key}>
+          <div style={{ fontWeight: 600 }}>{cap.label}</div>
+          <div
+            style={{ fontSize: 11.5, color: "var(--ink-muted, #94a3b8)", marginTop: 2 }}
+          >
+            {cap.description}
+          </div>
+        </div>
+      ),
+    },
+    ...ALL_ORG_ROLES.map<DataTableColumn<CapabilityRow>>((role) => ({
+      key: role,
+      header: (
+        <span data-role-col={role}>{ORG_ROLE_LABEL[role]}</span>
+      ),
+      align: "center",
+      nowrap: true,
+      render: (cap) => {
+        const level = ROLE_CAPABILITIES[role][cap.key];
+        return (
+          <span
+            data-cell-role={role}
+            data-cell-capability={cap.key}
+            data-access-level={level}
+          >
+            <AccessBadge level={level} />
+          </span>
+        );
+      },
+    })),
+  ];
+
   return (
-    <section data-testid="org-admin-roles" data-org-id={orgId}>
-      <section
+    <section
+      data-testid="org-admin-roles"
+      data-org-id={orgId}
+      style={{ display: "flex", flexDirection: "column", gap: 24 }}
+    >
+      {/* ------------------- INTRO ------------------- */}
+      <Card
+        variant="admin"
         data-section="roles-intro"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-          marginBottom: "1rem",
-        }}
+        title="Roles & permissions"
       >
-        <h2 style={{ margin: 0, fontSize: 16 }}>Roles &amp; permissions</h2>
-        <p style={{ fontSize: 13, opacity: 0.8, marginTop: 6 }}>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 13.5,
+            lineHeight: 1.6,
+            color: "var(--ink-secondary, #475569)",
+          }}
+        >
           Organizations have six built-in roles. Roles are fixed — there are no
           custom roles. Each role grants a set of org-scope capabilities;
           evidence and reports stay workspace-scoped and are never granted by an
@@ -117,7 +181,7 @@ function RolesTab() {
           <p
             data-testid="roles-caller-role"
             data-caller-role={caller.callerRole}
-            style={{ fontSize: 13, marginTop: 6 }}
+            style={{ fontSize: 13.5, marginTop: 10, color: "var(--ink-primary, #0f172a)" }}
           >
             Your role:{" "}
             <strong>{ORG_ROLE_LABEL[caller.callerRole]}</strong>
@@ -132,154 +196,88 @@ function RolesTab() {
                 </Link>
               </>
             ) : (
-              <span style={{ opacity: 0.7 }}>
+              <span style={{ color: "var(--ink-muted, #94a3b8)" }}>
                 {" "}
                 · Role assignment requires an organization admin.
               </span>
             )}
           </p>
         ) : caller.kind === "error" ? (
-          <p data-state="error" role="alert" style={{ fontSize: 13 }}>
+          <p
+            data-state="error"
+            role="alert"
+            style={{ fontSize: 13.5, marginTop: 10, color: "var(--status-risk-fg, #991b1b)" }}
+          >
             {caller.status === 403
               ? "You don't have access to this organization."
               : caller.message}
           </p>
         ) : null}
-      </section>
+      </Card>
 
       {/* ------------------- ROLE SUMMARIES ------------------- */}
-      <section
+      <PageSection
         data-section="role-summaries"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-          marginBottom: "1rem",
-        }}
+        title="What each role is for"
       >
-        <h3 style={{ margin: 0, fontSize: 15 }}>What each role is for</h3>
-        <ul
-          data-testid="role-summary-list"
-          style={{ listStyle: "none", padding: 0, margin: "0.6rem 0 0" }}
-        >
-          {ALL_ORG_ROLES.map((role) => (
-            <li
-              key={role}
-              data-role={role}
-              style={{
-                padding: "0.5rem 0",
-                borderBottom: "1px solid rgba(127,127,127,0.18)",
-                display: "flex",
-                gap: 12,
-                flexWrap: "wrap",
-              }}
-            >
-              <span
+        <Card variant="summary" padding="none">
+          <ul
+            data-testid="role-summary-list"
+            style={{ listStyle: "none", padding: 0, margin: 0 }}
+          >
+            {ALL_ORG_ROLES.map((role) => (
+              <li
+                key={role}
+                data-role={role}
                 style={{
-                  fontWeight: 600,
-                  fontSize: 13,
-                  minWidth: 130,
+                  padding: "12px 16px",
+                  borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
+                  display: "flex",
+                  gap: 12,
+                  flexWrap: "wrap",
                 }}
               >
-                {ORG_ROLE_LABEL[role]}
-              </span>
-              <span style={{ fontSize: 13, opacity: 0.85, flex: "1 1 240px" }}>
-                {ORG_ROLE_SUMMARY[role]}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {/* ------------------- CAPABILITY MATRIX ------------------- */}
-      <section
-        data-section="role-capability-matrix"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-        }}
-      >
-        <h3 style={{ margin: 0, fontSize: 15 }}>Capability matrix</h3>
-        <p style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-          Manage = can change it · Read = can view only · — = no org-scope
-          access. Reflects the permission gates the backend enforces.
-        </p>
-        <div style={{ overflowX: "auto", marginTop: 8 }}>
-          <table
-            data-testid="role-capability-matrix"
-            style={{
-              borderCollapse: "collapse",
-              width: "100%",
-              fontSize: 12,
-            }}
-          >
-            <thead>
-              <tr>
-                <th
+                <span
                   style={{
-                    textAlign: "left",
-                    padding: "6px 8px",
-                    borderBottom: "1px solid rgba(127,127,127,0.3)",
-                    whiteSpace: "nowrap",
+                    fontWeight: 600,
+                    fontSize: 13.5,
+                    minWidth: 150,
+                    color: "var(--ink-primary, #0f172a)",
                   }}
                 >
-                  Capability
-                </th>
-                {ALL_ORG_ROLES.map((role) => (
-                  <th
-                    key={role}
-                    data-role-col={role}
-                    style={{
-                      textAlign: "center",
-                      padding: "6px 8px",
-                      borderBottom: "1px solid rgba(127,127,127,0.3)",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {ORG_ROLE_LABEL[role]}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {CAPABILITY_DEFS.map((cap) => (
-                <tr key={cap.key} data-capability={cap.key}>
-                  <td
-                    style={{
-                      padding: "6px 8px",
-                      borderBottom: "1px solid rgba(127,127,127,0.14)",
-                    }}
-                  >
-                    <div style={{ fontWeight: 600 }}>{cap.label}</div>
-                    <div style={{ opacity: 0.65, fontSize: 11 }}>
-                      {cap.description}
-                    </div>
-                  </td>
-                  {ALL_ORG_ROLES.map((role) => {
-                    const level = ROLE_CAPABILITIES[role][cap.key];
-                    return (
-                      <td
-                        key={role}
-                        data-cell-role={role}
-                        data-cell-capability={cap.key}
-                        data-access-level={level}
-                        style={{
-                          textAlign: "center",
-                          padding: "6px 8px",
-                          borderBottom: "1px solid rgba(127,127,127,0.14)",
-                        }}
-                      >
-                        <AccessBadge level={level} />
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  {ORG_ROLE_LABEL[role]}
+                </span>
+                <span
+                  style={{
+                    fontSize: 13.5,
+                    color: "var(--ink-secondary, #475569)",
+                    flex: "1 1 240px",
+                  }}
+                >
+                  {ORG_ROLE_SUMMARY[role]}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </PageSection>
+
+      {/* ------------------- CAPABILITY MATRIX ------------------- */}
+      <PageSection
+        data-section="role-capability-matrix"
+        title="Capability matrix"
+        description="Manage = can change it · Read = can view only · — = no org-scope access. Reflects the permission gates the backend enforces."
+      >
+        <div data-testid="role-capability-matrix">
+          <DataTable<CapabilityRow>
+            columns={matrixColumns}
+            rows={CAPABILITY_DEFS as unknown as CapabilityRow[]}
+            getRowId={(cap) => cap.key}
+            density="compact"
+            ariaLabel="Role capability matrix"
+          />
         </div>
-      </section>
+      </PageSection>
     </section>
   );
 }
@@ -287,26 +285,15 @@ function RolesTab() {
 function AccessBadge({ level }: { level: AccessLevel }) {
   if (level === "NONE") {
     return (
-      <span aria-label="No access" style={{ opacity: 0.4 }}>
+      <span aria-label="No access" style={{ color: "var(--ink-muted, #94a3b8)" }}>
         —
       </span>
     );
   }
   const isManage = level === "MANAGE";
   return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "1px 7px",
-        borderRadius: 999,
-        fontSize: 11,
-        fontWeight: 600,
-        border: `1px solid ${isManage ? "#3e6063" : "rgba(127,127,127,0.5)"}`,
-        color: isManage ? "#2f4f52" : "inherit",
-        background: isManage ? "rgba(62,96,99,0.1)" : "transparent",
-      }}
-    >
+    <Badge tone={isManage ? "governance" : "neutral"} subtle>
       {isManage ? "Manage" : "Read"}
-    </span>
+    </Badge>
   );
 }

@@ -15,6 +15,12 @@ import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError"
  *   - No platform-context workspace-fragment reads — apiFetch only.
  *   - Strong TypeScript types throughout.
  *   - 403 maps to honest "Auditor-only" empty state.
+ *
+ * Phase 7 (Enterprise UX): presentation migrated to the shared design
+ * system (Card / FilterBar / Button / EmptyState). This tab renders INSIDE
+ * the org admin layout shell (which owns the org title + tab bar), so it
+ * uses Card headings — not a second PageHeader. All data reads, gating,
+ * filter testids, CSV export, and data-* markers are unchanged.
  */
 
 import Link from "next/link";
@@ -24,6 +30,10 @@ import { useCallback, useEffect, useState } from "react";
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
 import { formatUtcAuditDateTime } from "../../../../../../lib/date";
+import { Card } from "../../../../../../components/ui/Card";
+import { Button } from "../../../../../../components/ui/Button";
+import { FilterBar } from "../../../../../../components/ui/FilterBar";
+import { EmptyState } from "../../../../../../components/ui/EmptyState";
 
 interface AuditEvent {
   id: string;
@@ -148,92 +158,100 @@ function AuditTab() {
   }, [visibleEvents, orgId]);
 
   return (
-    <section data-testid="org-admin-audit" data-org-id={orgId}>
-      <section
+    <section
+      data-testid="org-admin-audit"
+      data-org-id={orgId}
+      style={{ display: "flex", flexDirection: "column", gap: 24 }}
+    >
+      <Card
+        variant="summary"
         data-section="audit-timeline"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-          marginBottom: "1rem",
-        }}
-      >
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: "0.5rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Audit timeline</h2>
-            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
-              Org governance events. Requires ORG_AUDITOR or higher.
-            </div>
-          </div>
+        header={
           <div
             style={{
               display: "flex",
-              gap: 6,
+              justifyContent: "space-between",
+              alignItems: "baseline",
+              gap: 12,
               flexWrap: "wrap",
-              alignItems: "center",
             }}
           >
-            <select
-              data-testid="audit-type-filter"
-              aria-label="Filter by event type"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              style={{ fontSize: 12, padding: "0.25rem 0.4rem" }}
-            >
-              <option value="">All event types</option>
-              {KNOWN_EVENT_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-            <input
-              data-testid="audit-actor-filter"
-              aria-label="Filter by actor"
-              placeholder="Actor (name / email)"
-              value={actor}
-              onChange={(e) => setActor(e.target.value)}
-              style={{ fontSize: 12, padding: "0.25rem 0.4rem", minWidth: 140 }}
-            />
-            <input
-              data-testid="audit-from-filter"
-              aria-label="From date"
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              style={{ fontSize: 12, padding: "0.2rem 0.4rem" }}
-            />
-            <input
-              data-testid="audit-to-filter"
-              aria-label="To date"
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              style={{ fontSize: 12, padding: "0.2rem 0.4rem" }}
-            />
-            <button
+            <div>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: 15,
+                  fontWeight: 650,
+                  color: "var(--ink-primary, #0f172a)",
+                }}
+              >
+                Audit timeline
+              </h2>
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--ink-muted, #94a3b8)",
+                  marginTop: 2,
+                }}
+              >
+                Org governance events. Requires ORG_AUDITOR or higher.
+              </div>
+            </div>
+          </div>
+        }
+      >
+        <FilterBar
+          style={{ marginBottom: 14 }}
+          actions={
+            <Button
               type="button"
               data-testid="audit-export-csv"
+              variant="secondary"
+              size="sm"
               onClick={exportCsv}
               disabled={audit.kind !== "ready" || visibleEvents.length === 0}
-              className="cases-filter-chip"
-              style={{ fontSize: 12 }}
             >
               Export CSV
-            </button>
-          </div>
-        </header>
+            </Button>
+          }
+        >
+          <FilterBar.Select
+            data-testid="audit-type-filter"
+            label="Filter by event type"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: "", label: "All event types" },
+              ...KNOWN_EVENT_TYPES.map((t) => ({ value: t, label: t })),
+            ]}
+          />
+          <FilterBar.Search
+            data-testid="audit-actor-filter"
+            label="Filter by actor"
+            placeholder="Actor (name / email)"
+            value={actor}
+            onChange={setActor}
+          />
+          <input
+            data-testid="audit-from-filter"
+            aria-label="From date"
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            style={dateInputStyle}
+          />
+          <input
+            data-testid="audit-to-filter"
+            aria-label="To date"
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            style={dateInputStyle}
+          />
+        </FilterBar>
+
         {audit.kind === "loading" ? (
-          <div data-state="loading" style={{ fontSize: 13, opacity: 0.7 }}>
+          <div data-state="loading" style={mutedText}>
             Loading…
           </div>
         ) : audit.kind === "error" ? (
@@ -247,7 +265,7 @@ function AuditTab() {
                   marginTop: 4,
                   fontSize: 11,
                   fontFamily: "monospace",
-                  opacity: 0.7,
+                  color: "var(--ink-muted, #94a3b8)",
                 }}
               >
                 Request id: {audit.requestId}
@@ -262,13 +280,20 @@ function AuditTab() {
             style={{ listStyle: "none", padding: 0, margin: 0 }}
           >
             {visibleEvents.length === 0 ? (
-              <li
-                data-empty-state="no-audit-events"
-                style={{ padding: "0.5rem 0", fontSize: 13, opacity: 0.75 }}
-              >
-                {filter || actor || fromDate || toDate
-                  ? "No events match the current filters."
-                  : "No audit events yet."}
+              <li data-empty-state="no-audit-events">
+                <EmptyState
+                  compact
+                  title={
+                    filter || actor || fromDate || toDate
+                      ? "No events match the current filters"
+                      : "No audit events yet"
+                  }
+                  purpose={
+                    filter || actor || fromDate || toDate
+                      ? "Adjust or clear the filters above to see more of this organization's governance activity."
+                      : "Governance events for this organization — invites, role changes, and org updates — are recorded here as they happen."
+                  }
+                />
               </li>
             ) : null}
             {visibleEvents.map((e) => (
@@ -277,8 +302,9 @@ function AuditTab() {
                 data-audit-event-id={e.id}
                 data-audit-event-type={e.eventType}
                 style={{
-                  padding: "0.45rem 0",
-                  borderBottom: "1px solid rgba(127,127,127,0.18)",
+                  padding: "10px 0",
+                  borderBottom:
+                    "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
                   fontSize: 13,
                 }}
               >
@@ -292,16 +318,20 @@ function AuditTab() {
                 >
                   <div>
                     <strong>{e.eventType}</strong>{" "}
-                    <span style={{ opacity: 0.7 }}>
+                    <span style={{ color: "var(--ink-muted, #94a3b8)" }}>
                       ({e.targetType}
                       {e.targetId ? ` ${e.targetId.slice(0, 8)}…` : ""})
                     </span>
                   </div>
-                  <div style={{ opacity: 0.75, fontSize: 12 }}>
+                  <div
+                    style={{ color: "var(--ink-muted, #94a3b8)", fontSize: 12 }}
+                  >
                     {formatUtcAuditDateTime(e.createdAt)}
                   </div>
                 </div>
-                <div style={{ fontSize: 12, opacity: 0.75 }}>
+                <div
+                  style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}
+                >
                   by{" "}
                   {e.actorDisplayName ??
                     e.actorEmail ??
@@ -312,18 +342,14 @@ function AuditTab() {
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
-      <section
+      <Card
+        variant="admin"
         data-section="audit-deep-links"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-        }}
+        title="Federated audit surface"
       >
-        <h2 style={{ margin: 0, fontSize: 16 }}>Federated audit surface</h2>
-        <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           <DeepLink
             testId="audit-deep-link-transparency"
             label="Audit &amp; Transparency Center"
@@ -331,7 +357,7 @@ function AuditTab() {
             href="/audit-transparency"
           />
         </ul>
-      </section>
+      </Card>
     </section>
   );
 }
@@ -376,6 +402,22 @@ function csvCell(value: string): string {
   return value;
 }
 
+const mutedText: React.CSSProperties = {
+  fontSize: 13,
+  color: "var(--ink-secondary, #475569)",
+};
+
+const dateInputStyle: React.CSSProperties = {
+  minHeight: 40,
+  fontSize: 13.5,
+  padding: "0 12px",
+  color: "var(--ink-primary, #0f172a)",
+  background: "var(--surface-card, #ffffff)",
+  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+  borderRadius: "var(--radius-md, 8px)",
+  outline: "none",
+};
+
 function DeepLink({
   testId,
   label,
@@ -390,8 +432,8 @@ function DeepLink({
   return (
     <li
       style={{
-        padding: "0.5rem 0",
-        borderBottom: "1px solid rgba(127,127,127,0.18)",
+        padding: "10px 0",
+        borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -400,15 +442,15 @@ function DeepLink({
       }}
     >
       <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-        <div style={{ fontWeight: 500 }}>{label}</div>
-        <div style={{ fontSize: 12, opacity: 0.75 }}>{description}</div>
+        <div style={{ fontWeight: 600 }}>{label}</div>
+        <div style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}>
+          {description}
+        </div>
       </div>
-      <Link
-        href={href}
-        data-testid={testId}
-        className="cases-filter-chip"
-      >
-        Open →
+      <Link href={href} data-testid={testId} style={{ textDecoration: "none", flexShrink: 0 }}>
+        <Button variant="secondary" size="sm">
+          Open →
+        </Button>
       </Link>
     </li>
   );

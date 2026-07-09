@@ -23,6 +23,12 @@ import { apiFetch } from "../../../lib/api";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { statusBadgeStyle } from "../../../components/ui/StatusBadge";
+import { PageShell, PageHeader, PageSection } from "../../../components/ui/PageShell";
+import { Card } from "../../../components/ui/Card";
+import { Button } from "../../../components/ui/Button";
+import { DataTable } from "../../../components/ui/DataTable";
+import { EmptyState } from "../../../components/ui/EmptyState";
+import { FilterBar } from "../../../components/ui/FilterBar";
 // Phase 2B (Intelligence consolidation) — the former standalone
 // /intelligence-platform provider/cost/budget surface was merged here as
 // the canonical Intelligence home; its content lives in this panel.
@@ -116,105 +122,117 @@ useEffect(() => {
   }, [jobs]);
 
   return (
-    <main style={pageStyle}>
-      <header>
-        <h1 style={titleStyle}>Intelligence operations</h1>
-        <p style={mutedStyle}>
-          Operator workspace for OCR, transcript, entity, similarity,
-          and search signals. Everything below is{" "}
-          <strong>advisory only</strong> — these signals do not assert
-          authenticity, manipulation, or legal admissibility.
-        </p>
-      </header>
-
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Intelligence"
+          title="Intelligence operations"
+          subtitle={
+            <>
+              Operator workspace for OCR, transcript, entity, similarity,
+              and search signals. Everything below is{" "}
+              <strong>advisory only</strong> — these signals do not assert
+              authenticity, manipulation, or legal admissibility.
+            </>
+          }
+        />
+      }
+    >
       {!teamId ? (
-        <p style={mutedStyle}>Switch to a workspace to use intelligence.</p>
+        <EmptyState
+          framed
+          title="No workspace selected"
+          purpose="Switch to a workspace to access evidence intelligence signals (advisory)."
+        />
       ) : (
         <>
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>Providers</h2>
-            {providers === null ? (
-              <p style={mutedStyle}>Loading…</p>
-            ) : (
-              <div style={mutedStyle}>
-                OCR: <strong>{providers.ocr}</strong> · Transcript:{" "}
-                <strong>{providers.transcript}</strong> · Semantic search:{" "}
-                <strong>
-                  {providers.semanticEnabled ? "enabled" : "disabled"}
-                </strong>
-                . When a provider shows <code>noop</code>, no real engine
-                is wired and extraction jobs will be recorded as SKIPPED
-                with <code>no_provider_configured</code>.
+          <PageSection title="Providers">
+            <Card>
+              {providers === null ? (
+                <p style={mutedStyle}>Loading…</p>
+              ) : (
+                <div style={mutedStyle}>
+                  OCR: <strong>{providers.ocr}</strong> · Transcript:{" "}
+                  <strong>{providers.transcript}</strong> · Semantic search:{" "}
+                  <strong>
+                    {providers.semanticEnabled ? "enabled" : "disabled"}
+                  </strong>
+                  . When a provider shows <code>noop</code>, no real engine
+                  is wired and extraction jobs will be recorded as SKIPPED
+                  with <code>no_provider_configured</code>.
+                </div>
+              )}
+            </Card>
+          </PageSection>
+
+          <PageSection
+            title="Search"
+            description="Workspace search is consolidated on the canonical Search surface. Enter a query and continue to /search — the global engine runs keyword matching across titles, filenames, OCR text, transcript text, and extracted entity values, with saved views, governance filters, and the relationship inspector."
+          >
+            <Card>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <input
+                  style={{ ...inputStyle, flex: "1 1 240px", minWidth: 200 }}
+                  placeholder="Search this workspace…"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                />
+                <Link
+                  href={searchHref}
+                  style={{
+                    textDecoration: "none",
+                    pointerEvents: canSearch ? "auto" : "none",
+                  }}
+                  aria-disabled={!canSearch}
+                  tabIndex={canSearch ? undefined : -1}
+                >
+                  <Button variant="primary" disabled={!canSearch}>
+                    Open in Search
+                  </Button>
+                </Link>
               </div>
-            )}
-          </section>
+              <p style={{ ...mutedStyle, marginTop: 12 }}>
+                Semantic search is not enabled in this deployment.
+              </p>
+            </Card>
+          </PageSection>
 
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>Search</h2>
-            <p style={mutedStyle}>
-              Workspace search is consolidated on the canonical Search
-              surface. Enter a query and continue to /search — the
-              global engine runs keyword matching across titles,
-              filenames, OCR text, transcript text, and extracted
-              entity values, with saved views, governance filters, and
-              the relationship inspector.
-            </p>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                style={{ ...inputStyle, flex: 1 }}
-                placeholder="Search this workspace…"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-              />
-              <Link
-                href={searchHref}
-                style={{
-                  ...primaryButtonStyle,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  textDecoration: "none",
-                  pointerEvents: canSearch ? "auto" : "none",
-                  opacity: canSearch ? 1 : 0.6,
-                }}
-                aria-disabled={!canSearch}
-              >
-                Open in Search
-              </Link>
-            </div>
-            <p style={{ ...mutedStyle, marginTop: 12 }}>
-              Semantic search is not enabled in this deployment.
-            </p>
-          </section>
-
-          <section style={cardStyle}>
-            <div style={cardHeaderStyle}>
-              <h2 style={sectionTitleStyle}>Extraction jobs</h2>
-              <select
-                value={jobStatusFilter}
-                onChange={(e) => setJobStatusFilter(e.target.value)}
-                style={selectStyle}
-              >
-                <option value="">All statuses</option>
-                {catalogs?.jobStatuses.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                    {jobsCounts?.[s] !== undefined ? ` (${jobsCounts[s]})` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {jobs === null ? (
-              <p style={mutedStyle}>Loading…</p>
-            ) : jobs.length === 0 ? (
-              <p style={mutedStyle}>No jobs yet.</p>
-            ) : (
-              <ul style={listStyle}>
-                {jobs.map((j) => (
-                  <li key={j.id} style={rowStyle}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+          <PageSection
+            title="Extraction jobs"
+            action={
+              <FilterBar>
+                <FilterBar.Select
+                  label="Status"
+                  value={jobStatusFilter}
+                  onChange={setJobStatusFilter}
+                  options={[
+                    { value: "", label: "All statuses" },
+                    ...(catalogs?.jobStatuses ?? []).map((s) => ({
+                      value: s,
+                      label:
+                        jobsCounts?.[s] !== undefined
+                          ? `${s} (${jobsCounts[s]})`
+                          : s,
+                    })),
+                  ]}
+                />
+              </FilterBar>
+            }
+          >
+            <DataTable
+              ariaLabel="Extraction jobs"
+              loading={jobs === null}
+              rows={jobs ?? []}
+              getRowId={(j) => j.id}
+              columns={[
+                {
+                  key: "evidence",
+                  header: "Evidence",
+                  render: (j) => (
+                    <div style={{ minWidth: 0 }}>
                       <Link
                         href={`/evidence/${j.evidenceId}`}
-                        style={{ fontWeight: 600, color: "#0f172a" }}
+                        style={{ fontWeight: 600, color: "var(--ink-primary, #0f172a)" }}
                       >
                         Evidence {j.evidenceId.slice(0, 8)}…
                       </Link>
@@ -224,15 +242,30 @@ useEffect(() => {
                         {j.lastError ? ` · ${j.lastError}` : ""}
                       </div>
                     </div>
+                  ),
+                },
+                {
+                  key: "status",
+                  header: "Status",
+                  align: "right",
+                  nowrap: true,
+                  render: (j) => (
                     <span style={statusBadgeStyle(j.status)}>{j.status}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+                  ),
+                },
+              ]}
+              emptyState={
+                <EmptyState
+                  compact
+                  title="No extraction jobs yet"
+                  purpose="OCR, transcript, entity, and similarity jobs queued for this workspace appear here."
+                />
+              }
+            />
+          </PageSection>
 
           {catalogs ? (
-            <p style={{ ...mutedStyle, marginTop: 16 }}>
+            <p style={{ ...mutedStyle, marginTop: 4 }}>
               <em>{catalogs.disclaimer}</em>
             </p>
           ) : null}
@@ -242,7 +275,7 @@ useEffect(() => {
           <ProviderBudgetPanel />
         </>
       )}
-    </main>
+    </PageShell>
   );
 }
 
@@ -250,51 +283,7 @@ useEffect(() => {
 // Styles
 // -----------------------------------------------------------------------------
 
-const pageStyle: React.CSSProperties = {
-  maxWidth: 960,
-  margin: "0 auto",
-  padding: "32px 24px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
-};
-const titleStyle: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 700,
-  marginBottom: 4,
-};
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 18,
-  fontWeight: 600,
-  marginBottom: 12,
-};
 const mutedStyle: React.CSSProperties = { fontSize: 13, color: "#64748b" };
-const cardStyle: React.CSSProperties = {
-  marginTop: 24,
-  padding: 20,
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  background: "#fff",
-};
-const cardHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: 12,
-};
-const listStyle: React.CSSProperties = {
-  listStyle: "none",
-  padding: 0,
-  margin: 0,
-  marginTop: 12,
-};
-const rowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: "10px 0",
-  borderBottom: "1px solid #e2e8f0",
-};
 const _badgeRowStyle: React.CSSProperties = {
   display: "flex",
   gap: 4,
@@ -318,25 +307,6 @@ const inputStyle: React.CSSProperties = {
   color: "#0f172a",
   background: "#fff",
 };
-const selectStyle: React.CSSProperties = {
-  padding: "6px 12px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontSize: 13,
-  background: "#fff",
-  color: "#0f172a",
-};
-const primaryButtonStyle: React.CSSProperties = {
-  padding: "8px 16px",
-  fontWeight: 600,
-  color: "#fff",
-  background: "#0f172a",
-  border: 0,
-  borderRadius: 8,
-  cursor: "pointer",
-  fontSize: 14,
-};
-
 const _hitBadgeStyle: React.CSSProperties = {
   padding: "2px 8px",
   fontSize: 11,

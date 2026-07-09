@@ -65,6 +65,12 @@ import { organizationsRoutes } from "./routes/organizations.routes.js";
 // template publishing + billing rollup). Narrow, audited, and
 // scope-gated; does NOT replace the workspace operational layer.
 import { organizationsGovernanceRoutes } from "./routes/organizations-governance.routes.js";
+// Phase 8 — Enterprise Production Readiness: org bulk invite + CSV import
+// (thin layer over the canonical single-invite path), org operational
+// report CSV exports, and platform readiness posture (read-only).
+import { organizationsBulkInviteRoutes } from "./routes/organizations-bulk-invite.routes.js";
+import { organizationsReportsRoutes } from "./routes/organizations-reports.routes.js";
+import { operationsReadinessRoutes } from "./routes/operations-readiness.routes.js";
 // Phase 3 — Enterprise Identity: DNS-verified organization domain ownership.
 import { organizationDomainsRoutes } from "./routes/organization-domains.routes.js";
 // Phase A.1C — Account-level operational priorities (above-workspace surface).
@@ -540,6 +546,29 @@ allowedHeaders: [
 
   await app.register(cookie);
 
+  // Enterprise launch hardening — direct CSV upload for the org bulk-invite
+  // import route (POST /v1/orgs/:id/invites/csv). Scoped to the text/csv +
+  // application/csv content types ONLY, so JSON / multipart / urlencoded
+  // bodies are completely unaffected (this is NOT a global text parser).
+  // Parsed as a raw string (the route validates + parses + audits it);
+  // hard 256 KiB cap → oversize bodies get Fastify's 413 automatically.
+  const rawCsvBodyParser = (
+    _req: unknown,
+    body: string,
+    done: (err: Error | null, body?: string) => void,
+  ) => {
+    done(null, body);
+  };
+  app.addContentTypeParser(
+    "text/csv",
+    { parseAs: "string", bodyLimit: 256 * 1024 },
+    rawCsvBodyParser,
+  );
+  app.addContentTypeParser(
+    "application/csv",
+    { parseAs: "string", bodyLimit: 256 * 1024 },
+    rawCsvBodyParser,
+  );
   // Phase 18 — Twilio webhook payloads are application/x-www-form-urlencoded.
   // We parse them into a flat object so the webhook routes can read
   // req.body[key] without pulling in @fastify/formbody. The parser is
@@ -923,6 +952,12 @@ allowedHeaders: [
   // read-only `organizationsRoutes` so the existing endpoints take
   // precedence on any path collision.
   await app.register(organizationsGovernanceRoutes);
+  // Phase 8 — Enterprise Production Readiness. Bulk invite + CSV import
+  // reuse the single-invite writes/audit; report exports read existing
+  // real data; readiness posture is read-only + platform-admin gated.
+  await app.register(organizationsBulkInviteRoutes);
+  await app.register(organizationsReportsRoutes);
+  await app.register(operationsReadinessRoutes);
   // Phase 3 — Enterprise Identity: organization domain verification write
   // surfaces (add / verify / list / remove). Enterprise-gated + step-up.
   await app.register(organizationDomainsRoutes);

@@ -31,24 +31,19 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
+import { PageShell, PageHeader } from "../../../../../components/ui/PageShell";
+import { Card } from "../../../../../components/ui/Card";
+import { Button } from "../../../../../components/ui/Button";
+import { EmptyState } from "../../../../../components/ui/EmptyState";
 import {
   badgeStyle,
-  cardStyle,
-  errorBoxStyle,
-  ghostButtonStyle,
-  headerRowStyle,
   inputStyle,
   mutedStyle,
-  pageStyle,
-  primaryButtonStyle,
   sectionTitleStyle,
   selectStyle,
-  subtitleStyle,
-  successBoxStyle,
   tableStyle,
   tdStyle,
   thStyle,
-  titleStyle,
   TOKENS,
 } from "../../../admin/identity/ui-tokens";
 
@@ -307,9 +302,40 @@ function SamlMappingContent() {
     [mapping.groupRoleMap],
   );
 
+  const connectionSelect = (
+    <div>
+      <label style={{ ...mutedStyle, marginRight: 8 }}>Connection</label>
+      <select
+        style={selectStyle}
+        value={connectionId ?? ""}
+        onChange={(e) => setConnectionId(e.target.value || null)}
+      >
+        {providers === null ? (
+          <option value="">Loading…</option>
+        ) : providers.length === 0 ? (
+          <option value="">No SAML connections</option>
+        ) : (
+          providers.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.provider} · {p.id.slice(0, 8)}…
+            </option>
+          ))
+        )}
+      </select>
+    </div>
+  );
+
   if (!teamId) {
     return (
-      <main style={pageStyle}>
+      <PageShell
+        header={
+          <PageHeader
+            eyebrow="Security Center · SSO"
+            title="SAML Attribute Mapping"
+            subtitle="Visual builder for SAML attribute → operator-field mappings."
+          />
+        }
+      >
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="SAML Mapping"
@@ -320,76 +346,54 @@ function SamlMappingContent() {
           ]}
           testid="saml-mapping-access-gate-no-workspace"
         />
-      </main>
+      </PageShell>
     );
   }
 
   return (
-    <main style={pageStyle}>
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>SAML Attribute Mapping</h1>
-          <p style={subtitleStyle}>
-            Visual builder for SAML attribute → operator-field mappings.
-            Preview shows the diff vs. the current mapping and surfaces
-            privilege-impact warnings. Saves that grant OWNER/ADMIN via
-            group claims or change the external subject attribute
-            require step-up.
-          </p>
-        </div>
-        <div>
-          <label style={{ ...mutedStyle, marginRight: 8 }}>Connection</label>
-          <select
-            style={selectStyle}
-            value={connectionId ?? ""}
-            onChange={(e) => setConnectionId(e.target.value || null)}
-          >
-            {providers === null ? (
-              <option value="">Loading…</option>
-            ) : providers.length === 0 ? (
-              <option value="">No SAML connections</option>
-            ) : (
-              providers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.provider} · {p.id.slice(0, 8)}…
-                </option>
-              ))
-            )}
-          </select>
-        </div>
-      </header>
-
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
-      {success ? <div style={successBoxStyle}>{success}</div> : null}
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Security Center · SSO"
+          title="SAML Attribute Mapping"
+          subtitle="Visual builder for SAML attribute → operator-field mappings. Preview shows the diff vs. the current mapping and surfaces privilege-impact warnings. Saves that grant OWNER/ADMIN via group claims or change the external subject attribute require step-up."
+          secondaryActions={connectionSelect}
+        />
+      }
+    >
+      {error ? (
+        <Card variant="status" tone="risk">
+          {error}
+        </Card>
+      ) : null}
+      {success ? (
+        <Card variant="status" tone="verified">
+          {success}
+        </Card>
+      ) : null}
 
       {current?.scimManaged ? (
-        <div
-          style={{
-            marginTop: 12,
-            padding: 12,
-            background: "#fef3c7",
-            border: "1px solid #fde68a",
-            borderRadius: 6,
-            fontSize: 13,
-            color: "#78350f",
-          }}
-        >
+        <Card variant="status" tone="pending">
           <strong>SCIM is authoritative</strong> for this connection. SAML
           group claims are ignored at assertion time — group role mappings
           below are inert until SCIM is disabled.
-        </div>
+        </Card>
       ) : null}
 
       {!schema || !current ? (
-        <p style={{ ...mutedStyle, marginTop: 16 }}>
-          {connectionId
-            ? "Loading mapping…"
-            : "Select a SAML connection above."}
-        </p>
+        connectionId ? (
+          <p style={{ ...mutedStyle, marginTop: 16 }}>Loading mapping…</p>
+        ) : (
+          <EmptyState
+            framed
+            title="No SSO connection selected"
+            purpose="Select a SAML connection from the picker above to view and edit its attribute mapping. If none are listed, configure a SAML connection first."
+          />
+        )
       ) : (
         <>
-          <section style={{ ...cardStyle, marginTop: 16 }}>
-            <h3 style={sectionTitleStyle}>Attribute fields</h3>
+          <Card variant="admin">
+            <h3 style={{ ...sectionTitleStyle, marginTop: 0 }}>Attribute fields</h3>
             <div style={{ display: "grid", gap: 16 }}>
               {schema.fields
                 .filter((f) => f.kind !== "group_role_map")
@@ -409,10 +413,10 @@ function SamlMappingContent() {
                   />
                 ))}
             </div>
-          </section>
+          </Card>
 
-          <section style={{ ...cardStyle, marginTop: 12 }}>
-            <h3 style={sectionTitleStyle}>Group → Role mapping</h3>
+          <Card variant="admin">
+            <h3 style={{ ...sectionTitleStyle, marginTop: 0 }}>Group → Role mapping</h3>
             <p style={{ ...mutedStyle, marginTop: 0 }}>
               Per-group role override. The first matching group wins; if no
               group claim matches, the default role is used. Adding
@@ -422,10 +426,10 @@ function SamlMappingContent() {
               entries={groupRoleMap}
               onChange={(next) => updateField("groupRoleMap", next)}
             />
-          </section>
+          </Card>
 
-          <section style={{ ...cardStyle, marginTop: 12 }}>
-            <h3 style={sectionTitleStyle}>Sample assertion (optional)</h3>
+          <Card variant="admin">
+            <h3 style={{ ...sectionTitleStyle, marginTop: 0 }}>Sample assertion (optional)</h3>
             <p style={{ ...mutedStyle, marginTop: 0 }}>
               Paste a JSON object of attribute → value pairs from a real IdP
               assertion. The preview will resolve email / role using the
@@ -444,30 +448,31 @@ function SamlMappingContent() {
               onChange={(e) => setSampleRaw(e.target.value)}
               placeholder='{"email": "ops@acme.com", "groups": "platform-admins"}'
             />
-          </section>
+          </Card>
 
-          <section
+          <Card
+            variant="summary"
             style={{
-              ...cardStyle,
-              marginTop: 12,
               display: "flex",
               gap: 8,
               alignItems: "center",
               flexWrap: "wrap",
             }}
           >
-            <button
-              type="button"
-              style={ghostButtonStyle}
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={runPreview}
+              loading={previewing}
               disabled={previewing}
             >
               {previewing ? "Previewing…" : "Preview changes"}
-            </button>
-            <button
-              type="button"
-              style={primaryButtonStyle}
+            </Button>
+            <Button
+              variant="enterprise"
+              size="sm"
               onClick={save}
+              loading={saving}
               disabled={!preview || saving}
             >
               {saving
@@ -475,7 +480,7 @@ function SamlMappingContent() {
                 : preview?.privilegeAffecting
                   ? "Save (requires step-up)"
                   : "Save mapping"}
-            </button>
+            </Button>
             <span style={{ ...mutedStyle, marginLeft: "auto" }}>
               {preview
                 ? preview.privilegeAffecting
@@ -483,14 +488,14 @@ function SamlMappingContent() {
                   : "Preview ready"
                 : "Preview required before save"}
             </span>
-          </section>
+          </Card>
 
           {preview ? <PreviewPanel preview={preview} /> : null}
         </>
       )}
 
       <StepUpModal control={stepUp} />
-    </main>
+    </PageShell>
   );
 }
 
@@ -587,7 +592,11 @@ function GroupRoleMapEditor({
   return (
     <div>
       {entries.length === 0 ? (
-        <p style={mutedStyle}>No group → role mappings configured.</p>
+        <EmptyState
+          compact
+          title="No group → role mappings configured"
+          purpose="Add a mapping to grant a role based on an IdP group claim. Without a mapping, the default role applies to every user."
+        />
       ) : (
         <table style={tableStyle}>
           <thead>
@@ -624,34 +633,35 @@ function GroupRoleMapEditor({
                   </select>
                 </td>
                 <td style={tdStyle}>
-                  <button
-                    type="button"
-                    style={ghostButtonStyle}
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => remove(i)}
                   >
                     Remove
-                  </button>
+                  </Button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
-      <button
-        type="button"
-        style={{ ...ghostButtonStyle, marginTop: 8 }}
+      <Button
+        variant="ghost"
+        size="sm"
+        style={{ marginTop: 8 }}
         onClick={add}
       >
         Add mapping
-      </button>
+      </Button>
     </div>
   );
 }
 
 function PreviewPanel({ preview }: { preview: SamlMappingPreview }) {
   return (
-    <section style={{ ...cardStyle, marginTop: 12 }}>
-      <h3 style={sectionTitleStyle}>Preview</h3>
+    <Card variant="summary">
+      <h3 style={{ ...sectionTitleStyle, marginTop: 0 }}>Preview</h3>
       {preview.warnings.length > 0 ? (
         <ul style={{ margin: "0 0 12px", padding: "0 0 0 18px" }}>
           {preview.warnings.map((w) => (
@@ -765,6 +775,6 @@ function PreviewPanel({ preview }: { preview: SamlMappingPreview }) {
           </table>
         </>
       ) : null}
-    </section>
+    </Card>
   );
 }

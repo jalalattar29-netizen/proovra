@@ -92,7 +92,7 @@ function listAppCss() {
 }
 const APP_FILES = listAppFiles();
 const CSS_FILES = listAppCss();
-const UI_TSX = readWeb("components/ui.tsx");
+const UI_TSX = readWeb("components/ui-legacy.tsx");
 const MODAL_TSX = readWeb("components/cases-experience/matter-modals/Modal.tsx");
 // ---------------------------------------------------------------------------
 // Group 1 — Cross-phase byte-pin guard

@@ -348,6 +348,13 @@ function SidebarLink({
     <Link
       href={route.href}
       className={`app-sidebar-v2-link ${active ? "is-active" : ""}`}
+      // `title` is the collapsed-rail tooltip: when the icon rail is
+      // collapsed the label span is hidden, so the native tooltip keeps
+      // every destination identifiable on hover.
+      title={route.label}
+      // aria-current pins the active route for assistive tech + is the
+      // canonical hook tests assert on.
+      aria-current={active ? "page" : undefined}
       data-sidebar-link-key={BADGE_KEY_BY_ROUTE_ID[route.id] ?? route.href}
       data-sidebar-nav-id={route.id}
       data-sidebar-nav-domain={route.domain}
@@ -357,7 +364,7 @@ function SidebarLink({
       data-disclosure-tier={disclosureTier}
       aria-disabled={degraded ? "false" : undefined}
     >
-      <span className="app-sidebar-v2-link-icon">
+      <span className="app-sidebar-v2-link-icon" aria-hidden="true">
         <Icon size={20} strokeWidth={1.75} />
       </span>
       <span style={{ flex: 1 }}>{route.label}</span>
@@ -480,18 +487,19 @@ function SidebarMoreView({
           data-sidebar-more-toggle
           aria-expanded={open}
           onClick={() => setOpen((prev) => !prev)}
+          title={open ? "Hide advanced" : "More / Advanced"}
           style={{
             width: "100%",
             background: "transparent",
             border: "none",
             cursor: "pointer",
             textAlign: "left",
-            fontSize: 11,
-            fontWeight: 600,
-            color: "#64748b",
+            fontSize: 10,
+            fontWeight: 700,
+            color: "var(--nav-ink-muted)",
             textTransform: "uppercase",
-            letterSpacing: 0.5,
-            padding: "8px 12px",
+            letterSpacing: "0.14em",
+            padding: "8px 18px",
           }}
         >
           {open ? "− Hide advanced" : `+ More / Advanced (${items.length})`}
@@ -794,10 +802,14 @@ const teamId =
                 <Link
                   href="/tools"
                   className={`app-sidebar-v2-link ${isActiveRoute(pathname, "/tools") ? "is-active" : ""}`}
+                  title="All Tools"
+                  aria-current={
+                    isActiveRoute(pathname, "/tools") ? "page" : undefined
+                  }
                   data-sidebar-link-key="all-tools"
                   data-sidebar-nav-id="workspace.tools"
                 >
-                  <span className="app-sidebar-v2-link-icon">
+                  <span className="app-sidebar-v2-link-icon" aria-hidden="true">
                     <LayoutGrid size={20} strokeWidth={1.75} />
                   </span>
                   <span style={{ flex: 1 }}>All Tools</span>
@@ -807,7 +819,7 @@ const teamId =
           ) : null}
         </div>
 
-        <Link href="/support" className="app-sidebar-v2-help">
+        <Link href="/support" className="app-sidebar-v2-help" title="Contact support">
           <CircleHelp size={20} strokeWidth={1.75} />
           <span>
             <strong>Need help?</strong>

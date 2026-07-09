@@ -243,7 +243,7 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   "app/(app)/admin/dashboard/page.tsx",
   "app/(app)/admin/page.tsx",
   "app/(app)/dashboard/quotas/page.tsx",
-  "components/ui.tsx",
+  "components/ui-legacy.tsx",
   // Team-detail page — explicitly named per backend Team model.
   "app/(app)/teams/[id]/page.tsx",
   "app/(app)/teams/[id]/components/TeamPermissionMatrix.tsx",

@@ -16,24 +16,18 @@ import { useCallback, useMemo, useState } from "react";
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
 import {
-  cardStyle,
   errorBoxStyle,
-  ghostButtonStyle,
-  headerRowStyle,
   inputStyle,
   mutedStyle,
-  pageStyle,
-  primaryButtonStyle,
-  sectionTitleStyle,
-  selectStyle,
   statusBadgeStyle,
-  subtitleStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  titleStyle,
   TOKENS,
 } from "../ui-tokens";
+import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
+import { Card } from "../../../../../components/ui/Card";
+import { Button } from "../../../../../components/ui/Button";
+import { FilterBar } from "../../../../../components/ui/FilterBar";
+import { EmptyState } from "../../../../../components/ui/EmptyState";
+import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 
 type Outcome = "ALLOW" | "DENY" | "STEP_UP_REQUIRED" | "NOT_APPLICABLE";
 
@@ -101,166 +95,173 @@ const load = useCallback(async () => {
 
   if (!teamId) {
     return (
-      <main style={pageStyle}>
-        <p style={mutedStyle}>Switch to a workspace.</p>
-      </main>
+      <PageShell header={<PageHeader eyebrow="Identity operations" title="Permission Matrix" />}>
+        <EmptyState
+          framed
+          title="No workspace selected"
+          purpose="Switch to a workspace to inspect a member's effective permissions."
+        />
+      </PageShell>
     );
   }
 
-  return (
-    <main style={pageStyle}>
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Permission Matrix</h1>
-          <p style={subtitleStyle}>
-            For each canonical permission, shows the outcome plus the source
-            (role default, capability grant, delegated scope, temporary
-            elevation, or workspace policy).
-          </p>
-        </div>
-      </header>
+  const columns: DataTableColumn<PermissionRow>[] = [
+    {
+      key: "permission",
+      header: "Permission",
+      render: (r) => (
+        <span
+          style={{
+            fontFamily:
+              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+            fontSize: 12,
+          }}
+        >
+          {r.permission}
+        </span>
+      ),
+    },
+    {
+      key: "outcome",
+      header: "Outcome",
+      render: (r) => (
+        <span style={statusBadgeStyle(r.outcome)}>
+          {r.outcome.toLowerCase().replace("_", " ")}
+        </span>
+      ),
+    },
+    {
+      key: "source",
+      header: "Source",
+      render: (r) => <span style={mutedStyle}>{r.sourceLabel}</span>,
+    },
+    {
+      key: "reason",
+      header: "Reason",
+      render: (r) => <span style={mutedStyle}>{r.reason}</span>,
+    },
+  ];
 
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h3 style={sectionTitleStyle}>Inspect a member</h3>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            style={{ ...inputStyle, maxWidth: 360 }}
-            placeholder="Member user id (UUID)"
-            value={subjectUserId}
-            onChange={(e) => setSubjectUserId(e.target.value.trim())}
-          />
-          <button
-            type="button"
-            style={primaryButtonStyle}
-            onClick={load}
-            disabled={busy || !subjectUserId}
-          >
-            {busy ? "Loading…" : "Inspect"}
-          </button>
-        </div>
-      </section>
+  return (
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Identity operations"
+          title="Permission Matrix"
+          subtitle="For each canonical permission, shows the outcome plus the source (role default, capability grant, delegated scope, temporary elevation, or workspace policy)."
+        />
+      }
+    >
+      <PageSection title="Inspect a member">
+        <Card variant="admin" padding="comfortable">
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              style={{ ...inputStyle, maxWidth: 360 }}
+              placeholder="Member user id (UUID)"
+              value={subjectUserId}
+              onChange={(e) => setSubjectUserId(e.target.value.trim())}
+            />
+            <Button
+              variant="enterprise"
+              onClick={load}
+              loading={busy}
+              disabled={busy || !subjectUserId}
+            >
+              {busy ? "Loading…" : "Inspect"}
+            </Button>
+          </div>
+        </Card>
+      </PageSection>
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
       {snapshot ? (
         <>
-          <section style={{ ...cardStyle, marginTop: 16 }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                flexWrap: "wrap",
-              }}
-            >
-              <KV k="Member" v={snapshot.userId} mono />
-              <KV k="Canonical role" v={snapshot.canonicalRole} />
-              <KV k="Status" v={snapshot.status} />
-              <KV
-                k="Capability grants"
-                v={String(snapshot.capabilityGrantCount)}
-              />
-              <KV
-                k="Delegated scopes"
-                v={String(snapshot.delegatedScopeCount)}
-              />
-              <KV
-                k="Temp elevations"
-                v={String(snapshot.temporaryElevationCount)}
-              />
-            </div>
-          </section>
-
-          <section style={{ ...cardStyle, marginTop: 16 }}>
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                marginBottom: 8,
-                flexWrap: "wrap",
-              }}
-            >
-              <input
-                style={{ ...inputStyle, maxWidth: 280 }}
-                placeholder="Filter by permission name…"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              />
-              <select
-                style={selectStyle}
-                value={outcomeFilter}
-                onChange={(e) =>
-                  setOutcomeFilter(e.target.value as Outcome | "")
-                }
-              >
-                <option value="">All outcomes</option>
-                <option value="ALLOW">Allow</option>
-                <option value="DENY">Deny</option>
-                <option value="STEP_UP_REQUIRED">Step-up required</option>
-                <option value="NOT_APPLICABLE">Not applicable</option>
-              </select>
-              <span style={mutedStyle}>
-                {filtered.length} / {snapshot.permissions.length} permissions
-              </span>
-              <button
-                type="button"
-                style={ghostButtonStyle}
-                onClick={() => {
-                  setFilter("");
-                  setOutcomeFilter("");
+          <PageSection>
+            <Card variant="summary" padding="comfortable">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  flexWrap: "wrap",
                 }}
               >
-                Clear
-              </button>
-            </div>
-            <div
-              style={{
-                overflowY: "auto",
-                maxHeight: "calc(100vh - 380px)",
-              }}
+                <KV k="Member" v={snapshot.userId} mono />
+                <KV k="Canonical role" v={snapshot.canonicalRole} />
+                <KV k="Status" v={snapshot.status} />
+                <KV
+                  k="Capability grants"
+                  v={String(snapshot.capabilityGrantCount)}
+                />
+                <KV
+                  k="Delegated scopes"
+                  v={String(snapshot.delegatedScopeCount)}
+                />
+                <KV
+                  k="Temp elevations"
+                  v={String(snapshot.temporaryElevationCount)}
+                />
+              </div>
+            </Card>
+          </PageSection>
+
+          <PageSection>
+            <FilterBar
+              actions={
+                <>
+                  <span style={mutedStyle}>
+                    {filtered.length} / {snapshot.permissions.length} permissions
+                  </span>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setFilter("");
+                      setOutcomeFilter("");
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </>
+              }
             >
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>Permission</th>
-                    <th style={thStyle}>Outcome</th>
-                    <th style={thStyle}>Source</th>
-                    <th style={thStyle}>Reason</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((r) => (
-                    <tr key={r.permission}>
-                      <td
-                        style={{
-                          ...tdStyle,
-                          fontFamily:
-                            "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                          fontSize: 12,
-                        }}
-                      >
-                        {r.permission}
-                      </td>
-                      <td style={tdStyle}>
-                        <span style={statusBadgeStyle(r.outcome)}>
-                          {r.outcome.toLowerCase().replace("_", " ")}
-                        </span>
-                      </td>
-                      <td style={tdStyle}>
-                        <span style={mutedStyle}>{r.sourceLabel}</span>
-                      </td>
-                      <td style={tdStyle}>
-                        <span style={mutedStyle}>{r.reason}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <FilterBar.Search
+                value={filter}
+                onChange={setFilter}
+                label="Filter by permission name"
+                placeholder="Filter by permission name…"
+              />
+              <FilterBar.Select
+                label="Outcome"
+                value={outcomeFilter}
+                onChange={(v) => setOutcomeFilter(v as Outcome | "")}
+                options={[
+                  { value: "", label: "All outcomes" },
+                  { value: "ALLOW", label: "Allow" },
+                  { value: "DENY", label: "Deny" },
+                  { value: "STEP_UP_REQUIRED", label: "Step-up required" },
+                  { value: "NOT_APPLICABLE", label: "Not applicable" },
+                ]}
+              />
+            </FilterBar>
+            <div style={{ marginTop: 12 }}>
+              <DataTable
+                columns={columns}
+                rows={filtered}
+                getRowId={(r) => r.permission}
+                ariaLabel="Permission matrix"
+                emptyState={
+                  <EmptyState
+                    title="No permissions match"
+                    purpose="Adjust the permission-name filter or outcome filter to see entries."
+                  />
+                }
+              />
             </div>
-          </section>
+          </PageSection>
         </>
       ) : null}
-    </main>
+    </PageShell>
   );
 }
 

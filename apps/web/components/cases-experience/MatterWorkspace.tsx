@@ -38,6 +38,15 @@ import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+// Phase 7B (visual-only) — canonical shared design-system primitives.
+// PageShell/PageHeader/PageSection come from the barrel; Card / Button /
+// Badge / EmptyState are DEEP-imported (the barrel serves the LEGACY
+// four). No data-fetching, permission, or routing behaviour changes.
+import { PageShell, PageHeader } from "../ui";
+import { Card } from "../ui/Card";
+import { Button } from "../ui/Button";
+import { Badge } from "../ui/Badge";
+import { EmptyState as UiEmptyState } from "../ui/EmptyState";
 // Phase 6 (SCOPE B) — canonical case-assignment picker. The modal was
 // already built (POST /v1/cases/:id/assignments) but orphaned; wiring
 // it into the Assignments tab is the only missing piece.
@@ -369,6 +378,120 @@ const TABS: ReadonlyArray<{
 ];
 
 // =============================================================================
+// Scoped visual styling (Phase 7B, visual-only)
+// =============================================================================
+
+// The `.matter-tab*` class hooks in this component had NO CSS anywhere in
+// the codebase before Phase 7B — the surface rendered with browser
+// defaults. This scoped block styles the list/table/heading affordances
+// with the shared design tokens so the tab bodies match the rest of the
+// migrated console. All colour comes from `lib/design-tokens/tokens.css`
+// variables (with the same fallbacks the shared primitives use).
+const MATTER_WORKSPACE_CSS = `
+.matter-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: var(--radius-card, 14px);
+  border: 1px solid var(--border-default, rgba(15,23,42,0.09));
+  background: var(--surface-card, #ffffff);
+  box-shadow: var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04));
+}
+/* The SIU tab hosts its own self-contained panel; don't double-frame it. */
+.matter-tab--siu { padding: 0; border: none; background: transparent; box-shadow: none; }
+.matter-tab h3 {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink-primary, #0f172a);
+}
+.matter-tab__hint {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-secondary, #475569);
+}
+.matter-tab__inline-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-muted, #94a3b8);
+}
+.matter-tab ul, .matter-tab ol { margin: 0; padding: 0; list-style: none; }
+.matter-tab ul li, .matter-tab__timeline li {
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle, rgba(15,23,42,0.06));
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-card, #ffffff);
+  font-size: 13px;
+  color: var(--ink-primary, #0f172a);
+  margin-bottom: 6px;
+}
+.matter-tab ul li:last-child, .matter-tab__timeline li:last-child { margin-bottom: 0; }
+.matter-tab ul li a, .matter-tab__timeline li a {
+  color: var(--status-info-fg, #1e40af);
+  text-decoration: none;
+  font-weight: 600;
+}
+.matter-tab ul li a:hover { text-decoration: underline; }
+.matter-tab ul li span, .matter-tab ul li small {
+  color: var(--ink-secondary, #475569);
+}
+.matter-tab ul li code, .matter-tab__reasons code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--ink-primary, #0f172a);
+}
+.matter-tab__counts { display: flex; flex-wrap: wrap; gap: 8px; }
+.matter-tab__counts li { margin-bottom: 0 !important; }
+.matter-tab__reasons { display: flex; flex-wrap: wrap; gap: 6px; }
+.matter-tab__reasons li {
+  padding: 4px 10px !important;
+  border-radius: var(--radius-pill, 999px) !important;
+  background: var(--surface-muted, #f1f4f9) !important;
+  margin-bottom: 0 !important;
+}
+.matter-tab__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  color: var(--ink-primary, #0f172a);
+  border: 1px solid var(--border-default, rgba(15,23,42,0.09));
+  border-radius: var(--radius-card, 14px);
+  overflow: hidden;
+}
+.matter-tab__table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted, #94a3b8);
+  background: var(--surface-header, #f8fafc);
+  border-bottom: 1px solid var(--border-default, rgba(15,23,42,0.09));
+}
+.matter-tab__table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle, rgba(15,23,42,0.06));
+  vertical-align: middle;
+}
+.matter-tab__table tbody tr { cursor: pointer; transition: background-color 140ms ease; }
+.matter-tab__table tbody tr:hover { background: var(--surface-muted, #f1f4f9); }
+.matter-tab__timeline li time {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-muted, #94a3b8);
+}
+.matter-tab__timeline-family, .matter-tab__timeline-type {
+  font-size: 11px;
+  color: var(--ink-secondary, #475569);
+  margin-right: 8px;
+}
+.matter-tab__empty { display: block; }
+`;
+
+// =============================================================================
 // Component
 // =============================================================================
 
@@ -552,65 +675,122 @@ export function MatterWorkspace({
 
   if (loading) {
     return (
-      <section className="matter-workspace matter-workspace--loading">
-        <p>Loading matter workspace…</p>
-      </section>
+      <PageShell className="matter-workspace matter-workspace--loading">
+        <Card variant="summary">
+          <p style={{ margin: 0, color: "var(--ink-secondary, #475569)" }}>
+            Loading matter workspace…
+          </p>
+        </Card>
+      </PageShell>
     );
   }
 
   if (error || !envelope) {
     return (
-      <section className="matter-workspace matter-workspace--error" role="alert">
-        <p>{error ?? "Matter workspace unavailable."}</p>
-      </section>
+      <PageShell className="matter-workspace matter-workspace--error">
+        <Card variant="status" tone="risk">
+          <p role="alert" style={{ margin: 0 }}>
+            {error ?? "Matter workspace unavailable."}
+          </p>
+        </Card>
+      </PageShell>
     );
   }
 
   return (
-    <section className="matter-workspace" data-active-tab={activeTab}>
-      <header className="matter-workspace__header">
-        <div>
-          <h1>{envelope.case.name}</h1>
-          <p className="matter-workspace__sub">
-            Matter Workspace ·{" "}
-            {envelope.case.referenceNumber ?? "no reference number"} ·{" "}
-            {envelope.case.priority} · {envelope.case.status}
-          </p>
-          {/* Phase G3.1 — polling-based presence chip. Workspace +
-              resource-id scoped server-side. Bounded payload — only
-              {userId, displayName, lastSeenAtUtc} per viewer. */}
-          <div style={{ marginTop: 6 }}>
+    <PageShell
+      className="matter-workspace"
+      data-active-tab={activeTab}
+      header={
+        <PageHeader
+          eyebrow="Matter Workspace"
+          title={envelope.case.name}
+          subtitle={
+            <>
+              {envelope.case.referenceNumber ?? "no reference number"} ·{" "}
+              {envelope.case.priority} · {envelope.case.status}
+            </>
+          }
+          contextStrip={
+            /* Phase G3.1 — polling-based presence chip. Workspace +
+               resource-id scoped server-side. Bounded payload — only
+               {userId, displayName, lastSeenAtUtc} per viewer. */
             <PresenceIndicator
               teamId={envelope.case.teamId ?? null}
               resourceKind="matter"
               resourceId={envelope.case.id}
             />
-          </div>
-        </div>
-      </header>
-
-      <nav className="matter-workspace__tabs" role="tablist">
+          }
+        />
+      }
+    >
+      {/* Phase 7B (visual-only) — scoped token-driven styling for the
+          matter-workspace class hooks. These classes previously had NO
+          CSS anywhere in the app (the surface rendered unstyled); this
+          block gives them the shared design-system look without a
+          framework dependency and without touching frozen globals.css.
+          Every class hook + data-* attribute in the JSX is preserved. */}
+      <style>{MATTER_WORKSPACE_CSS}</style>
+      <nav
+        className="matter-workspace__tabs"
+        role="tablist"
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
         {TABS.map((tab) => {
           const status = sectionStatus[tab.id];
+          const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
               type="button"
               role="tab"
-              aria-selected={activeTab === tab.id}
-              className={`matter-workspace__tab ${
-                activeTab === tab.id ? "is-active" : ""
-              }`}
+              aria-selected={isActive}
+              className={`matter-workspace__tab ${isActive ? "is-active" : ""}`}
               data-section-status={status}
               data-tab-id={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                gap: 2,
+                textAlign: "left",
+                padding: "8px 14px",
+                borderRadius: "var(--radius-md, 10px)",
+                cursor: "pointer",
+                background: isActive
+                  ? "var(--surface-card, #ffffff)"
+                  : "transparent",
+                border: isActive
+                  ? "1px solid var(--border-default, rgba(15,23,42,0.09))"
+                  : "1px solid transparent",
+                boxShadow: isActive
+                  ? "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))"
+                  : "none",
+                color: isActive
+                  ? "var(--ink-primary, #0f172a)"
+                  : "var(--ink-secondary, #475569)",
+              }}
             >
-              <strong>{tab.label}</strong>
-              <span className="matter-workspace__tab-desc">
+              <strong style={{ fontSize: 13.5, fontWeight: 650 }}>
+                {tab.label}
+              </strong>
+              <span
+                className="matter-workspace__tab-desc"
+                style={{ fontSize: 11, color: "var(--ink-muted, #94a3b8)" }}
+              >
                 {tab.description}
               </span>
               {status === "degraded" ? (
-                <span className="matter-workspace__tab-degraded">degraded</span>
+                <span className="matter-workspace__tab-degraded">
+                  <Badge tone="pending" subtle>
+                    degraded
+                  </Badge>
+                </span>
               ) : null}
             </button>
           );
@@ -630,15 +810,21 @@ export function MatterWorkspace({
             display: "flex",
             alignItems: "center",
             gap: 8,
-            padding: "8px 12px",
-            borderTop: "1px solid rgba(127,127,127,0.15)",
-            borderBottom: "1px solid rgba(127,127,127,0.15)",
+            padding: "10px 12px",
+            borderRadius: "var(--radius-md, 10px)",
+            border: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
+            background: "var(--surface-muted, #f1f4f9)",
             fontSize: 13,
           }}
         >
           <label
             htmlFor="matter-workspace-filter"
-            style={{ fontSize: 11, color: "#475569", letterSpacing: 0.4 }}
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.06em",
+              color: "var(--ink-muted, #94a3b8)",
+            }}
           >
             FILTER
           </label>
@@ -653,16 +839,16 @@ export function MatterWorkspace({
             style={{
               flex: 1,
               padding: "6px 10px",
-              borderRadius: 6,
-              border: "1px solid rgba(127,127,127,0.4)",
+              borderRadius: "var(--radius-sm, 6px)",
+              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
               fontSize: 13,
-              background: "transparent",
-              color: "inherit",
+              background: "var(--surface-card, #ffffff)",
+              color: "var(--ink-primary, #0f172a)",
             }}
           />
           <span
             data-matter-keyboard-hint
-            style={{ fontSize: 11, color: "#64748b" }}
+            style={{ fontSize: 11, color: "var(--ink-muted, #94a3b8)" }}
             title="g + letter to jump tabs (g+e Evidence, g+t Timeline, g+a Audit, g+x Export). / to filter. Esc to clear."
           >
             g+key jumps · / filter · Esc clear
@@ -715,7 +901,7 @@ export function MatterWorkspace({
           <ExportTab envelope={envelope} filterText={filterText} />
         ) : null}
       </div>
-    </section>
+    </PageShell>
   );
 }
 
@@ -1548,18 +1734,18 @@ function AssignmentsTab({
   );
 
   const assignButton = canAssign ? (
-    <button
-      type="button"
-      className="cases-filter-chip is-active"
+    <Button
+      variant="primary"
+      size="sm"
       data-matter-assignments-add
       onClick={() => setPickerOpen(true)}
     >
       Assign teammate
-    </button>
+    </Button>
   ) : (
-    <button
-      type="button"
-      className="cases-filter-chip"
+    <Button
+      variant="secondary"
+      size="sm"
       data-matter-assignments-add
       data-disabled="true"
       disabled
@@ -1571,7 +1757,7 @@ function AssignmentsTab({
       }
     >
       Assign teammate
-    </button>
+    </Button>
   );
 
   return (
@@ -1594,7 +1780,15 @@ function AssignmentsTab({
           className="cc-section-note"
           role="alert"
           data-matter-assignments-error
-          style={{ marginBottom: 12 }}
+          style={{
+            marginBottom: 12,
+            padding: "10px 12px",
+            borderRadius: "var(--radius-md, 10px)",
+            border: "1px solid var(--status-risk-border, #fecaca)",
+            background: "var(--status-risk-bg, #fef2f2)",
+            color: "var(--status-risk-fg, #991b1b)",
+            fontSize: 13,
+          }}
         >
           {banner}
         </div>
@@ -1618,16 +1812,16 @@ function AssignmentsTab({
               <small> · assigned {formatRelative(a.assignedAtUtc)}</small>
               {a.note ? <p>{a.note}</p> : null}
               {canAssign ? (
-                <button
-                  type="button"
-                  className="cases-filter-chip"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   data-matter-assignment-unassign={a.id}
                   disabled={removingId === a.id}
                   onClick={() => void unassign(a.id)}
                   style={{ marginLeft: 8 }}
                 >
                   {removingId === a.id ? "Removing…" : "Unassign"}
-                </button>
+                </Button>
               ) : null}
             </li>
           ))}
@@ -1872,23 +2066,77 @@ function Tile({
   value: number;
   tone?: "neutral" | "warning";
 }) {
+  const warn = tone === "warning";
   return (
-    <div className="matter-tab__tile" data-tone={tone ?? "neutral"}>
-      <span className="matter-tab__tile-label">{label}</span>
-      <strong className="matter-tab__tile-value">{value}</strong>
+    <div
+      className="matter-tab__tile"
+      data-tone={tone ?? "neutral"}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        padding: "12px 14px",
+        borderRadius: "var(--radius-md, 10px)",
+        border: warn
+          ? "1px solid var(--status-pending-border, #fde68a)"
+          : "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
+        background: warn
+          ? "var(--status-pending-bg, #fef3c7)"
+          : "var(--surface-muted, #f1f4f9)",
+      }}
+    >
+      <span
+        className="matter-tab__tile-label"
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          color: warn
+            ? "var(--status-pending-fg, #78350f)"
+            : "var(--ink-muted, #94a3b8)",
+        }}
+      >
+        {label}
+      </span>
+      <strong
+        className="matter-tab__tile-value"
+        style={{
+          fontSize: 22,
+          fontWeight: 700,
+          color: warn
+            ? "var(--status-pending-fg, #78350f)"
+            : "var(--ink-primary, #0f172a)",
+        }}
+      >
+        {value}
+      </strong>
     </div>
   );
 }
 
 function Grid({ children }: { children: React.ReactNode }) {
-  return <div className="matter-tab__grid">{children}</div>;
+  return (
+    <div
+      className="matter-tab__grid"
+      style={{
+        display: "grid",
+        gap: 10,
+        gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+      }}
+    >
+      {children}
+    </div>
+  );
 }
 
 function EmptyState({ title, body }: { title: string; body: string }) {
+  // Phase 7B — visual shell now delegates to the shared design-system
+  // EmptyState (framed, token-driven). Copy + honesty discipline is
+  // unchanged; `body` maps to the shared `purpose` slot.
   return (
     <div className="matter-tab__empty" role="status">
-      <strong>{title}</strong>
-      <p>{body}</p>
+      <UiEmptyState title={title} purpose={body} framed compact />
     </div>
   );
 }

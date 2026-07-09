@@ -43,6 +43,12 @@ import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError"
  *   - Strong TypeScript types throughout.
  *   - toSafeUserError is the only non-ApiError display path.
  *   - No new workspace kinds; quick actions surface canonical tabs/pages.
+ *
+ * Phase 7 (Enterprise UX): presentation migrated to the shared design
+ * system (Card / Badge / Button). This tab renders INSIDE the org admin
+ * layout shell (which owns the org title + tab bar), so it uses PageSection
+ * headings — not a second PageHeader — to avoid a duplicate <h1>. All reads,
+ * gating, tile/readiness/quick-action testids and honest states unchanged.
  */
 
 import Link from "next/link";
@@ -52,6 +58,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
 import { formatUserDate, formatUtcAuditDateTime } from "../../../../../../lib/date";
+import { Card } from "../../../../../../components/ui/Card";
+import { Badge } from "../../../../../../components/ui/Badge";
+import { Button } from "../../../../../../components/ui/Button";
 
 // ---------------------------------------------------------------------------
 // Wire types — mirror the existing org REST surface.
@@ -227,7 +236,11 @@ function Overview() {
     audit.kind === "ready" ? audit.data.events.slice(0, 5) : [];
 
   return (
-    <section data-testid="org-admin-overview" data-org-id={orgId}>
+    <section
+      data-testid="org-admin-overview"
+      data-org-id={orgId}
+      style={{ display: "flex", flexDirection: "column", gap: 20 }}
+    >
       {/* ---------------------------------------------------------------
           Enterprise posture — organization, plan, seats, members.
           --------------------------------------------------------------- */}
@@ -235,9 +248,8 @@ function Overview() {
         data-section="overview-posture"
         style={{
           display: "grid",
-          gap: 10,
+          gap: 12,
           gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          marginBottom: "1.25rem",
         }}
       >
         <Tile
@@ -269,7 +281,7 @@ function Overview() {
             <Link
               href={`/organizations/${orgId}/admin/trust`}
               data-testid="overview-link-trust"
-              style={{ fontSize: 12 }}
+              style={tileLink}
             >
               Trust Center →
             </Link>
@@ -296,7 +308,7 @@ function Overview() {
             <Link
               href={`/teams?org=${orgId}`}
               data-testid="overview-link-billing"
-              style={{ fontSize: 12 }}
+              style={tileLink}
             >
               Billing & seats →
             </Link>
@@ -322,7 +334,7 @@ function Overview() {
             <Link
               href={`/organizations/${orgId}/admin/members`}
               data-testid="overview-link-members"
-              style={{ fontSize: 12 }}
+              style={tileLink}
             >
               Open members tab →
             </Link>
@@ -341,7 +353,7 @@ function Overview() {
             <Link
               href={`/organizations/${orgId}/admin/members`}
               data-testid="overview-link-invites"
-              style={{ fontSize: 12 }}
+              style={tileLink}
             >
               Manage in members tab →
             </Link>
@@ -362,17 +374,12 @@ function Overview() {
       {/* ---------------------------------------------------------------
           Identity & compliance readiness.
           --------------------------------------------------------------- */}
-      <section
+      <Card
+        variant="summary"
         data-section="overview-readiness"
-        style={{ ...cardStyle, marginBottom: "1.25rem" }}
+        title="Identity & compliance"
+        subtitle="Enterprise readiness across identity, domains, and evidence retention. Configuration lives on the linked surfaces."
       >
-        <header style={{ marginBottom: "0.5rem" }}>
-          <h2 style={{ margin: 0, fontSize: 16 }}>Identity & compliance</h2>
-          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
-            Enterprise readiness across identity, domains, and evidence
-            retention. Configuration lives on the linked surfaces.
-          </div>
-        </header>
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           <ReadinessRow
             testId="readiness-sso"
@@ -429,64 +436,67 @@ function Overview() {
             linkLabel="Manage API keys / webhooks"
           />
         </ul>
-      </section>
+      </Card>
 
       {/* ---------------------------------------------------------------
           Recent governance audit.
           --------------------------------------------------------------- */}
-      <section
+      <Card
+        variant="summary"
         data-section="overview-audit"
-        style={{ ...cardStyle, marginBottom: "1.25rem" }}
-      >
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-            gap: 12,
-            marginBottom: "0.5rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Recent admin activity</h2>
-            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
-              {audit.kind === "ready"
-                ? `${audit.data.summary.totalEvents} governance event${audit.data.summary.totalEvents === 1 ? "" : "s"} recorded.`
-                : audit.kind === "error" && audit.status === 403
-                  ? "Requires ORG_AUDITOR or higher."
-                  : "Loading audit timeline…"}
-            </div>
-          </div>
-          <Link
-            href={`/organizations/${orgId}/admin/audit`}
-            data-testid="overview-link-audit"
-            className="cases-filter-chip"
+        header={
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "baseline",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
           >
-            Review audit log →
-          </Link>
-        </header>
+            <div style={{ minWidth: 0 }}>
+              <h2 style={sectionH2}>Recent admin activity</h2>
+              <div style={{ ...subtleText, marginTop: 2 }}>
+                {audit.kind === "ready"
+                  ? `${audit.data.summary.totalEvents} governance event${audit.data.summary.totalEvents === 1 ? "" : "s"} recorded.`
+                  : audit.kind === "error" && audit.status === 403
+                    ? "Requires ORG_AUDITOR or higher."
+                    : "Loading audit timeline…"}
+              </div>
+            </div>
+            <Link
+              href={`/organizations/${orgId}/admin/audit`}
+              data-testid="overview-link-audit"
+              style={linkReset}
+            >
+              <Button variant="secondary" size="sm">
+                Review audit log →
+              </Button>
+            </Link>
+          </div>
+        }
+      >
         {recentAudit.length > 0 ? (
           <ul
             data-testid="overview-audit-list"
-            style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}
+            style={{ listStyle: "none", padding: 0, margin: 0 }}
           >
             {recentAudit.map((e) => (
               <li
                 key={e.id}
                 data-testid="overview-audit-row"
                 style={{
-                  padding: "0.4rem 0",
-                  borderBottom: "1px solid rgba(127,127,127,0.18)",
+                  padding: "9px 0",
+                  borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
                   display: "flex",
                   justifyContent: "space-between",
                   gap: 12,
-                  fontSize: 13,
+                  fontSize: 13.5,
                   flexWrap: "wrap",
                 }}
               >
-                <span style={{ fontWeight: 500 }}>{e.eventType}</span>
-                <span style={{ opacity: 0.7, fontSize: 12 }}>
+                <span style={{ fontWeight: 600 }}>{e.eventType}</span>
+                <span style={subtleText}>
                   {formatUtcAuditDateTime(e.createdAt)}
                 </span>
               </li>
@@ -495,7 +505,7 @@ function Overview() {
         ) : (
           <div
             data-testid="overview-audit-empty"
-            style={{ fontSize: 13, opacity: 0.75, marginTop: 8 }}
+            style={{ fontSize: 13.5, color: "var(--ink-secondary, #475569)" }}
           >
             {audit.kind === "ready"
               ? "No governance events recorded yet."
@@ -506,26 +516,23 @@ function Overview() {
                   : "Loading…"}
           </div>
         )}
-      </section>
+      </Card>
 
       {/* ---------------------------------------------------------------
           Quick actions — evidence-platform deep-links to existing tabs.
           --------------------------------------------------------------- */}
-      <section data-section="overview-quick-actions" style={cardStyle}>
-        <header style={{ marginBottom: "0.5rem" }}>
-          <h2 style={{ margin: 0, fontSize: 16 }}>Quick actions</h2>
-          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
-            Common enterprise administration tasks. Each opens the canonical
-            surface that owns write semantics — this overview is read-only.
-          </div>
-        </header>
+      <Card
+        variant="admin"
+        data-section="overview-quick-actions"
+        title="Quick actions"
+        subtitle="Common enterprise administration tasks. Each opens the canonical surface that owns write semantics — this overview is read-only."
+      >
         <div
           data-testid="overview-quick-actions-grid"
           style={{
             display: "grid",
             gap: 8,
             gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            marginTop: "0.75rem",
           }}
         >
           <QuickAction
@@ -579,7 +586,7 @@ function Overview() {
             href={`/teams?org=${orgId}`}
           />
         </div>
-      </section>
+      </Card>
     </section>
   );
 }
@@ -679,11 +686,27 @@ function retentionDescription(retention: Loadable<RetentionResponse>): string {
 // Presentational components.
 // ---------------------------------------------------------------------------
 
-const cardStyle = {
-  padding: "1rem 1.1rem",
-  border: "1px solid rgba(127,127,127,0.3)",
-  borderRadius: 8,
+const sectionH2 = {
+  margin: 0,
+  fontSize: 15,
+  fontWeight: 650,
+  color: "var(--ink-primary, #0f172a)",
 } as const;
+
+const subtleText = {
+  margin: 0,
+  fontSize: 12.5,
+  color: "var(--ink-muted, #94a3b8)",
+} as const;
+
+const tileLink = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "var(--enterprise-accent, #6b5bff)",
+  textDecoration: "none",
+} as const;
+
+const linkReset = { textDecoration: "none", flexShrink: 0 } as const;
 
 function Tile({
   dataAttr,
@@ -699,56 +722,52 @@ function Tile({
   footer?: React.ReactNode;
 }) {
   return (
-    <div
-      data-tile={dataAttr}
-      style={{
-        padding: "0.75rem 0.9rem",
-        border: "1px solid rgba(127,127,127,0.3)",
-        borderRadius: 8,
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        minHeight: 120,
-      }}
-    >
+    <Card variant="summary" padding="compact" data-tile={dataAttr}>
       <div
         style={{
-          fontSize: 11,
-          opacity: 0.7,
-          letterSpacing: 0.5,
-          textTransform: "uppercase",
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          minHeight: 108,
         }}
       >
-        {title}
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: "var(--ink-muted, #94a3b8)",
+          }}
+        >
+          {title}
+        </div>
+        <div
+          style={{
+            fontSize: 18,
+            fontWeight: 650,
+            color: "var(--ink-primary, #0f172a)",
+          }}
+        >
+          {primary}
+        </div>
+        {secondary ? (
+          <div style={{ fontSize: 12.5, color: "var(--ink-secondary, #475569)" }}>
+            {secondary}
+          </div>
+        ) : null}
+        {footer ? <div style={{ marginTop: "auto", paddingTop: 6 }}>{footer}</div> : null}
       </div>
-      <div style={{ fontSize: 18, fontWeight: 600 }}>{primary}</div>
-      {secondary ? (
-        <div style={{ fontSize: 12, opacity: 0.8 }}>{secondary}</div>
-      ) : null}
-      {footer ? <div style={{ marginTop: "auto" }}>{footer}</div> : null}
-    </div>
+    </Card>
   );
 }
 
 function StatusPill({ state }: { state: PillState }) {
   return (
-    <span
-      data-state={state.tone === "ok" ? "ok" : "not-configured"}
-      style={{
-        fontSize: 11,
-        padding: "1px 8px",
-        borderRadius: 999,
-        background:
-          state.tone === "ok"
-            ? "rgba(16,185,129,0.18)"
-            : "rgba(245,158,11,0.18)",
-        display: "inline-block",
-        fontWeight: 600,
-        letterSpacing: 0.3,
-        textTransform: "uppercase",
-      }}
-    >
-      {state.text}
+    <span data-state={state.tone === "ok" ? "ok" : "not-configured"}>
+      <Badge tone={state.tone === "ok" ? "verified" : "pending"} subtle>
+        {state.text}
+      </Badge>
     </span>
   );
 }
@@ -775,8 +794,8 @@ function ReadinessRow({
       data-testid={testId}
       data-state={state.tone === "ok" ? "ok" : "not-configured"}
       style={{
-        padding: "0.55rem 0",
-        borderBottom: "1px solid rgba(127,127,127,0.18)",
+        padding: "11px 0",
+        borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -793,15 +812,15 @@ function ReadinessRow({
             flexWrap: "wrap",
           }}
         >
-          <span style={{ fontWeight: 500 }}>{label}</span>
+          <span style={{ fontWeight: 600 }}>{label}</span>
           <StatusPill state={state} />
         </div>
-        <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>
-          {description}
-        </div>
+        <div style={{ ...subtleText, marginTop: 2 }}>{description}</div>
       </div>
-      <Link href={href} data-testid={linkTestId} className="cases-filter-chip">
-        {linkLabel} →
+      <Link href={href} data-testid={linkTestId} style={linkReset}>
+        <Button variant="ghost" size="sm">
+          {linkLabel} →
+        </Button>
       </Link>
     </li>
   );
@@ -821,16 +840,23 @@ function QuickAction({
       href={href}
       data-testid={testId}
       style={{
-        display: "block",
-        padding: "0.6rem 0.75rem",
-        border: "1px solid rgba(127,127,127,0.3)",
-        borderRadius: 8,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+        padding: "12px 14px",
+        border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+        borderRadius: "var(--radius-card, 14px)",
+        background: "var(--surface-card, #ffffff)",
+        boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
         textDecoration: "none",
-        fontSize: 13,
-        fontWeight: 500,
+        fontSize: 13.5,
+        fontWeight: 600,
+        color: "var(--ink-primary, #0f172a)",
       }}
     >
-      {label} →
+      <span>{label}</span>
+      <span aria-hidden="true" style={{ color: "var(--enterprise-accent, #6b5bff)" }}>→</span>
     </Link>
   );
 }

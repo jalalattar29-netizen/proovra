@@ -16,12 +16,19 @@
  *   - No raw window.confirm (page is read-only).
  *   - No platform-context workspace-fragment reads.
  *   - Strong TypeScript types throughout.
+ *
+ * Phase 7 (Enterprise UX): presentation migrated to the shared design
+ * system. Renders inside the org admin shell (which owns the org title +
+ * tab bar), so uses PageSection — not a duplicate PageHeader.
  */
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
+import { PageSection } from "../../../../../../components/ui/PageShell";
+import { Card } from "../../../../../../components/ui/Card";
+import { Button } from "../../../../../../components/ui/Button";
 
 export default function OrganizationAdminAccessReviewsPage() {
   return (
@@ -36,50 +43,52 @@ function AccessReviewsTab() {
   const orgId = params?.id ?? "";
 
   return (
-    <section data-testid="org-admin-access-reviews" data-org-id={orgId}>
-      <section
-        data-section="access-reviews-summary"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-          marginBottom: "1rem",
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: 16 }}>Access reviews</h2>
-        <p style={{ fontSize: 13, opacity: 0.85, marginTop: 8 }}>
+    <section
+      data-testid="org-admin-access-reviews"
+      data-org-id={orgId}
+      style={{ display: "flex", flexDirection: "column", gap: 24 }}
+    >
+      <Card variant="admin" data-section="access-reviews-summary" title="Access reviews">
+        <p
+          style={{
+            margin: 0,
+            fontSize: 13.5,
+            lineHeight: 1.6,
+            color: "var(--ink-secondary, #475569)",
+          }}
+        >
           Periodic access-review campaigns evaluate every grant for an
           organization's workspaces. REVOKED decisions execute against the
           underlying grant in the same transaction — campaigns are not
           paper exercises.
         </p>
-        <p
+        <div
           data-state="not-configured-explainer"
           style={{
-            fontSize: 12,
-            opacity: 0.7,
-            marginTop: 8,
-            padding: "0.5rem 0.6rem",
-            borderLeft: "3px solid rgba(127,127,127,0.45)",
-            background: "rgba(127,127,127,0.06)",
+            marginTop: 12,
+            padding: "10px 12px",
+            borderLeft: "3px solid var(--status-neutral-solid, #64748b)",
+            background: "var(--surface-muted, #f1f4f9)",
+            borderRadius: 6,
+            fontSize: 12.5,
+            lineHeight: 1.55,
+            color: "var(--ink-secondary, #475569)",
           }}
         >
           No campaign is required by default. If your org needs one, run
           it from the canonical surface so audit + revocation execute
           atomically.
-        </p>
-      </section>
+        </div>
+      </Card>
 
-      <section
-        data-section="access-reviews-deep-links"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-        }}
+      <PageSection
+        title="Canonical access review surfaces"
+        description="Run and decide campaigns on the Governance Platform, where revocation is atomic and audited."
       >
-        <h2 style={{ margin: 0, fontSize: 16 }}>Canonical access review surfaces</h2>
-        <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
+        <div
+          data-section="access-reviews-deep-links"
+          style={{ display: "flex", flexDirection: "column", gap: 10 }}
+        >
           <DeepLink
             testId="ar-deep-link-list"
             label="Access reviews"
@@ -92,8 +101,8 @@ function AccessReviewsTab() {
             description="Cross-workspace governance dashboard (drift, policy hits, posture)."
             href="/governance-platform"
           />
-        </ul>
-      </section>
+        </div>
+      </PageSection>
     </section>
   );
 }
@@ -110,28 +119,36 @@ function DeepLink({
   href: string;
 }) {
   return (
-    <li
-      style={{
-        padding: "0.5rem 0",
-        borderBottom: "1px solid rgba(127,127,127,0.18)",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 12,
-        flexWrap: "wrap",
-      }}
+    <Card
+      variant="summary"
+      padding="compact"
+      style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
     >
       <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-        <div style={{ fontWeight: 500 }}>{label}</div>
-        <div style={{ fontSize: 12, opacity: 0.75 }}>{description}</div>
+        <div
+          style={{
+            fontWeight: 600,
+            fontSize: 14,
+            color: "var(--ink-primary, #0f172a)",
+          }}
+        >
+          {label}
+        </div>
+        <div
+          style={{
+            fontSize: 12.5,
+            color: "var(--ink-secondary, #475569)",
+            marginTop: 2,
+          }}
+        >
+          {description}
+        </div>
       </div>
-      <Link
-        href={href}
-        data-testid={testId}
-        className="cases-filter-chip"
-      >
-        Open →
+      <Link href={href} data-testid={testId} style={{ textDecoration: "none", flexShrink: 0 }}>
+        <Button variant="secondary" size="sm">
+          Open →
+        </Button>
       </Link>
-    </li>
+    </Card>
   );
 }

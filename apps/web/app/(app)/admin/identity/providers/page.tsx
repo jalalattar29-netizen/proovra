@@ -24,25 +24,23 @@ import {
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
 import {
-  cardStyle,
   errorBoxStyle,
   formatDateTime,
   ghostButtonStyle,
-  headerRowStyle,
   inputStyle,
   mutedStyle,
-  pageStyle,
-  primaryButtonStyle,
   selectStyle,
   statusBadgeStyle,
-  subtitleStyle,
   successBoxStyle,
   tableStyle,
   tdStyle,
   thStyle,
-  titleStyle,
   TOKENS,
 } from "../ui-tokens";
+import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
+import { Card } from "../../../../../components/ui/Card";
+import { Button } from "../../../../../components/ui/Button";
+import { EmptyState } from "../../../../../components/ui/EmptyState";
 
 type SsoProvider =
   | "GENERIC_OIDC"
@@ -254,36 +252,39 @@ const load = useCallback(() => {
 
   if (!teamId) {
     return (
-      <main style={pageStyle}>
-        <p style={mutedStyle}>Switch to a workspace.</p>
-      </main>
+      <PageShell header={<PageHeader eyebrow="Identity operations" title="Identity Providers" />}>
+        <EmptyState
+          framed
+          title="No workspace selected"
+          purpose="Switch to a workspace to configure its SSO identity providers."
+        />
+      </PageShell>
     );
   }
 
   const isOidc = OIDC_PROVIDERS.includes(createForm.provider);
 
   return (
-    <main style={pageStyle}>
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Identity Providers</h1>
-          <p style={subtitleStyle}>
-            SSO connections. Multiple providers per workspace supported. JIT
-            provisioning + allowed-email-domains enforced at callback.
-          </p>
-        </div>
-        <button
-          type="button"
-          style={primaryButtonStyle}
-          onClick={() => {
-            setShowCreate(true);
-            setRevealedSecret(null);
-          }}
-        >
-          New connection
-        </button>
-      </header>
-
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Identity operations"
+          title="Identity Providers"
+          subtitle="SSO connections. Multiple providers per workspace supported. JIT provisioning + allowed-email-domains enforced at callback."
+          primaryAction={
+            <Button
+              variant="enterprise"
+              onClick={() => {
+                setShowCreate(true);
+                setRevealedSecret(null);
+              }}
+            >
+              New connection
+            </Button>
+          }
+        />
+      }
+    >
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
       {revealedSecret ? (
         <div style={successBoxStyle}>
@@ -300,14 +301,38 @@ const load = useCallback(() => {
         </div>
       ) : null}
 
-      <section style={{ ...cardStyle, marginTop: 16, padding: 0 }}>
+      <PageSection>
         {providers === null ? (
-          <p style={{ ...mutedStyle, padding: 16 }}>Loading…</p>
+          <Card variant="summary" padding="comfortable">
+            <p style={mutedStyle}>Loading…</p>
+          </Card>
         ) : providers.length === 0 ? (
-          <p style={{ ...mutedStyle, padding: 24 }}>
-            No SSO connections yet.
-          </p>
+          <EmptyState
+            framed
+            title="No SSO provider configured"
+            purpose="Connect an identity provider (Okta, Entra ID, Google Workspace, or generic OIDC/SAML) to enable single sign-on and just-in-time provisioning for this workspace."
+            action={
+              <Button
+                variant="enterprise"
+                onClick={() => {
+                  setShowCreate(true);
+                  setRevealedSecret(null);
+                }}
+              >
+                New connection
+              </Button>
+            }
+          />
         ) : (
+          <div
+            style={{
+              width: "100%",
+              overflowX: "auto",
+              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+              borderRadius: "var(--radius-card, 14px)",
+              background: "var(--surface-card, #ffffff)",
+            }}
+          >
           <table style={tableStyle}>
             <thead>
               <tr>
@@ -367,59 +392,54 @@ const load = useCallback(() => {
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        style={ghostButtonStyle}
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() =>
                           setExpanded((cur) => (cur === p.id ? null : p.id))
                         }
                       >
                         {expanded === p.id ? "Hide policy" : "Signing & policy"}
-                      </button>
+                      </Button>
                       {p.status === "PENDING" ? (
-                        <button
-                          type="button"
-                          style={ghostButtonStyle}
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           disabled={busy === p.id}
                           onClick={() => transition(p.id, "ACTIVE")}
                         >
                           Activate
-                        </button>
+                        </Button>
                       ) : null}
                       {p.status === "ACTIVE" ? (
-                        <button
-                          type="button"
-                          style={ghostButtonStyle}
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           disabled={busy === p.id}
                           onClick={() => transition(p.id, "DISABLED")}
                         >
                           Disable
-                        </button>
+                        </Button>
                       ) : null}
                       {p.status === "DISABLED" ? (
-                        <button
-                          type="button"
-                          style={ghostButtonStyle}
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           disabled={busy === p.id}
                           onClick={() => transition(p.id, "ACTIVE")}
                         >
                           Re-activate
-                        </button>
+                        </Button>
                       ) : null}
                       {p.status !== "REVOKED" ? (
-                        <button
-                          type="button"
-                          style={{
-                            ...ghostButtonStyle,
-                            color: "#991b1b",
-                            borderColor: "#fecaca",
-                            background: "#fef2f2",
-                          }}
+                        <Button
+                          variant="destructive"
+                          size="sm"
                           disabled={busy === p.id}
                           onClick={() => transition(p.id, "REVOKED")}
                         >
                           Revoke
-                        </button>
+                        </Button>
                       ) : null}
                     </div>
                   </td>
@@ -440,23 +460,15 @@ const load = useCallback(() => {
               ))}
             </tbody>
           </table>
+          </div>
         )}
-      </section>
+      </PageSection>
 
       <StepUpModal control={stepUp} />
 
       {showCreate ? (
-        <section style={{ ...cardStyle, marginTop: 16 }}>
-          <h3
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              margin: 0,
-              marginBottom: 8,
-            }}
-          >
-            New SSO connection
-          </h3>
+        <PageSection>
+          <Card variant="admin" padding="comfortable" title="New SSO connection">
           <div
             style={{
               display: "grid",
@@ -564,25 +576,25 @@ const load = useCallback(() => {
             </Field>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button
-              type="button"
-              style={primaryButtonStyle}
+            <Button
+              variant="enterprise"
+              loading={busy === "create"}
               disabled={busy === "create"}
               onClick={submitCreate}
             >
               {busy === "create" ? "Creating…" : "Create connection"}
-            </button>
-            <button
-              type="button"
-              style={ghostButtonStyle}
+            </Button>
+            <Button
+              variant="ghost"
               onClick={() => setShowCreate(false)}
             >
               Cancel
-            </button>
+            </Button>
           </div>
-        </section>
+          </Card>
+        </PageSection>
       ) : null}
-    </main>
+    </PageShell>
   );
 }
 
@@ -696,9 +708,10 @@ function PolicyPanel({
             }}
           />
           <div style={{ display: "flex", gap: 8 }}>
-            <button
-              type="button"
-              style={primaryButtonStyle}
+            <Button
+              variant="enterprise"
+              size="sm"
+              loading={busy}
               disabled={busy || (keyDraft.trim() === "" && certDraft.trim() === "")}
               onClick={() => {
                 const patch: {
@@ -714,16 +727,16 @@ function PolicyPanel({
               }}
             >
               {busy ? "Saving…" : "Install / rotate key"}
-            </button>
+            </Button>
             {connection.samlSpKeyConfigured ? (
-              <button
-                type="button"
-                style={ghostButtonStyle}
+              <Button
+                variant="secondary"
+                size="sm"
                 disabled={busy}
                 onClick={() => onUpdate({ samlSpPrivateKey: "" })}
               >
                 Clear stored key
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>

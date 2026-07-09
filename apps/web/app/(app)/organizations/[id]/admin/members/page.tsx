@@ -24,6 +24,12 @@ import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError"
  *   - Strong TypeScript types throughout.
  *   - Members manageable via canonical org endpoints (success criterion
  *     #2). API enforces role permissions; UI surfaces 403 honestly.
+ *
+ * Phase 7 (Enterprise UX): presentation migrated to the shared design
+ * system (Card / Badge / Button). This tab renders INSIDE the org admin
+ * layout shell (which owns the org title + tab bar), so it uses Card
+ * groupings — not a second PageHeader — to avoid a duplicate <h1>. All
+ * data reads/mutations, gating, confirm flows and testids are unchanged.
  */
 
 import Link from "next/link";
@@ -35,6 +41,9 @@ import { useConfirmAction } from "../../../../../../components/ui/ConfirmActionM
 import { apiFetch, ApiError } from "../../../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../../../lib/date";
 import { SeatsCard } from "../_lib/SeatsCard";
+import { Card } from "../../../../../../components/ui/Card";
+import { Badge } from "../../../../../../components/ui/Badge";
+import { Button } from "../../../../../../components/ui/Button";
 import {
   ALL_ORG_ROLES as ALL_ROLES,
   ORG_ROLE_LABEL as ROLE_LABEL,
@@ -84,6 +93,48 @@ type Loadable<T> =
   | { kind: "loading" }
   | { kind: "ready"; data: T }
   | { kind: "error"; message: string; status: number; requestId?: string };
+
+// ---------------------------------------------------------------------------
+// Shared presentational tokens.
+// ---------------------------------------------------------------------------
+
+const subtleText = {
+  fontSize: 12.5,
+  color: "var(--ink-muted, #94a3b8)",
+} as const;
+
+const listRow = {
+  padding: "10px 0",
+  borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap" as const,
+};
+
+const fieldInput = {
+  display: "block",
+  marginTop: 4,
+  width: "100%",
+  minHeight: 40,
+  padding: "0 12px",
+  fontSize: 13.5,
+  color: "var(--ink-primary, #0f172a)",
+  background: "var(--surface-card, #ffffff)",
+  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+  borderRadius: "var(--radius-md, 8px)",
+  outline: "none",
+} as const;
+
+const errorBox = {
+  marginTop: 8,
+  padding: "8px 12px",
+  border: "1px solid var(--status-risk-border, #fecaca)",
+  background: "var(--status-risk-bg, #fef2f2)",
+  color: "var(--status-risk-fg, #991b1b)",
+  borderRadius: 8,
+  fontSize: 13,
+} as const;
 
 export default function OrganizationAdminMembersPage() {
   return (
@@ -306,24 +357,20 @@ function MembersTab() {
   );
 
   return (
-    <section data-testid="org-admin-members" data-org-id={orgId}>
+    <section
+      data-testid="org-admin-members"
+      data-org-id={orgId}
+      style={{ display: "flex", flexDirection: "column", gap: 16 }}
+    >
       {/* ------------------- ACCESS SUMMARY + ROLES LINK ------------------- */}
-      <section
+      <Card
+        variant="admin"
+        padding="compact"
         data-section="members-access-summary"
         data-testid="members-access-summary"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-          padding: "0.7rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-          marginBottom: "1rem",
-        }}
+        style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12 }}
       >
-        <div style={{ fontSize: 13, opacity: 0.85 }}>
+        <div style={{ fontSize: 13, color: "var(--ink-secondary, #475569)", flex: "1 1 auto", minWidth: 0 }}>
           {org.kind === "ready" ? (
             <>
               Your access:{" "}
@@ -342,31 +389,26 @@ function MembersTab() {
         <Link
           href={`/organizations/${orgId}/admin/roles`}
           data-testid="members-roles-reference-link"
-          className="cases-filter-chip"
+          style={{ textDecoration: "none", flexShrink: 0 }}
         >
-          Roles &amp; permissions reference →
+          <Button variant="secondary" size="sm">
+            Roles &amp; permissions reference →
+          </Button>
         </Link>
-      </section>
+      </Card>
 
       {/* ------------------- SEATS ------------------- */}
       <SeatsCard orgId={orgId} />
 
       {/* ------------------- INVITE FORM ------------------- */}
-      <section
+      <Card
+        variant="summary"
         data-section="invite-form"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-          marginBottom: "1rem",
-        }}
+        title="Invite a member"
+        subtitle="ORG_ADMIN+ only. The invitee accepts via the returned token URL."
       >
-        <h2 style={{ margin: 0, fontSize: 16 }}>Invite a member</h2>
-        <p style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-          ORG_ADMIN+ only. The invitee accepts via the returned token URL.
-        </p>
         {!canMutate ? (
-          <p data-state="forbidden" style={{ fontSize: 13, opacity: 0.8 }}>
+          <p data-state="forbidden" style={{ fontSize: 13, color: "var(--ink-secondary, #475569)", margin: 0 }}>
             You don't have permission to issue invites. Ask an organization
             admin.
           </p>
@@ -378,12 +420,12 @@ function MembersTab() {
             }}
             style={{
               display: "grid",
-              gap: 8,
-              gridTemplateColumns: "1fr 200px 140px",
+              gap: 10,
+              gridTemplateColumns: "1fr 200px 150px",
               alignItems: "end",
             }}
           >
-            <label style={{ fontSize: 13 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-secondary, #475569)" }}>
               Email
               <input
                 type="email"
@@ -392,32 +434,17 @@ function MembersTab() {
                 disabled={inviteFormBusy}
                 required
                 data-testid="invite-email-input"
-                style={{
-                  display: "block",
-                  marginTop: 4,
-                  width: "100%",
-                  padding: "0.45rem 0.55rem",
-                  border: "1px solid currentColor",
-                  borderRadius: 4,
-                  background: "transparent",
-                  color: "inherit",
-                  fontSize: 13,
-                }}
+                style={fieldInput}
               />
             </label>
-            <label style={{ fontSize: 13 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-secondary, #475569)" }}>
               Role
               <select
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value as OrgRole)}
                 disabled={inviteFormBusy}
                 data-testid="invite-role-select"
-                style={{
-                  display: "block",
-                  marginTop: 4,
-                  width: "100%",
-                  padding: "0.45rem 0.55rem",
-                }}
+                style={{ ...fieldInput, cursor: "pointer" }}
               >
                 {ALL_ROLES.map((r) => (
                   <option key={r} value={r}>
@@ -426,35 +453,19 @@ function MembersTab() {
                 ))}
               </select>
             </label>
-            <button
+            <Button
               type="submit"
+              variant="primary"
               disabled={inviteFormBusy || !inviteEmail.trim()}
+              loading={inviteFormBusy}
               data-testid="invite-submit"
-              className="cc-quick-action"
-              style={{
-                padding: "0.5rem 1rem",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: inviteFormBusy ? "not-allowed" : "pointer",
-              }}
             >
               {inviteFormBusy ? "Sending…" : "Send invite"}
-            </button>
+            </Button>
           </form>
         )}
         {inviteFormError ? (
-          <div
-            role="alert"
-            data-state="error"
-            style={{
-              marginTop: 8,
-              padding: "0.45rem 0.6rem",
-              border: "1px solid #d44",
-              borderRadius: 4,
-              fontSize: 13,
-              background: "rgba(220,68,68,0.06)",
-            }}
-          >
+          <div role="alert" data-state="error" style={errorBox}>
             {inviteFormError}
           </div>
         ) : null}
@@ -463,44 +474,34 @@ function MembersTab() {
             data-state="invite-token-issued"
             data-testid="invite-token-issued"
             style={{
-              marginTop: 8,
-              padding: "0.5rem 0.6rem",
-              border: "1px dashed currentColor",
-              borderRadius: 4,
+              marginTop: 10,
+              padding: "10px 12px",
+              border: "1px dashed var(--border-strong, rgba(15,23,42,0.14))",
+              borderRadius: 8,
               fontSize: 12,
               wordBreak: "break-all",
+              color: "var(--ink-secondary, #475569)",
             }}
           >
             <strong>Invite token URL</strong> — share with the invitee:{" "}
             <code>/org-invites/{issuedInviteToken}/accept</code>
           </div>
         ) : null}
-      </section>
+      </Card>
 
       {/* ------------------- MEMBERS LIST ------------------- */}
-      <section
+      <Card
+        variant="summary"
         data-section="members-list"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-          marginBottom: "1rem",
-        }}
+        title="Members"
+        subtitle="Org-level governance roles. Workspace-level access is workspace-scoped. SSO / SCIM source, MFA state, and last-login are managed per-workspace in Identity and are not exposed on the org member list."
       >
-        <header style={{ marginBottom: "0.5rem" }}>
-          <h2 style={{ margin: 0, fontSize: 16 }}>Members</h2>
-          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
-            Org-level governance roles. Workspace-level access is workspace-scoped.
-            SSO / SCIM source, MFA state, and last-login are managed per-workspace
-            in Identity and are not exposed on the org member list.
-          </div>
-        </header>
         {members.kind === "loading" ? (
-          <div data-state="loading" style={{ fontSize: 13, opacity: 0.7 }}>
+          <div data-state="loading" style={subtleText}>
             Loading…
           </div>
         ) : members.kind === "error" ? (
-          <div data-state="error" role="alert" style={{ fontSize: 13 }}>
+          <div data-state="error" role="alert" style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}>
             {members.status === 403
               ? "You don't have access to the member list."
               : members.message}
@@ -512,7 +513,7 @@ function MembersTab() {
             style={{ listStyle: "none", padding: 0, margin: 0 }}
           >
             {members.data.members.length === 0 ? (
-              <li style={{ padding: "0.5rem 0", fontSize: 13, opacity: 0.75 }}>
+              <li style={{ padding: "8px 0", ...subtleText }}>
                 No members yet.
               </li>
             ) : null}
@@ -524,32 +525,22 @@ function MembersTab() {
                   key={m.membershipId}
                   data-membership-id={m.membershipId}
                   data-member-role={m.role}
-                  style={{
-                    padding: "0.5rem 0",
-                    borderBottom: "1px solid rgba(127,127,127,0.18)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    flexWrap: "wrap",
-                  }}
+                  style={listRow}
                 >
                   <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                    <div style={{ fontWeight: 500 }}>
+                    <div style={{ fontWeight: 600 }}>
                       {m.displayName ?? m.email ?? "(unnamed user)"}
                     </div>
                     {m.email ? (
-                      <div style={{ fontSize: 12, opacity: 0.7 }}>{m.email}</div>
+                      <div style={subtleText}>{m.email}</div>
                     ) : null}
                     {err ? (
-                      <div
-                        role="alert"
-                        style={{ marginTop: 4, fontSize: 12, color: "#d44" }}
-                      >
+                      <div role="alert" style={{ marginTop: 4, fontSize: 12, color: "var(--status-risk-fg, #991b1b)" }}>
                         {err}
                       </div>
                     ) : null}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     {canMutate ? (
                       <select
                         data-testid={`member-role-select-${m.membershipId}`}
@@ -558,7 +549,16 @@ function MembersTab() {
                         onChange={(e) =>
                           void changeRole(m, e.target.value as OrgRole)
                         }
-                        style={{ fontSize: 12 }}
+                        style={{
+                          minHeight: 34,
+                          padding: "0 10px",
+                          fontSize: 12.5,
+                          border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+                          borderRadius: 8,
+                          background: "var(--surface-card, #ffffff)",
+                          color: "var(--ink-primary, #0f172a)",
+                          cursor: busy ? "not-allowed" : "pointer",
+                        }}
                       >
                         {ALL_ROLES.map((r) => (
                           <option key={r} value={r}>
@@ -567,31 +567,24 @@ function MembersTab() {
                         ))}
                       </select>
                     ) : (
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>
+                      <Badge tone="neutral" subtle>
                         {ROLE_LABEL[m.role]}
-                      </span>
+                      </Badge>
                     )}
-                    <span style={{ fontSize: 12, opacity: 0.7 }}>
+                    <span style={subtleText}>
                       since {formatUserDate(m.memberSince)}
                     </span>
                     {canMutate ? (
-                      <button
+                      <Button
                         type="button"
+                        variant="destructive"
+                        size="sm"
                         data-testid={`member-remove-${m.membershipId}`}
                         disabled={busy}
                         onClick={() => void removeMember(m)}
-                        style={{
-                          border: "1px solid #d44",
-                          borderRadius: 4,
-                          padding: "0.2rem 0.55rem",
-                          background: "transparent",
-                          color: "inherit",
-                          cursor: busy ? "not-allowed" : "pointer",
-                          fontSize: 12,
-                        }}
                       >
                         Remove
-                      </button>
+                      </Button>
                     ) : null}
                   </div>
                 </li>
@@ -599,27 +592,19 @@ function MembersTab() {
             })}
           </ul>
         )}
-      </section>
+      </Card>
 
       {/* ------------------- PENDING INVITES ------------------- */}
-      <section
+      <Card
+        variant="summary"
         data-section="pending-invites"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-        }}
+        title="Pending invites"
+        subtitle="Invites issued but not yet accepted, revoked, or expired."
       >
-        <header style={{ marginBottom: "0.5rem" }}>
-          <h2 style={{ margin: 0, fontSize: 16 }}>Pending invites</h2>
-          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
-            Invites issued but not yet accepted, revoked, or expired.
-          </div>
-        </header>
         {invites.kind === "loading" ? (
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Loading…</div>
+          <div style={subtleText}>Loading…</div>
         ) : invites.kind === "error" ? (
-          <div data-state="error" role="alert" style={{ fontSize: 13 }}>
+          <div data-state="error" role="alert" style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}>
             {invites.status === 403
               ? "Admin access required to view pending invites."
               : invites.message}
@@ -633,7 +618,7 @@ function MembersTab() {
             {invites.data.invites.length === 0 ? (
               <li
                 data-empty-state="no-pending-invites"
-                style={{ padding: "0.5rem 0", fontSize: 13, opacity: 0.75 }}
+                style={{ padding: "8px 0", ...subtleText }}
               >
                 No pending invites.
               </li>
@@ -646,63 +631,43 @@ function MembersTab() {
                   key={i.inviteId}
                   data-invite-id={i.inviteId}
                   data-invite-role={i.role}
-                  style={{
-                    padding: "0.5rem 0",
-                    borderBottom: "1px solid rgba(127,127,127,0.18)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    flexWrap: "wrap",
-                  }}
+                  style={listRow}
                 >
                   <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                    <div style={{ fontWeight: 500 }}>{i.email}</div>
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>
+                    <div style={{ fontWeight: 600 }}>{i.email}</div>
+                    <div style={subtleText}>
                       {ROLE_LABEL[i.role]} · expires{" "}
                       {formatUserDateTime(i.expiresAt)}
                       {i.resendCount > 0 ? ` · resent ${i.resendCount}×` : ""}
                     </div>
                     {err ? (
-                      <div
-                        role="alert"
-                        style={{ marginTop: 4, fontSize: 12, color: "#d44" }}
-                      >
+                      <div role="alert" style={{ marginTop: 4, fontSize: 12, color: "var(--status-risk-fg, #991b1b)" }}>
                         {err}
                       </div>
                     ) : null}
                   </div>
                   {canMutate ? (
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Button
                         type="button"
+                        variant="secondary"
+                        size="sm"
                         data-testid={`invite-resend-${i.inviteId}`}
                         disabled={busy}
                         onClick={() => void resendInvite(i)}
-                        className="cases-filter-chip"
-                        style={{
-                          cursor: busy ? "not-allowed" : "pointer",
-                          fontSize: 12,
-                        }}
                       >
                         Resend
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="destructive"
+                        size="sm"
                         data-testid={`invite-revoke-${i.inviteId}`}
                         disabled={busy}
                         onClick={() => void revokeInvite(i)}
-                        style={{
-                          border: "1px solid #d44",
-                          borderRadius: 4,
-                          padding: "0.2rem 0.55rem",
-                          background: "transparent",
-                          color: "inherit",
-                          cursor: busy ? "not-allowed" : "pointer",
-                          fontSize: 12,
-                        }}
                       >
                         Revoke
-                      </button>
+                      </Button>
                     </div>
                   ) : null}
                 </li>
@@ -710,7 +675,7 @@ function MembersTab() {
             })}
           </ul>
         )}
-      </section>
+      </Card>
     </section>
   );
 }

@@ -48,6 +48,12 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 // Phase 2.3 — adopt AccessGate for the workspace-required + permission
 // states. Previously these rendered bare grey text with no next step.
 import { AccessGate } from "../../../../components/access/AccessGate";
+import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { Badge } from "../../../../components/ui/Badge";
+import { StatusBadge } from "../../../../components/ui/StatusBadge";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 
 type SsoProvider = {
   id: string;
@@ -349,38 +355,42 @@ function SsoAdminContent() {
     Boolean(p.samlCertFingerprint && p.samlSsoUrl);
 
   return (
-    <main style={pageStyle}>
-      <header>
-        <h1 style={titleStyle}>SAML SSO Configuration</h1>
-        <p style={mutedStyle}>
-          Manage SAML 2.0 Service Provider connections for this workspace.
-          Paste your Identity Provider metadata XML to configure endpoints and
-          certificate fingerprints. The SP metadata URL below must be registered
-          with your IdP.
-        </p>
-        {/* Phase P1.1 — links to the new SSO Health + Visual Mapping pages.
-            These are sibling routes; this main page stays the canonical
-            place to ingest metadata / rotate certs. */}
-        <nav
-          aria-label="SSO operations"
-          style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 13 }}
-        >
-          <a
-            href="/security-center/sso/health"
-            style={{ color: "#1e40af", textDecoration: "underline" }}
-          >
-            SSO Health dashboard →
-          </a>
-          <a
-            href="/security-center/sso/mapping"
-            style={{ color: "#1e40af", textDecoration: "underline" }}
-          >
-            Visual attribute mapping →
-          </a>
-        </nav>
-      </header>
-
-      {loadError ? <div style={errorBoxStyle}>{loadError}</div> : null}
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Security Center · SSO"
+          title="SAML SSO Configuration"
+          subtitle="Manage SAML 2.0 Service Provider connections for this workspace. Paste your Identity Provider metadata XML to configure endpoints and certificate fingerprints. The SP metadata URL below must be registered with your IdP."
+          contextStrip={
+            /* Phase P1.1 — links to the new SSO Health + Visual Mapping pages.
+               These are sibling routes; this main page stays the canonical
+               place to ingest metadata / rotate certs. */
+            <nav
+              aria-label="SSO operations"
+              style={{ display: "flex", gap: 12, fontSize: 13 }}
+            >
+              <a
+                href="/security-center/sso/health"
+                style={{ color: "#1e40af", textDecoration: "underline" }}
+              >
+                SSO Health dashboard →
+              </a>
+              <a
+                href="/security-center/sso/mapping"
+                style={{ color: "#1e40af", textDecoration: "underline" }}
+              >
+                Visual attribute mapping →
+              </a>
+            </nav>
+          }
+        />
+      }
+    >
+      {loadError ? (
+        <Card variant="status" tone="risk">
+          {loadError}
+        </Card>
+      ) : null}
 
       {!teamId ? (
         <AccessGate
@@ -397,15 +407,14 @@ function SsoAdminContent() {
       ) : providers === null && !loadError ? (
         <p style={mutedStyle}>Loading SSO providers…</p>
       ) : providers && providers.length === 0 ? (
-        <div style={cardStyle}>
-          <p style={mutedStyle}>
-            No SSO providers configured for this workspace. Contact support to
-            provision a SAML connection.
-          </p>
-        </div>
+        <EmptyState
+          framed
+          title="No SSO connection configured"
+          purpose="No SAML SSO providers are configured for this workspace yet. Contact support to provision a SAML connection, then return here to ingest IdP metadata and rotate certificates."
+        />
       ) : (
         providers?.map((p) => (
-          <section key={p.id} style={cardStyle}>
+          <Card key={p.id} variant="admin">
             <div style={providerHeaderStyle}>
               <div>
                 <h2 style={sectionTitleStyle}>
@@ -413,11 +422,11 @@ function SsoAdminContent() {
                   <span style={chipStyle}>{p.id.slice(0, 8)}…</span>
                 </h2>
                 <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                  <span style={statusBadgeStyle(p.status)}>{p.status}</span>
+                  <StatusBadge status={p.status} />
                   {isSaml(p) ? (
-                    <span style={isConfigured(p) ? configuredBadgeStyle : unconfiguredBadgeStyle}>
+                    <Badge tone={isConfigured(p) ? "verified" : "pending"}>
                       {isConfigured(p) ? "SAML configured" : "SAML not configured"}
-                    </span>
+                    </Badge>
                   ) : null}
                 </div>
               </div>
@@ -456,13 +465,13 @@ function SsoAdminContent() {
                       style={readonlyInputStyle}
                       onFocus={(e) => e.target.select()}
                     />
-                    <button
-                      type="button"
-                      style={secondaryButtonStyle}
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => void handleCopy(p.id, spMetadataUrl(p.id))}
                     >
                       {copied[p.id] ? "Copied" : "Copy"}
-                    </button>
+                    </Button>
                   </div>
 
                   {/* R8.2.2 — ACS URL shown explicitly so operators can configure it in IdP
@@ -480,13 +489,13 @@ function SsoAdminContent() {
                         style={readonlyInputStyle}
                         onFocus={(e) => e.target.select()}
                       />
-                      <button
-                        type="button"
-                        style={secondaryButtonStyle}
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => void handleCopy(`${p.id}_acs`, acsUrl())}
                       >
                         {copied[`${p.id}_acs`] ? "Copied" : "Copy"}
-                      </button>
+                      </Button>
                     </div>
                   </div>
 
@@ -620,14 +629,16 @@ function SsoAdminContent() {
                       </div>
                     ) : null}
 
-                    <button
-                      type="button"
-                      style={{ ...primaryButtonStyle, marginTop: 8 }}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      style={{ marginTop: 8 }}
+                      loading={testBusy[p.id]}
                       disabled={testBusy[p.id]}
                       onClick={() => void handleTestConnection(p.id)}
                     >
                       {testBusy[p.id] ? "Running check…" : "Run health check"}
-                    </button>
+                    </Button>
 
                     {testError[p.id] ? (
                       <div style={{ ...errorBoxStyle, marginTop: 10 }}>{testError[p.id]}</div>
@@ -702,23 +713,25 @@ function SsoAdminContent() {
                         style={textareaStyle}
                       />
                       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                        <button
-                          type="button"
-                          style={secondaryButtonStyle}
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          loading={certBusy[p.id]}
                           disabled={certBusy[p.id] || !(nextCertPem[p.id] ?? "").trim()}
                           onClick={() => void handleAddNextCert(p.id)}
                         >
                           {certBusy[p.id] ? "Saving…" : "Add rotation cert"}
-                        </button>
+                        </Button>
                         {p.samlCertNextFingerprint ? (
-                          <button
-                            type="button"
-                            style={{ ...secondaryButtonStyle, color: "#166534", borderColor: "#86efac" }}
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            style={{ color: "#166534", borderColor: "#86efac" }}
                             disabled={certBusy[p.id]}
                             onClick={() => void handlePromoteNextCert(p.id)}
                           >
                             Promote to primary →
-                          </button>
+                          </Button>
                         ) : null}
                       </div>
                     </div>
@@ -752,14 +765,15 @@ function SsoAdminContent() {
                     style={textareaStyle}
                   />
                   <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
-                    <button
-                      type="button"
-                      style={primaryButtonStyle}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      loading={busy[p.id]}
                       disabled={busy[p.id] || !(metadataXml[p.id] ?? "").trim()}
                       onClick={() => void handleIngest(p.id)}
                     >
                       {busy[p.id] ? "Ingesting…" : "Ingest metadata"}
-                    </button>
+                    </Button>
                     <a
                       href={loginTestUrl(p.id)}
                       target="_blank"
@@ -818,31 +832,19 @@ function SsoAdminContent() {
                 </div>
               </>
             ) : null}
-          </section>
+          </Card>
         ))
       )}
       {/* P1.4 — step-up modal surfaces only when a destructive SAML
           operation (cert promotion) triggers 401 STEP_UP_REQUIRED.
           Otherwise dormant. */}
       <StepUpModal control={stepUp} />
-    </main>
+    </PageShell>
   );
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const pageStyle: React.CSSProperties = {
-  maxWidth: 860,
-  margin: "0 auto",
-  padding: "32px 24px",
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
-};
-const titleStyle: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 700,
-  marginBottom: 4,
-};
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 17,
   fontWeight: 600,
@@ -852,13 +854,6 @@ const sectionTitleStyle: React.CSSProperties = {
   gap: 6,
 };
 const mutedStyle: React.CSSProperties = { fontSize: 13, color: "#64748b", margin: 0 };
-const cardStyle: React.CSSProperties = {
-  marginTop: 24,
-  padding: 20,
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  background: "#fff",
-};
 const providerHeaderStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
@@ -959,27 +954,6 @@ const warnBoxStyle: React.CSSProperties = {
   borderRadius: 8,
   fontSize: 13,
 };
-const primaryButtonStyle: React.CSSProperties = {
-  padding: "7px 16px",
-  fontWeight: 600,
-  color: "#fff",
-  background: "#0f172a",
-  border: 0,
-  borderRadius: 8,
-  cursor: "pointer",
-  fontSize: 13,
-};
-const secondaryButtonStyle: React.CSSProperties = {
-  padding: "6px 12px",
-  fontWeight: 500,
-  color: "#0f172a",
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 12,
-  whiteSpace: "nowrap",
-};
 const testLinkStyle: React.CSSProperties = {
   fontSize: 13,
   color: "#2563eb",
@@ -1001,40 +975,3 @@ function lastTestBannerStyle(status: "PASSED" | "FAILED" | null): React.CSSPrope
   return { ...base, background: "#f8fafc", borderColor: "#e2e8f0", color: "#64748b" };
 }
 
-function statusBadgeStyle(status: string): React.CSSProperties {
-  const base: React.CSSProperties = {
-    padding: "3px 10px",
-    fontSize: 11,
-    fontWeight: 600,
-    borderRadius: 999,
-    border: "1px solid",
-    whiteSpace: "nowrap",
-  };
-  if (status === "ACTIVE")
-    return { ...base, background: "#f0fdf4", borderColor: "#86efac", color: "#166534" };
-  if (status === "REVOKED")
-    return { ...base, background: "#fef2f2", borderColor: "#fecaca", color: "#7f1d1d" };
-  return { ...base, background: "#f8fafc", borderColor: "#e2e8f0", color: "#64748b" };
-}
-
-const configuredBadgeStyle: React.CSSProperties = {
-  padding: "3px 10px",
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 999,
-  border: "1px solid #86efac",
-  background: "#f0fdf4",
-  color: "#166534",
-  whiteSpace: "nowrap",
-};
-
-const unconfiguredBadgeStyle: React.CSSProperties = {
-  padding: "3px 10px",
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 999,
-  border: "1px solid #fcd34d",
-  background: "#fffbeb",
-  color: "#92400e",
-  whiteSpace: "nowrap",
-};

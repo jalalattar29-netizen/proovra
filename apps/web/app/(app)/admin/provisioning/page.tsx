@@ -46,20 +46,17 @@ import {
 } from "../../../../components/identity-security/StepUpModal";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
+import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
 import {
-  cardStyle,
   errorBoxStyle,
-  ghostButtonStyle,
-  headerRowStyle,
   inputStyle,
   mutedStyle,
   monoStyle,
-  pageStyle,
-  primaryButtonStyle,
   sectionTitleStyle,
   subtitleStyle,
   successBoxStyle,
-  titleStyle,
   TOKENS,
 } from "../identity/ui-tokens";
 
@@ -123,35 +120,33 @@ function AdminProvisioningInner() {
   const teamId = useTeamId();
 
   return (
-    <main style={pageStyle} data-testid="admin-provisioning">
-      <AdminConsoleNav />
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Provision enterprise customer</h1>
-          <p style={subtitleStyle}>
-            Activate an enterprise customer end-to-end — no manual database
-            edits. Create the organization and its enterprise workspace (or
-            invite the owner), then grant the ENTERPRISE plan. Every action
-            requires a fresh step-up approval and is written to the platform
-            audit log.
-          </p>
+    <PageShell
+      data-testid="admin-provisioning"
+      header={
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <AdminConsoleNav />
+          <PageHeader
+            eyebrow="Platform admin"
+            title="Provision enterprise customer"
+            subtitle="Activate an enterprise customer end-to-end — no manual database edits. Create the organization and its enterprise workspace (or invite the owner), then grant the ENTERPRISE plan. Every action requires a fresh step-up approval and is written to the platform audit log."
+          />
         </div>
-      </header>
-
+      }
+    >
       {!teamId ? (
-        <section style={{ ...cardStyle, marginTop: 20 }}>
+        <Card variant="admin" padding="comfortable">
           <p style={mutedStyle}>
             Switch to your admin workspace to continue — step-up approvals are
             minted against the workspace you are currently in.
           </p>
-        </section>
+        </Card>
       ) : (
         <>
           <ProvisionPanel teamId={teamId} />
           <GrantPlanPanel teamId={teamId} />
         </>
       )}
-    </main>
+    </PageShell>
   );
 }
 
@@ -263,8 +258,9 @@ function ProvisionPanel({ teamId }: { teamId: string }) {
   }, []);
 
   return (
-    <section
-      style={{ ...cardStyle, marginTop: 20 }}
+    <Card
+      variant="admin"
+      padding="comfortable"
       data-section="provision-new-customer"
     >
       <h3 style={sectionTitleStyle}>Provision a new enterprise customer</h3>
@@ -332,15 +328,15 @@ function ProvisionPanel({ teamId }: { teamId: string }) {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <button
-          type="button"
-          style={primaryButtonStyle}
+        <Button
+          variant="enterprise"
           disabled={busy}
+          loading={busy}
           onClick={submit}
           data-testid="provision-submit"
         >
           {busy ? "Provisioning…" : "Provision customer"}
-        </button>
+        </Button>
       </div>
 
       {error ? (
@@ -387,23 +383,22 @@ function ProvisionPanel({ teamId }: { teamId: string }) {
                 data-testid="provision-invite-url"
                 onFocus={(e) => e.currentTarget.select()}
               />
-              <button
-                type="button"
-                style={ghostButtonStyle}
+              <Button
+                variant="ghost"
                 onClick={() =>
                   copyInvite(absoluteInviteUrl(result.inviteUrl))
                 }
                 data-testid="provision-invite-copy"
               >
                 {copied ? "Copied" : "Copy invite URL"}
-              </button>
+              </Button>
             </div>
           </div>
         )
       ) : null}
 
       <StepUpModal control={stepUp} />
-    </section>
+    </Card>
   );
 }
 
@@ -483,8 +478,9 @@ function GrantPlanPanel({ teamId }: { teamId: string }) {
   }, [teamId, orgId, seats, stepUp, addToast]);
 
   return (
-    <section
-      style={{ ...cardStyle, marginTop: 20 }}
+    <Card
+      variant="admin"
+      padding="comfortable"
       data-section="grant-existing-org"
     >
       <h3 style={sectionTitleStyle}>
@@ -530,15 +526,15 @@ function GrantPlanPanel({ teamId }: { teamId: string }) {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <button
-          type="button"
-          style={primaryButtonStyle}
+        <Button
+          variant="enterprise"
           disabled={busy}
+          loading={busy}
           onClick={submit}
           data-testid="grant-submit"
         >
           {busy ? "Granting…" : "Grant ENTERPRISE"}
-        </button>
+        </Button>
       </div>
 
       {error ? (
@@ -561,7 +557,7 @@ function GrantPlanPanel({ teamId }: { teamId: string }) {
       ) : null}
 
       <StepUpModal control={stepUp} />
-    </section>
+    </Card>
   );
 }
 

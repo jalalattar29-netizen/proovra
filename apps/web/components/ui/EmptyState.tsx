@@ -1,0 +1,167 @@
+"use client";
+
+/**
+ * EmptyState — evidence-aware "nothing here yet" surface (Phase 7).
+ *
+ * Every empty list / table / section should explain WHY it's empty and
+ * offer the next best action, instead of a bare "No results". Consumes
+ * design tokens; pairs with the `Card` `empty` variant when a bordered
+ * frame is wanted (`framed` prop).
+ *
+ * SLOTS
+ *   - icon      optional glyph (defaults to a neutral document mark).
+ *   - title     short headline ("No evidence captured yet").
+ *   - purpose   one sentence on what would appear here / why it matters.
+ *   - action    next-best-action button (usually a primary <Button>).
+ *   - note      optional permission / plan caveat rendered muted below
+ *               the action ("Available on the Enterprise plan").
+ *
+ * A11Y: role="status" so screen readers announce the empty condition;
+ * icon is aria-hidden; the action retains its own semantics.
+ *
+ * USAGE
+ *   <EmptyState
+ *     title="No evidence captured yet"
+ *     purpose="Captured photos and videos are cryptographically sealed and listed here."
+ *     action={<Button variant="primary">Capture evidence</Button>}
+ *     note="Capture requires the mobile capture entitlement."
+ *   />
+ */
+
+import React from "react";
+
+export interface EmptyStateProps {
+  title: React.ReactNode;
+  /** One-sentence explanation of what belongs here. */
+  purpose?: React.ReactNode;
+  /** Next-best-action control (typically a <Button>). */
+  action?: React.ReactNode;
+  /** Muted permission / plan caveat under the action. */
+  note?: React.ReactNode;
+  /** Optional leading icon; a neutral document glyph is used if omitted. */
+  icon?: React.ReactNode;
+  /** Wrap in a dashed bordered frame (matches Card `empty`). */
+  framed?: boolean;
+  /** Tighter spacing for inline / in-card use. */
+  compact?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+  "data-testid"?: string;
+}
+
+function DefaultIcon() {
+  return (
+    <svg
+      width="26"
+      height="26"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+    </svg>
+  );
+}
+
+export function EmptyState({
+  title,
+  purpose,
+  action,
+  note,
+  icon,
+  framed = false,
+  compact = false,
+  className,
+  style,
+  ...rest
+}: EmptyStateProps) {
+  const pad = compact ? "24px 16px" : "48px 24px";
+  return (
+    <div
+      {...rest}
+      role="status"
+      data-ui-empty-state
+      className={["ui-empty-state", className].filter(Boolean).join(" ")}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        gap: compact ? 8 : 12,
+        padding: pad,
+        borderRadius: "var(--radius-card, 14px)",
+        border: framed
+          ? "1px dashed var(--border-strong, rgba(15,23,42,0.14))"
+          : undefined,
+        background: framed ? "rgba(15,23,42,0.015)" : undefined,
+        ...style,
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: compact ? 44 : 56,
+          height: compact ? 44 : 56,
+          borderRadius: 14,
+          background: "var(--surface-muted, #f1f4f9)",
+          color: "var(--ink-muted, #94a3b8)",
+          marginBottom: 2,
+        }}
+      >
+        {icon ?? <DefaultIcon />}
+      </span>
+
+      <div
+        style={{
+          fontSize: compact ? 15 : 17,
+          fontWeight: 650,
+          color: "var(--ink-primary, #0f172a)",
+          lineHeight: 1.3,
+        }}
+      >
+        {title}
+      </div>
+
+      {purpose != null ? (
+        <p
+          style={{
+            margin: 0,
+            maxWidth: 460,
+            fontSize: 13.5,
+            lineHeight: 1.6,
+            color: "var(--ink-secondary, #475569)",
+          }}
+        >
+          {purpose}
+        </p>
+      ) : null}
+
+      {action != null ? <div style={{ marginTop: 6 }}>{action}</div> : null}
+
+      {note != null ? (
+        <p
+          style={{
+            margin: "4px 0 0",
+            maxWidth: 460,
+            fontSize: 12,
+            lineHeight: 1.5,
+            color: "var(--ink-muted, #94a3b8)",
+          }}
+        >
+          {note}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+export default EmptyState;

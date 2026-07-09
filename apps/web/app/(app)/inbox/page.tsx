@@ -39,6 +39,10 @@ import Link from "next/link";
 import { apiFetch } from "../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../lib/date";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader, PageSection } from "../../../components/ui";
+import { Card } from "../../../components/ui/Card";
+import { Button } from "../../../components/ui/Button";
+import { EmptyState } from "../../../components/ui/EmptyState";
 
 type InboxTone = "info" | "warning" | "high" | "critical";
 type InboxCategory =
@@ -567,54 +571,27 @@ function InboxPageInner() {
   }
 
   return (
-    <main
-      style={{ padding: "1.5rem", maxWidth: 1000, margin: "0 auto" }}
+    <PageShell
       data-phase-c-inbox
       data-inbox-total={state.kind === "ready" ? state.data.summary.total : 0}
+      header={
+        <PageHeader
+          eyebrow="Account · Operational inbox"
+          title="Inbox"
+          subtitle="Operational items that require your attention. Each item is a real, unresolved backend signal — items disappear when the underlying state is resolved (invite accepted, governance event acknowledged, organization joined). No invented alerts."
+          primaryAction={
+            <Button
+              variant="secondary"
+              onClick={() => void load()}
+              disabled={state.kind === "loading"}
+              data-action="refresh-inbox"
+            >
+              {state.kind === "loading" ? "Refreshing…" : "Refresh"}
+            </Button>
+          }
+        />
+      }
     >
-      <header
-        style={{
-          marginBottom: "1.25rem",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: "1rem",
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ flex: "1 1 320px", minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 11,
-              opacity: 0.7,
-              letterSpacing: 0.5,
-              textTransform: "uppercase",
-            }}
-          >
-            Account · Operational inbox
-          </div>
-          <h1 style={{ margin: "0.25rem 0 0.35rem" }}>Inbox</h1>
-          <p style={{ margin: 0, opacity: 0.85, fontSize: 13.5, maxWidth: 720 }}>
-            Operational items that require your attention. Each item is
-            a real, unresolved backend signal — items disappear when
-            the underlying state is resolved (invite accepted,
-            governance event acknowledged, organization joined). No
-            invented alerts.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={state.kind === "loading"}
-            data-action="refresh-inbox"
-            style={toolbarBtn(false)}
-          >
-            {state.kind === "loading" ? "Refreshing…" : "Refresh"}
-          </button>
-        </div>
-      </header>
-
       {/* ---------- summary strip ---------- */}
       {state.kind === "ready" && (
         <section
@@ -623,7 +600,6 @@ function InboxPageInner() {
             display: "grid",
             gap: 8,
             gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-            marginBottom: "1rem",
           }}
         >
           {(["critical", "high", "warning", "info"] as InboxTone[]).map(
@@ -645,7 +621,7 @@ function InboxPageInner() {
                     background: active
                       ? tStyle.chipBg
                       : tStyle.background,
-                    borderRadius: 8,
+                    borderRadius: "var(--radius-card, 12px)",
                     cursor: "pointer",
                     textAlign: "left",
                     color: "inherit",
@@ -670,12 +646,12 @@ function InboxPageInner() {
             data-inbox-tone-tile-count={state.data.summary.total}
             style={{
               padding: "0.6rem 0.8rem",
-              border: "1px dashed rgba(127,127,127,0.4)",
+              border: "1px dashed var(--border-strong, rgba(127,127,127,0.4))",
               background:
                 toneFilter === "all"
-                  ? "rgba(127,127,127,0.12)"
+                  ? "var(--surface-muted, rgba(127,127,127,0.12))"
                   : "rgba(127,127,127,0.04)",
-              borderRadius: 8,
+              borderRadius: "var(--radius-card, 12px)",
               cursor: "pointer",
               textAlign: "left",
               color: "inherit",
@@ -708,7 +684,6 @@ function InboxPageInner() {
             display: "flex",
             flexWrap: "wrap",
             gap: 6,
-            marginBottom: 12,
           }}
         >
           {INBOX_FILTER_ORDER.map((key) => {
@@ -723,16 +698,18 @@ function InboxPageInner() {
                 style={{
                   padding: "0.3rem 0.7rem",
                   border: active
-                    ? "1px solid rgba(99,102,241,0.7)"
-                    : "1px solid rgba(127,127,127,0.4)",
+                    ? "1px solid var(--status-governance-solid, rgba(99,102,241,0.7))"
+                    : "1px solid var(--border-default, rgba(127,127,127,0.4))",
                   background: active
-                    ? "rgba(99,102,241,0.16)"
+                    ? "var(--status-governance-bg, rgba(99,102,241,0.16))"
                     : "transparent",
+                  color: active
+                    ? "var(--status-governance-fg, inherit)"
+                    : "inherit",
                   borderRadius: 999,
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: "pointer",
-                  color: "inherit",
                 }}
               >
                 {INBOX_FILTER_LABELS[key]}
@@ -752,15 +729,15 @@ function InboxPageInner() {
           data-inbox-pagination-summary
           style={{
             padding: "0.45rem 0.75rem",
-            border: "1px solid rgba(127,127,127,0.3)",
-            background: "rgba(127,127,127,0.04)",
-            borderRadius: 8,
-            marginBottom: 10,
+            border: "1px solid var(--border-default, rgba(127,127,127,0.3))",
+            background: "var(--surface-muted, rgba(127,127,127,0.04))",
+            borderRadius: "var(--radius-card, 12px)",
             fontSize: 12.5,
             display: "flex",
             alignItems: "center",
             gap: 10,
             flexWrap: "wrap",
+            color: "var(--ink-secondary, inherit)",
           }}
         >
           <strong
@@ -793,99 +770,106 @@ function InboxPageInner() {
 
       {/* ---------- list states ---------- */}
       {state.kind === "loading" && (
-        <div data-state="loading" style={listLoadingStyle}>
-          Loading inbox…
+        <div data-state="loading">
+          <Card variant="empty" padding="comfortable">
+            <span style={{ opacity: 0.75, fontSize: 13 }}>Loading inbox…</span>
+          </Card>
         </div>
       )}
 
       {state.kind === "error" && (
-        <div data-state="error" role="alert" style={listErrorStyle}>
-          <strong>Couldn’t load inbox.</strong>
-          <div style={{ fontSize: 13, marginTop: 4 }}>
-            {state.status ? `HTTP ${state.status}: ` : ""}
-            {state.message}
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <button
-              type="button"
-              onClick={() => void load()}
-              data-action="retry-inbox"
-              style={toolbarBtn(false)}
+        <div data-state="error" role="alert">
+          <Card variant="status" tone="risk" padding="comfortable">
+            <strong>Couldn’t load inbox.</strong>
+            <div
+              style={{
+                fontSize: 13,
+                marginTop: 4,
+                color: "var(--ink-secondary, inherit)",
+              }}
             >
-              Retry
-            </button>
-          </div>
+              {state.status ? `HTTP ${state.status}: ` : ""}
+              {state.message}
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void load()}
+                data-action="retry-inbox"
+              >
+                Retry
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
 
       {state.kind === "ready" &&
         state.data.summary.total === 0 && (
-          <div
-            data-state="empty"
-            style={listEmptyStyle}
-          >
-            <strong>Nothing requires your attention right now.</strong>
-            <p style={{ marginTop: 8, fontSize: 13 }}>
-              When operational items appear — pending invites,
-              governance events, admin governance signals — they show up
-              here. Items disappear automatically when their underlying
-              state resolves (accepted, acknowledged, etc.). No noisy
-              read/unread counters.
-            </p>
-            <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Link
-                href="/home"
-                data-action="empty-open-home"
-                style={cardLinkBtn(true)}
-              >
-                Open workspace command center
-              </Link>
-              <Link
-                href="/organizations"
-                data-action="empty-open-organizations"
-                style={cardLinkBtn(false)}
-              >
-                Organizations
-              </Link>
-            </div>
+          <div data-state="empty">
+            <EmptyState
+              framed
+              title="Nothing requires your attention right now."
+              purpose="When operational items appear — pending invites, governance events, admin governance signals — they show up here. Items disappear automatically when their underlying state resolves (accepted, acknowledged, etc.). No noisy read/unread counters."
+              action={
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+                  <Link
+                    href="/home"
+                    data-action="empty-open-home"
+                    style={cardLinkBtn(true)}
+                  >
+                    Open workspace command center
+                  </Link>
+                  <Link
+                    href="/organizations"
+                    data-action="empty-open-organizations"
+                    style={cardLinkBtn(false)}
+                  >
+                    Organizations
+                  </Link>
+                </div>
+              }
+            />
           </div>
         )}
 
       {state.kind === "ready" &&
         state.data.summary.total > 0 &&
         visibleItems.length === 0 && (
-          <div
-            data-state="filter-empty"
-            style={listEmptyStyle}
-          >
-            No items match the{" "}
-            <strong>{INBOX_FILTER_LABELS[filter]}</strong> filter
-            {toneFilter !== "all" ? (
-              <>
-                {" "}
-                with <strong>{toneFilter}</strong> tone
-              </>
-            ) : null}{" "}
-            right now.{" "}
-            <button
-              type="button"
-              onClick={() => {
-                setFilter("all");
-                setToneFilter("all");
-              }}
-              data-action="clear-filter"
-              style={{
-                background: "transparent",
-                border: "1px solid currentColor",
-                borderRadius: 4,
-                padding: "0.2rem 0.5rem",
-                fontSize: 12,
-                cursor: "pointer",
-                marginLeft: 6,
-              }}
-            >
-              Show all
-            </button>
+          <div data-state="filter-empty">
+            <Card variant="empty" padding="comfortable">
+              <span style={{ fontSize: 14 }}>
+                No items match the{" "}
+                <strong>{INBOX_FILTER_LABELS[filter]}</strong> filter
+                {toneFilter !== "all" ? (
+                  <>
+                    {" "}
+                    with <strong>{toneFilter}</strong> tone
+                  </>
+                ) : null}{" "}
+                right now.{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilter("all");
+                    setToneFilter("all");
+                  }}
+                  data-action="clear-filter"
+                  style={{
+                    background: "transparent",
+                    border: "1px solid currentColor",
+                    borderRadius: 4,
+                    padding: "0.2rem 0.5rem",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    marginLeft: 6,
+                  }}
+                >
+                  Show all
+                </button>
+              </span>
+            </Card>
           </div>
         )}
 
@@ -966,7 +950,7 @@ function InboxPageInner() {
                           padding: "0.7rem 0.9rem",
                           border: `1px solid ${tStyle.border}`,
                           background: tStyle.background,
-                          borderRadius: 8,
+                          borderRadius: "var(--radius-card, 12px)",
                           display: "flex",
                           justifyContent: "space-between",
                           alignItems: "center",
@@ -1099,31 +1083,32 @@ function InboxPageInner() {
                           </Link>
                           {item.canMarkRead &&
                             (item.isRead ? (
-                              <button
-                                type="button"
+                              <Button
+                                variant="secondary"
+                                size="sm"
                                 data-action="mark-unread"
                                 data-inbox-item-key={item.itemKey}
                                 onClick={() => void markUnread(item)}
                                 disabled={pendingItemKey === item.itemKey}
-                                style={toolbarBtn(false)}
                               >
                                 Mark unread
-                              </button>
+                              </Button>
                             ) : (
-                              <button
-                                type="button"
+                              <Button
+                                variant="secondary"
+                                size="sm"
                                 data-action="mark-read"
                                 data-inbox-item-key={item.itemKey}
                                 onClick={() => void markRead(item)}
                                 disabled={pendingItemKey === item.itemKey}
-                                style={toolbarBtn(false)}
                               >
                                 Mark read
-                              </button>
+                              </Button>
                             ))}
                           {item.canSnooze && (
-                            <button
-                              type="button"
+                            <Button
+                              variant="secondary"
+                              size="sm"
                               data-action="snooze"
                               data-inbox-item-key={item.itemKey}
                               onClick={() => {
@@ -1133,22 +1118,21 @@ function InboxPageInner() {
                                 void snoozeItem(item, oneDay);
                               }}
                               disabled={pendingItemKey === item.itemKey}
-                              style={toolbarBtn(false)}
                             >
                               Snooze 1d
-                            </button>
+                            </Button>
                           )}
                           {item.canDismiss && (
-                            <button
-                              type="button"
+                            <Button
+                              variant="secondary"
+                              size="sm"
                               data-action="dismiss"
                               data-inbox-item-key={item.itemKey}
                               onClick={() => void dismissItem(item)}
                               disabled={pendingItemKey === item.itemKey}
-                              style={toolbarBtn(false)}
                             >
                               Dismiss
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </li>
@@ -1174,48 +1158,24 @@ function InboxPageInner() {
             marginTop: 14,
           }}
         >
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={() => void loadMore()}
-            disabled={loadingMore}
+            loading={loadingMore}
             data-action="load-more-inbox"
             data-inbox-next-cursor={nextCursor}
-            style={toolbarBtn(true)}
           >
             {loadingMore ? "Loading…" : "Load more"}
-          </button>
+          </Button>
         </div>
       )}
 
       {/* ---------- operational scope panel ---------- */}
-      <section
+      <PageSection
         data-inbox-scope-panel
-        style={{
-          marginTop: 20,
-          padding: "0.9rem 1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-          background: "rgba(127,127,127,0.04)",
-        }}
+        title="Operational scope"
+        description="Honest summary of what the inbox surfaces today vs what is deliberately deferred to later backend work. Items marked “deferred” are not faked in the UI — the underlying signal either does not exist as a model, or its cross-workspace aggregation is not built."
       >
-        <div
-          style={{
-            fontSize: 11,
-            opacity: 0.7,
-            letterSpacing: 0.5,
-            textTransform: "uppercase",
-            marginBottom: 6,
-          }}
-        >
-          Operational scope
-        </div>
-        <p style={{ fontSize: 13, margin: "0 0 8px" }}>
-          Honest summary of what the inbox surfaces today vs what is
-          deliberately deferred to later backend work. Items marked
-          “deferred” are not faked in the UI — the underlying signal
-          either does not exist as a model, or its cross-workspace
-          aggregation is not built.
-        </p>
         <div
           style={{
             display: "grid",
@@ -1347,26 +1307,12 @@ function InboxPageInner() {
             </ul>
           </div>
         </div>
-      </section>
-    </main>
+      </PageSection>
+    </PageShell>
   );
 }
 
 // ---------- shared styles ----------
-
-function toolbarBtn(primary: boolean): React.CSSProperties {
-  return {
-    padding: "0.4rem 0.8rem",
-    border: "1px solid currentColor",
-    borderRadius: 4,
-    fontSize: 13,
-    fontWeight: primary ? 600 : 500,
-    background: primary ? "rgba(99,102,241,0.12)" : "transparent",
-    color: "inherit",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  };
-}
 
 function cardLinkBtn(primary: boolean): React.CSSProperties {
   return {
@@ -1387,13 +1333,13 @@ function scopeBlockStyle(kind: "available" | "deferred"): React.CSSProperties {
     padding: "0.7rem 0.85rem",
     border:
       kind === "available"
-        ? "1px solid rgba(34, 197, 94, 0.45)"
-        : "1px solid rgba(127, 127, 127, 0.4)",
+        ? "1px solid var(--status-verified-border, rgba(34, 197, 94, 0.45))"
+        : "1px solid var(--border-default, rgba(127, 127, 127, 0.4))",
     background:
       kind === "available"
-        ? "rgba(34, 197, 94, 0.06)"
-        : "rgba(127, 127, 127, 0.04)",
-    borderRadius: 6,
+        ? "var(--status-verified-bg, rgba(34, 197, 94, 0.06))"
+        : "var(--surface-muted, rgba(127, 127, 127, 0.04))",
+    borderRadius: "var(--radius-card, 10px)",
     fontSize: 12,
   };
 }
@@ -1412,26 +1358,4 @@ const scopeListStyle: React.CSSProperties = {
   paddingLeft: "1.1rem",
   display: "grid",
   gap: 5,
-};
-
-const listLoadingStyle: React.CSSProperties = {
-  padding: "1rem",
-  border: "1px dashed rgba(127,127,127,0.3)",
-  borderRadius: 8,
-  opacity: 0.75,
-  fontSize: 13,
-};
-
-const listErrorStyle: React.CSSProperties = {
-  padding: "1rem",
-  border: "1px solid #d44",
-  borderRadius: 8,
-  background: "rgba(220,68,68,0.06)",
-};
-
-const listEmptyStyle: React.CSSProperties = {
-  padding: "1.1rem",
-  border: "1px dashed rgba(127,127,127,0.4)",
-  borderRadius: 8,
-  fontSize: 14,
 };

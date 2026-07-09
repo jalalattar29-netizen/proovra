@@ -27,21 +27,19 @@ import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { AccessGate } from "../../../../../components/access/AccessGate";
+import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
+import { Card } from "../../../../../components/ui/Card";
+import { Button } from "../../../../../components/ui/Button";
+import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import {
-  badgeStyle,
-  cardStyle,
-  errorBoxStyle,
+  DataTable,
+  type DataTableColumn,
+} from "../../../../../components/ui/DataTable";
+import { EmptyState } from "../../../../../components/ui/EmptyState";
+import {
   formatDateTime,
-  ghostButtonStyle,
-  headerRowStyle,
   mutedStyle,
-  pageStyle,
   sectionTitleStyle,
-  subtitleStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  titleStyle,
   TOKENS,
 } from "../../../admin/identity/ui-tokens";
 
@@ -102,26 +100,18 @@ type SsoHealthSnapshot = {
   connections: ReadonlyArray<SsoConnectionHealth>;
 };
 
-function healthBadge(h: SsoConnectionHealthStatus) {
-  if (h === "HEALTHY")
-    return badgeStyle({ bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" });
-  if (h === "DEGRADED")
-    return badgeStyle({ bg: "#fef3c7", fg: "#78350f", border: "#fde68a" });
-  if (h === "OUTAGE")
-    return badgeStyle({ bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" });
-  if (h === "DISABLED")
-    return badgeStyle({ bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" });
-  return badgeStyle({ bg: "#eef2ff", fg: "#3730a3", border: "#c7d2fe" });
+function healthTone(h: SsoConnectionHealthStatus): BadgeTone {
+  if (h === "HEALTHY") return "verified";
+  if (h === "DEGRADED") return "pending";
+  if (h === "OUTAGE") return "risk";
+  if (h === "DISABLED") return "neutral";
+  return "governance";
 }
 
-function certBadge(band: CertExpiryBand) {
-  if (band === "ok")
-    return badgeStyle({ bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" });
-  if (band === "warning")
-    return badgeStyle({ bg: "#fef3c7", fg: "#78350f", border: "#fde68a" });
-  if (band === "expiring")
-    return badgeStyle({ bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" });
-  return badgeStyle({ bg: "#fef2f2", fg: "#7f1d1d", border: "#fca5a5" });
+function certTone(band: CertExpiryBand): BadgeTone {
+  if (band === "ok") return "verified";
+  if (band === "warning") return "pending";
+  return "risk";
 }
 
 export default function SsoHealthPage() {
@@ -158,7 +148,15 @@ function SsoHealthContent() {
 
   if (!teamId) {
     return (
-      <main style={pageStyle}>
+      <PageShell
+        header={
+          <PageHeader
+            eyebrow="Security Center · SSO"
+            title="SSO Health"
+            subtitle="Diagnostic snapshot of each configured SSO connection."
+          />
+        }
+      >
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="SSO Health"
@@ -169,39 +167,68 @@ function SsoHealthContent() {
           ]}
           testid="sso-health-access-gate-no-workspace"
         />
-      </main>
+      </PageShell>
     );
   }
 
-  return (
-    <main style={pageStyle}>
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>SSO Health</h1>
-          <p style={subtitleStyle}>
-            Diagnostic snapshot of each configured SSO connection.
-            Bounded failure-reason taxonomy + cert expiry projections +
-            recommended remediation action per connection. Aggregates
-            from the last 24h and 7d of callback attempts.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button
-            type="button"
-            style={ghostButtonStyle}
-            onClick={load}
-            disabled={loading}
-          >
-            {loading ? "Refreshing…" : "Refresh"}
-          </button>
-        </div>
-      </header>
+  const attemptColumns: DataTableColumn<{
+    window: string;
+    total: number;
+    failed: number;
+    replayed: number;
+  }>[] = [
+    { key: "window", header: "Window" },
+    { key: "total", header: "Total", align: "right" },
+    { key: "failed", header: "Failed", align: "right" },
+    { key: "replayed", header: "Replayed", align: "right" },
+  ];
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+  const failureColumns: DataTableColumn<{
+    reason: SsoFailureReason;
+    count24h: number;
+    count7d: number;
+  }>[] = [
+    {
+      key: "reason",
+      header: "Reason",
+      render: (b) => (
+        <code style={{ fontFamily: "monospace", fontSize: 12 }}>{b.reason}</code>
+      ),
+    },
+    { key: "count24h", header: "24h", align: "right" },
+    { key: "count7d", header: "7d", align: "right" },
+  ];
+
+  return (
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Security Center · SSO"
+          title="SSO Health"
+          subtitle="Diagnostic snapshot of each configured SSO connection. Bounded failure-reason taxonomy + cert expiry projections + recommended remediation action per connection. Aggregates from the last 24h and 7d of callback attempts."
+          secondaryActions={
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={load}
+              loading={loading}
+              disabled={loading}
+            >
+              {loading ? "Refreshing…" : "Refresh"}
+            </Button>
+          }
+        />
+      }
+    >
+      {error ? (
+        <Card variant="status" tone="risk">
+          {error}
+        </Card>
+      ) : null}
 
       {snapshot ? (
         <>
-          <section style={{ ...cardStyle, marginTop: 16 }}>
+          <Card variant="summary">
             <div
               style={{
                 display: "flex",
@@ -213,9 +240,9 @@ function SsoHealthContent() {
               <div>
                 <div style={mutedStyle}>Overall status</div>
                 <div style={{ marginTop: 4 }}>
-                  <span style={healthBadge(snapshot.overallStatus)}>
+                  <Badge tone={healthTone(snapshot.overallStatus)}>
                     {snapshot.overallStatus}
-                  </span>
+                  </Badge>
                 </div>
               </div>
               <div>
@@ -231,31 +258,27 @@ function SsoHealthContent() {
                 </div>
               </div>
             </div>
-          </section>
+          </Card>
 
           {snapshot.connections.length === 0 ? (
-            <section
-              style={{
-                ...cardStyle,
-                marginTop: 12,
-                padding: 24,
-                textAlign: "center",
-              }}
-            >
-              <p style={mutedStyle}>
-                No SSO connections configured. Configure SAML or OIDC on the{" "}
+            <EmptyState
+              framed
+              title="No SSO connection configured"
+              purpose="Configure a SAML or OIDC connection to start collecting health telemetry for this workspace."
+              action={
                 <a
                   href="/security-center/sso"
-                  style={{ color: TOKENS.link, textDecoration: "underline" }}
+                  style={{ color: TOKENS.link, textDecoration: "none" }}
                 >
-                  SSO Admin
-                </a>{" "}
-                page.
-              </p>
-            </section>
+                  <Button variant="secondary" size="sm">
+                    Configure SSO →
+                  </Button>
+                </a>
+              }
+            />
           ) : (
             snapshot.connections.map((c) => (
-              <section key={c.connectionId} style={{ ...cardStyle, marginTop: 12 }}>
+              <Card key={c.connectionId} variant="summary">
                 <div
                   style={{
                     display: "flex",
@@ -273,13 +296,13 @@ function SsoHealthContent() {
                       </span>
                     </h3>
                     <div style={{ marginTop: 6, display: "flex", gap: 6 }}>
-                      <span style={healthBadge(c.health)}>{c.health}</span>
-                      <span style={certBadge(c.cert.expiryBand)}>
+                      <Badge tone={healthTone(c.health)}>{c.health}</Badge>
+                      <Badge tone={certTone(c.cert.expiryBand)}>
                         cert: {c.cert.expiryBand}
                         {c.cert.daysUntilExpiry !== null
                           ? ` · ${c.cert.daysUntilExpiry}d`
                           : ""}
-                      </span>
+                      </Badge>
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -316,79 +339,47 @@ function SsoHealthContent() {
 
                 <div style={{ marginTop: 12 }}>
                   <h4 style={sectionTitleStyle}>Attempt counts</h4>
-                  <table style={tableStyle}>
-                    <thead>
-                      <tr>
-                        <th style={thStyle}>Window</th>
-                        <th style={thStyle}>Total</th>
-                        <th style={thStyle}>Failed</th>
-                        <th style={thStyle}>Replayed</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td style={tdStyle}>Last 24h</td>
-                        <td style={tdStyle}>{c.attemptCounts.last24h.total}</td>
-                        <td style={tdStyle}>
-                          {c.attemptCounts.last24h.failed}
-                        </td>
-                        <td style={tdStyle}>
-                          {c.attemptCounts.last24h.replayed}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style={tdStyle}>Last 7d</td>
-                        <td style={tdStyle}>{c.attemptCounts.last7d.total}</td>
-                        <td style={tdStyle}>
-                          {c.attemptCounts.last7d.failed}
-                        </td>
-                        <td style={tdStyle}>
-                          {c.attemptCounts.last7d.replayed}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <DataTable
+                    ariaLabel="Attempt counts"
+                    columns={attemptColumns}
+                    rows={[
+                      {
+                        window: "Last 24h",
+                        total: c.attemptCounts.last24h.total,
+                        failed: c.attemptCounts.last24h.failed,
+                        replayed: c.attemptCounts.last24h.replayed,
+                      },
+                      {
+                        window: "Last 7d",
+                        total: c.attemptCounts.last7d.total,
+                        failed: c.attemptCounts.last7d.failed,
+                        replayed: c.attemptCounts.last7d.replayed,
+                      },
+                    ]}
+                    getRowId={(r) => r.window}
+                  />
                 </div>
 
                 {c.failureBreakdown.length > 0 ? (
                   <div style={{ marginTop: 12 }}>
                     <h4 style={sectionTitleStyle}>Failure breakdown</h4>
-                    <table style={tableStyle}>
-                      <thead>
-                        <tr>
-                          <th style={thStyle}>Reason</th>
-                          <th style={thStyle}>24h</th>
-                          <th style={thStyle}>7d</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {c.failureBreakdown.map((b) => (
-                          <tr key={b.reason}>
-                            <td style={tdStyle}>
-                              <code
-                                style={{
-                                  fontFamily: "monospace",
-                                  fontSize: 12,
-                                }}
-                              >
-                                {b.reason}
-                              </code>
-                            </td>
-                            <td style={tdStyle}>{b.count24h}</td>
-                            <td style={tdStyle}>{b.count7d}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <DataTable
+                      ariaLabel="Failure breakdown"
+                      columns={failureColumns}
+                      rows={[...c.failureBreakdown]}
+                      getRowId={(b) => b.reason}
+                    />
                   </div>
                 ) : null}
-              </section>
+              </Card>
             ))
           )}
         </>
       ) : loading ? (
-        <p style={{ ...mutedStyle, marginTop: 16 }}>Loading SSO health…</p>
+        <PageSection>
+          <p style={{ ...mutedStyle, marginTop: 16 }}>Loading SSO health…</p>
+        </PageSection>
       ) : null}
-    </main>
+    </PageShell>
   );
 }

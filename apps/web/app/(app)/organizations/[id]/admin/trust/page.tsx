@@ -14,12 +14,20 @@
  *   - No raw window.confirm (read-only).
  *   - No platform-context workspace-fragment reads.
  *   - Strong TypeScript types throughout.
+ *
+ * Phase 7 (Enterprise UX): presentation migrated to the shared design
+ * system (PageSection + Card + Button). This tab renders INSIDE the org
+ * admin layout shell (which already owns the org title + tab bar), so it
+ * uses PageSection — not a second PageHeader — to avoid a duplicate title.
  */
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
+import { PageSection } from "../../../../../../components/ui/PageShell";
+import { Card } from "../../../../../../components/ui/Card";
+import { Button } from "../../../../../../components/ui/Button";
 
 export default function OrganizationAdminTrustPage() {
   return (
@@ -34,36 +42,40 @@ function TrustTab() {
   const orgId = params?.id ?? "";
 
   return (
-    <section data-testid="org-admin-trust" data-org-id={orgId}>
-      <section
+    <section
+      data-testid="org-admin-trust"
+      data-org-id={orgId}
+      style={{ display: "flex", flexDirection: "column", gap: 24 }}
+    >
+      <Card
+        variant="admin"
         data-section="trust-summary"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-          marginBottom: "1rem",
-        }}
+        title="Trust Center"
       >
-        <h2 style={{ margin: 0, fontSize: 16 }}>Trust Center</h2>
-        <p style={{ fontSize: 13, opacity: 0.85, marginTop: 8 }}>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 13.5,
+            lineHeight: 1.6,
+            color: "var(--ink-secondary, #475569)",
+          }}
+        >
           The Trust Center publishes versioned trust articles (security
           policy, methodology, AI disclosure, etc.) and the subprocessor
           registry. Article + subprocessor CRUD lives on the canonical
           workspace-scoped surface; drift detection runs against the
           published versions.
         </p>
-      </section>
+      </Card>
 
-      <section
-        data-section="trust-deep-links"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-        }}
+      <PageSection
+        title="Canonical trust surfaces"
+        description="Published trust content lives on the canonical workspace-scoped pages. Open them below."
       >
-        <h2 style={{ margin: 0, fontSize: 16 }}>Canonical trust surfaces</h2>
-        <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
+        <div
+          data-section="trust-deep-links"
+          style={{ display: "flex", flexDirection: "column", gap: 10 }}
+        >
           <DeepLink
             testId="trust-deep-link-center"
             label="Trust Center"
@@ -82,8 +94,8 @@ function TrustTab() {
             description="Live + historical status of the platform's internal + external dependencies."
             href="/trust-center/status"
           />
-        </ul>
-      </section>
+        </div>
+      </PageSection>
     </section>
   );
 }
@@ -100,28 +112,36 @@ function DeepLink({
   href: string;
 }) {
   return (
-    <li
-      style={{
-        padding: "0.5rem 0",
-        borderBottom: "1px solid rgba(127,127,127,0.18)",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 12,
-        flexWrap: "wrap",
-      }}
+    <Card
+      variant="summary"
+      padding="compact"
+      style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
     >
       <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-        <div style={{ fontWeight: 500 }}>{label}</div>
-        <div style={{ fontSize: 12, opacity: 0.75 }}>{description}</div>
+        <div
+          style={{
+            fontWeight: 600,
+            fontSize: 14,
+            color: "var(--ink-primary, #0f172a)",
+          }}
+        >
+          {label}
+        </div>
+        <div
+          style={{
+            fontSize: 12.5,
+            color: "var(--ink-secondary, #475569)",
+            marginTop: 2,
+          }}
+        >
+          {description}
+        </div>
       </div>
-      <Link
-        href={href}
-        data-testid={testId}
-        className="cases-filter-chip"
-      >
-        Open →
+      <Link href={href} data-testid={testId} style={{ textDecoration: "none", flexShrink: 0 }}>
+        <Button variant="secondary" size="sm">
+          Open →
+        </Button>
       </Link>
-    </li>
+    </Card>
   );
 }

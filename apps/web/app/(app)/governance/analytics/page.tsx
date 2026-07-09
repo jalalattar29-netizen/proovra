@@ -23,6 +23,11 @@ import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { EmptyState } from "../../../../components/ui/EmptyState";
+import { FilterBar } from "../../../../components/ui/FilterBar";
+import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 
 type AnalyticsWindow = "1h" | "24h" | "7d" | "30d";
 
@@ -120,16 +125,81 @@ function GovernanceAnalyticsPageInner() {
     return formatUserDateTime(data.generatedAtUtc);
   }, [data]);
 
-  return (
-    <main style={pageStyle}>
-      <header>
-        <h1 style={titleStyle}>Governance analytics</h1>
-        <p style={mutedStyle}>
-          Operational view of the workspace's governance posture. Polled
-          every 30 seconds. As of {generatedLabel}.
-        </p>
-      </header>
+  type ConflictRow = AnalyticsResult["topRetentionConflicts"][number];
+  type RunRow = AnalyticsResult["topReconciliationRuns"][number];
 
+  const conflictColumns: DataTableColumn<ConflictRow>[] = [
+    { key: "scope", header: "Scope", render: (c) => c.scope },
+    {
+      key: "qualifier",
+      header: "Qualifier",
+      render: (c) => c.scopeQualifier ?? "—",
+    },
+    {
+      key: "case",
+      header: "Case",
+      render: (c) => (c.caseId ? c.caseId.slice(0, 8) + "…" : "—"),
+    },
+    {
+      key: "active",
+      header: "Active policies",
+      align: "right",
+      render: (c) => c.activeCount,
+    },
+  ];
+
+  const runColumns: DataTableColumn<RunRow>[] = [
+    { key: "kind", header: "Kind", render: (r) => r.kind },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => <span style={runStatusBadge(r.status)}>{r.status}</span>,
+    },
+    {
+      key: "started",
+      header: "Started",
+      nowrap: true,
+      render: (r) => formatUserDateTime(r.startedAtUtc),
+    },
+    {
+      key: "finished",
+      header: "Finished",
+      nowrap: true,
+      render: (r) =>
+        r.finishedAtUtc ? formatUserDateTime(r.finishedAtUtc) : "—",
+    },
+    { key: "scanned", header: "Scanned", align: "right", render: (r) => r.scanned },
+    { key: "matched", header: "Matched", align: "right", render: (r) => r.matched },
+    { key: "created", header: "Created", align: "right", render: (r) => r.created },
+    { key: "failed", header: "Failed", align: "right", render: (r) => r.failed },
+  ];
+
+  return (
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Governance"
+          title="Governance analytics"
+          subtitle={`Operational view of the workspace's governance posture. Polled every 30 seconds. As of ${generatedLabel}.`}
+          primaryAction={
+            <FilterBar>
+              <FilterBar.Select
+                label="Window"
+                showLabel
+                value={window}
+                onChange={(v) => setWindowSel(v as AnalyticsWindow)}
+                options={[
+                  { value: "1h", label: "Last 1 hour" },
+                  { value: "24h", label: "Last 24 hours" },
+                  { value: "7d", label: "Last 7 days" },
+                  { value: "30d", label: "Last 30 days" },
+                ]}
+              />
+            </FilterBar>
+          }
+        />
+      }
+    >
       <nav style={navStyle}>
         <Link href="/governance/lifecycle" style={navLinkStyle}>
           ← Governance operations
@@ -145,26 +215,14 @@ function GovernanceAnalyticsPageInner() {
         </Link>
       </nav>
 
-      <div style={toolbarStyle}>
-        <label style={filterLabelStyle}>
-          Window
-          <select
-            style={selectStyle}
-            value={window}
-            onChange={(e) => setWindowSel(e.target.value as AnalyticsWindow)}
-          >
-            <option value="1h">Last 1 hour</option>
-            <option value="24h">Last 24 hours</option>
-            <option value="7d">Last 7 days</option>
-            <option value="30d">Last 30 days</option>
-          </select>
-        </label>
-      </div>
-
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
       {!teamId ? (
-        <p style={mutedStyle}>Switch to a workspace to view analytics.</p>
+        <EmptyState
+          framed
+          title="No workspace selected"
+          purpose="Switch to an organization workspace to view its governance analytics."
+        />
       ) : !data ? (
         <p style={mutedStyle}>Loading analytics…</p>
       ) : (
@@ -181,108 +239,69 @@ function GovernanceAnalyticsPageInner() {
           </section>
 
           <div style={twoColStyle}>
-            <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>Incident severity (window)</h2>
-              <SeverityBars data={data.severityBreakdown.incidents} />
-            </section>
-            <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>Notification severity (window)</h2>
-              <SeverityBars data={data.severityBreakdown.notifications} />
-            </section>
+            <PageSection title="Incident severity (window)">
+              <Card>
+                <SeverityBars data={data.severityBreakdown.incidents} />
+              </Card>
+            </PageSection>
+            <PageSection title="Notification severity (window)">
+              <Card>
+                <SeverityBars data={data.severityBreakdown.notifications} />
+              </Card>
+            </PageSection>
           </div>
 
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>Lifecycle distribution</h2>
-            <BreakdownTable data={data.lifecycleByState} />
-          </section>
+          <PageSection title="Lifecycle distribution">
+            <Card>
+              <BreakdownTable data={data.lifecycleByState} />
+            </Card>
+          </PageSection>
 
           <div style={twoColStyle}>
-            <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>Destruction queue mix (window)</h2>
-              <BreakdownTable data={data.destructionByStatus} />
-            </section>
-            <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>Immutable storage drift (window)</h2>
-              <BreakdownTable data={data.immutableDriftByOutcome} />
-            </section>
+            <PageSection title="Destruction queue mix (window)">
+              <Card>
+                <BreakdownTable data={data.destructionByStatus} />
+              </Card>
+            </PageSection>
+            <PageSection title="Immutable storage drift (window)">
+              <Card>
+                <BreakdownTable data={data.immutableDriftByOutcome} />
+              </Card>
+            </PageSection>
           </div>
 
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>Top retention conflicts</h2>
-            {data.topRetentionConflicts.length === 0 ? (
-              <p style={mutedStyle}>No same-scope ACTIVE conflicts.</p>
-            ) : (
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>Scope</th>
-                    <th style={thStyle}>Qualifier</th>
-                    <th style={thStyle}>Case</th>
-                    <th style={thStyle}>Active policies</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.topRetentionConflicts.map((c, i) => (
-                    <tr key={i}>
-                      <td style={tdStyle}>{c.scope}</td>
-                      <td style={tdStyle}>{c.scopeQualifier ?? "—"}</td>
-                      <td style={tdStyle}>
-                        {c.caseId ? c.caseId.slice(0, 8) + "…" : "—"}
-                      </td>
-                      <td style={tdStyle}>{c.activeCount}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
+          <PageSection title="Top retention conflicts">
+            <DataTable
+              ariaLabel="Top retention conflicts"
+              columns={conflictColumns}
+              rows={data.topRetentionConflicts}
+              getRowId={(_c, i) => String(i)}
+              emptyState={
+                <EmptyState
+                  title="No deletion blockers"
+                  purpose="No same-scope ACTIVE conflicts. Overlapping retention policies on the same scope would appear here for resolution."
+                />
+              }
+            />
+          </PageSection>
 
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>Recent reconciliation runs</h2>
-            {data.topReconciliationRuns.length === 0 ? (
-              <p style={mutedStyle}>No runs in the selected window.</p>
-            ) : (
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>Kind</th>
-                    <th style={thStyle}>Status</th>
-                    <th style={thStyle}>Started</th>
-                    <th style={thStyle}>Finished</th>
-                    <th style={thStyle}>Scanned</th>
-                    <th style={thStyle}>Matched</th>
-                    <th style={thStyle}>Created</th>
-                    <th style={thStyle}>Failed</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.topReconciliationRuns.map((r) => (
-                    <tr key={r.id}>
-                      <td style={tdStyle}>{r.kind}</td>
-                      <td style={tdStyle}>
-                        <span style={runStatusBadge(r.status)}>{r.status}</span>
-                      </td>
-                      <td style={tdStyle}>
-                        {formatUserDateTime(r.startedAtUtc)}
-                      </td>
-                      <td style={tdStyle}>
-                        {r.finishedAtUtc
-                          ? formatUserDateTime(r.finishedAtUtc)
-                          : "—"}
-                      </td>
-                      <td style={tdStyle}>{r.scanned}</td>
-                      <td style={tdStyle}>{r.matched}</td>
-                      <td style={tdStyle}>{r.created}</td>
-                      <td style={tdStyle}>{r.failed}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
+          <PageSection title="Recent reconciliation runs">
+            <DataTable
+              ariaLabel="Recent reconciliation runs"
+              columns={runColumns}
+              rows={data.topReconciliationRuns}
+              getRowId={(r) => r.id}
+              emptyState={
+                <EmptyState
+                  title="No reconciliation runs"
+                  purpose="No runs in the selected window. Governance reconciliation runs and their outcomes will appear here."
+                />
+              }
+            />
+          </PageSection>
         </>
       )}
-    </main>
+    </PageShell>
   );
 }
 
@@ -409,36 +428,7 @@ function BreakdownTable({ data }: { data: Record<string, number> }) {
 // Styles
 // -----------------------------------------------------------------------------
 
-const pageStyle: React.CSSProperties = {
-  maxWidth: 1200,
-  margin: "0 auto",
-  padding: "32px 24px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
-};
-const titleStyle: React.CSSProperties = {
-  fontSize: 26,
-  fontWeight: 700,
-  marginBottom: 4,
-  letterSpacing: -0.4,
-};
 const mutedStyle: React.CSSProperties = { fontSize: 13, color: "#64748b" };
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 700,
-  marginBottom: 6,
-  letterSpacing: 0.2,
-  textTransform: "uppercase",
-  color: "#334155",
-};
-const cardStyle: React.CSSProperties = {
-  marginTop: 16,
-  padding: 16,
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  background: "#fff",
-};
 const navStyle: React.CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
@@ -451,28 +441,6 @@ const navLinkStyle: React.CSSProperties = {
   color: "#4338ca",
   fontWeight: 600,
   textDecoration: "none",
-};
-const toolbarStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 12,
-  marginTop: 16,
-  marginBottom: 4,
-};
-const filterLabelStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 4,
-  fontSize: 12,
-  color: "#475569",
-};
-const selectStyle: React.CSSProperties = {
-  padding: "8px 12px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontSize: 14,
-  fontFamily: "inherit",
-  color: "#0f172a",
-  background: "#fff",
 };
 const gridStyle: React.CSSProperties = {
   display: "grid",
@@ -518,17 +486,6 @@ const tableStyle: React.CSSProperties = {
   borderCollapse: "collapse",
   fontSize: 13,
   marginTop: 8,
-};
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  padding: "8px 12px",
-  background: "#f8fafc",
-  borderBottom: "1px solid #e2e8f0",
-  fontWeight: 600,
-  fontSize: 11,
-  textTransform: "uppercase",
-  letterSpacing: 0.5,
-  color: "#475569",
 };
 const tdStyle: React.CSSProperties = {
   padding: "8px 12px",

@@ -33,6 +33,10 @@ import { useParams } from "next/navigation";
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader } from "../../../../../components/ui/PageShell";
+import { Card } from "../../../../../components/ui/Card";
+import { Button } from "../../../../../components/ui/Button";
+import { Badge } from "../../../../../components/ui/Badge";
 import {
   WIZARD_STEPS,
   TOTAL_STEPS,
@@ -577,42 +581,43 @@ function OrganizationSetupInner() {
   // ---------------------------------------------------------------------------
 
   return (
-    <main
+    <PageShell
       data-page="organization-setup-wizard"
       data-org-id={orgId}
       data-caller-role={callerRole ?? ""}
       data-step-id={step.id}
       data-step-index={machine.stepIndex}
       data-total-steps={TOTAL_STEPS}
-      style={{ padding: "1.5rem", maxWidth: 880, margin: "0 auto" }}
+      header={
+        <PageHeader
+          eyebrow="Enterprise onboarding"
+          title={`Set up ${org.kind === "ready" ? org.data.name : "your organization"}`}
+          subtitle="A guided path from a freshly provisioned workspace to enterprise ready. Optional steps can be skipped and finished later."
+          secondaryActions={
+            <Link
+              href={`/organizations/${orgId}`}
+              data-action="breadcrumb-org"
+              style={linkReset}
+            >
+              <Button variant="ghost" size="sm">
+                ← Organization
+              </Button>
+            </Link>
+          }
+        />
+      }
     >
-      <div style={{ marginBottom: "0.75rem", fontSize: 13 }}>
-        <Link href={`/organizations/${orgId}`} data-action="breadcrumb-org">
-          ← Organization
-        </Link>
-      </div>
-
-      <header style={{ marginBottom: "1rem" }}>
-        <div style={kicker}>Enterprise onboarding</div>
-        <h1 style={{ margin: "0.25rem 0 0.25rem", fontSize: 22 }}>
-          Set up {org.kind === "ready" ? org.data.name : "your organization"}
-        </h1>
-        <p style={{ margin: 0, fontSize: 13.5, opacity: 0.8 }}>
-          A guided path from a freshly provisioned workspace to enterprise
-          ready. Optional steps can be skipped and finished later.
-        </p>
-        {org.kind === "error" && org.status === 403 && (
-          <div role="alert" style={errorBox}>
-            You don’t have access to this organization’s setup.
-          </div>
-        )}
-        {callerRole !== null && !canManage && (
-          <div role="alert" data-role-restricted style={warnBox}>
-            You’re signed in as {ROLE_LABELS[callerRole]}. Setup changes
-            require an organization Owner or Admin.
-          </div>
-        )}
-      </header>
+      {org.kind === "error" && org.status === 403 && (
+        <div role="alert" style={errorBox}>
+          You don’t have access to this organization’s setup.
+        </div>
+      )}
+      {callerRole !== null && !canManage && (
+        <div role="alert" data-role-restricted style={warnBox}>
+          You’re signed in as {ROLE_LABELS[callerRole]}. Setup changes
+          require an organization Owner or Admin.
+        </div>
+      )}
 
       {/* Progress indicator */}
       <ProgressBar
@@ -627,24 +632,31 @@ function OrganizationSetupInner() {
       />
 
       {/* Step body */}
-      <section
+      <Card
+        variant="summary"
         data-step-body={step.id}
-        style={{
-          padding: "1.1rem 1.2rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-          margin: "1rem 0",
-        }}
+        header={
+          <div>
+            <div style={kicker}>
+              Step {step.index} of {TOTAL_STEPS}
+              {step.skippable ? " · optional" : ""}
+            </div>
+            <h2
+              style={{
+                margin: "0.25rem 0 0.15rem",
+                fontSize: 18,
+                fontWeight: 650,
+                color: "var(--ink-primary, #0f172a)",
+              }}
+            >
+              {step.title}
+            </h2>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ink-secondary, #475569)" }}>
+              {step.subtitle}
+            </p>
+          </div>
+        }
       >
-        <div style={kicker}>
-          Step {step.index} of {TOTAL_STEPS}
-          {step.skippable ? " · optional" : ""}
-        </div>
-        <h2 style={{ margin: "0.25rem 0 0.15rem", fontSize: 18 }}>{step.title}</h2>
-        <p style={{ margin: "0 0 0.9rem", fontSize: 13, opacity: 0.8 }}>
-          {step.subtitle}
-        </p>
-
         {stepError && (
           <div role="alert" data-state="error" style={errorBox}>
             {stepError}
@@ -832,16 +844,17 @@ function OrganizationSetupInner() {
                   ))}
                 </select>
               </Field>
-              <div>
-                <button
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <Button
                   type="submit"
+                  variant="primary"
+                  loading={busy}
                   disabled={!canManage || busy || !inviteEmail.trim()}
                   data-action="send-invite"
-                  style={primaryBtn}
                 >
                   {busy ? "Sending…" : "Send invite"}
-                </button>
-                <span style={{ marginLeft: 10, fontSize: 12, opacity: 0.7 }}>
+                </Button>
+                <span style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}>
                   Add as many people as you like — the form clears after each.
                 </span>
               </div>
@@ -1103,9 +1116,11 @@ function OrganizationSetupInner() {
             <Link
               href={primaryWorkspaceId ? `/teams/${primaryWorkspaceId}` : `/teams?org=${orgId}`}
               data-action="open-workspace-settings"
-              style={secondaryBtn}
+              style={linkReset}
             >
-              Open workspace settings →
+              <Button variant="secondary" size="sm">
+                Open workspace settings →
+              </Button>
             </Link>
           </div>
         )}
@@ -1117,8 +1132,10 @@ function OrganizationSetupInner() {
               Record your organization’s first piece of signed, hashed
               evidence. This proves the full pipeline end-to-end.
             </p>
-            <Link href="/capture" data-action="open-capture" style={primaryLinkBtn}>
-              Capture evidence →
+            <Link href="/capture" data-action="open-capture" style={linkReset}>
+              <Button variant="primary" size="sm">
+                Capture evidence →
+              </Button>
             </Link>
           </div>
         )}
@@ -1131,7 +1148,7 @@ function OrganizationSetupInner() {
             setupHref={setupHref}
           />
         )}
-      </section>
+      </Card>
 
       {/* Nav controls */}
       <nav
@@ -1143,48 +1160,48 @@ function OrganizationSetupInner() {
           flexWrap: "wrap",
         }}
       >
-        <button
+        <Button
           type="button"
+          variant="secondary"
           onClick={onBack}
           disabled={!canGoBack(machine)}
           data-action="wizard-back"
-          style={secondaryBtn}
         >
           ← Back
-        </button>
+        </Button>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {step.skippable && !isLastStep(machine) && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={onSkip}
               data-action="wizard-skip"
-              style={secondaryBtn}
             >
               Skip for now
-            </button>
+            </Button>
           )}
           {!isLastStep(machine) ? (
-            <button
+            <Button
               type="button"
+              variant="primary"
               onClick={onNext}
               data-action="wizard-next"
-              style={primaryBtn}
             >
               Next →
-            </button>
+            </Button>
           ) : (
-            <Link href="/home" data-action="go-to-workspace" style={primaryLinkBtn}>
-              Go to workspace →
+            <Link href="/home" data-action="go-to-workspace" style={linkReset}>
+              <Button variant="primary">Go to workspace →</Button>
             </Link>
           )}
         </div>
       </nav>
 
       {/* Live checklist alongside the wizard */}
-      <div style={{ marginTop: "1.25rem" }}>
+      <div>
         <SetupChecklist criteria={criteria} />
       </div>
-    </main>
+    </PageShell>
   );
 }
 
@@ -1210,7 +1227,7 @@ function ProgressBar({
         style={{
           height: 6,
           borderRadius: 999,
-          background: "rgba(127,127,127,0.2)",
+          background: "var(--surface-muted, #f1f4f9)",
           overflow: "hidden",
         }}
       >
@@ -1218,7 +1235,7 @@ function ProgressBar({
           style={{
             width: `${pct}%`,
             height: "100%",
-            background: "rgba(99,102,241,0.9)",
+            background: "var(--enterprise-accent, #6b5bff)",
             transition: "width 160ms ease",
           }}
         />
@@ -1254,14 +1271,14 @@ function ProgressBar({
                 style={{
                   padding: "2px 8px",
                   borderRadius: 999,
-                  border: "1px solid rgba(127,127,127,0.35)",
+                  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
                   background:
                     state === "current"
-                      ? "rgba(99,102,241,0.18)"
+                      ? "var(--status-governance-bg, #eeebff)"
                       : state === "done"
-                        ? "rgba(34,197,94,0.14)"
-                        : "transparent",
-                  color: "inherit",
+                        ? "var(--status-verified-bg, #ecfdf5)"
+                        : "var(--surface-card, #ffffff)",
+                  color: "var(--ink-primary, #0f172a)",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
                   opacity: state === "upcoming" ? 0.6 : 1,
@@ -1294,22 +1311,22 @@ function SuccessScreen({
           width: 56,
           height: 56,
           borderRadius: 999,
-          background: "rgba(34,197,94,0.16)",
-          border: "2px solid rgba(34,197,94,0.9)",
+          background: "var(--status-verified-bg, #ecfdf5)",
+          border: "2px solid var(--status-verified-solid, #10b981)",
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
           fontSize: 26,
-          color: "rgba(34,197,94,0.95)",
+          color: "var(--status-verified-fg, #065f46)",
           margin: "0 auto 0.6rem",
         }}
       >
         ✓
       </div>
-      <h2 style={{ margin: "0 0 0.35rem", fontSize: 20 }}>
+      <h2 style={{ margin: "0 0 0.35rem", fontSize: 20, fontWeight: 650, color: "var(--ink-primary, #0f172a)" }}>
         {orgName} is enterprise ready
       </h2>
-      <p style={{ margin: "0 auto 1rem", fontSize: 13.5, opacity: 0.8, maxWidth: 520 }}>
+      <p style={{ margin: "0 auto 1rem", fontSize: 13.5, color: "var(--ink-secondary, #475569)", maxWidth: 520 }}>
         Your organization is set up. You can revisit any optional step from the
         checklist below at any time.
       </p>
@@ -1317,11 +1334,15 @@ function SuccessScreen({
         <SetupChecklist criteria={criteria} setupHref={setupHref} compact />
       </div>
       <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-        <Link href="/home" data-action="success-go-to-workspace" style={primaryLinkBtn}>
-          Go to workspace →
+        <Link href="/home" data-action="success-go-to-workspace" style={linkReset}>
+          <Button variant="primary" size="sm">
+            Go to workspace →
+          </Button>
         </Link>
-        <Link href="/capture" data-action="success-capture" style={secondaryBtn}>
-          Capture evidence
+        <Link href="/capture" data-action="success-capture" style={linkReset}>
+          <Button variant="secondary" size="sm">
+            Capture evidence
+          </Button>
         </Link>
       </div>
     </div>
@@ -1334,30 +1355,28 @@ function OwnerCard({ members }: { members: Loadable<MembersResponse> }) {
       ? members.data.members.find((m) => m.role === "ORG_OWNER") ?? null
       : null;
   return (
-    <div
-      data-owner-card
-      style={{
-        padding: "0.7rem 0.85rem",
-        border: "1px solid rgba(127,127,127,0.3)",
-        borderRadius: 6,
-        margin: "0.5rem 0 0.9rem",
-      }}
-    >
-      {owner ? (
-        <>
-          <div style={{ fontWeight: 600 }}>
-            {owner.displayName || owner.email || "(owner)"}
+    <div data-owner-card style={{ margin: "0.5rem 0 0.9rem" }}>
+      <Card variant="admin" padding="compact">
+        {owner ? (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600, color: "var(--ink-primary, #0f172a)" }}>
+                {owner.displayName || owner.email || "(owner)"}
+              </div>
+              {owner.email && (
+                <div style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}>
+                  {owner.email}
+                </div>
+              )}
+            </div>
+            <Badge tone="governance" subtle>
+              {ROLE_LABELS.ORG_OWNER}
+            </Badge>
           </div>
-          {owner.email && (
-            <div style={{ fontSize: 12, opacity: 0.7 }}>{owner.email}</div>
-          )}
-          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
-            {ROLE_LABELS.ORG_OWNER}
-          </div>
-        </>
-      ) : (
-        <span style={{ opacity: 0.7 }}>Loading owner…</span>
-      )}
+        ) : (
+          <span style={{ color: "var(--ink-muted, #94a3b8)" }}>Loading owner…</span>
+        )}
+      </Card>
     </div>
   );
 }
@@ -1383,28 +1402,23 @@ function ReadinessRow({
         alignItems: "center",
         justifyContent: "space-between",
         gap: 10,
-        padding: "0.5rem 0.65rem",
-        border: "1px solid rgba(127,127,127,0.3)",
-        borderRadius: 6,
+        padding: "0.6rem 0.75rem",
+        border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+        borderRadius: 10,
+        background: "var(--surface-card, #ffffff)",
         fontSize: 13,
       }}
     >
-      <div>
-        <span style={{ fontWeight: 500 }}>{label}</span>
-        <span
-          style={{
-            marginLeft: 8,
-            fontSize: 11,
-            padding: "1px 8px",
-            borderRadius: 999,
-            background: ready ? "rgba(34,197,94,0.18)" : "rgba(148,163,184,0.2)",
-          }}
-        >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontWeight: 600, color: "var(--ink-primary, #0f172a)" }}>{label}</span>
+        <Badge tone={ready ? "verified" : "neutral"} subtle>
           {stateLabel}
-        </span>
+        </Badge>
       </div>
-      <Link href={href} style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-        {cta} →
+      <Link href={href} style={linkReset}>
+        <Button variant="ghost" size="sm">
+          {cta} →
+        </Button>
       </Link>
     </div>
   );
@@ -1426,13 +1440,14 @@ function ReadOnlyRow({
         display: "flex",
         justifyContent: "space-between",
         gap: 10,
-        padding: "0.45rem 0.6rem",
-        border: "1px solid rgba(127,127,127,0.25)",
-        borderRadius: 6,
+        padding: "0.55rem 0.7rem",
+        border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+        borderRadius: 10,
+        background: "var(--surface-card, #ffffff)",
       }}
     >
-      <span style={{ opacity: 0.75 }}>{label}</span>
-      <span style={{ fontWeight: 600 }}>{value}</span>
+      <span style={{ color: "var(--ink-muted, #94a3b8)" }}>{label}</span>
+      <span style={{ fontWeight: 600, color: "var(--ink-primary, #0f172a)" }}>{value}</span>
     </div>
   );
 }
@@ -1449,10 +1464,10 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label style={{ display: "block", fontSize: 13 }}>
+    <label style={{ display: "block", fontSize: 13, color: "var(--ink-secondary, #475569)" }}>
       {label}
-      {required ? <span style={{ color: "#d44" }}> *</span> : null}
-      {hint ? <small style={{ opacity: 0.7 }}> {hint}</small> : null}
+      {required ? <span style={{ color: "var(--status-risk-fg, #991b1b)" }}> *</span> : null}
+      {hint ? <small style={{ color: "var(--ink-muted, #94a3b8)" }}> {hint}</small> : null}
       {children}
     </label>
   );
@@ -1469,12 +1484,20 @@ function SaveRow({
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <button type="submit" disabled={disabled} data-action="step-save" style={primaryBtn}>
+      <Button
+        type="submit"
+        variant="primary"
+        size="sm"
+        disabled={disabled}
+        data-action="step-save"
+      >
         {children}
-      </button>
+      </Button>
       {saved && (
-        <span data-step-saved style={{ fontSize: 12, color: "rgba(34,197,94,0.95)" }}>
-          Saved ✓
+        <span data-step-saved>
+          <Badge tone="verified" subtle>
+            Saved ✓
+          </Badge>
         </span>
       )}
     </div>
@@ -1487,9 +1510,10 @@ function SaveRow({
 
 const kicker: React.CSSProperties = {
   fontSize: 11,
-  opacity: 0.7,
-  letterSpacing: 0.5,
+  fontWeight: 700,
+  letterSpacing: "0.06em",
   textTransform: "uppercase",
+  color: "var(--ink-muted, #94a3b8)",
 };
 
 const formGrid: React.CSSProperties = {
@@ -1502,68 +1526,44 @@ const input: React.CSSProperties = {
   display: "block",
   width: "100%",
   marginTop: 4,
-  padding: "0.45rem 0.55rem",
-  border: "1px solid currentColor",
-  borderRadius: 4,
-  background: "transparent",
-  color: "inherit",
+  padding: "0.5rem 0.6rem",
+  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+  borderRadius: 10,
+  background: "var(--surface-card, #ffffff)",
+  color: "var(--ink-primary, #0f172a)",
   fontSize: 13,
 };
 
-const primaryBtn: React.CSSProperties = {
-  padding: "0.45rem 0.9rem",
-  border: "1px solid currentColor",
-  borderRadius: 4,
-  fontSize: 13,
-  fontWeight: 600,
-  background: "rgba(99,102,241,0.12)",
-  color: "inherit",
-  cursor: "pointer",
-  whiteSpace: "nowrap",
-};
-
-const primaryLinkBtn: React.CSSProperties = {
-  ...primaryBtn,
+const linkReset: React.CSSProperties = {
   textDecoration: "none",
-  display: "inline-block",
-};
-
-const secondaryBtn: React.CSSProperties = {
-  padding: "0.45rem 0.9rem",
-  border: "1px solid currentColor",
-  borderRadius: 4,
-  fontSize: 13,
-  fontWeight: 500,
-  background: "transparent",
-  color: "inherit",
-  cursor: "pointer",
-  textDecoration: "none",
-  display: "inline-block",
-  whiteSpace: "nowrap",
+  flexShrink: 0,
 };
 
 const errorBox: React.CSSProperties = {
   marginTop: 8,
   marginBottom: 8,
-  padding: "0.45rem 0.6rem",
-  border: "1px solid #d44",
-  borderRadius: 4,
+  padding: "0.5rem 0.65rem",
+  border: "1px solid var(--status-risk-border, #fecaca)",
+  borderRadius: 10,
   fontSize: 13,
-  background: "rgba(220,68,68,0.06)",
+  color: "var(--status-risk-fg, #991b1b)",
+  background: "var(--status-risk-bg, #fef2f2)",
 };
 
 const warnBox: React.CSSProperties = {
   marginTop: 8,
-  padding: "0.45rem 0.6rem",
-  border: "1px solid rgba(245,158,11,0.6)",
-  borderRadius: 4,
+  padding: "0.5rem 0.65rem",
+  border: "1px solid var(--status-pending-border, #fde68a)",
+  borderRadius: 10,
   fontSize: 13,
-  background: "rgba(245,158,11,0.08)",
+  color: "var(--status-pending-fg, #78350f)",
+  background: "var(--status-pending-bg, #fef3c7)",
 };
 
 const hintBox: React.CSSProperties = {
-  padding: "0.45rem 0.6rem",
-  border: "1px dashed rgba(127,127,127,0.5)",
-  borderRadius: 4,
+  padding: "0.5rem 0.65rem",
+  border: "1px dashed var(--border-strong, rgba(15,23,42,0.14))",
+  borderRadius: 10,
   fontSize: 12.5,
+  color: "var(--ink-secondary, #475569)",
 };

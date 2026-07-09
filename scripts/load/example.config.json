@@ -1,0 +1,12 @@
+{
+  "baseUrl": "http://localhost:3001",
+  "orgId": "REPLACE_WITH_ORG_UUID",
+  "teamId": "REPLACE_WITH_TEAM_UUID",
+  "concurrency": 5,
+  "iterations": 50,
+  "bulkInviteRows": 5,
+  "allowProd": false,
+  "endpointOverrides": {
+    "report_status_poll": "/v1/reports?limit=10"
+  }
+}

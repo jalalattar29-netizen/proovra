@@ -32,6 +32,11 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch, ApiError } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDate } from "../../../../lib/date";
@@ -242,38 +247,40 @@ function Shell() {
   }, [refresh]);
 
   return (
-    <div
+    <PageShell
       data-archive-page
-      style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
+      header={
+        <PageHeader
+          eyebrow="Evidence Lifecycle"
+          title="Archive Tiers"
+          subtitle="Move evidence between storage tiers based on age and access patterns. Tier costs are accumulated from the underlying object storage (S3-class) and shown as monthly USD."
+          primaryAction={
+            <Button
+              type="button"
+              variant="primary"
+              loading={busy}
+              disabled={busy}
+              onClick={() => void refresh()}
+            >
+              {busy ? "Loading…" : "Refresh"}
+            </Button>
+          }
+          contextStrip={
+            <a
+              href="/evidence-lifecycle"
+              style={{
+                fontSize: 12,
+                color: "#4338ca",
+                fontWeight: 600,
+                textDecoration: "none",
+              }}
+            >
+              ← Back to Lifecycle Operations
+            </a>
+          }
+        />
+      }
     >
-      <header style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, marginTop: 0 }}>Archive Tiers</h1>
-        <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-          Move evidence between storage tiers based on age and access
-          patterns. Tier costs are accumulated from the underlying object
-          storage (S3-class) and shown as monthly USD.
-        </p>
-        <p style={{ marginTop: 8, marginBottom: 0 }}>
-          <a
-            href="/evidence-lifecycle"
-            style={{
-              fontSize: 12,
-              color: "#4338ca",
-              fontWeight: 600,
-              textDecoration: "none",
-            }}
-          >
-            ← Back to Lifecycle Operations
-          </a>
-        </p>
-      </header>
-
       {denial ? (
         <div
           data-permission-denied={denial.denial}
@@ -306,15 +313,11 @@ function Shell() {
           const count = bucket?.evidenceCount;
           const cost = bucket?.totalCostUsdMicrosPerMonth;
           return (
-            <div
+            <Card
               key={tier}
+              padding="compact"
               data-archive-tier={tier}
-              style={{
-                background: TIER_COLORS[tier] ?? "#f9fafb",
-                border: "1px solid rgba(15,23,42,0.08)",
-                borderRadius: 10,
-                padding: 12,
-              }}
+              style={{ background: TIER_COLORS[tier] ?? "#f9fafb" }}
             >
               <strong style={{ display: "block", marginBottom: 4, fontSize: 14 }}>
                 {TIER_LABELS[tier] ?? tier}
@@ -342,7 +345,7 @@ function Shell() {
               ) : (
                 <small style={{ color: "#94a3b8" }}>No evidence in this tier.</small>
               )}
-            </div>
+            </Card>
           );
         })}
       </section>
@@ -369,19 +372,11 @@ function Shell() {
       ) : null}
 
       {/* Manual transition form */}
-      <section
+      <Card
+        variant="admin"
         data-archive-transition-form
-        style={{
-          background: "rgba(15,23,42,0.03)",
-          border: "1px solid rgba(15,23,42,0.06)",
-          borderRadius: 10,
-          padding: 14,
-          marginBottom: 16,
-        }}
+        title="Manual tier transition"
       >
-        <strong style={{ display: "block", marginBottom: 4, fontSize: 14 }}>
-          Manual tier transition
-        </strong>
         <p style={{ margin: 0, fontSize: 12, color: "#475569", marginBottom: 10 }}>
           Move a specific evidence item to a different storage tier. The
           automatic age-based scheduler usually handles this for you;
@@ -407,54 +402,29 @@ function Shell() {
               ))}
             </select>
           </label>
-          <button
+          <Button
             type="button"
+            variant="primary"
+            loading={transitioning}
             disabled={transitioning || !evidenceId}
             onClick={() => void doTransition()}
-            style={primaryButton}
             title={!evidenceId ? "Enter an evidence ID first" : "Move to target tier"}
           >
             {transitioning ? "Transitioning…" : "Move tier"}
-          </button>
+          </Button>
         </div>
-      </section>
-
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void refresh()}
-        style={primaryButton}
-      >
-        {busy ? "Loading…" : "Refresh"}
-      </button>
+      </Card>
 
       {/* Transitions table */}
-      <section
+      <PageSection
         data-archive-transitions
-        style={{
-          background: "#fff",
-          border: "1px solid rgba(15,23,42,0.08)",
-          borderRadius: 10,
-          padding: 8,
-          marginTop: 12,
-          overflowX: "auto",
-        }}
-      >
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "4px 4px 8px",
-            borderBottom: "1px solid #e2e8f0",
-            marginBottom: 4,
-          }}
-        >
-          <strong style={{ fontSize: 14 }}>Transition history</strong>
+        title="Transition history"
+        action={
           <small style={{ color: "#64748b", fontSize: 11 }}>
             {transitions.length} transition{transitions.length === 1 ? "" : "s"}
           </small>
-        </header>
+        }
+      >
         {transitionsError ? (
           <div
             role="status"
@@ -465,64 +435,37 @@ function Shell() {
               color: "#78350f",
               borderRadius: 6,
               fontSize: 12,
-              margin: 8,
             }}
           >
             <strong>Transition history unavailable.</strong> {transitionsError}
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ textAlign: "left", color: "#475569" }}>
-                <th style={th}>Evidence ID</th>
-                <th style={th}>From</th>
-                <th style={th}>To</th>
-                <th style={th}>State</th>
-                <th style={th}>Initiated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transitions.length === 0 ? (
-                <tr>
-                  <td colSpan={5} style={{ ...td, color: "#475569", textAlign: "center" }}>
-                    No tier transitions recorded yet for this workspace.
-                  </td>
-                </tr>
-              ) : (
-                transitions.map((t) => (
-                  <tr key={t.id}>
-                    <td style={td}>
-                      <code>{t.evidenceId}</code>
-                    </td>
-                    <td style={td}>{TIER_LABELS[t.fromTier] ?? t.fromTier}</td>
-                    <td style={td}>{TIER_LABELS[t.toTier] ?? t.toTier}</td>
-                    <td style={td}>
-                      <strong>{t.state}</strong>
-                    </td>
-                    <td style={td}>{safeDate(t.initiatedAtUtc)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <DataTable<ArchiveTransition>
+            ariaLabel="Archive tier transitions"
+            columns={TRANSITION_COLUMNS}
+            rows={transitions}
+            getRowId={(t) => t.id}
+            emptyState={
+              <EmptyState
+                title="No archived evidence yet"
+                purpose="No tier transitions have been recorded yet for this workspace. Evidence moves through storage tiers automatically as it ages, or via a manual transition above."
+              />
+            }
+          />
         )}
-      </section>
-    </div>
+      </PageSection>
+    </PageShell>
   );
 }
 
-const primaryButton = {
-  padding: "6px 12px",
-  border: "1px solid #0f172a",
-  background: "#0f172a",
-  color: "#fafafa",
-  fontWeight: 600,
-  fontSize: 12,
-  borderRadius: 8,
-  cursor: "pointer",
-} as const;
-const th = { padding: "6px 8px", borderBottom: "1px solid #e2e8f0" } as const;
-const td = { padding: "6px 8px", borderBottom: "1px solid #f1f5f9" } as const;
+const TRANSITION_COLUMNS: DataTableColumn<ArchiveTransition>[] = [
+  { key: "evidenceId", header: "Evidence ID", render: (t) => <code>{t.evidenceId}</code> },
+  { key: "from", header: "From", render: (t) => TIER_LABELS[t.fromTier] ?? t.fromTier },
+  { key: "to", header: "To", render: (t) => TIER_LABELS[t.toTier] ?? t.toTier },
+  { key: "state", header: "State", render: (t) => <strong>{t.state}</strong> },
+  { key: "initiated", header: "Initiated", render: (t) => safeDate(t.initiatedAtUtc) },
+];
+
 const labelStyle = {
   display: "flex",
   flexDirection: "column" as const,

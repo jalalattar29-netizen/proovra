@@ -20,21 +20,14 @@ import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import {
-  cardStyle,
   errorBoxStyle,
   formatDateTime,
-  ghostButtonStyle,
-  headerRowStyle,
   mutedStyle,
-  pageStyle,
-  primaryButtonStyle,
-  subtitleStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  titleStyle,
-  TOKENS,
 } from "../ui-tokens";
+import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
+import { Button } from "../../../../../components/ui/Button";
+import { EmptyState } from "../../../../../components/ui/EmptyState";
+import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 
 type SessionRow = {
   id: string;
@@ -237,9 +230,13 @@ const load = useCallback(() => {
 
   if (!teamId) {
     return (
-      <main style={pageStyle}>
-        <p style={mutedStyle}>Switch to a workspace.</p>
-      </main>
+      <PageShell header={<PageHeader eyebrow="Identity operations" title="Identity Runtime Monitor" />}>
+        <EmptyState
+          framed
+          title="No workspace selected"
+          purpose="Switch to a workspace to monitor its live sessions and quarantine posture."
+        />
+      </PageShell>
     );
   }
 
@@ -247,32 +244,111 @@ const load = useCallback(() => {
   // monitor cares about active sessions only.
   const activeSessions = (sessions ?? []).filter((s) => !s.revoked);
 
-  return (
-    <main style={pageStyle}>
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Identity Runtime Monitor</h1>
-          <p style={subtitleStyle}>
-            SOC console for live session governance. Inspect active
-            sessions, quarantine privileged actions, release safe
-            sessions, and (in genuine emergencies) revoke every active
-            session at once. Every action is audited.
-          </p>
-        </div>
-        <button
-          type="button"
+  const quarantineColumns: DataTableColumn<QuarantineRow>[] = [
+    {
+      key: "user",
+      header: "User",
+      render: (q) => (
+        <code
           style={{
-            ...primaryButtonStyle,
-            background: "#991b1b",
-            border: "1px solid #991b1b",
+            fontFamily:
+              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+            fontSize: 12,
           }}
-          onClick={emergencyRevoke}
-          disabled={busy === "emergency"}
         >
-          Emergency org revoke
-        </button>
-      </header>
+          {q.userId.slice(0, 12)}…
+        </code>
+      ),
+    },
+    {
+      key: "reason",
+      header: "Reason",
+      render: (q) => (
+        <span style={{ ...mutedStyle, fontSize: 11 }}>{q.quarantineReason}</span>
+      ),
+    },
+    {
+      key: "quarantined",
+      header: "Quarantined",
+      nowrap: true,
+      render: (q) => (
+        <span style={mutedStyle}>{formatDateTime(q.quarantinedAtUtc)}</span>
+      ),
+    },
+    {
+      key: "autorelease",
+      header: "Auto-release",
+      nowrap: true,
+      render: (q) => (
+        <span style={mutedStyle}>{formatDateTime(q.quarantineReleaseAtUtc)}</span>
+      ),
+    },
+  ];
 
+  const sessionColumns: DataTableColumn<SessionRow>[] = [
+    {
+      key: "user",
+      header: "User",
+      render: (s) => (
+        <code
+          style={{
+            fontFamily:
+              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+            fontSize: 12,
+          }}
+        >
+          {s.userId.slice(0, 12)}…
+        </code>
+      ),
+    },
+    {
+      key: "idp",
+      header: "IdP",
+      render: (s) => (
+        <span style={{ ...mutedStyle, fontSize: 11 }}>
+          {s.ssoConnectionId ? s.ssoConnectionId.slice(0, 8) + "…" : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "lastseen",
+      header: "Last seen",
+      nowrap: true,
+      render: (s) => (
+        <span style={mutedStyle}>{formatDateTime(s.lastSeenAtUtc)}</span>
+      ),
+    },
+    {
+      key: "device",
+      header: "Device",
+      render: (s) => (
+        <div style={{ fontSize: 11 }}>
+          <div>{s.ipPreview ?? "—"}</div>
+          <div style={mutedStyle}>{s.uaPreview ?? "—"}</div>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Identity operations"
+          title="Identity Runtime Monitor"
+          subtitle="SOC console for live session governance. Inspect active sessions, quarantine privileged actions, release safe sessions, and (in genuine emergencies) revoke every active session at once. Every action is audited."
+          primaryAction={
+            <Button
+              variant="destructive"
+              onClick={emergencyRevoke}
+              disabled={busy === "emergency"}
+            >
+              Emergency org revoke
+            </Button>
+          }
+        />
+      }
+    >
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
       {notice ? (
         <div
@@ -287,168 +363,67 @@ const load = useCallback(() => {
         </div>
       ) : null}
 
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h3
-          style={{
-            margin: 0,
-            marginBottom: 8,
-            fontSize: 13,
-            fontWeight: 700,
-            color: TOKENS.inkMuted,
-            textTransform: "uppercase",
-            letterSpacing: 0.5,
-          }}
-        >
-          Quarantined sessions
-        </h3>
-        {quarantined === null ? (
-          <p style={mutedStyle}>Loading…</p>
-        ) : quarantined.length === 0 ? (
-          <p style={mutedStyle}>No quarantined sessions.</p>
-        ) : (
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>User</th>
-                <th style={thStyle}>Reason</th>
-                <th style={thStyle}>Quarantined</th>
-                <th style={thStyle}>Auto-release</th>
-                <th style={thStyle}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {quarantined.map((q) => (
-                <tr key={q.sessionId}>
-                  <td style={tdStyle}>
-                    <code
-                      style={{
-                        fontFamily:
-                          "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                        fontSize: 12,
-                      }}
-                    >
-                      {q.userId.slice(0, 12)}…
-                    </code>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ ...mutedStyle, fontSize: 11 }}>
-                      {q.quarantineReason}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
-                      {formatDateTime(q.quarantinedAtUtc)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
-                      {formatDateTime(q.quarantineReleaseAtUtc)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <button
-                      type="button"
-                      style={ghostButtonStyle}
-                      onClick={() => release(q.sessionId)}
-                      disabled={busy === q.sessionId}
-                    >
-                      Release
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+      <PageSection title="Quarantined sessions">
+        <DataTable
+          columns={quarantineColumns}
+          rows={quarantined ?? []}
+          getRowId={(q) => q.sessionId}
+          loading={quarantined === null}
+          ariaLabel="Quarantined sessions"
+          emptyState={
+            <EmptyState
+              title="No quarantined sessions"
+              purpose="Sessions held for review appear here with their reason and auto-release time."
+            />
+          }
+          rowActions={(q) => (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => release(q.sessionId)}
+              disabled={busy === q.sessionId}
+            >
+              Release
+            </Button>
+          )}
+        />
+      </PageSection>
 
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h3
-          style={{
-            margin: 0,
-            marginBottom: 8,
-            fontSize: 13,
-            fontWeight: 700,
-            color: TOKENS.inkMuted,
-            textTransform: "uppercase",
-            letterSpacing: 0.5,
-          }}
-        >
-          Active sessions
-        </h3>
-        {sessions === null ? (
-          <p style={mutedStyle}>Loading…</p>
-        ) : activeSessions.length === 0 ? (
-          <p style={mutedStyle}>No active sessions.</p>
-        ) : (
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>User</th>
-                <th style={thStyle}>IdP</th>
-                <th style={thStyle}>Last seen</th>
-                <th style={thStyle}>Device</th>
-                <th style={thStyle}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activeSessions.slice(0, 200).map((s) => (
-                <tr key={s.id}>
-                  <td style={tdStyle}>
-                    <code
-                      style={{
-                        fontFamily:
-                          "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                        fontSize: 12,
-                      }}
-                    >
-                      {s.userId.slice(0, 12)}…
-                    </code>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ ...mutedStyle, fontSize: 11 }}>
-                      {s.ssoConnectionId
-                        ? s.ssoConnectionId.slice(0, 8) + "…"
-                        : "—"}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
-                      {formatDateTime(s.lastSeenAtUtc)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ fontSize: 11 }}>
-                      <div>{s.ipPreview ?? "—"}</div>
-                      <div style={mutedStyle}>{s.uaPreview ?? "—"}</div>
-                    </div>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        style={ghostButtonStyle}
-                        disabled={busy === s.id}
-                        onClick={() => scoreNow(s.id)}
-                      >
-                        Re-score
-                      </button>
-                      <button
-                        type="button"
-                        style={ghostButtonStyle}
-                        disabled={busy === s.id}
-                        onClick={() => quarantine(s.id)}
-                      >
-                        Quarantine
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </main>
+      <PageSection title="Active sessions">
+        <DataTable
+          columns={sessionColumns}
+          rows={sessions === null ? [] : activeSessions.slice(0, 200)}
+          getRowId={(s) => s.id}
+          loading={sessions === null}
+          ariaLabel="Active sessions"
+          emptyState={
+            <EmptyState
+              title="No active sessions"
+              purpose="Live sessions across this workspace appear here for re-scoring and quarantine."
+            />
+          }
+          rowActions={(s) => (
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy === s.id}
+                onClick={() => scoreNow(s.id)}
+              >
+                Re-score
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy === s.id}
+                onClick={() => quarantine(s.id)}
+              >
+                Quarantine
+              </Button>
+            </div>
+          )}
+        />
+      </PageSection>
+    </PageShell>
   );
 }

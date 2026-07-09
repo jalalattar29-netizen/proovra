@@ -40,22 +40,22 @@ import {
   errorBoxStyle,
   formatDateTime,
   ghostButtonStyle,
-  headerRowStyle,
   inputStyle,
   mutedStyle,
-  pageStyle,
-  primaryButtonStyle,
   sectionTitleStyle,
   statusBadgeStyle,
-  subtitleStyle,
   successBoxStyle,
   tableStyle,
   tdStyle,
   thStyle,
-  titleStyle,
   badgeStyle,
   TOKENS,
 } from "../ui-tokens";
+import { PageShell, PageHeader } from "../../../../../components/ui/PageShell";
+import { Card } from "../../../../../components/ui/Card";
+import { Button } from "../../../../../components/ui/Button";
+import { EmptyState } from "../../../../../components/ui/EmptyState";
+import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 
 // ============================================================================
 // Types
@@ -163,34 +163,39 @@ export default function ScimPage() {
 
   if (!teamId) {
     return (
-      <main style={pageStyle}>
-        <p style={mutedStyle}>Switch to a workspace.</p>
-      </main>
+      <PageShell header={<PageHeader eyebrow="Identity operations" title="SCIM Operations" />}>
+        <EmptyState
+          framed
+          title="No SCIM directory connected"
+          purpose="Switch to a workspace to manage its SCIM provisioning tokens, drift reconciliation, and sync replay."
+        />
+      </PageShell>
     );
   }
 
   return (
-    <main style={pageStyle}>
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>SCIM Operations</h1>
-          <p style={subtitleStyle}>
-            Provisioning tokens, drift reconciliation against IdP state, and
-            replay of transient sync failures. The endpoint base is{" "}
-            <code style={{ fontFamily: "monospace", fontSize: 12 }}>
-              /v2/scim
-            </code>
-            . Destructive reconcile actions require step-up.
-          </p>
-        </div>
-      </header>
-
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Identity operations"
+          title="SCIM Operations"
+          subtitle={
+            <>
+              Provisioning tokens, drift reconciliation against IdP state, and
+              replay of transient sync failures. The endpoint base is{" "}
+              <code style={{ fontFamily: "monospace", fontSize: 12 }}>
+                /v2/scim
+              </code>
+              . Destructive reconcile actions require step-up.
+            </>
+          }
+        />
+      }
+    >
       <nav
         style={{
           display: "flex",
           gap: 4,
-          marginTop: 12,
-          marginBottom: 12,
           borderBottom: `1px solid ${TOKENS.border}`,
         }}
         aria-label="SCIM Operations tabs"
@@ -228,7 +233,7 @@ export default function ScimPage() {
       {tab === "tokens" ? <TokensTab teamId={teamId} /> : null}
       {tab === "drift" ? <DriftTab teamId={teamId} /> : null}
       {tab === "replay" ? <ReplayTab teamId={teamId} /> : null}
-    </main>
+    </PageShell>
   );
 }
 
@@ -344,6 +349,53 @@ function TokensTab({ teamId }: { teamId: string }) {
     [teamId, load, stepUp],
   );
 
+  const tokenColumns: DataTableColumn<ScimToken>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (t) => <span style={{ fontWeight: 600 }}>{t.name}</span>,
+    },
+    {
+      key: "prefix",
+      header: "Prefix",
+      render: (t) => (
+        <code
+          style={{
+            fontFamily:
+              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+            fontSize: 12,
+          }}
+        >
+          {t.tokenPrefix}…
+        </code>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (t) => <span style={statusBadgeStyle(t.status)}>{t.status}</span>,
+    },
+    {
+      key: "scopes",
+      header: "Scopes",
+      render: (t) => (
+        <span style={{ ...mutedStyle, fontSize: 11 }}>{t.scopes.join(", ")}</span>
+      ),
+    },
+    {
+      key: "lastused",
+      header: "Last used",
+      nowrap: true,
+      render: (t) => <span style={mutedStyle}>{formatDateTime(t.lastUsedAtUtc)}</span>,
+    },
+    {
+      key: "created",
+      header: "Created",
+      nowrap: true,
+      render: (t) => <span style={mutedStyle}>{formatDateTime(t.createdAt)}</span>,
+    },
+  ];
+
   return (
     <>
       <div
@@ -358,16 +410,15 @@ function TokensTab({ teamId }: { teamId: string }) {
           Bearer tokens for SCIM v2 provisioning. Tokens are scope-bounded and
           hashed at rest; raw values are shown exactly once at creation.
         </p>
-        <button
-          type="button"
-          style={primaryButtonStyle}
+        <Button
+          variant="enterprise"
           onClick={() => {
             setShowCreate(true);
             setRevealedToken(null);
           }}
         >
           New token
-        </button>
+        </Button>
       </div>
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
@@ -386,82 +437,44 @@ function TokensTab({ teamId }: { teamId: string }) {
         </div>
       ) : null}
 
-      <section style={{ ...cardStyle, marginTop: 16, padding: 0 }}>
-        {tokens === null ? (
-          <p style={{ ...mutedStyle, padding: 16 }}>Loading…</p>
-        ) : tokens.length === 0 ? (
-          <p style={{ ...mutedStyle, padding: 24 }}>No SCIM tokens yet.</p>
-        ) : (
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Prefix</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Scopes</th>
-                <th style={thStyle}>Last used</th>
-                <th style={thStyle}>Created</th>
-                <th style={thStyle}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tokens.map((t) => (
-                <tr key={t.id}>
-                  <td style={tdStyle}>
-                    <span style={{ fontWeight: 600 }}>{t.name}</span>
-                  </td>
-                  <td style={tdStyle}>
-                    <code
-                      style={{
-                        fontFamily:
-                          "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                        fontSize: 12,
-                      }}
-                    >
-                      {t.tokenPrefix}…
-                    </code>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={statusBadgeStyle(t.status)}>{t.status}</span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ ...mutedStyle, fontSize: 11 }}>
-                      {t.scopes.join(", ")}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
-                      {formatDateTime(t.lastUsedAtUtc)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
-                      {formatDateTime(t.createdAt)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    {t.status === "ACTIVE" ? (
-                      <button
-                        type="button"
-                        style={{
-                          ...ghostButtonStyle,
-                          color: "#991b1b",
-                          borderColor: "#fecaca",
-                          background: "#fef2f2",
-                        }}
-                        disabled={busy === t.id}
-                        onClick={() => revoke(t.id)}
-                      >
-                        Revoke
-                      </button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+      <div style={{ marginTop: 16 }}>
+        <DataTable
+          columns={tokenColumns}
+          rows={tokens ?? []}
+          getRowId={(t) => t.id}
+          loading={tokens === null}
+          ariaLabel="SCIM provisioning tokens"
+          emptyState={
+            <EmptyState
+              title="No SCIM directory connected"
+              purpose="Issue a scope-bounded SCIM v2 provisioning token so your identity provider can create, update, and deactivate users automatically."
+              action={
+                <Button
+                  variant="enterprise"
+                  onClick={() => {
+                    setShowCreate(true);
+                    setRevealedToken(null);
+                  }}
+                >
+                  New token
+                </Button>
+              }
+            />
+          }
+          rowActions={(t) =>
+            t.status === "ACTIVE" ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={busy === t.id}
+                onClick={() => revoke(t.id)}
+              >
+                Revoke
+              </Button>
+            ) : null
+          }
+        />
+      </div>
 
       {showCreate ? (
         <section style={{ ...cardStyle, marginTop: 16 }}>
@@ -527,21 +540,20 @@ function TokensTab({ teamId }: { teamId: string }) {
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button
-              type="button"
-              style={primaryButtonStyle}
+            <Button
+              variant="enterprise"
+              loading={busy === "create"}
               disabled={busy === "create" || createScopes.size === 0}
               onClick={submitCreate}
             >
               {busy === "create" ? "Creating…" : "Create token"}
-            </button>
-            <button
-              type="button"
-              style={ghostButtonStyle}
+            </Button>
+            <Button
+              variant="ghost"
               onClick={() => setShowCreate(false)}
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </section>
       ) : null}
@@ -672,14 +684,14 @@ function DriftTab({ teamId }: { teamId: string }) {
           SCIM groups, duplicate external subjects. Scan runs locally — no IdP
           calls. Preview is valid for 5 minutes.
         </p>
-        <button
-          type="button"
-          style={ghostButtonStyle}
+        <Button
+          variant="secondary"
           onClick={scan}
+          loading={scanning}
           disabled={scanning}
         >
           {scanning ? "Scanning…" : "Re-scan"}
-        </button>
+        </Button>
       </div>
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
@@ -695,15 +707,13 @@ function DriftTab({ teamId }: { teamId: string }) {
 
       {report ? (
         <>
-          <section
-            style={{
-              ...cardStyle,
-              marginTop: 16,
-              display: "flex",
-              gap: 24,
-              flexWrap: "wrap",
-            }}
+          <Card
+            variant="status"
+            tone={report.summary.byRisk.HIGH > 0 ? "risk" : "governance"}
+            padding="comfortable"
+            style={{ marginTop: 16 }}
           >
+            <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
             <div>
               <div style={mutedStyle}>Drift items</div>
               <div style={{ fontSize: 22, fontWeight: 700 }}>
@@ -735,18 +745,19 @@ function DriftTab({ teamId }: { teamId: string }) {
               </div>
             </div>
             <div style={{ marginLeft: "auto" }}>
-              <button
-                type="button"
-                style={primaryButtonStyle}
+              <Button
+                variant="enterprise"
                 disabled={selected.size === 0 || executing}
+                loading={executing}
                 onClick={execute}
               >
                 {executing
                   ? "Reconciling…"
                   : `Reconcile selected (${selected.size})`}
-              </button>
+              </Button>
             </div>
-          </section>
+            </div>
+          </Card>
 
           {report.truncated ? (
             <p style={{ ...mutedStyle, marginTop: 8 }}>
@@ -757,9 +768,10 @@ function DriftTab({ teamId }: { teamId: string }) {
 
           <section style={{ ...cardStyle, marginTop: 12, padding: 0 }}>
             {report.items.length === 0 ? (
-              <p style={{ ...mutedStyle, padding: 24 }}>
-                No drift detected. Workspace state matches IdP expectations.
-              </p>
+              <EmptyState
+                title="No drift detected"
+                purpose="Workspace state matches IdP expectations. Re-scan after IdP changes to surface new drift."
+              />
             ) : (
               <table style={tableStyle}>
                 <thead>
@@ -899,6 +911,62 @@ function ReplayTab({ teamId }: { teamId: string }) {
     [teamId, load],
   );
 
+  const failureColumns: DataTableColumn<ScimSyncFailure>[] = [
+    {
+      key: "occurred",
+      header: "Occurred",
+      nowrap: true,
+      render: (f) => <span style={mutedStyle}>{formatDateTime(f.occurredAtUtc)}</span>,
+    },
+    {
+      key: "type",
+      header: "Type",
+      render: (f) => (
+        <span style={{ ...mutedStyle, fontSize: 11 }}>{f.eventType}</span>
+      ),
+    },
+    {
+      key: "severity",
+      header: "Severity",
+      render: (f) => (
+        <span
+          style={badgeStyle(
+            f.severity === "HIGH"
+              ? { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" }
+              : f.severity === "WARNING"
+                ? { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" }
+                : { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" },
+          )}
+        >
+          {f.severity}
+        </span>
+      ),
+    },
+    {
+      key: "summary",
+      header: "Summary",
+      render: (f) => <span style={{ fontSize: 12 }}>{f.summary}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (f) =>
+        f.terminal ? (
+          <span style={badgeStyle({ bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" })}>
+            TERMINAL
+          </span>
+        ) : f.retryEligible ? (
+          <span style={badgeStyle({ bg: "#eef2ff", fg: "#3730a3", border: "#c7d2fe" })}>
+            REPLAYABLE
+          </span>
+        ) : (
+          <span style={badgeStyle({ bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" })}>
+            MANUAL
+          </span>
+        ),
+    },
+  ];
+
   return (
     <>
       <div
@@ -914,129 +982,43 @@ function ReplayTab({ teamId }: { teamId: string }) {
           creation) can be replayed; terminal failures (bad token) require
           issuing a new token in the Tokens tab.
         </p>
-        <button type="button" style={ghostButtonStyle} onClick={load}>
+        <Button variant="secondary" onClick={load}>
           Refresh
-        </button>
+        </Button>
       </div>
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
       {success ? <div style={successBoxStyle}>{success}</div> : null}
 
-      <section style={{ ...cardStyle, marginTop: 12, padding: 0 }}>
-        {failures === null ? (
-          <p style={{ ...mutedStyle, padding: 16 }}>Loading…</p>
-        ) : failures.length === 0 ? (
-          <p style={{ ...mutedStyle, padding: 24 }}>
-            No SCIM sync failures recorded.
-          </p>
-        ) : (
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Occurred</th>
-                <th style={thStyle}>Type</th>
-                <th style={thStyle}>Severity</th>
-                <th style={thStyle}>Summary</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {failures.map((f) => (
-                <tr key={f.id}>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
-                      {formatDateTime(f.occurredAtUtc)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ ...mutedStyle, fontSize: 11 }}>
-                      {f.eventType}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span
-                      style={badgeStyle(
-                        f.severity === "HIGH"
-                          ? {
-                              bg: "#fef2f2",
-                              fg: "#991b1b",
-                              border: "#fecaca",
-                            }
-                          : f.severity === "WARNING"
-                            ? {
-                                bg: "#fef3c7",
-                                fg: "#78350f",
-                                border: "#fde68a",
-                              }
-                            : {
-                                bg: "#f1f5f9",
-                                fg: "#475569",
-                                border: "#cbd5e1",
-                              },
-                      )}
-                    >
-                      {f.severity}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ fontSize: 12 }}>{f.summary}</span>
-                  </td>
-                  <td style={tdStyle}>
-                    {f.terminal ? (
-                      <span
-                        style={badgeStyle({
-                          bg: "#fef2f2",
-                          fg: "#991b1b",
-                          border: "#fecaca",
-                        })}
-                      >
-                        TERMINAL
-                      </span>
-                    ) : f.retryEligible ? (
-                      <span
-                        style={badgeStyle({
-                          bg: "#eef2ff",
-                          fg: "#3730a3",
-                          border: "#c7d2fe",
-                        })}
-                      >
-                        REPLAYABLE
-                      </span>
-                    ) : (
-                      <span
-                        style={badgeStyle({
-                          bg: "#f1f5f9",
-                          fg: "#475569",
-                          border: "#cbd5e1",
-                        })}
-                      >
-                        MANUAL
-                      </span>
-                    )}
-                  </td>
-                  <td style={tdStyle}>
-                    {f.retryEligible && !f.terminal ? (
-                      <button
-                        type="button"
-                        style={ghostButtonStyle}
-                        disabled={busy === f.id}
-                        onClick={() => replay(f.id)}
-                      >
-                        {busy === f.id ? "Replaying…" : "Replay"}
-                      </button>
-                    ) : (
-                      <span style={{ ...mutedStyle, fontSize: 11 }}>
-                        Not replayable
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+      <div style={{ marginTop: 12 }}>
+        <DataTable
+          columns={failureColumns}
+          rows={failures ?? []}
+          getRowId={(f) => f.id}
+          loading={failures === null}
+          ariaLabel="SCIM sync failures"
+          emptyState={
+            <EmptyState
+              title="No sync failures"
+              purpose="No SCIM sync failures recorded. Transient failures that can be replayed will appear here."
+            />
+          }
+          rowActions={(f) =>
+            f.retryEligible && !f.terminal ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy === f.id}
+                onClick={() => replay(f.id)}
+              >
+                {busy === f.id ? "Replaying…" : "Replay"}
+              </Button>
+            ) : (
+              <span style={{ ...mutedStyle, fontSize: 11 }}>Not replayable</span>
+            )
+          }
+        />
+      </div>
     </>
   );
 }

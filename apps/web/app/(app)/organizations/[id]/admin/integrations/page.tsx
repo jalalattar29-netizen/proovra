@@ -23,6 +23,12 @@
  *   - No platform-context workspace-fragment reads — apiFetch only.
  *   - Strong TypeScript types throughout.
  *   - 403 maps to an honest empty state.
+ *
+ * Phase 7 (Enterprise UX): presentation migrated to the shared design
+ * system (Card / Button / DataTable / EmptyState). This tab renders INSIDE
+ * the org admin layout shell (which owns the org title + tab bar), so it
+ * uses Card headings — not a second PageHeader. All data reads, gating,
+ * testids, data-section markers, hrefs and event-type strings are unchanged.
  */
 
 import Link from "next/link";
@@ -32,6 +38,10 @@ import { useCallback, useEffect, useState } from "react";
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
+import { Card } from "../../../../../../components/ui/Card";
+import { Button } from "../../../../../../components/ui/Button";
+import { DataTable, type DataTableColumn } from "../../../../../../components/ui/DataTable";
+import { EmptyState } from "../../../../../../components/ui/EmptyState";
 
 // ---------------------------------------------------------------------------
 // Wire type — mirrors GET /v1/orgs/:id/workspaces (organizations.routes.ts).
@@ -146,28 +156,47 @@ function IntegrationsTab() {
     void load();
   }, [load]);
 
+  const workspaceColumns: DataTableColumn<OrgWorkspace>[] = [
+    {
+      key: "name",
+      header: "Workspace",
+      render: (w) => (
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 600 }}>{w.name}</div>
+          <div style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}>
+            API keys + webhook endpoints
+          </div>
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <section data-testid="org-admin-integrations" data-org-id={orgId}>
+    <section
+      data-testid="org-admin-integrations"
+      data-org-id={orgId}
+      style={{ display: "flex", flexDirection: "column", gap: 24 }}
+    >
       {/* Intro */}
-      <section data-section="integrations-intro" style={cardStyle}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>API &amp; integrations</h2>
-        <p style={{ fontSize: 13, opacity: 0.85, marginTop: 8 }}>
-          API keys and webhook endpoints are managed per workspace. Open a
-          workspace below to view or manage its API keys (create, revoke,
-          rotate) and webhook endpoints (delivery history, failures, secret
-          rotation) on the canonical integrations surface.
-        </p>
-      </section>
+      <Card
+        variant="summary"
+        data-section="integrations-intro"
+        title="API & integrations"
+        subtitle="API keys and webhook endpoints are managed per workspace. Open a workspace below to view or manage its API keys (create, revoke, rotate) and webhook endpoints (delivery history, failures, secret rotation) on the canonical integrations surface."
+      />
 
       {/* Per-workspace deep-link index */}
-      <section data-section="integrations-workspaces" style={cardStyle}>
-        <h3 style={{ margin: 0, fontSize: 14 }}>Workspaces</h3>
+      <Card
+        variant="admin"
+        data-section="integrations-workspaces"
+        title="Workspaces"
+      >
         {state.kind === "loading" ? (
-          <div data-state="loading" style={{ fontSize: 13, opacity: 0.7, marginTop: 8 }}>
+          <div data-state="loading" style={mutedText}>
             Loading…
           </div>
         ) : state.kind === "error" ? (
-          <div data-state="error" role="alert" style={{ fontSize: 13, marginTop: 8 }}>
+          <div data-state="error" role="alert" style={{ fontSize: 13 }}>
             {state.status === 403
               ? "You don't have access to this organization's workspaces."
               : state.message}
@@ -177,7 +206,7 @@ function IntegrationsTab() {
                   marginTop: 4,
                   fontSize: 11,
                   fontFamily: "monospace",
-                  opacity: 0.7,
+                  color: "var(--ink-muted, #94a3b8)",
                 }}
               >
                 Request id: {state.requestId}
@@ -185,124 +214,107 @@ function IntegrationsTab() {
             ) : null}
           </div>
         ) : state.data.workspaces.length === 0 ? (
-          <div
-            data-testid="integrations-workspaces-empty"
-            style={{ fontSize: 13, opacity: 0.75, marginTop: 8 }}
-          >
-            No workspaces are bound to this organization yet.
+          <div data-testid="integrations-workspaces-empty">
+            <EmptyState
+              compact
+              framed
+              title="No workspaces on this plan"
+              purpose="Workspaces bound to this organization appear here, each with a deep-link into its integrations portal."
+            />
           </div>
         ) : (
-          <ul
-            data-testid="integrations-workspaces-list"
-            style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}
-          >
-            {state.data.workspaces.map((w) => (
-              <li
-                key={w.id}
-                data-workspace-id={w.id}
-                style={rowStyle}
-              >
-                <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                  <div style={{ fontWeight: 500 }}>{w.name}</div>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>
-                    API keys + webhook endpoints
-                  </div>
-                </div>
-                {/* Deep-link into the canonical workspace-scoped
-                    integrations portal. The integrations page reads the
-                    active workspace from platform-context; the ?team hint
-                    lets it land pre-scoped where supported. */}
+          <div data-testid="integrations-workspaces-list">
+            <DataTable
+              ariaLabel="Organization workspaces"
+              columns={workspaceColumns}
+              rows={state.data.workspaces}
+              getRowId={(w) => w.id}
+              rowActions={(w) => (
+                // Deep-link into the canonical workspace-scoped
+                // integrations portal. The integrations page reads the
+                // active workspace from platform-context; the ?team hint
+                // lets it land pre-scoped where supported.
                 <Link
                   href={`/integrations?team=${encodeURIComponent(w.id)}`}
                   data-testid={`integrations-open-${w.id}`}
-                  className="cases-filter-chip"
+                  data-workspace-id={w.id}
+                  style={{ textDecoration: "none" }}
                 >
-                  Manage →
+                  <Button variant="secondary" size="sm">
+                    Manage →
+                  </Button>
                 </Link>
-              </li>
-            ))}
-          </ul>
+              )}
+            />
+          </div>
         )}
-      </section>
+      </Card>
 
       {/* Canonical portal deep-link */}
-      <section data-section="integrations-deep-link" style={cardStyle}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-            <div style={{ fontWeight: 600 }}>Integrations portal</div>
-            <div style={{ fontSize: 12, opacity: 0.75 }}>
-              Full developer portal for the active workspace — API keys,
-              webhook endpoints, delivery health, and signature docs.
-            </div>
+      <Card
+        variant="summary"
+        data-section="integrations-deep-link"
+        style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+      >
+        <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+          <div style={{ fontWeight: 600 }}>Integrations portal</div>
+          <div style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}>
+            Full developer portal for the active workspace — API keys,
+            webhook endpoints, delivery health, and signature docs.
           </div>
-          <Link
-            href="/integrations"
-            data-testid="integrations-deep-link-portal"
-            className="cases-filter-chip"
-          >
-            Open portal →
-          </Link>
         </div>
-      </section>
+        <Link
+          href="/integrations"
+          data-testid="integrations-deep-link-portal"
+          style={{ textDecoration: "none", flexShrink: 0 }}
+        >
+          <Button variant="secondary" size="sm">
+            Open portal →
+          </Button>
+        </Link>
+      </Card>
 
       {/* Evidence-relevant webhook events (read-only reference) */}
-      <section data-section="integrations-events" style={cardStyle}>
-        <h3 style={{ margin: 0, fontSize: 14 }}>Evidence webhook events</h3>
-        <p style={{ fontSize: 12, opacity: 0.75, marginTop: 6 }}>
-          Event types the API produces today. Subscribe to these when
-          creating a webhook endpoint on a workspace.
-        </p>
+      <Card
+        variant="admin"
+        data-section="integrations-events"
+        title="Evidence webhook events"
+        subtitle="Event types the API produces today. Subscribe to these when creating a webhook endpoint on a workspace."
+      >
         <ul
           data-testid="integrations-event-list"
-          style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}
+          style={{ listStyle: "none", padding: 0, margin: 0 }}
         >
           {EVIDENCE_WEBHOOK_EVENTS.map((ev) => (
             <li
               key={ev.eventType}
               data-event-type={ev.eventType}
               style={{
-                padding: "0.4rem 0",
-                borderBottom: "1px solid rgba(127,127,127,0.18)",
+                padding: "8px 0",
+                borderBottom:
+                  "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
                 fontSize: 13,
               }}
             >
               <code style={{ fontSize: 12 }}>{ev.eventType}</code>
-              <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--ink-secondary, #475569)",
+                  marginTop: 2,
+                }}
+              >
                 {ev.description}
               </div>
             </li>
           ))}
         </ul>
-      </section>
+      </Card>
     </section>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Styles — mirror the sibling admin tabs.
-// ---------------------------------------------------------------------------
-
-const cardStyle: React.CSSProperties = {
-  padding: "1rem 1.1rem",
-  border: "1px solid rgba(127,127,127,0.3)",
-  borderRadius: 8,
-  marginBottom: "1rem",
-};
-
-const rowStyle: React.CSSProperties = {
-  padding: "0.5rem 0",
-  borderBottom: "1px solid rgba(127,127,127,0.18)",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 12,
-  flexWrap: "wrap",
+const mutedText: React.CSSProperties = {
+  fontSize: 13,
+  color: "var(--ink-secondary, #475569)",
 };

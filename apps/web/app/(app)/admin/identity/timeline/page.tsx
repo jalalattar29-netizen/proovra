@@ -18,22 +18,16 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
 import {
-  cardStyle,
   errorBoxStyle,
   formatDateTime,
-  ghostButtonStyle,
-  headerRowStyle,
   mutedStyle,
-  pageStyle,
-  selectStyle,
   statusBadgeStyle,
-  subtitleStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  titleStyle,
-  TOKENS,
 } from "../ui-tokens";
+import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
+import { Button } from "../../../../../components/ui/Button";
+import { FilterBar } from "../../../../../components/ui/FilterBar";
+import { EmptyState } from "../../../../../components/ui/EmptyState";
+import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 
 type TimelineEvent = {
   id: string;
@@ -109,12 +103,6 @@ const FILTERS: { label: string; kinds: string }[] = [
   },
 ];
 
-const SEVERITY_BORDER: Record<TimelineEvent["severity"], string> = {
-  INFO: TOKENS.border,
-  WARNING: "#fde68a",
-  HIGH: "#fecaca",
-};
-
 export default function IdentityTimelinePage() {
   const teamId = useTeamId();
   const [events, setEvents] = useState<TimelineEvent[] | null>(null);
@@ -149,110 +137,112 @@ const load = useCallback(() => {
 
   if (!teamId) {
     return (
-      <main style={pageStyle}>
-        <p style={mutedStyle}>Switch to a workspace.</p>
-      </main>
+      <PageShell header={<PageHeader eyebrow="Identity operations" title="Identity Audit" />}>
+        <EmptyState
+          framed
+          title="No workspace selected"
+          purpose="Switch to a workspace to view its identity-governance event timeline."
+        />
+      </PageShell>
     );
   }
 
-  return (
-    <main style={pageStyle}>
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Identity Audit</h1>
-          <p style={subtitleStyle}>
-            Workspace-wide identity events: SSO logins, SCIM syncs,
-            session revocations, suspicious sessions, temporary
-            elevations, access reviews, and adaptive auth decisions.
-            Sourced from the Phase 21 SecurityEvent table — operator-
-            safe projections only.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <select
-            style={selectStyle}
-            value={filterIdx}
-            onChange={(e) => setFilterIdx(Number(e.target.value))}
-          >
-            {FILTERS.map((f, i) => (
-              <option key={f.label} value={i}>
-                {f.label}
-              </option>
-            ))}
-          </select>
-          <select
-            style={selectStyle}
-            value={severityFilter}
-            onChange={(e) =>
-              setSeverityFilter(e.target.value as "" | "INFO" | "WARNING" | "HIGH")
-            }
-          >
-            <option value="">All severities</option>
-            <option value="INFO">Info</option>
-            <option value="WARNING">Warning</option>
-            <option value="HIGH">High</option>
-          </select>
-          <button type="button" style={ghostButtonStyle} onClick={load}>
-            Refresh
-          </button>
-        </div>
-      </header>
+  const columns: DataTableColumn<TimelineEvent>[] = [
+    {
+      key: "when",
+      header: "When",
+      nowrap: true,
+      render: (e) => (
+        <span style={mutedStyle}>{formatDateTime(e.occurredAtUtc)}</span>
+      ),
+    },
+    {
+      key: "severity",
+      header: "Severity",
+      render: (e) => (
+        <span style={statusBadgeStyle(e.severity)}>{e.severity}</span>
+      ),
+    },
+    {
+      key: "kind",
+      header: "Event",
+      render: (e) => (
+        <code
+          style={{
+            fontFamily:
+              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+            fontSize: 12,
+          }}
+        >
+          {e.kind}
+        </code>
+      ),
+    },
+    {
+      key: "summary",
+      header: "Summary",
+      render: (e) => <span style={{ fontSize: 12 }}>{e.summary}</span>,
+    },
+  ];
 
+  return (
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Identity operations"
+          title="Identity Audit"
+          subtitle="Workspace-wide identity events: SSO logins, SCIM syncs, session revocations, suspicious sessions, temporary elevations, access reviews, and adaptive auth decisions. Sourced from the Phase 21 SecurityEvent table — operator-safe projections only."
+          secondaryActions={
+            <Button variant="secondary" onClick={load}>
+              Refresh
+            </Button>
+          }
+        />
+      }
+    >
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
-      <section style={{ ...cardStyle, marginTop: 16, padding: 0 }}>
-        {events === null ? (
-          <p style={{ ...mutedStyle, padding: 16 }}>Loading…</p>
-        ) : events.length === 0 ? (
-          <p style={{ ...mutedStyle, padding: 24 }}>No events match.</p>
-        ) : (
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>When</th>
-                <th style={thStyle}>Severity</th>
-                <th style={thStyle}>Event</th>
-                <th style={thStyle}>Summary</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.map((e) => (
-                <tr
-                  key={e.id}
-                  style={{
-                    borderLeft: `3px solid ${SEVERITY_BORDER[e.severity]}`,
-                  }}
-                >
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
-                      {formatDateTime(e.occurredAtUtc)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={statusBadgeStyle(e.severity)}>
-                      {e.severity}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <code
-                      style={{
-                        fontFamily:
-                          "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                        fontSize: 12,
-                      }}
-                    >
-                      {e.kind}
-                    </code>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ fontSize: 12 }}>{e.summary}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </main>
+      <PageSection>
+        <FilterBar>
+          <FilterBar.Select
+            label="Event category"
+            value={String(filterIdx)}
+            onChange={(v) => setFilterIdx(Number(v))}
+            options={FILTERS.map((f, i) => ({
+              value: String(i),
+              label: f.label,
+            }))}
+          />
+          <FilterBar.Select
+            label="Severity"
+            value={severityFilter}
+            onChange={(v) =>
+              setSeverityFilter(v as "" | "INFO" | "WARNING" | "HIGH")
+            }
+            options={[
+              { value: "", label: "All severities" },
+              { value: "INFO", label: "Info" },
+              { value: "WARNING", label: "Warning" },
+              { value: "HIGH", label: "High" },
+            ]}
+          />
+        </FilterBar>
+        <div style={{ marginTop: 12 }}>
+          <DataTable
+            columns={columns}
+            rows={events ?? []}
+            getRowId={(e) => e.id}
+            loading={events === null}
+            ariaLabel="Identity event timeline"
+            emptyState={
+              <EmptyState
+                title="No identity events"
+                purpose="No events match the selected category and severity. Adjust the filters or refresh."
+              />
+            }
+          />
+        </div>
+      </PageSection>
+    </PageShell>
   );
 }

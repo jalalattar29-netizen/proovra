@@ -111,7 +111,7 @@ function listAppCss() {
 // Shared fixtures
 // ---------------------------------------------------------------------------
 const GLOBALS_CSS = readWeb("app/globals.css");
-const UI_TSX = readWeb("components/ui.tsx");
+const UI_TSX = readWeb("components/ui-legacy.tsx");
 const APP_FILES = listAppFiles();
 const CSS_FILES = listAppCss();
 // Pre-R10 baselines (sampled 2026-05-26).
@@ -131,7 +131,7 @@ describe("R10 Group 1 — canonical CSS / ui.tsx upper-bound guards", () => {
         // +20 line tolerance for benign rule additions during a phase.
         expect(countLines(GLOBALS_CSS)).toBeLessThanOrEqual(PRE_R10_GLOBALS_CSS_LINES + 20);
     });
-    it("apps/web/components/ui.tsx MUST NOT exceed pre-R10 line baseline", () => {
+    it("apps/web/components/ui-legacy.tsx MUST NOT exceed pre-R10 line baseline", () => {
         expect(countLines(UI_TSX)).toBeLessThanOrEqual(PRE_R10_UI_TSX_LINES + 20);
     });
     it("apps/web/components/capture-v2/capture-v2.css MUST NOT exceed pre-R10 baseline", () => {

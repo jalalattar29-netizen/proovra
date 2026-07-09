@@ -1039,7 +1039,11 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 //     `platform_audit_log` for accountability.
 // A retired operations route file was removed from the tree, dropping
 // the route-file count from 96 → 95.
-const ROUTE_COUNT_PHASE_2_BASELINE = 96;
+// Phase 8 (Enterprise Production Readiness) added 3 route files:
+// organizations-bulk-invite, organizations-reports, operations-readiness
+// (96 → 99). Each is argued for in the Phase 8 brief (bulk invite + CSV,
+// enterprise report exports, platform readiness posture).
+const ROUTE_COUNT_PHASE_2_BASELINE = 99;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

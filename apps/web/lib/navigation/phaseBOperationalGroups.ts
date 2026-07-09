@@ -197,6 +197,10 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "account.organization_admin_access_reviews",
       "account.organization_admin_retention",
       "account.organization_admin_audit",
+      // Phase 8 (Enterprise Production Readiness) — Bulk invite, Reports, Readiness.
+      "account.organization_admin_bulk_invite",
+      "account.organization_admin_reports",
+      "account.organization_admin_readiness",
       "account.organization_admin_security",
       // Phase 3 (Enterprise Identity) — Domains verification tab.
       "account.organization_admin_domains",
@@ -298,6 +302,8 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
 
       "platform.ops_center",
       "platform.observability",
+      // Phase 8 — Platform production-readiness posture surface.
+      "operations.readiness",
       "platform.runbooks",
       "platform.reliability",
       "platform.media_graph",

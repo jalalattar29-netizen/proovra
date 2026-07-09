@@ -50,7 +50,7 @@ import {
 } from "../services/security/mfa.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
-import { enforceRateLimit } from "../services/rate-limit.js";
+import { enforceRateLimit, clearAllRateLimitBuckets } from "../services/rate-limit.js";
 // Phase 2.7Z+ — E2E auth rate-limit bypass (env-gated, production-safe).
 // See services/api/src/services/auth-test-bypass.ts for the three
 // layers of defense and the operational rules.
@@ -246,19 +246,25 @@ const LoginMfaVerifyBody = z
 // per user.
 const LOGIN_MFA_ATTEMPT_WINDOW_MS = 60_000;
 const LOGIN_MFA_ATTEMPT_MAX = 5;
-const loginMfaAttempts = new Map<string, number[]>();
-function loginMfaIsRateLimited(userId: string): boolean {
-  const now = Date.now();
-  const arr = loginMfaAttempts.get(userId) ?? [];
-  const recent = arr.filter((t) => now - t < LOGIN_MFA_ATTEMPT_WINDOW_MS);
-  recent.push(now);
-  loginMfaAttempts.set(userId, recent);
-  return recent.length > LOGIN_MFA_ATTEMPT_MAX;
+// Enterprise launch hardening — the MFA-verify attempt limit is backed by
+// the shared rate limiter (Redis when REDIS_URL is configured; in-memory
+// fallback in dev/test). This makes the per-userId MFA throttle safe across
+// multiple API instances — an in-memory Map per process would let an
+// attacker multiply the attempt budget by the instance count. The key is
+// scoped by user id only; it carries no secrets. Fail-safe is preserved:
+// enforceRateLimit degrades to its in-memory store if Redis is unreachable.
+async function loginMfaIsRateLimited(userId: string): Promise<boolean> {
+  const result = await enforceRateLimit({
+    key: `mfa-verify:${userId}`,
+    max: LOGIN_MFA_ATTEMPT_MAX,
+    windowSec: Math.round(LOGIN_MFA_ATTEMPT_WINDOW_MS / 1000),
+  });
+  return !result.allowed;
 }
 
 /** TEST-ONLY rate-limit reset — exported for the contract tests. */
-export function __resetLoginMfaRateLimiterForTests(): void {
-  loginMfaAttempts.clear();
+export async function __resetLoginMfaRateLimiterForTests(): Promise<void> {
+  await clearAllRateLimitBuckets();
 }
 
 function readUserAgent(req: FastifyRequest): string | null {
@@ -1395,7 +1401,7 @@ export async function authRoutes(app: FastifyInstance) {
       clearMfaPendingCookie(req, reply);
       return reply.code(401).send({ message: "mfa_pending_invalid" });
     }
-    if (loginMfaIsRateLimited(userId)) {
+    if (await loginMfaIsRateLimited(userId)) {
       auditAuthEvent(req, {
         userId,
         action: "auth.mfa_verify",

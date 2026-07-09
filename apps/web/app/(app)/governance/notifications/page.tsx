@@ -20,6 +20,12 @@ import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Button } from "../../../../components/ui/Button";
+import { Badge } from "../../../../components/ui/Badge";
+import { EmptyState } from "../../../../components/ui/EmptyState";
+import { FilterBar } from "../../../../components/ui/FilterBar";
+import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 
 type Severity = "INFO" | "WARNING" | "HIGH" | "CRITICAL";
 type DeliveryStatus = "PENDING" | "SENT" | "SUPPRESSED" | "FAILED";
@@ -123,16 +129,80 @@ function GovernanceNotificationsPageInner() {
     }
   }
 
-  return (
-    <main style={pageStyle}>
-      <header>
-        <h1 style={titleStyle}>Governance notifications</h1>
-        <p style={mutedStyle}>
-          Deduped operator alerts for governance events. Same-key emissions
-          collapse into a single row with a live occurrence count.
-        </p>
-      </header>
+  const columns: DataTableColumn<Notification>[] = [
+    {
+      key: "severity",
+      header: "Severity",
+      render: (n) => (
+        <span style={severityBadgeStyle(n.severity)}>{n.severity}</span>
+      ),
+    },
+    {
+      key: "kind",
+      header: "Kind",
+      render: (n) => <code style={codeStyle}>{n.kind}</code>,
+    },
+    {
+      key: "summary",
+      header: "Summary",
+      render: (n) => (
+        <div>
+          <div style={{ fontWeight: 600 }}>{n.title}</div>
+          <div style={mutedStyle}>{n.summary}</div>
+        </div>
+      ),
+    },
+    {
+      key: "occurrences",
+      header: "Occurrences",
+      align: "right",
+      render: (n) => n.occurrenceCount.toLocaleString(),
+    },
+    {
+      key: "delivery",
+      header: "Delivery",
+      render: (n) => (
+        <div>
+          <span style={deliveryBadgeStyle(n.deliveryStatus)}>
+            {n.deliveryStatus}
+          </span>
+          {n.deliveryAttempts > 0 ? (
+            <div style={mutedStyle}>
+              {n.deliveryAttempts} attempt
+              {n.deliveryAttempts === 1 ? "" : "s"}
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: "lastSeen",
+      header: "Last seen",
+      nowrap: true,
+      render: (n) => formatUserDateTime(n.lastSeenAtUtc),
+    },
+  ];
 
+  return (
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Governance"
+          title="Governance notifications"
+          subtitle="Deduped operator alerts for governance events. Same-key emissions collapse into a single row with a live occurrence count."
+          contextStrip={
+            counts ? (
+              <>
+                <Badge tone="neutral">Pending {counts.pending}</Badge>
+                <Badge tone={counts.failed > 0 ? "risk" : "neutral"}>
+                  Failed delivery {counts.failed}
+                </Badge>
+              </>
+            ) : null
+          }
+        />
+      }
+    >
       <nav style={navStyle}>
         <Link href="/governance/lifecycle" style={navLinkStyle}>
           ← Governance operations
@@ -142,119 +212,74 @@ function GovernanceNotificationsPageInner() {
         </Link>
       </nav>
 
-      {counts ? (
-        <div style={countsStyle}>
-          <span style={countChipStyle}>Pending {counts.pending}</span>
-          <span style={countChipStyle}>Failed delivery {counts.failed}</span>
-        </div>
-      ) : null}
+      <PageSection
+        title="Notifications"
+        action={
+          <FilterBar>
+            <FilterBar.Select
+              label="View"
+              showLabel
+              value={filter}
+              onChange={(v) => setFilter(v as "unacknowledged" | "all")}
+              options={[
+                { value: "unacknowledged", label: "Unacknowledged" },
+                { value: "all", label: "All" },
+              ]}
+            />
+            <FilterBar.Select
+              label="Severity"
+              showLabel
+              value={severityFilter}
+              onChange={(v) => setSeverityFilter(v as Severity | "ALL")}
+              options={[
+                { value: "ALL", label: "All" },
+                { value: "CRITICAL", label: "Critical" },
+                { value: "HIGH", label: "High" },
+                { value: "WARNING", label: "Warning" },
+                { value: "INFO", label: "Info" },
+              ]}
+            />
+          </FilterBar>
+        }
+      >
+        {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
-      <div style={toolbarStyle}>
-        <label style={filterLabelStyle}>
-          View
-          <select
-            style={selectStyle}
-            value={filter}
-            onChange={(e) =>
-              setFilter(e.target.value as "unacknowledged" | "all")
+        {!teamId ? (
+          <EmptyState
+            framed
+            title="No workspace selected"
+            purpose="Switch to an organization workspace to view its governance notifications."
+          />
+        ) : (
+          <DataTable
+            ariaLabel="Governance notifications"
+            columns={columns}
+            rows={notifications ?? []}
+            getRowId={(n) => n.id}
+            loading={!notifications}
+            rowActions={(n) =>
+              n.acknowledgedAtUtc ? (
+                <Badge tone="verified">Acknowledged</Badge>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => acknowledge(n)}
+                >
+                  Acknowledge
+                </Button>
+              )
             }
-          >
-            <option value="unacknowledged">Unacknowledged</option>
-            <option value="all">All</option>
-          </select>
-        </label>
-        <label style={filterLabelStyle}>
-          Severity
-          <select
-            style={selectStyle}
-            value={severityFilter}
-            onChange={(e) =>
-              setSeverityFilter(e.target.value as Severity | "ALL")
+            emptyState={
+              <EmptyState
+                title="No notifications"
+                purpose="No notifications match the current filter. Deduped governance alerts will appear here as events occur."
+              />
             }
-          >
-            <option value="ALL">All</option>
-            <option value="CRITICAL">Critical</option>
-            <option value="HIGH">High</option>
-            <option value="WARNING">Warning</option>
-            <option value="INFO">Info</option>
-          </select>
-        </label>
-      </div>
-
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
-
-      {!teamId ? (
-        <p style={mutedStyle}>Switch to a workspace to view notifications.</p>
-      ) : !notifications ? (
-        <p style={mutedStyle}>Loading notifications…</p>
-      ) : notifications.length === 0 ? (
-        <p style={mutedStyle}>No notifications match the current filter.</p>
-      ) : (
-        <section style={cardStyle}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Severity</th>
-                <th style={thStyle}>Kind</th>
-                <th style={thStyle}>Summary</th>
-                <th style={thStyle}>Occurrences</th>
-                <th style={thStyle}>Delivery</th>
-                <th style={thStyle}>Last seen</th>
-                <th style={thStyle}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {notifications.map((n) => (
-                <tr key={n.id}>
-                  <td style={tdStyle}>
-                    <span style={severityBadgeStyle(n.severity)}>
-                      {n.severity}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <code style={codeStyle}>{n.kind}</code>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ fontWeight: 600 }}>{n.title}</div>
-                    <div style={mutedStyle}>{n.summary}</div>
-                  </td>
-                  <td style={tdStyle}>
-                    {n.occurrenceCount.toLocaleString()}
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={deliveryBadgeStyle(n.deliveryStatus)}>
-                      {n.deliveryStatus}
-                    </span>
-                    {n.deliveryAttempts > 0 ? (
-                      <div style={mutedStyle}>
-                        {n.deliveryAttempts} attempt
-                        {n.deliveryAttempts === 1 ? "" : "s"}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td style={tdStyle}>
-                    {formatUserDateTime(n.lastSeenAtUtc)}
-                  </td>
-                  <td style={tdStyle}>
-                    {n.acknowledgedAtUtc ? (
-                      <span style={ackBadgeStyle}>Acknowledged</span>
-                    ) : (
-                      <button
-                        type="button"
-                        style={ackButtonStyle}
-                        onClick={() => acknowledge(n)}
-                      >
-                        Acknowledge
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
-    </main>
+          />
+        )}
+      </PageSection>
+    </PageShell>
   );
 }
 
@@ -262,20 +287,6 @@ function GovernanceNotificationsPageInner() {
 // Styles
 // -----------------------------------------------------------------------------
 
-const pageStyle: React.CSSProperties = {
-  maxWidth: 1200,
-  margin: "0 auto",
-  padding: "32px 24px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
-};
-const titleStyle: React.CSSProperties = {
-  fontSize: 26,
-  fontWeight: 700,
-  marginBottom: 4,
-  letterSpacing: -0.4,
-};
 const mutedStyle: React.CSSProperties = { fontSize: 12, color: "#64748b" };
 const navStyle: React.CSSProperties = {
   display: "flex",
@@ -289,94 +300,11 @@ const navLinkStyle: React.CSSProperties = {
   fontWeight: 600,
   textDecoration: "none",
 };
-const countsStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  marginTop: 12,
-};
-const countChipStyle: React.CSSProperties = {
-  padding: "4px 12px",
-  fontSize: 12,
-  fontWeight: 600,
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  color: "#334155",
-  borderRadius: 999,
-};
-const toolbarStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 12,
-  marginTop: 12,
-  marginBottom: 8,
-};
-const filterLabelStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 4,
-  fontSize: 12,
-  color: "#475569",
-};
-const selectStyle: React.CSSProperties = {
-  padding: "8px 12px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontSize: 14,
-  fontFamily: "inherit",
-  color: "#0f172a",
-  background: "#fff",
-};
-const cardStyle: React.CSSProperties = {
-  marginTop: 16,
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  background: "#fff",
-  overflow: "hidden",
-};
-const tableStyle: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  fontSize: 13,
-};
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  padding: "12px 16px",
-  background: "#f8fafc",
-  borderBottom: "1px solid #e2e8f0",
-  fontWeight: 600,
-  fontSize: 11,
-  textTransform: "uppercase",
-  letterSpacing: 0.5,
-  color: "#475569",
-};
-const tdStyle: React.CSSProperties = {
-  padding: "12px 16px",
-  borderBottom: "1px solid #f1f5f9",
-  verticalAlign: "top",
-};
 const codeStyle: React.CSSProperties = {
   fontFamily:
     "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
   fontSize: 11,
   color: "#475569",
-};
-const ackButtonStyle: React.CSSProperties = {
-  padding: "5px 10px",
-  fontWeight: 500,
-  color: "#0f172a",
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 12,
-};
-const ackBadgeStyle: React.CSSProperties = {
-  padding: "3px 10px",
-  fontSize: 11,
-  fontWeight: 600,
-  background: "#ecfdf5",
-  border: "1px solid #bbf7d0",
-  color: "#166534",
-  borderRadius: 999,
 };
 const errorBoxStyle: React.CSSProperties = {
   marginTop: 12,

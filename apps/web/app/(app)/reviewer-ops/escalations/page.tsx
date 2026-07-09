@@ -25,23 +25,17 @@ import {
   type ReviewerReasonKind,
 } from "../components/ReviewerReasonModal";
 import {
-  cardStyle,
-  emptyStateStyle,
-  errorBoxStyle,
   formatDateTime,
-  ghostButtonStyle,
-  headerRowStyle,
   mutedStyle,
-  pageStyle,
-  selectStyle,
   severityBadgeStyle,
-  subtitleStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  titleStyle,
   TOKENS,
 } from "../ui-tokens";
+import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { Badge, type BadgeTone } from "../../../../components/ui/Badge";
+import { DataTable } from "../../../../components/ui/DataTable";
+import { FilterBar } from "../../../../components/ui/FilterBar";
 
 type EscalationStatus =
   | "OPEN"
@@ -168,211 +162,205 @@ function EscalationsConsolePageInner() {
   // bounded loading shell rather than crashing.
   if (!teamId) {
     return (
-      <main style={pageStyle} data-escalations-loading>
-        <header style={headerRowStyle}>
-          <div>
-            <h1 style={titleStyle}>Escalation Console</h1>
-            <p style={subtitleStyle}>Loading organization workspace…</p>
-          </div>
-        </header>
-      </main>
+      <PageShell
+        data-escalations-loading
+        header={
+          <PageHeader
+            eyebrow="Review operations"
+            title="Escalation Console"
+            subtitle="Loading organization workspace…"
+          />
+        }
+      />
     );
   }
 
   return (
-    <main style={pageStyle}>
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Escalation Console</h1>
-          <p style={subtitleStyle}>
-            Operator escalation lifecycle. Open / acknowledged / reassigned
-            escalations affect workspace SLA pressure; resolved /
-            suppressed escalations remain in history.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <select
-            value={status}
-            onChange={(e) =>
-              setStatus(e.target.value as EscalationStatus | "ALL")
-            }
-            style={selectStyle}
-            aria-label="Status filter"
-          >
-            {STATUS_FILTERS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <select
-            value={severity}
-            onChange={(e) => setSeverity(e.target.value)}
-            style={selectStyle}
-            aria-label="Severity filter"
-          >
-            {SEVERITY_FILTERS.map((s) => (
-              <option key={s} value={s}>
-                {s || "All severities"}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            style={ghostButtonStyle}
-            onClick={load}
-            disabled={busy !== null}
-          >
-            Refresh
-          </button>
-        </div>
-      </header>
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Review operations"
+          title="Escalation Console"
+          subtitle="Operator escalation lifecycle. Open / acknowledged / reassigned escalations affect workspace SLA pressure; resolved / suppressed escalations remain in history."
+          primaryAction={
+            <Button
+              variant="secondary"
+              onClick={load}
+              disabled={busy !== null}
+            >
+              Refresh
+            </Button>
+          }
+        />
+      }
+    >
+      <FilterBar>
+        <FilterBar.Select
+          label="Status"
+          value={status}
+          onChange={(v) => setStatus(v as EscalationStatus | "ALL")}
+          options={STATUS_FILTERS.map((s) => ({ value: s, label: s }))}
+        />
+        <FilterBar.Select
+          label="Severity"
+          value={severity}
+          onChange={setSeverity}
+          options={SEVERITY_FILTERS.map((s) => ({
+            value: s,
+            label: s || "All severities",
+          }))}
+        />
+      </FilterBar>
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? (
+        <Card variant="status" tone="risk">
+          {error}
+        </Card>
+      ) : null}
 
       {teamId ? (
         <RuntimeStatusBanner teamId={teamId} forDomains={["reviewer_ops"]} />
       ) : null}
 
-      <section style={{ ...cardStyle, marginTop: 16, padding: 0 }}>
-        {rows === null ? (
-          <div style={emptyStateStyle}>Loading…</div>
-        ) : rows.length === 0 ? (
+      <DataTable
+        ariaLabel="Escalations"
+        loading={rows === null}
+        rows={rows ?? []}
+        getRowId={(e) => e.id}
+        columns={[
+          {
+            key: "severity",
+            header: "Severity",
+            render: (e) => (
+              <span style={severityBadgeStyle(e.severity)}>{e.severity}</span>
+            ),
+          },
+          {
+            key: "reason",
+            header: "Reason",
+            render: (e) => (
+              <span style={{ ...mutedStyle, fontSize: 12 }}>{e.reason}</span>
+            ),
+          },
+          {
+            key: "status",
+            header: "Status",
+            render: (e) => (
+              <Badge tone={statusTone(e.status)} subtle>
+                {e.status}
+              </Badge>
+            ),
+          },
+          {
+            key: "summary",
+            header: "Summary",
+            render: (e) => (
+              <>
+                <div style={{ maxWidth: 360, fontSize: 12 }}>
+                  {e.safeSummary}
+                </div>
+                {e.incidentId ? (
+                  <a href={`/operations`} style={{ ...mutedStyle, color: TOKENS.link }}>
+                    incident {e.incidentId.slice(0, 8)}…
+                  </a>
+                ) : null}
+              </>
+            ),
+          },
+          {
+            key: "workflow",
+            header: "Workflow",
+            render: (e) => (
+              <a
+                href={`/reviewer-ops/${encodeURIComponent(e.workflowId)}`}
+                style={{
+                  color: TOKENS.link,
+                  textDecoration: "none",
+                  fontFamily:
+                    "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                  fontSize: 12,
+                }}
+              >
+                {e.workflowId.slice(0, 8)}…
+              </a>
+            ),
+          },
+          {
+            key: "created",
+            header: "Created",
+            nowrap: true,
+            render: (e) => (
+              <span style={mutedStyle}>{formatDateTime(e.createdAt)}</span>
+            ),
+          },
+        ]}
+        rowActions={(e) => (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "flex-end" }}>
+            {e.status === "OPEN" ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy !== null}
+                onClick={() => act("ack", e.id, "acknowledge", {})}
+              >
+                Acknowledge
+              </Button>
+            ) : null}
+            {!["RESOLVED", "SUPPRESSED"].includes(e.status) ? (
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy !== null}
+                  onClick={() =>
+                    setReasonModal({
+                      kind: "ESCALATION_REASSIGN",
+                      escalationId: e.id,
+                    })
+                  }
+                  data-escalation-action-reassign
+                >
+                  Reassign
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy !== null}
+                  onClick={() =>
+                    setReasonModal({
+                      kind: "ESCALATION_RESOLVE",
+                      escalationId: e.id,
+                    })
+                  }
+                  data-escalation-action-resolve
+                >
+                  Resolve
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy !== null}
+                  onClick={() =>
+                    setReasonModal({
+                      kind: "ESCALATION_SUPPRESS",
+                      escalationId: e.id,
+                    })
+                  }
+                  data-escalation-action-suppress
+                >
+                  Suppress
+                </Button>
+              </>
+            ) : null}
+          </div>
+        )}
+        emptyState={
           // Phase 28-G — actionable enterprise empty state.
-          // Replaces the previous static "No escalations match these
-          // filters." line so the operator sees WHY the page is empty
-          // (no overdue reviews, reconcile not yet run, etc.) and
-          // what they can do next (check SLA policy, run seed, etc.).
           <div style={{ padding: 20 }}>
             <NoEscalationsEmptyState />
           </div>
-        ) : (
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Severity</th>
-                <th style={thStyle}>Reason</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Summary</th>
-                <th style={thStyle}>Workflow</th>
-                <th style={thStyle}>Created</th>
-                <th style={thStyle}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((e) => (
-                <tr key={e.id}>
-                  <td style={tdStyle}>
-                    <span style={severityBadgeStyle(e.severity)}>
-                      {e.severity}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ ...mutedStyle, fontSize: 12 }}>
-                      {e.reason}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={statusChipStyle(e.status)}>{e.status}</span>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ maxWidth: 360, fontSize: 12 }}>
-                      {e.safeSummary}
-                    </div>
-                    {e.incidentId ? (
-                      <a
-                        href={`/operations`}
-                        style={{ ...mutedStyle, color: TOKENS.link }}
-                      >
-                        incident {e.incidentId.slice(0, 8)}…
-                      </a>
-                    ) : null}
-                  </td>
-                  <td style={tdStyle}>
-                    <a
-                      href={`/reviewer-ops/${encodeURIComponent(e.workflowId)}`}
-                      style={{
-                        color: TOKENS.link,
-                        textDecoration: "none",
-                        fontFamily:
-                          "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                        fontSize: 12,
-                      }}
-                    >
-                      {e.workflowId.slice(0, 8)}…
-                    </a>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>{formatDateTime(e.createdAt)}</span>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {e.status === "OPEN" ? (
-                        <button
-                          type="button"
-                          style={smallButton}
-                          disabled={busy !== null}
-                          onClick={() =>
-                            act("ack", e.id, "acknowledge", {})
-                          }
-                        >
-                          Acknowledge
-                        </button>
-                      ) : null}
-                      {!["RESOLVED", "SUPPRESSED"].includes(e.status) ? (
-                        <>
-                          <button
-                            type="button"
-                            style={smallButton}
-                            disabled={busy !== null}
-                            onClick={() =>
-                              setReasonModal({
-                                kind: "ESCALATION_REASSIGN",
-                                escalationId: e.id,
-                              })
-                            }
-                            data-escalation-action-reassign
-                          >
-                            Reassign
-                          </button>
-                          <button
-                            type="button"
-                            style={smallButton}
-                            disabled={busy !== null}
-                            onClick={() =>
-                              setReasonModal({
-                                kind: "ESCALATION_RESOLVE",
-                                escalationId: e.id,
-                              })
-                            }
-                            data-escalation-action-resolve
-                          >
-                            Resolve
-                          </button>
-                          <button
-                            type="button"
-                            style={smallButton}
-                            disabled={busy !== null}
-                            onClick={() =>
-                              setReasonModal({
-                                kind: "ESCALATION_SUPPRESS",
-                                escalationId: e.id,
-                              })
-                            }
-                            data-escalation-action-suppress
-                          >
-                            Suppress
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+        }
+      />
 
       {/* Phase 2.4 — structured reason modal for reassign / resolve /
           suppress. Replaces 3 window.prompt calls. */}
@@ -399,44 +387,22 @@ function EscalationsConsolePageInner() {
           setReasonModal(null);
         }}
       />
-    </main>
+    </PageShell>
   );
 }
 
-function statusChipStyle(status: EscalationStatus): React.CSSProperties {
-  const palette: Record<
-    EscalationStatus,
-    { bg: string; fg: string; border: string }
-  > = {
-    OPEN: { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" },
-    ACKNOWLEDGED: { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
-    REASSIGNED: { bg: "#eff6ff", fg: "#1e40af", border: "#bfdbfe" },
-    RESOLVED: { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" },
-    SUPPRESSED: { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" },
-  };
-  const p = palette[status];
-  return {
-    padding: "2px 8px",
-    fontSize: 10,
-    fontWeight: 700,
-    borderRadius: 4,
-    background: p.bg,
-    color: p.fg,
-    border: `1px solid ${p.border}`,
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-    whiteSpace: "nowrap",
-    display: "inline-block",
-  };
+function statusTone(status: EscalationStatus): BadgeTone {
+  switch (status) {
+    case "OPEN":
+      return "risk";
+    case "ACKNOWLEDGED":
+      return "pending";
+    case "REASSIGNED":
+      return "info";
+    case "RESOLVED":
+      return "verified";
+    case "SUPPRESSED":
+    default:
+      return "neutral";
+  }
 }
-
-const smallButton: React.CSSProperties = {
-  padding: "4px 8px",
-  fontSize: 11,
-  fontWeight: 500,
-  background: TOKENS.surface,
-  color: TOKENS.ink,
-  border: `1px solid ${TOKENS.borderStrong}`,
-  borderRadius: 4,
-  cursor: "pointer",
-};

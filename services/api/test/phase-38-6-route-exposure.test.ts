@@ -491,7 +491,7 @@ describe("Phase 38.6 — All Tools surface", () => {
   });
 
   it("search input is labeled (a11y)", () => {
-    expect(TOOLS_PAGE).toMatch(/aria-label="Search tools"/);
+    expect(TOOLS_PAGE).toMatch(/(aria-label|label)="Search tools"/);
   });
 
   it("denied tools render a 'Request access' or equivalent action — never silently disabled", () => {

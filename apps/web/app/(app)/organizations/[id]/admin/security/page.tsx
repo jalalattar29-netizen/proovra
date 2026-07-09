@@ -17,12 +17,22 @@
  *   - No platform-context workspace-fragment reads.
  *   - Strong TypeScript types throughout.
  *   - Empty states say "Not configured" — never fake-positive.
+ *
+ * Phase 7 (Enterprise UX): presentation migrated to the shared design
+ * system (Card / Badge / Button). This tab renders INSIDE the org admin
+ * layout shell (which owns the org title + tab bar), so it uses Card
+ * headings — not a second PageHeader. All deep-links, testids,
+ * data-configured / data-state markers, and honest "not configured"
+ * defaults are unchanged.
  */
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
+import { Card } from "../../../../../../components/ui/Card";
+import { Badge } from "../../../../../../components/ui/Badge";
+import { Button } from "../../../../../../components/ui/Button";
 
 export default function OrganizationAdminSecurityPage() {
   return (
@@ -85,27 +95,22 @@ function SecurityTab() {
   const orgId = params?.id ?? "";
 
   return (
-    <section data-testid="org-admin-security" data-org-id={orgId}>
+    <section
+      data-testid="org-admin-security"
+      data-org-id={orgId}
+      style={{ display: "flex", flexDirection: "column", gap: 24 }}
+    >
       {/* Phase 3 (Enterprise Identity) — deep-link to the org-scoped Domains
           verification tab (sibling admin tab). Consolidated here rather than
           duplicating domain management on this readiness page. */}
-      <section
+      <Card
+        variant="summary"
         data-section="security-domains"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-          marginBottom: "1rem",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
+        style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
       >
         <div style={{ minWidth: 0, flex: "1 1 auto" }}>
           <div style={{ fontWeight: 600 }}>Verified domains</div>
-          <div style={{ fontSize: 12, opacity: 0.75 }}>
+          <div style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}>
             Claim + verify email domains (DNS TXT) that gate SSO and
             auto-associate members.
           </div>
@@ -113,30 +118,29 @@ function SecurityTab() {
         <Link
           href={`/organizations/${orgId}/admin/domains`}
           data-testid="sec-deep-link-domains"
-          className="cases-filter-chip"
+          style={{ textDecoration: "none", flexShrink: 0 }}
         >
-          Manage domains →
+          <Button variant="secondary" size="sm">
+            Manage domains →
+          </Button>
         </Link>
-      </section>
+      </Card>
 
-      <section
+      <Card
+        variant="admin"
         data-section="security-readiness"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-          marginBottom: "1rem",
-        }}
+        title="Security readiness"
+        subtitle={
+          <>
+            Organization-level security posture. Configuration of each control
+            lives on the canonical identity / settings surface. Until then,
+            each row reports honestly as <strong>not configured</strong>.
+          </>
+        }
       >
-        <h2 style={{ margin: 0, fontSize: 16 }}>Security readiness</h2>
-        <p style={{ fontSize: 13, opacity: 0.85, marginTop: 8 }}>
-          Organization-level security posture. Configuration of each control
-          lives on the canonical identity / settings surface. Until then,
-          each row reports honestly as <strong>not configured</strong>.
-        </p>
         <ul
           data-testid="security-readiness-list"
-          style={{ listStyle: "none", padding: 0, margin: "0.75rem 0 0" }}
+          style={{ listStyle: "none", padding: 0, margin: 0 }}
         >
           {READINESS_ROWS.map((row) => (
             <li
@@ -144,8 +148,9 @@ function SecurityTab() {
               data-testid={row.testId}
               data-configured={row.configured ? "true" : "false"}
               style={{
-                padding: "0.5rem 0",
-                borderBottom: "1px solid rgba(127,127,127,0.18)",
+                padding: "12px 0",
+                borderBottom:
+                  "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
@@ -154,49 +159,44 @@ function SecurityTab() {
               }}
             >
               <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                <div style={{ fontWeight: 500 }}>{row.label}</div>
-                <div style={{ fontSize: 12, opacity: 0.75 }}>
-                  {row.description}
-                </div>
+                <div style={{ fontWeight: 600 }}>{row.label}</div>
                 <div
-                  data-state="not-configured"
                   style={{
-                    fontSize: 11,
-                    marginTop: 4,
-                    padding: "1px 8px",
-                    borderRadius: 999,
-                    background: "rgba(245, 158, 11, 0.18)",
-                    display: "inline-block",
-                    fontWeight: 600,
-                    letterSpacing: 0.3,
-                    textTransform: "uppercase",
+                    fontSize: 12,
+                    color: "var(--ink-secondary, #475569)",
                   }}
                 >
-                  Not configured
+                  {row.description}
                 </div>
+                <span
+                  data-state="not-configured"
+                  style={{ display: "inline-block", marginTop: 6 }}
+                >
+                  <Badge tone="pending" subtle>
+                    Not configured
+                  </Badge>
+                </span>
               </div>
               <Link
                 href={row.configureHref}
                 data-testid={`${row.testId}-configure`}
-                className="cases-filter-chip"
+                style={{ textDecoration: "none", flexShrink: 0 }}
               >
-                Configure →
+                <Button variant="secondary" size="sm">
+                  Configure →
+                </Button>
               </Link>
             </li>
           ))}
         </ul>
-      </section>
+      </Card>
 
-      <section
+      <Card
+        variant="admin"
         data-section="security-deep-links"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-        }}
+        title="Identity & security surfaces"
       >
-        <h2 style={{ margin: 0, fontSize: 16 }}>Identity &amp; security surfaces</h2>
-        <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           <DeepLink
             testId="sec-deep-link-identity"
             label="Admin · Identity"
@@ -216,7 +216,7 @@ function SecurityTab() {
             href="/security-center"
           />
         </ul>
-      </section>
+      </Card>
     </section>
   );
 }
@@ -235,8 +235,8 @@ function DeepLink({
   return (
     <li
       style={{
-        padding: "0.5rem 0",
-        borderBottom: "1px solid rgba(127,127,127,0.18)",
+        padding: "10px 0",
+        borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -245,15 +245,15 @@ function DeepLink({
       }}
     >
       <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-        <div style={{ fontWeight: 500 }}>{label}</div>
-        <div style={{ fontSize: 12, opacity: 0.75 }}>{description}</div>
+        <div style={{ fontWeight: 600 }}>{label}</div>
+        <div style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}>
+          {description}
+        </div>
       </div>
-      <Link
-        href={href}
-        data-testid={testId}
-        className="cases-filter-chip"
-      >
-        Open →
+      <Link href={href} data-testid={testId} style={{ textDecoration: "none", flexShrink: 0 }}>
+        <Button variant="secondary" size="sm">
+          Open →
+        </Button>
       </Link>
     </li>
   );

@@ -29,6 +29,15 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime, formatUtcAuditDateTime } from "../../../../lib/date";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { MfaRecoveryApprovalHistoryBlock } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { Badge } from "../../../../components/ui/Badge";
+import {
+  DataTable,
+  type DataTableColumn,
+} from "../../../../components/ui/DataTable";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 
 type AdminRecoveryRequest = {
   id: string;
@@ -337,210 +346,229 @@ function MfaRecoveryAdminBody() {
     }
   };
 
+  const requestColumns: DataTableColumn<AdminRecoveryRequest>[] = [
+    {
+      key: "user",
+      header: "User",
+      render: (rq) => (
+        <span
+          data-cc-mfa-recovery-row
+          data-cc-mfa-recovery-status={rq.status}
+        >
+          <button
+            type="button"
+            onClick={() => void openDetail(rq.id)}
+            style={linkButtonStyle}
+            data-cc-mfa-recovery-detail-cta
+          >
+            {rq.userId.slice(0, 8)}…
+          </button>
+        </span>
+      ),
+    },
+    {
+      key: "reason",
+      header: "Reason",
+      width: 280,
+      render: (rq) => <span style={{ display: "block", maxWidth: 280 }}>{rq.reason}</span>,
+    },
+    {
+      key: "emailVerified",
+      header: "Email verified",
+      render: (rq) =>
+        rq.emailVerified ? (
+          <Badge tone="verified" data-cc-mfa-email-verified="true">
+            verified
+          </Badge>
+        ) : (
+          <Badge tone="pending" data-cc-mfa-email-verified="false">
+            awaiting user
+          </Badge>
+        ),
+    },
+    {
+      key: "approvals",
+      header: "Approvals",
+      render: (rq) => (
+        <span data-cc-mfa-recovery-quorum>
+          <span
+            style={{
+              fontFamily: "ui-monospace, monospace",
+              fontWeight: 600,
+            }}
+            data-cc-mfa-recovery-quorum-count
+          >
+            {rq.approvalCount}/{rq.requiredApprovals}
+          </span>
+          {/* PHASE R8.1.6 — quorum-not-met badge. Surfaces
+               "waiting for additional approval" when at
+               least one approval is recorded but the
+               requiredApprovals threshold has not been hit. */}
+          {rq.approvalCount > 0 && rq.approvalCount < rq.requiredApprovals ? (
+            <div style={{ marginTop: 4 }} data-cc-mfa-recovery-quorum-waiting>
+              <Badge tone="pending" subtle>
+                Waiting for additional approval
+              </Badge>
+            </div>
+          ) : null}
+        </span>
+      ),
+    },
+    {
+      key: "expires",
+      header: "Expires",
+      nowrap: true,
+      render: (rq) => formatUtcAuditDateTime(rq.expiresAt),
+    },
+  ];
+
   return (
-    <main
+    <PageShell
       data-page="mfa-recovery-admin"
       data-cc-mfa-recovery-admin-spa
-      style={pageStyle}
+      header={
+        <PageHeader
+          eyebrow="Security Center"
+          title="MFA recovery — admin queue"
+          subtitle={
+            <>
+              Members in this workspace who lost access to their two-factor
+              authentication factors and have requested a reset. Approving a
+              request revokes the user&apos;s existing MFA factors and forces
+              them to re-enroll on their next login.{" "}
+              <strong>Approval does NOT grant a session.</strong>
+            </>
+          }
+          secondaryActions={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void reload()}
+                data-cc-mfa-recovery-refresh
+              >
+                Refresh
+              </Button>
+              {/* PHASE R8.1.8 — global snooze / resume quick action. The
+                   button targets the GLOBAL (teamId=null) preference row
+                   so a single click affects ALL of the admin's teams. */}
+              {isGloballySnoozed ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => void doResume(null)}
+                  disabled={prefsBusy}
+                  data-cc-mfa-recovery-digest-resume
+                >
+                  Resume digest notifications
+                </Button>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void doSnooze(null, 7)}
+                  disabled={prefsBusy}
+                  data-cc-mfa-recovery-digest-snooze
+                  title="Pause digest emails for 7 days. Recovery queue + audit log unaffected."
+                >
+                  Snooze digest for 7 days
+                </Button>
+              )}
+            </>
+          }
+        />
+      }
     >
-      <header style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, marginBottom: 4 }}>
-          MFA recovery — admin queue
-        </h1>
-        <p style={mutedStyle}>
-          Members in this workspace who lost access to their two-factor
-          authentication factors and have requested a reset. Approving a
-          request revokes the user&apos;s existing MFA factors and forces
-          them to re-enroll on their next login.{" "}
-          <strong>Approval does NOT grant a session.</strong>
-        </p>
-        <button
-          type="button"
-          onClick={() => void reload()}
-          style={secondaryButtonStyle}
-          data-cc-mfa-recovery-refresh
-        >
-          Refresh
-        </button>
-        {/* PHASE R8.1.8 — global snooze / resume quick action. The
-             button targets the GLOBAL (teamId=null) preference row
-             so a single click affects ALL of the admin's teams. */}
-        {isGloballySnoozed ? (
-          <button
-            type="button"
-            onClick={() => void doResume(null)}
-            disabled={prefsBusy}
-            style={primaryButtonStyle}
-            data-cc-mfa-recovery-digest-resume
-          >
-            Resume digest notifications
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void doSnooze(null, 7)}
-            disabled={prefsBusy}
-            style={secondaryButtonStyle}
-            data-cc-mfa-recovery-digest-snooze
-            title="Pause digest emails for 7 days. Recovery queue + audit log unaffected."
-          >
-            Snooze digest for 7 days
-          </button>
-        )}
-      </header>
-
       {error ? (
-        <div style={errorBoxStyle} role="alert">
+        <Card variant="status" tone="risk" role="alert">
           {error}
-        </div>
+        </Card>
       ) : null}
       {toast ? (
-        <div
-          style={toastStyle}
+        <Card
+          variant="status"
+          tone="verified"
           role="status"
           data-cc-mfa-recovery-toast
         >
           {toast}
-        </div>
+        </Card>
       ) : null}
 
       {!teamId ? (
-        <p style={mutedStyle}>
-          Switch to a workspace to view MFA recovery requests.
-        </p>
-      ) : requests === null ? (
-        <p style={mutedStyle}>Loading…</p>
-      ) : requests.length === 0 ? (
-        <p style={mutedStyle} data-cc-mfa-recovery-empty>
-          No pending MFA recovery requests.
-        </p>
+        <EmptyState
+          framed
+          title="Switch to a workspace to view MFA recovery requests"
+          purpose="Lost-factor recovery requests are scoped to a workspace. Open a workspace you administer to review the queue."
+        />
       ) : (
-        <table
-          style={tableStyle}
-          data-cc-mfa-recovery-table
-        >
-          <thead>
-            <tr>
-              <th style={thStyle}>User</th>
-              <th style={thStyle}>Reason</th>
-              <th style={thStyle}>Email verified</th>
-              <th style={thStyle}>Approvals</th>
-              <th style={thStyle}>Expires</th>
-              <th style={thStyle}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.map((rq) => (
-              <tr
-                key={rq.id}
-                data-cc-mfa-recovery-row
-                data-cc-mfa-recovery-status={rq.status}
-              >
-                <td style={tdStyle}>
-                  <button
-                    type="button"
-                    onClick={() => void openDetail(rq.id)}
-                    style={linkButtonStyle}
-                    data-cc-mfa-recovery-detail-cta
-                  >
-                    {rq.userId.slice(0, 8)}…
-                  </button>
-                </td>
-                <td style={{ ...tdStyle, maxWidth: 280 }}>{rq.reason}</td>
-                <td style={tdStyle}>
-                  {rq.emailVerified ? (
-                    <span style={pillOk} data-cc-mfa-email-verified="true">
-                      verified
-                    </span>
-                  ) : (
-                    <span style={pillWarn} data-cc-mfa-email-verified="false">
-                      awaiting user
-                    </span>
-                  )}
-                </td>
-                <td style={tdStyle} data-cc-mfa-recovery-quorum>
-                  <span
-                    style={{
-                      fontFamily: "ui-monospace, monospace",
-                      fontWeight: 600,
-                    }}
-                    data-cc-mfa-recovery-quorum-count
-                  >
-                    {rq.approvalCount}/{rq.requiredApprovals}
-                  </span>
-                  {/* PHASE R8.1.6 — quorum-not-met badge. Surfaces
-                       "waiting for additional approval" when at
-                       least one approval is recorded but the
-                       requiredApprovals threshold has not been hit. */}
-                  {rq.approvalCount > 0 &&
-                  rq.approvalCount < rq.requiredApprovals ? (
-                    <div
-                      style={pillWarn}
-                      data-cc-mfa-recovery-quorum-waiting
-                    >
-                      Waiting for additional approval
-                    </div>
-                  ) : null}
-                </td>
-                <td style={tdStyle}>
-                  {formatUtcAuditDateTime(rq.expiresAt)}
-                </td>
-                <td style={tdStyle}>
-                  <button
-                    type="button"
-                    disabled={!rq.emailVerified || busy}
-                    onClick={() =>
-                      setPendingAction({
-                        kind: "approve",
-                        requestId: rq.id,
-                        userId: rq.userId,
-                      })
-                    }
-                    style={
-                      rq.emailVerified
-                        ? primaryButtonStyle
-                        : disabledButtonStyle
-                    }
-                    title={
-                      rq.emailVerified
-                        ? "Approve recovery request"
-                        : "Cannot approve until the user verifies their email"
-                    }
-                    data-cc-mfa-recovery-approve
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPendingAction({
-                        kind: "reject",
-                        requestId: rq.id,
-                        userId: rq.userId,
-                      })
-                    }
-                    disabled={busy}
-                    style={secondaryButtonStyle}
-                    data-cc-mfa-recovery-reject
-                  >
-                    Reject
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <PageSection title="Pending requests">
+          <div data-cc-mfa-recovery-table>
+          <DataTable<AdminRecoveryRequest>
+            ariaLabel="MFA recovery requests"
+            columns={requestColumns}
+            rows={requests ?? []}
+            getRowId={(rq) => rq.id}
+            loading={requests === null}
+            rowActions={(rq) => (
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={!rq.emailVerified || busy}
+                  onClick={() =>
+                    setPendingAction({
+                      kind: "approve",
+                      requestId: rq.id,
+                      userId: rq.userId,
+                    })
+                  }
+                  title={
+                    rq.emailVerified
+                      ? "Approve recovery request"
+                      : "Cannot approve until the user verifies their email"
+                  }
+                  data-cc-mfa-recovery-approve
+                >
+                  Approve
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    setPendingAction({
+                      kind: "reject",
+                      requestId: rq.id,
+                      userId: rq.userId,
+                    })
+                  }
+                  disabled={busy}
+                  data-cc-mfa-recovery-reject
+                >
+                  Reject
+                </Button>
+              </div>
+            )}
+            emptyState={
+              <div data-cc-mfa-recovery-empty>
+                <EmptyState
+                  compact
+                  title="No recovery codes generated"
+                  purpose="No pending MFA recovery requests. When a member requests a lost-factor reset, it appears here for admin review."
+                />
+              </div>
+            }
+          />
+          </div>
+        </PageSection>
       )}
 
       {/* PHASE R8.1.8 — digest preview card. Read-only summary of
            what the next worker tick would email this admin. No
            approve/reject controls inside the preview — those live
            in the queue above. */}
-      <section
-        style={cardStyle}
-        data-cc-mfa-recovery-digest-preview-card
-      >
-        <h2 style={sectionTitleStyle}>Next digest preview</h2>
+      <Card variant="admin" data-cc-mfa-recovery-digest-preview-card>
+        <h2 style={{ ...sectionTitleStyle, marginTop: 0 }}>Next digest preview</h2>
         <p style={mutedStyle}>
           A read-only preview of the consolidated email the worker
           would send you on its next tick.{" "}
@@ -601,7 +629,9 @@ function MfaRecoveryAdminBody() {
                     <div style={{ fontWeight: 600 }}>
                       {t.teamName}
                       {t.suppressedByPreference ? (
-                        <span style={pillWarn}> suppressed</span>
+                        <Badge tone="pending" subtle style={{ marginLeft: 6 }}>
+                          suppressed
+                        </Badge>
                       ) : null}
                     </div>
                     <div style={mutedStyle}>
@@ -615,16 +645,16 @@ function MfaRecoveryAdminBody() {
                     </div>
                   </div>
                   {/* Per-team snooze quick action. */}
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => void doSnooze(t.teamId, 7)}
                     disabled={prefsBusy}
-                    style={secondaryButtonStyle}
                     title="Snooze digest emails for this team for 7 days. Recovery queue + audit log unaffected."
                     data-cc-mfa-recovery-digest-snooze-team
                   >
                     Snooze 7d
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -634,18 +664,15 @@ function MfaRecoveryAdminBody() {
             </p>
           </>
         )}
-      </section>
+      </Card>
 
       {/* PHASE R8.1.8 — digest notification preferences card.
            Inline editor for the per-user + per-team digest
            preference rows. Affects EMAILS ONLY — the recovery
            queue, audit log, and security events are preserved
            unconditionally. */}
-      <section
-        style={cardStyle}
-        data-cc-mfa-recovery-digest-preferences-card
-      >
-        <h2 style={sectionTitleStyle}>Digest notification preferences</h2>
+      <Card variant="admin" data-cc-mfa-recovery-digest-preferences-card>
+        <h2 style={{ ...sectionTitleStyle, marginTop: 0 }}>Digest notification preferences</h2>
         <p style={mutedStyle}>
           Control which workspaces email you the daily MFA recovery
           digest.
@@ -689,7 +716,7 @@ function MfaRecoveryAdminBody() {
             workspaces send the digest).
           </p>
         ) : null}
-      </section>
+      </Card>
 
       {/* Detail modal — read-only */}
       {selected ? (
@@ -740,13 +767,13 @@ function MfaRecoveryAdminBody() {
             </div>
 
             <div style={{ marginTop: 16, textAlign: "right" }}>
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setSelected(null)}
-                style={secondaryButtonStyle}
               >
                 Close
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -834,17 +861,25 @@ function MfaRecoveryAdminBody() {
                 </label>
               </>
             )}
-            <div style={{ marginTop: 20, textAlign: "right" }}>
-              <button
-                type="button"
+            <div
+              style={{
+                marginTop: 20,
+                display: "flex",
+                gap: 8,
+                justifyContent: "flex-end",
+              }}
+            >
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setPendingAction(null)}
                 disabled={busy}
-                style={secondaryButtonStyle}
               >
                 Cancel
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => {
                   if (pendingAction.kind === "approve") {
                     void doApprove(pendingAction.requestId);
@@ -852,8 +887,8 @@ function MfaRecoveryAdminBody() {
                     void doReject(pendingAction.requestId, rejectReason);
                   }
                 }}
+                loading={busy}
                 disabled={busy}
-                style={primaryButtonStyle}
                 data-cc-mfa-recovery-confirm
               >
                 {busy
@@ -861,12 +896,12 @@ function MfaRecoveryAdminBody() {
                   : pendingAction.kind === "approve"
                     ? "Confirm approve"
                     : "Confirm reject"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       ) : null}
-    </main>
+    </PageShell>
   );
 }
 
@@ -879,21 +914,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-const pageStyle: CSSProperties = {
-  maxWidth: 1080,
-  margin: "0 auto",
-  padding: "32px 24px",
-  fontFamily: "system-ui, -apple-system, sans-serif",
-};
 const mutedStyle: CSSProperties = { color: "#475569" };
-const errorBoxStyle: CSSProperties = {
-  border: "1px solid #fecaca",
-  background: "#fef2f2",
-  color: "#b91c1c",
-  padding: "10px 14px",
-  borderRadius: 8,
-  marginBottom: 16,
-};
 const warnBoxStyle: CSSProperties = {
   border: "1px solid #fde68a",
   background: "#fffbeb",
@@ -901,49 +922,6 @@ const warnBoxStyle: CSSProperties = {
   padding: "10px 14px",
   borderRadius: 8,
   marginTop: 8,
-};
-const tableStyle: CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  fontSize: 14,
-};
-const thStyle: CSSProperties = {
-  textAlign: "left",
-  borderBottom: "1px solid #e2e8f0",
-  padding: "8px 6px",
-  fontWeight: 600,
-};
-const tdStyle: CSSProperties = {
-  borderBottom: "1px solid #f1f5f9",
-  padding: "10px 6px",
-  verticalAlign: "top",
-};
-const primaryButtonStyle: CSSProperties = {
-  padding: "6px 12px",
-  background: "#1d4ed8",
-  color: "white",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer",
-  marginRight: 6,
-};
-const secondaryButtonStyle: CSSProperties = {
-  padding: "6px 12px",
-  background: "white",
-  color: "#1d4ed8",
-  border: "1px solid #1d4ed8",
-  borderRadius: 6,
-  cursor: "pointer",
-  marginRight: 6,
-};
-const disabledButtonStyle: CSSProperties = {
-  padding: "6px 12px",
-  background: "#e2e8f0",
-  color: "#94a3b8",
-  border: "none",
-  borderRadius: 6,
-  cursor: "not-allowed",
-  marginRight: 6,
 };
 const linkButtonStyle: CSSProperties = {
   background: "none",
@@ -953,22 +931,6 @@ const linkButtonStyle: CSSProperties = {
   textDecoration: "underline",
   padding: 0,
   fontFamily: "ui-monospace, monospace",
-};
-const pillOk: CSSProperties = {
-  display: "inline-block",
-  background: "#dcfce7",
-  color: "#166534",
-  padding: "2px 8px",
-  borderRadius: 9999,
-  fontSize: 12,
-};
-const pillWarn: CSSProperties = {
-  display: "inline-block",
-  background: "#fef3c7",
-  color: "#92400e",
-  padding: "2px 8px",
-  borderRadius: 9999,
-  fontSize: 12,
 };
 const modalBackdropStyle: CSSProperties = {
   position: "fixed",
@@ -997,13 +959,6 @@ const inputStyle: CSSProperties = {
 };
 
 // PHASE R8.1.8 — styles for the new preferences + preview cards.
-const cardStyle: CSSProperties = {
-  border: "1px solid #e2e8f0",
-  borderRadius: 8,
-  padding: "16px 20px",
-  marginTop: 16,
-  background: "white",
-};
 const sectionTitleStyle: CSSProperties = {
   fontSize: 16,
   fontWeight: 600,
@@ -1021,15 +976,6 @@ const rowStyle: CSSProperties = {
   padding: "8px 0",
   borderTop: "1px solid #f1f5f9",
 };
-const toastStyle: CSSProperties = {
-  border: "1px solid #bbf7d0",
-  background: "#f0fdf4",
-  color: "#166534",
-  padding: "10px 14px",
-  borderRadius: 8,
-  marginBottom: 12,
-};
-
 // PHASE R8.1.8 — small row editor for the preferences card. Pure
 // presentational; all state lives in the parent body component.
 function DigestPreferenceRowEditor(props: {
@@ -1089,25 +1035,25 @@ function DigestPreferenceRowEditor(props: {
         <span style={{ fontSize: 13 }}>Enabled</span>
       </label>
       {isSnoozed ? (
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="sm"
           onClick={props.onResume}
           disabled={props.prefsBusy}
-          style={primaryButtonStyle}
           data-cc-mfa-recovery-digest-preference-resume
         >
           Resume
-        </button>
+        </Button>
       ) : (
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={props.onSnooze}
           disabled={props.prefsBusy}
-          style={secondaryButtonStyle}
           data-cc-mfa-recovery-digest-preference-snooze
         >
           Snooze 7d
-        </button>
+        </Button>
       )}
     </div>
   );

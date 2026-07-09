@@ -73,6 +73,29 @@ export const ORG_AUDIT_EVENT_TYPES = [
   "DOMAIN_ADDED",
   "DOMAIN_VERIFIED",
   "DOMAIN_REMOVED",
+  // Phase 8 (Enterprise Production Readiness) — SCOPE C. An org admin
+  // exported an operational report (members / seats / audit / governance
+  // / external-access / download-audit) as CSV. Metadata carries the
+  // report name + the exported row count ONLY — never the report body,
+  // never member/evidence identities.
+  //   ORG_REPORT_EXPORTED:
+  //     { report: string, rowCount: number, truncated?: boolean,
+  //       eventType?: string | null }
+  "ORG_REPORT_EXPORTED",
+  // Phase 8 (Enterprise Production Readiness) — SCOPE A/B. Bulk org
+  // invitation batches (paste, array, or CSV source).
+  //   ORG_BULK_INVITATION_STARTED:
+  //     { batchId: string, totalRows: number, eligibleRows: number,
+  //       source?: "csv" }
+  //   ORG_BULK_INVITATION_COMPLETED:
+  //     { batchId: string, totalRows: number, source?: "csv",
+  //       ...per-outcome counts (INVITED / DUPLICATE / ... / FAILED) }
+  //   Individual invites still emit the canonical ORG_MEMBER_INVITED
+  //   event, whose metadata carries `bulkBatchId` so the audit timeline
+  //   groups a batch AND retains per-invite forensics. (Token NEVER in
+  //   metadata.)
+  "ORG_BULK_INVITATION_STARTED",
+  "ORG_BULK_INVITATION_COMPLETED",
 ] as const;
 
 export type OrgAuditEventType = (typeof ORG_AUDIT_EVENT_TYPES)[number];

@@ -82,7 +82,10 @@ const REGISTRY = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
 describe("E10.1 Test 1 — DEF-037: auth route rate limits", () => {
   it("auth.routes.ts imports enforceRateLimit from the existing rate-limit service", () => {
     expect(AUTH_ROUTES).toMatch(
-      /import\s*\{\s*enforceRateLimit\s*\}\s*from\s*["']\.\.\/services\/rate-limit\.js["']/,
+      // Launch hardening — enforceRateLimit is imported from the shared
+      // rate-limit service (may be co-imported with clearAllRateLimitBuckets,
+      // which the multi-instance MFA-throttle reset now reuses).
+      /import\s*\{[^}]*\benforceRateLimit\b[^}]*\}\s*from\s*["']\.\.\/services\/rate-limit\.js["']/,
     );
   });
 

@@ -47,6 +47,11 @@ import {
   formatUserTime,
   formatUtcAuditDateTime,
 } from "../../../../lib/date";
+import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { Badge, type BadgeTone } from "../../../../components/ui/Badge";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 
 // ---------------------------------------------------------------------------
 // Types — mirror Phase 2.7X Stage 3/4/5 wire shapes.
@@ -76,15 +81,6 @@ const ROLE_LABELS: Record<OrgRole, string> = {
   ORG_BILLING_ADMIN: "Billing admin",
   ORG_AUDITOR: "Auditor",
   ORG_MEMBER: "Member",
-};
-
-const ROLE_TONE: Record<OrgRole, string> = {
-  ORG_OWNER: "rgba(99, 102, 241, 0.22)",
-  ORG_ADMIN: "rgba(99, 102, 241, 0.16)",
-  ORG_SECURITY_ADMIN: "rgba(239, 68, 68, 0.16)",
-  ORG_BILLING_ADMIN: "rgba(245, 158, 11, 0.16)",
-  ORG_AUDITOR: "rgba(34, 197, 94, 0.14)",
-  ORG_MEMBER: "rgba(148, 163, 184, 0.18)",
 };
 
 const ALL_ROLES: OrgRole[] = [
@@ -376,21 +372,101 @@ function OrganizationDetailInner() {
   // ---------------------------------------------------------------------------
   // Render.
   // ---------------------------------------------------------------------------
+  const contextStrip =
+    org.kind === "ready" ? (
+      <>
+        <Badge tone={roleBadgeTone(org.data.callerRole)} subtle>
+          Your role · {ROLE_LABELS[org.data.callerRole]}
+        </Badge>
+        <span data-pill="status">
+          <Badge tone="verified" subtle>
+            {org.data.status}
+          </Badge>
+        </span>
+        <span style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)" }}>
+          {org.data.summary.memberCount} member
+          {org.data.summary.memberCount === 1 ? "" : "s"} ·{" "}
+          {org.data.summary.workspaceCount} workspace
+          {org.data.summary.workspaceCount === 1 ? "" : "s"}
+        </span>
+        {(org.data.legalName || org.data.legalEmail) && (
+          <span style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}>
+            {org.data.legalName ? `Legal: ${org.data.legalName}` : null}
+            {org.data.legalName && org.data.legalEmail ? " · " : ""}
+            {org.data.legalEmail ?? null}
+          </span>
+        )}
+      </>
+    ) : undefined;
+
   return (
-    <main
-      style={{ padding: "1.5rem", maxWidth: 1000, margin: "0 auto" }}
+    <PageShell
       data-phase-a-1b-organization-detail
       data-org-id={orgId}
       data-caller-role={callerRole ?? ""}
+      header={
+        <PageHeader
+          eyebrow="Organization · Governance"
+          title={org.kind === "ready" ? org.data.name : "Organization"}
+          subtitle="Governance and identity tenant — members, roles, invites, audit timeline, and legal metadata. Workspace evidence access is managed separately."
+          contextStrip={contextStrip}
+          secondaryActions={
+            <>
+              <Link
+                href="/organizations"
+                data-action="breadcrumb-organizations"
+                style={linkReset}
+              >
+                <Button variant="ghost" size="sm">
+                  ← All organizations
+                </Button>
+              </Link>
+              {org.kind === "ready" && (
+                <Link
+                  href={`/teams?org=${org.data.organizationId}`}
+                  data-action="cross-link-workspace-admin"
+                  style={linkReset}
+                >
+                  <Button variant="secondary" size="sm">
+                    Workspace admin →
+                  </Button>
+                </Link>
+              )}
+            </>
+          }
+          primaryAction={
+            org.kind === "ready" ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {(org.data.callerRole === "ORG_OWNER" ||
+                  org.data.callerRole === "ORG_ADMIN") && (
+                  <Link
+                    href={`/organizations/${org.data.organizationId}/setup`}
+                    data-action="open-organization-setup"
+                    data-org-id={org.data.organizationId}
+                    style={linkReset}
+                  >
+                    <Button variant="enterprise" size="sm">
+                      Enterprise setup →
+                    </Button>
+                  </Link>
+                )}
+                <Link
+                  href={`/organizations/${org.data.organizationId}/admin`}
+                  data-action="open-organization-admin"
+                  data-org-id={org.data.organizationId}
+                  style={linkReset}
+                >
+                  <Button variant="primary" size="sm">
+                    Open Admin →
+                  </Button>
+                </Link>
+              </div>
+            ) : undefined
+          }
+        />
+      }
     >
-      {/* Breadcrumb */}
-      <div style={{ marginBottom: "0.75rem", fontSize: 13 }}>
-        <Link href="/organizations" data-action="breadcrumb-organizations">
-          ← All organizations
-        </Link>
-      </div>
-
-      {/* ============================== HEADER ============================== */}
+      {/* ============================== HEADER STATES ====================== */}
       {org.kind === "loading" && (
         <SectionLoading dataSection="org-meta" />
       )}
@@ -405,112 +481,20 @@ function OrganizationDetailInner() {
       )}
 
       {org.kind === "ready" && (
-        <header
-          data-section="org-meta"
-          data-state="ready"
-          style={{
-            padding: "1rem 1.1rem",
-            border: "1px solid rgba(127,127,127,0.3)",
-            borderRadius: 8,
-            marginBottom: "1rem",
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-            <div
-              style={{
-                fontSize: 11,
-                opacity: 0.7,
-                letterSpacing: 0.5,
-                textTransform: "uppercase",
-              }}
-            >
-              Organization · Governance
-            </div>
-            <h1 style={{ margin: "0.25rem 0 0.35rem", fontSize: 22 }}>
-              {org.data.name}
-            </h1>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                flexWrap: "wrap",
-                fontSize: 12.5,
-              }}
-            >
-              <Pill tone={ROLE_TONE[org.data.callerRole]}>
-                Your role · {ROLE_LABELS[org.data.callerRole]}
-              </Pill>
-              <Pill tone="rgba(34, 197, 94, 0.18)" data-pill="status">
-                {org.data.status}
-              </Pill>
-              <span style={{ opacity: 0.75 }}>
-                {org.data.summary.memberCount} member
-                {org.data.summary.memberCount === 1 ? "" : "s"} ·{" "}
-                {org.data.summary.workspaceCount} workspace
-                {org.data.summary.workspaceCount === 1 ? "" : "s"}
-              </span>
-            </div>
-            {(org.data.legalName || org.data.legalEmail) && (
-              <div style={{ marginTop: 6, fontSize: 12, opacity: 0.7 }}>
-                {org.data.legalName ? `Legal: ${org.data.legalName}` : null}
-                {org.data.legalName && org.data.legalEmail ? " · " : ""}
-                {org.data.legalEmail ?? null}
-              </div>
-            )}
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {(org.data.callerRole === "ORG_OWNER" ||
-              org.data.callerRole === "ORG_ADMIN") && (
-              <Link
-                href={`/organizations/${org.data.organizationId}/setup`}
-                data-action="open-organization-setup"
-                data-org-id={org.data.organizationId}
-                style={cardLinkBtn(true)}
-              >
-                Enterprise setup →
-              </Link>
-            )}
-            <Link
-              href={`/organizations/${org.data.organizationId}/admin`}
-              data-action="open-organization-admin"
-              data-org-id={org.data.organizationId}
-              style={cardLinkBtn(true)}
-            >
-              Open Admin →
-            </Link>
-            <Link
-              href={`/teams?org=${org.data.organizationId}`}
-              data-action="cross-link-workspace-admin"
-              style={cardLinkBtn(false)}
-            >
-              Workspace admin →
-            </Link>
-          </div>
-        </header>
+        <span data-section="org-meta" data-state="ready" hidden />
       )}
 
       {/* ====================== ONBOARDING NEXT STEPS ====================== */}
       {org.kind === "ready" &&
         org.data.callerRole === "ORG_OWNER" &&
         org.data.summary.memberCount === 1 && (
-          <section
+          <Card
+            variant="status"
+            tone="governance"
             data-section="org-onboarding-next-steps"
-            style={{
-              ...sectionStyle,
-              borderColor: "rgba(99,102,241,0.45)",
-              background: "rgba(99,102,241,0.05)",
-              marginBottom: "1rem",
-            }}
+            title="You just created this organization — next steps"
+            subtitle="Three governance steps that turn a single-owner org into a real collaborative tenant. Each one is wired to a real audited endpoint."
           >
-            <SectionHeader
-              title="You just created this organization — next steps"
-              subtitle="Three governance steps that turn a single-owner org into a real collaborative tenant. Each one is wired to a real audited endpoint."
-            />
             <ol
               data-onboarding-steps
               style={{
@@ -550,7 +534,7 @@ function OrganizationDetailInner() {
                 ; the binding shows up in this org’s Workspaces panel below.
               </li>
             </ol>
-          </section>
+          </Card>
         )}
 
       {/* ============================ OVERVIEW =============================== */}
@@ -558,9 +542,8 @@ function OrganizationDetailInner() {
         data-section="org-overview"
         style={{
           display: "grid",
-          gap: 10,
+          gap: 12,
           gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          marginBottom: "1.25rem",
         }}
       >
         <OverviewTile
@@ -602,7 +585,7 @@ function OrganizationDetailInner() {
             <Link
               href={`/teams?org=${orgId}`}
               data-action="overview-open-workspace-admin"
-              style={{ fontSize: 12 }}
+              style={tileLink}
             >
               Open in Workspace administration →
             </Link>
@@ -627,7 +610,7 @@ function OrganizationDetailInner() {
             <Link
               href="/billing"
               data-action="overview-open-billing"
-              style={{ fontSize: 12 }}
+              style={tileLink}
             >
               Open billing →
             </Link>
@@ -656,13 +639,14 @@ function OrganizationDetailInner() {
       </section>
 
       {/* ============================ SETTINGS =============================== */}
-      <section
+      <Card
+        variant="admin"
         data-section="org-settings"
-        style={sectionStyle}
+        title="Settings"
+        subtitle="Identity metadata. ORG_ADMIN+ required."
       >
-        <SectionHeader title="Settings" subtitle="Identity metadata. ORG_ADMIN+ required." />
         {!canMutate && (
-          <div data-state="forbidden" style={{ fontSize: 13, opacity: 0.8 }}>
+          <div data-state="forbidden" style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}>
             You don’t have permission to change settings. Ask an
             organization admin.
           </div>
@@ -761,29 +745,32 @@ function OrganizationDetailInner() {
               <div
                 data-state="saved"
                 style={{
-                  padding: "0.4rem 0.6rem",
-                  border: "1px solid #4a4",
-                  borderRadius: 4,
+                  padding: "0.5rem 0.65rem",
+                  border: "1px solid var(--status-verified-border, #a7f3d0)",
+                  borderRadius: 10,
                   fontSize: 12,
-                  background: "rgba(76,170,76,0.06)",
+                  color: "var(--status-verified-fg, #065f46)",
+                  background: "var(--status-verified-bg, #ecfdf5)",
                 }}
               >
                 Saved at {formatUserTime(settingsSavedAt)}.
               </div>
             )}
             <div>
-              <button
+              <Button
                 type="submit"
+                variant="primary"
+                size="sm"
+                loading={settingsBusy}
                 disabled={settingsBusy || !settingsName.trim()}
                 data-action="submit-settings"
-                style={toolbarBtn(true)}
               >
                 {settingsBusy ? "Saving…" : "Save settings"}
-              </button>
+              </Button>
             </div>
           </form>
         )}
-      </section>
+      </Card>
 
       {/* ===================== MEMBERS (canonical deep-link) ================= */}
       {/*
@@ -797,21 +784,28 @@ function OrganizationDetailInner() {
         counts, so the at-a-glance signal is preserved; the deep-link below
         is the one place to act on them.
       */}
-      <section data-section="org-members-deeplink" style={sectionStyle}>
-        <SectionHeader
-          title="Members & invites"
-          subtitle="Managing members, roles, and pending invites moved to the Admin console — one canonical surface for member governance."
-          right={
-            <Link
-              href={`/organizations/${orgId}/admin/members`}
-              data-action="open-admin-members"
-              style={cardLinkBtn(true)}
-            >
-              Manage members →
-            </Link>
-          }
-        />
-        <div style={{ fontSize: 13, opacity: 0.85 }}>
+      <Card
+        variant="summary"
+        data-section="org-members-deeplink"
+        header={
+          <SectionHeader
+            title="Members & invites"
+            subtitle="Managing members, roles, and pending invites moved to the Admin console — one canonical surface for member governance."
+            right={
+              <Link
+                href={`/organizations/${orgId}/admin/members`}
+                data-action="open-admin-members"
+                style={linkReset}
+              >
+                <Button variant="primary" size="sm">
+                  Manage members →
+                </Button>
+              </Link>
+            }
+          />
+        }
+      >
+        <div style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}>
           {org.kind === "ready" ? (
             <>
               {org.data.summary.memberCount} member
@@ -829,23 +823,30 @@ function OrganizationDetailInner() {
             "Loading member summary…"
           )}
         </div>
-      </section>
+      </Card>
 
       {/* ============================ WORKSPACES ============================= */}
-      <section data-section="org-workspaces" style={sectionStyle}>
-        <SectionHeader
-          title="Workspaces"
-          subtitle="Operational evidence, cases, and reviewer queues live inside each workspace. Org-level membership does not grant workspace access — that is workspace-scoped."
-          right={
-            <Link
-              href={`/teams?org=${orgId}`}
-              data-action="workspaces-open-admin"
-              style={cardLinkBtn(false)}
-            >
-              Workspace admin →
-            </Link>
-          }
-        />
+      <Card
+        variant="summary"
+        data-section="org-workspaces"
+        header={
+          <SectionHeader
+            title="Workspaces"
+            subtitle="Operational evidence, cases, and reviewer queues live inside each workspace. Org-level membership does not grant workspace access — that is workspace-scoped."
+            right={
+              <Link
+                href={`/teams?org=${orgId}`}
+                data-action="workspaces-open-admin"
+                style={linkReset}
+              >
+                <Button variant="secondary" size="sm">
+                  Workspace admin →
+                </Button>
+              </Link>
+            }
+          />
+        }
+      >
         {workspaces.kind === "loading" && <RowLoading />}
         {workspaces.kind === "error" && (
           <RowError
@@ -860,8 +861,23 @@ function OrganizationDetailInner() {
             style={listResetStyle}
           >
             {workspaces.data.workspaces.length === 0 && (
-              <li style={emptyRowStyle}>
-                No workspaces bound to this organization.
+              <li style={{ listStyle: "none" }}>
+                <EmptyState
+                  compact
+                  title="No workspaces bound to this organization."
+                  purpose="Workspaces hold this organization’s evidence, cases, and reviewer queues. Bind one in Workspace administration to start capturing."
+                  action={
+                    <Link
+                      href={`/teams?org=${orgId}`}
+                      data-action="workspaces-empty-open-admin"
+                      style={linkReset}
+                    >
+                      <Button variant="secondary" size="sm">
+                        Open Workspace administration →
+                      </Button>
+                    </Link>
+                  }
+                />
               </li>
             )}
             {workspaces.data.workspaces.map((w) => (
@@ -884,38 +900,40 @@ function OrganizationDetailInner() {
                       flexWrap: "wrap",
                     }}
                   >
-                    <span style={{ fontWeight: 500 }}>{w.name}</span>
-                    {w.isPersonal ? <span style={miniChip}>personal</span> : null}
+                    <span style={{ fontWeight: 600 }}>{w.name}</span>
+                    {w.isPersonal ? (
+                      <Badge tone="neutral" subtle>
+                        personal
+                      </Badge>
+                    ) : null}
                     {w.billing && (
                       <>
-                        <Pill
-                          tone="rgba(99,102,241,0.18)"
-                          data-pill="workspace-plan"
-                        >
-                          {w.billing.plan}
-                        </Pill>
-                        <Pill
-                          tone={
-                            w.billing.status === "ACTIVE"
-                              ? "rgba(34,197,94,0.18)"
-                              : "rgba(245,158,11,0.18)"
-                          }
-                          data-pill="workspace-billing-status"
-                        >
-                          {w.billing.status}
-                        </Pill>
-                        {w.billing.overSeatLimit && (
-                          <Pill
-                            tone="rgba(239,68,68,0.22)"
-                            data-pill="workspace-over-seat"
+                        <span data-pill="workspace-plan">
+                          <Badge tone="governance" subtle>
+                            {w.billing.plan}
+                          </Badge>
+                        </span>
+                        <span data-pill="workspace-billing-status">
+                          <Badge
+                            tone={
+                              w.billing.status === "ACTIVE"
+                                ? "verified"
+                                : "pending"
+                            }
+                            subtle
                           >
-                            OVER SEAT LIMIT
-                          </Pill>
+                            {w.billing.status}
+                          </Badge>
+                        </span>
+                        {w.billing.overSeatLimit && (
+                          <span data-pill="workspace-over-seat">
+                            <Badge tone="risk">OVER SEAT LIMIT</Badge>
+                          </span>
                         )}
                       </>
                     )}
                   </div>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>
+                  <div style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}>
                     Created {formatUserDate(w.createdAt)}
                     {w.billing
                       ? ` · ${w.billing.includedSeats} included seat${w.billing.includedSeats === 1 ? "" : "s"}`
@@ -927,16 +945,18 @@ function OrganizationDetailInner() {
                     href={`/teams/${w.workspaceId}`}
                     data-action="open-workspace"
                     data-workspace-id={w.workspaceId}
-                    style={cardLinkBtn(false)}
+                    style={linkReset}
                   >
-                    Open workspace
+                    <Button variant="secondary" size="sm">
+                      Open workspace
+                    </Button>
                   </Link>
                 </div>
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
       {/* ===================== AUDIT (canonical deep-link) ================== */}
       {/*
@@ -946,21 +966,28 @@ function OrganizationDetailInner() {
         overview "Audit" tile above still surfaces the event count + latest
         timestamp; the deep-link below is the one place to browse + export.
       */}
-      <section data-section="org-audit-deeplink" style={sectionStyle}>
-        <SectionHeader
-          title="Audit timeline"
-          subtitle="Organization governance events moved to the Admin console, with event-type / actor / date filters and CSV export. Requires ORG_AUDITOR or higher."
-          right={
-            <Link
-              href={`/organizations/${orgId}/admin/audit`}
-              data-action="open-admin-audit"
-              style={cardLinkBtn(true)}
-            >
-              Open audit timeline →
-            </Link>
-          }
-        />
-        <div style={{ fontSize: 13, opacity: 0.85 }}>
+      <Card
+        variant="summary"
+        data-section="org-audit-deeplink"
+        header={
+          <SectionHeader
+            title="Audit timeline"
+            subtitle="Organization governance events moved to the Admin console, with event-type / actor / date filters and CSV export. Requires ORG_AUDITOR or higher."
+            right={
+              <Link
+                href={`/organizations/${orgId}/admin/audit`}
+                data-action="open-admin-audit"
+                style={linkReset}
+              >
+                <Button variant="primary" size="sm">
+                  Open audit timeline →
+                </Button>
+              </Link>
+            }
+          />
+        }
+      >
+        <div style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}>
           {audit.kind === "ready" ? (
             <>
               {audit.data.summary.totalEvents} event
@@ -975,20 +1002,15 @@ function OrganizationDetailInner() {
             "Loading audit summary…"
           )}
         </div>
-      </section>
+      </Card>
 
       {/* ========================= SCOPE / HIERARCHY ========================== */}
-      <section
+      <Card
+        variant="admin"
         data-section="org-scope-hierarchy"
-        style={{
-          ...sectionStyle,
-          background: "rgba(127,127,127,0.04)",
-        }}
+        title="Scope — what lives where"
+        subtitle="The platform uses three tenancy scopes. Each one owns a specific category of operational data and a specific category of identity."
       >
-        <SectionHeader
-          title="Scope — what lives where"
-          subtitle="The platform uses three tenancy scopes. Each one owns a specific category of operational data and a specific category of identity."
-        />
         <div
           style={{
             display: "grid",
@@ -999,14 +1021,14 @@ function OrganizationDetailInner() {
         >
           <div data-scope="personal" style={scopeCard}>
             <div style={scopeTitle}>Personal Space</div>
-            <div style={{ opacity: 0.85 }}>
+            <div style={{ color: "var(--ink-secondary, #475569)" }}>
               Private to you. Your own evidence, drafts, and integrations.
               Never shared. Lives outside any organization.
             </div>
           </div>
           <div data-scope="organization" style={scopeCard}>
             <div style={scopeTitle}>Organization (you are here)</div>
-            <div style={{ opacity: 0.85 }}>
+            <div style={{ color: "var(--ink-secondary, #475569)" }}>
               Governance + identity tenant. Members, roles, invites, audit
               timeline, legal metadata. Does NOT grant workspace data access
               on its own.
@@ -1014,7 +1036,7 @@ function OrganizationDetailInner() {
           </div>
           <div data-scope="workspace" style={scopeCard}>
             <div style={scopeTitle}>Workspace (a.k.a. Team)</div>
-            <div style={{ opacity: 0.85 }}>
+            <div style={{ color: "var(--ink-secondary, #475569)" }}>
               Operational tenant. Evidence, cases, reviewer queues, retention
               policy, plan + seats. Each workspace is bound to exactly one
               organization. Workspace-level RBAC is independent of
@@ -1022,21 +1044,17 @@ function OrganizationDetailInner() {
             </div>
           </div>
         </div>
-      </section>
+      </Card>
 
       {/* ============================ DANGER ZONE ============================ */}
-      <section
+      <Card
+        variant="status"
+        tone="risk"
         data-section="org-danger-zone"
-        style={{
-          ...sectionStyle,
-          borderColor: "rgba(220, 68, 68, 0.45)",
-        }}
+        title="Membership controls"
+        subtitle="Lifecycle changes that affect your account or the organization. Items below are intentionally NOT self-service in Phase 2.7X — each one is documented with the operational path."
       >
-        <SectionHeader
-          title="Membership controls"
-          subtitle="Lifecycle changes that affect your account or the organization. Items below are intentionally NOT self-service in Phase 2.7X — each one is documented with the operational path."
-        />
-        <div style={{ fontSize: 13, opacity: 0.9, display: "grid", gap: 10 }}>
+        <div style={{ fontSize: 13, color: "var(--ink-secondary, #475569)", display: "grid", gap: 10 }}>
           <div data-control="leave-organization-note">
             <strong>Leave organization:</strong> not yet a self-service
             action. Ask an organization admin to remove your membership from
@@ -1066,9 +1084,8 @@ function OrganizationDetailInner() {
             to suspend or archive.
           </div>
         </div>
-      </section>
-
-    </main>
+      </Card>
+    </PageShell>
   );
 }
 
@@ -1125,32 +1142,41 @@ function OverviewTile({
   footer?: React.ReactNode;
 }) {
   return (
-    <div
-      data-tile={dataAttr}
-      style={{
-        padding: "0.75rem 0.9rem",
-        border: "1px solid rgba(127,127,127,0.3)",
-        borderRadius: 8,
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        minHeight: 110,
-      }}
-    >
+    <Card variant="summary" padding="compact" data-tile={dataAttr}>
       <div
         style={{
-          fontSize: 11,
-          opacity: 0.7,
-          letterSpacing: 0.5,
-          textTransform: "uppercase",
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          minHeight: 108,
         }}
       >
-        {title}
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: "var(--ink-muted, #94a3b8)",
+          }}
+        >
+          {title}
+        </div>
+        <div
+          style={{
+            fontSize: 18,
+            fontWeight: 650,
+            color: "var(--ink-primary, #0f172a)",
+          }}
+        >
+          {primary}
+        </div>
+        <div style={{ fontSize: 12.5, color: "var(--ink-secondary, #475569)" }}>
+          {secondary}
+        </div>
+        {footer && <div style={{ marginTop: "auto", paddingTop: 6 }}>{footer}</div>}
       </div>
-      <div style={{ fontSize: 18, fontWeight: 600 }}>{primary}</div>
-      <div style={{ fontSize: 12, opacity: 0.8 }}>{secondary}</div>
-      {footer && <div style={{ marginTop: "auto" }}>{footer}</div>}
-    </div>
+    </Card>
   );
 }
 
@@ -1189,16 +1215,14 @@ function SectionHeader({
 
 function SectionLoading({ dataSection }: { dataSection: string }) {
   return (
-    <div
+    <Card
+      variant="summary"
       data-section={dataSection}
       data-state="loading"
-      style={{
-        ...sectionStyle,
-        opacity: 0.75,
-      }}
+      style={{ opacity: 0.75 }}
     >
       Loading…
-    </div>
+    </Card>
   );
 }
 
@@ -1214,15 +1238,12 @@ function SectionError({
   forbiddenMessage: string;
 }) {
   return (
-    <div
+    <Card
+      variant="status"
+      tone="risk"
       data-section={dataSection}
       data-state="error"
       role="alert"
-      style={{
-        ...sectionStyle,
-        borderColor: "#d44",
-        background: "rgba(220,68,68,0.06)",
-      }}
     >
       <strong>Couldn’t load.</strong>
       <div style={{ fontSize: 13, marginTop: 4 }}>
@@ -1230,7 +1251,7 @@ function SectionError({
           ? forbiddenMessage
           : `${status ? `HTTP ${status}: ` : ""}${message}`}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -1250,47 +1271,31 @@ function RowError({
   forbiddenMessage: string;
 }) {
   return (
-    <div data-state="error" style={{ fontSize: 13, opacity: 0.85 }}>
+    <div data-state="error" style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}>
       {status === 403 ? forbiddenMessage : "Couldn’t load."}
     </div>
   );
 }
 
-function Pill({
-  tone,
-  children,
-  ...rest
-}: {
-  tone: string;
-  children: React.ReactNode;
-} & React.HTMLAttributes<HTMLSpanElement>) {
-  return (
-    <span
-      {...rest}
-      style={{
-        fontSize: 11,
-        fontWeight: 600,
-        letterSpacing: 0.3,
-        padding: "1px 8px",
-        borderRadius: 999,
-        background: tone,
-        border: "1px solid rgba(127,127,127,0.25)",
-        textTransform: "uppercase",
-      }}
-    >
-      {children}
-    </span>
-  );
+// Map an org role to a semantic Badge tone for the header context strip.
+function roleBadgeTone(role: OrgRole): BadgeTone {
+  switch (role) {
+    case "ORG_OWNER":
+    case "ORG_ADMIN":
+      return "governance";
+    case "ORG_SECURITY_ADMIN":
+      return "risk";
+    case "ORG_BILLING_ADMIN":
+      return "pending";
+    case "ORG_AUDITOR":
+      return "verified";
+    case "ORG_MEMBER":
+    default:
+      return "neutral";
+  }
 }
 
 // ---- shared styles ----
-
-const sectionStyle: React.CSSProperties = {
-  padding: "1rem 1.1rem",
-  border: "1px solid rgba(127,127,127,0.3)",
-  borderRadius: 8,
-  marginBottom: "1rem",
-};
 
 const listResetStyle: React.CSSProperties = {
   listStyle: "none",
@@ -1299,8 +1304,8 @@ const listResetStyle: React.CSSProperties = {
 };
 
 const memberRowStyle: React.CSSProperties = {
-  padding: "0.5rem 0.65rem",
-  borderBottom: "1px solid rgba(127,127,127,0.18)",
+  padding: "10px 0",
+  borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
@@ -1308,82 +1313,54 @@ const memberRowStyle: React.CSSProperties = {
   flexWrap: "wrap",
 };
 
-const emptyRowStyle: React.CSSProperties = {
-  padding: "0.5rem 0.65rem",
-  fontSize: 13,
-  opacity: 0.75,
-};
-
-const miniChip: React.CSSProperties = {
-  marginLeft: 6,
-  padding: "1px 6px",
-  borderRadius: 4,
-  fontSize: 11,
-  background: "rgba(127,127,127,0.18)",
-};
-
 const settingsLabel: React.CSSProperties = {
   display: "block",
   fontSize: 13,
+  color: "var(--ink-secondary, #475569)",
 };
 
 const modalInput: React.CSSProperties = {
   display: "block",
   width: "100%",
   marginTop: 4,
-  padding: "0.45rem 0.55rem",
-  border: "1px solid currentColor",
-  borderRadius: 4,
-  background: "transparent",
-  color: "inherit",
+  padding: "0.5rem 0.6rem",
+  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+  borderRadius: 10,
+  background: "var(--surface-card, #ffffff)",
+  color: "var(--ink-primary, #0f172a)",
   fontSize: 13,
 };
 
 const modalErrorBox: React.CSSProperties = {
   marginTop: 8,
-  padding: "0.45rem 0.6rem",
-  border: "1px solid #d44",
-  borderRadius: 4,
+  padding: "0.5rem 0.65rem",
+  border: "1px solid var(--status-risk-border, #fecaca)",
+  borderRadius: 10,
   fontSize: 13,
-  background: "rgba(220,68,68,0.06)",
+  color: "var(--status-risk-fg, #991b1b)",
+  background: "var(--status-risk-bg, #fef2f2)",
 };
 
-function toolbarBtn(primary: boolean): React.CSSProperties {
-  return {
-    padding: "0.4rem 0.8rem",
-    border: "1px solid currentColor",
-    borderRadius: 4,
-    fontSize: 13,
-    fontWeight: primary ? 600 : 500,
-    background: primary ? "rgba(99,102,241,0.12)" : "transparent",
-    color: "inherit",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  };
-}
+const linkReset: React.CSSProperties = {
+  textDecoration: "none",
+  flexShrink: 0,
+};
 
-function cardLinkBtn(primary: boolean): React.CSSProperties {
-  return {
-    padding: "0.35rem 0.7rem",
-    border: "1px solid currentColor",
-    borderRadius: 4,
-    fontSize: 13,
-    fontWeight: primary ? 600 : 500,
-    background: primary ? "rgba(99,102,241,0.12)" : "transparent",
-    color: "inherit",
-    textDecoration: "none",
-    whiteSpace: "nowrap",
-  };
-}
+const tileLink: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "var(--enterprise-accent, #6b5bff)",
+  textDecoration: "none",
+};
 
 const scopeCard: React.CSSProperties = {
-  padding: "0.7rem 0.85rem",
-  border: "1px solid rgba(127,127,127,0.3)",
-  borderRadius: 6,
+  padding: "0.75rem 0.85rem",
+  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+  borderRadius: "var(--radius-card, 14px)",
+  background: "var(--surface-card, #ffffff)",
   display: "flex",
   flexDirection: "column",
   gap: 4,
-  background: "transparent",
 };
 
 const scopeTitle: React.CSSProperties = {
@@ -1391,4 +1368,5 @@ const scopeTitle: React.CSSProperties = {
   fontWeight: 700,
   letterSpacing: 0.4,
   textTransform: "uppercase",
+  color: "var(--ink-primary, #0f172a)",
 };

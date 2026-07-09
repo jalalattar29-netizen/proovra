@@ -25,20 +25,10 @@ import { apiFetch } from "../../../../lib/api";
 import { useActiveSpaceId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { RuntimeStatusBanner } from "../../../../components/operational";
-import {
-  cardStyle,
-  errorBoxStyle,
-  ghostButtonStyle,
-  headerRowStyle,
-  inputStyle,
-  mutedStyle,
-  pageStyle,
-  primaryButtonStyle,
-  sectionTitleStyle,
-  subtitleStyle,
-  titleStyle,
-  TOKENS,
-} from "../../reviewer-ops/ui-tokens";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { inputStyle, mutedStyle, TOKENS } from "../../reviewer-ops/ui-tokens";
 
 type Policy = {
   policy: {
@@ -155,33 +145,65 @@ function GovernancePolicyPageInner() {
 
   if (!policy || !flags) {
     return (
-      <main style={pageStyle}>
-        {error ? <div style={errorBoxStyle}>{error}</div> : null}
-        <p style={mutedStyle}>Loading policy…</p>
-      </main>
+      <PageShell
+        header={
+          <PageHeader
+            eyebrow="Governance"
+            title="Governance Policy"
+            subtitle="Loading policy…"
+          />
+        }
+      >
+        {error ? (
+          <div style={errorBoxStyle}>{error}</div>
+        ) : (
+          <p style={mutedStyle}>Loading policy…</p>
+        )}
+      </PageShell>
     );
   }
 
   const eff = policy.policy;
   const env = policy.sources.env;
 
+  const introParagraph = (
+    <span data-governance-policy-intro>
+      This surface administers the workspace baseline SLA and
+      step-up enforcement flags. Workflow templates can override
+      the SLA per template; the values set here apply only when a
+      template does not pin its own. Saving triggers a step-up
+      challenge.
+    </span>
+  );
+
   return (
-    <main style={pageStyle}>
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Governance"
+          title="Governance Policy"
+          subtitle={introParagraph}
+          primaryAction={
+            <Button
+              variant="enterprise"
+              onClick={save}
+              loading={busy}
+              disabled={busy}
+            >
+              {busy ? "Saving…" : "Save policy"}
+            </Button>
+          }
+          secondaryActions={
+            <Button variant="secondary" onClick={load} disabled={busy}>
+              Reload
+            </Button>
+          }
+        />
+      }
+    >
       {teamId ? (
         <RuntimeStatusBanner teamId={teamId} forDomains={["reviewer_ops"]} />
       ) : null}
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Governance Policy</h1>
-          <p style={subtitleStyle} data-governance-policy-intro>
-            This surface administers the workspace baseline SLA and
-            step-up enforcement flags. Workflow templates can override
-            the SLA per template; the values set here apply only when a
-            template does not pin its own. Saving triggers a step-up
-            challenge.
-          </p>
-        </div>
-      </header>
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
       {notice ? (
@@ -197,11 +219,11 @@ function GovernancePolicyPageInner() {
         </div>
       ) : null}
 
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h3 style={sectionTitleStyle}>SLA overrides (hours)</h3>
-        <p style={mutedStyle}>
-          Each field overrides the env default. Leave blank to inherit.
-        </p>
+      <PageSection
+        title="SLA overrides (hours)"
+        description="Each field overrides the env default. Leave blank to inherit."
+      >
+        <Card>
         <div style={gridStyle}>
           <PolicyField
             label="Assignment"
@@ -247,14 +269,14 @@ function GovernancePolicyPageInner() {
             onChange={(v) => setOverrides((p) => ({ ...p, dueSoonHours: v }))}
           />
         </div>
-      </section>
+        </Card>
+      </PageSection>
 
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h3 style={sectionTitleStyle}>Step-up enforcement</h3>
-        <p style={mutedStyle}>
-          When enabled, the action requires a fresh step-up challenge
-          (MFA / trusted device) before it succeeds.
-        </p>
+      <PageSection
+        title="Step-up enforcement"
+        description="When enabled, the action requires a fresh step-up challenge (MFA / trusted device) before it succeeds."
+      >
+        <Card>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <FlagRow
             label="Require step-up for approve"
@@ -298,15 +320,14 @@ function GovernancePolicyPageInner() {
             }
           />
         </div>
-      </section>
+        </Card>
+      </PageSection>
 
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h3 style={sectionTitleStyle}>Reviewer inactivity</h3>
-        <p style={mutedStyle}>
-          When set, the reconcile job surfaces a reviewer-inactive
-          reminder after the threshold elapses without a touch on the
-          assignment. Leave blank to disable.
-        </p>
+      <PageSection
+        title="Reviewer inactivity"
+        description="When set, the reconcile job surfaces a reviewer-inactive reminder after the threshold elapses without a touch on the assignment. Leave blank to disable."
+      >
+        <Card>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <input
             type="number"
@@ -330,29 +351,20 @@ function GovernancePolicyPageInner() {
           />
           <span style={mutedStyle}>hours</span>
         </div>
-      </section>
-
-      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-        <button
-          type="button"
-          style={primaryButtonStyle}
-          disabled={busy}
-          onClick={save}
-        >
-          {busy ? "Saving…" : "Save policy"}
-        </button>
-        <button
-          type="button"
-          style={ghostButtonStyle}
-          onClick={load}
-          disabled={busy}
-        >
-          Reload
-        </button>
-      </div>
-    </main>
+        </Card>
+      </PageSection>
+    </PageShell>
   );
 }
+
+const errorBoxStyle: React.CSSProperties = {
+  padding: 12,
+  background: "#fef2f2",
+  color: "#7f1d1d",
+  border: "1px solid #fecaca",
+  borderRadius: 8,
+  fontSize: 14,
+};
 
 function PolicyField({
   label,

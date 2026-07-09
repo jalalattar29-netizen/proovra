@@ -123,7 +123,7 @@ function listAppCss(): Array<{ label: string; abs: string }> {
 // ---------------------------------------------------------------------------
 
 const GLOBALS_CSS = readWeb("app/globals.css");
-const UI_TSX = readWeb("components/ui.tsx");
+const UI_TSX = readWeb("components/ui-legacy.tsx");
 
 const APP_FILES = listAppFiles();
 const CSS_FILES = listAppCss();
@@ -151,7 +151,7 @@ describe("R10 Group 1 — canonical CSS / ui.tsx upper-bound guards", () => {
     );
   });
 
-  it("apps/web/components/ui.tsx MUST NOT exceed pre-R10 line baseline", () => {
+  it("apps/web/components/ui-legacy.tsx MUST NOT exceed pre-R10 line baseline", () => {
     // +23 tolerance: the base +20 plus the 3-line growth from the PROOVRA
     // Feedback System ToastProvider redesign (premium light toasts with
     // distinct severities + a11y, replacing the dark-navy toast).

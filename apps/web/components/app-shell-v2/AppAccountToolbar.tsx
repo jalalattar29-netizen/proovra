@@ -316,7 +316,11 @@ export function AppAccountToolbar({
             aria-expanded={workspaceOpen}
           >
             <span className="app-topbar-v2-workspace-icon" aria-hidden="true">
-              <Users size={16} strokeWidth={1.9} />
+              {activeSpace?.type === "PERSONAL" ? (
+                <UserCircle size={16} strokeWidth={1.9} />
+              ) : (
+                <Users size={16} strokeWidth={1.9} />
+              )}
             </span>
 
             <div className="app-topbar-v2-workspace-copy">
@@ -324,7 +328,12 @@ export function AppAccountToolbar({
               <span data-workspace-scope-line>{scopeLine}</span>
             </div>
 
-            <ChevronDown size={14} strokeWidth={1.9} />
+            {/* Chevron only when there is actually more than one space to
+                switch to — a solo Personal-only user sees a context label,
+                not a switcher affordance that implies choices they lack. */}
+            {totalSwitchable > 1 ? (
+              <ChevronDown size={14} strokeWidth={1.9} />
+            ) : null}
           </button>
 
           {workspaceOpen ? (

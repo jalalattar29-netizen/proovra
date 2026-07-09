@@ -27,6 +27,9 @@ import { apiFetch } from "../../../../lib/api";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { ImmutableStorageDriftSection } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 
 type LifecycleStateCounts = {
   ACTIVE: number;
@@ -110,22 +113,23 @@ function GovernanceLifecycleDashboardInner() {
   }, [teamId]);
 
   return (
-    <main style={pageStyle}>
-      <header>
-        <h1 style={titleStyle}>Governance Posture</h1>
-        <p style={mutedStyle}>
-          Read-only lifecycle posture across retention, legal holds,
-          destruction queue, and evidence lifecycle distribution.
-        </p>
-        <p style={calloutStyle}>
-          This page summarizes lifecycle posture. To configure or execute
-          lifecycle actions, open{" "}
-          <Link href="/evidence-lifecycle" style={calloutLinkStyle}>
-            Lifecycle Operations
-          </Link>
-          .
-        </p>
-      </header>
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Governance"
+          title="Governance Posture"
+          subtitle="Read-only lifecycle posture across retention, legal holds, destruction queue, and evidence lifecycle distribution."
+        />
+      }
+    >
+      <p style={calloutStyle}>
+        This page summarizes lifecycle posture. To configure or execute
+        lifecycle actions, open{" "}
+        <Link href="/evidence-lifecycle" style={calloutLinkStyle}>
+          Lifecycle Operations
+        </Link>
+        .
+      </p>
 
       <nav style={navStyle}>
         <Link href="/governance" style={navLinkStyle}>
@@ -145,7 +149,11 @@ function GovernanceLifecycleDashboardInner() {
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
       {!teamId ? (
-        <p style={mutedStyle}>Switch to a workspace to view the dashboard.</p>
+        <EmptyState
+          framed
+          title="No workspace selected"
+          purpose="Switch to an organization workspace to view its governance posture dashboard."
+        />
       ) : !data ? (
         <p style={mutedStyle}>Loading governance signals…</p>
       ) : (
@@ -207,32 +215,31 @@ function GovernanceLifecycleDashboardInner() {
             ) : null}
           </section>
 
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>Lifecycle distribution</h2>
-            <p style={mutedStyle}>
-              Counts are point-in-time. The orchestrator is the single writer
-              of lifecycle state; every transition is logged in the evidence
-              lifecycle ledger.
-            </p>
-            <ul style={listStyle}>
-              {STATE_ORDER.map((s) => (
-                <li key={s} style={stateRowStyle}>
-                  <span style={stateBadgeStyle(s)}>{STATE_LABEL[s]}</span>
-                  <span style={stateCountStyle}>
-                    {data.lifecycle.byState[s].toLocaleString()}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <PageSection
+            title="Lifecycle distribution"
+            description="Counts are point-in-time. The orchestrator is the single writer of lifecycle state; every transition is logged in the evidence lifecycle ledger."
+          >
+            <Card>
+              <ul style={listStyle}>
+                {STATE_ORDER.map((s) => (
+                  <li key={s} style={stateRowStyle}>
+                    <span style={stateBadgeStyle(s)}>{STATE_LABEL[s]}</span>
+                    <span style={stateCountStyle}>
+                      {data.lifecycle.byState[s].toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </PageSection>
 
           {/* Phase Final-Hidden-Feature-Surfacing — ImmutableStorageCheck
               drift list. Reconciler-detected mismatches between DB
               lifecycle state and storage bucket pin. Real backend. */}
           <ImmutableStorageDriftSection teamId={teamId} />
 
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>Operator runbook</h2>
+          <PageSection title="Operator runbook">
+            <Card>
             <ol style={runbookListStyle}>
               <li>
                 <strong>Retention conflicts</strong> — open Retention policies
@@ -255,10 +262,11 @@ function GovernanceLifecycleDashboardInner() {
                 governance page before any destruction can proceed.
               </li>
             </ol>
-          </section>
+            </Card>
+          </PageSection>
         </>
       )}
-    </main>
+    </PageShell>
   );
 }
 
@@ -305,20 +313,6 @@ function TileLink({
 // Styles — enterprise/SOC palette: slate + indigo, restrained accents.
 // -----------------------------------------------------------------------------
 
-const pageStyle: React.CSSProperties = {
-  maxWidth: 1000,
-  margin: "0 auto",
-  padding: "32px 24px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
-};
-const titleStyle: React.CSSProperties = {
-  fontSize: 26,
-  fontWeight: 700,
-  marginBottom: 4,
-  letterSpacing: -0.4,
-};
 const mutedStyle: React.CSSProperties = { fontSize: 13, color: "#64748b" };
 const calloutStyle: React.CSSProperties = {
   marginTop: 8,
@@ -338,19 +332,6 @@ const tileLinkStyle: React.CSSProperties = {
   display: "block",
   textDecoration: "none",
   color: "inherit",
-};
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 16,
-  fontWeight: 600,
-  marginBottom: 8,
-  color: "#0f172a",
-};
-const cardStyle: React.CSSProperties = {
-  marginTop: 24,
-  padding: 20,
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  background: "#fff",
 };
 const navStyle: React.CSSProperties = {
   display: "flex",

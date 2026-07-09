@@ -31,6 +31,11 @@ import {
   workflowFromPersona,
 } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+// Phase 7B — shared design-system content plane. PageShell supplies the
+// token-driven page padding / max-width / vertical rhythm. We keep the
+// existing <header>/<h1 data-search-title> heading (pinned by the search
+// contract tests) instead of PageShell's PageHeader, so no PageHeader here.
+import { PageShell } from "../../../components/ui";
 import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 // Phase IA-self-serve-simplification — gate the admin-only "Enable
@@ -1063,6 +1068,7 @@ function SearchInner() {
 
   return (
     <main style={pageStyle}>
+     <PageShell width="full" style={pageShellStyle}>
       <header style={headerStyle}>
         <div>
           <h1 style={titleStyle} data-search-title>
@@ -1807,6 +1813,7 @@ function SearchInner() {
           )}
         </aside>
       </div>
+     </PageShell>
     </main>
   );
 }
@@ -2637,12 +2644,23 @@ function formatDateTime(iso: string): string {
 // -----------------------------------------------------------------------------
 
 const pageStyle: React.CSSProperties = {
-  padding: "20px 24px 40px",
   fontFamily:
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   color: "#0f172a",
   background: "#f8fafc",
   minHeight: "100vh",
+};
+
+// Phase 7B — the shared PageShell owns the content-plane padding /
+// max-width / section rhythm now. The search console is a dense
+// three-column operator surface, so we opt out of the max-width clamp
+// (`width="full"` on the element) and keep the console's own compact
+// top/side padding (20px/24px, matching the pre-migration spacing) plus
+// a tighter section gap so the header + three-column grid stay close.
+const pageShellStyle: React.CSSProperties = {
+  paddingInline: 24,
+  paddingBlock: "20px 40px",
+  gap: 0,
 };
 
 const loadingScreenStyle: React.CSSProperties = {

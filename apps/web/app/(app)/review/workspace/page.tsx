@@ -38,6 +38,12 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
 import { formatUserDateTime } from "../../../../lib/date";
 
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { Badge } from "../../../../components/ui/Badge";
+import { EmptyState } from "../../../../components/ui/EmptyState";
+
 import { CodingPanel } from "../../../../components/reviewer-workspace/CodingPanel";
 import { useReviewerHotkeys } from "../../../../lib/reviewer-workspace/reviewer-hotkeys";
 import {
@@ -720,38 +726,61 @@ function ReviewerWorkspaceShell() {
   );
 
   if (loadingWorkspace) {
-    return <div style={{ padding: 24 }}>Loading reviewer workspace…</div>;
+    return (
+      <div
+        style={{
+          padding: "var(--page-pad-y, 28px) var(--page-pad-x, 32px)",
+          color: "var(--ink-secondary, #475569)",
+          fontSize: 14,
+        }}
+      >
+        Loading reviewer workspace…
+      </div>
+    );
   }
 
   if (!workspace) {
     return (
-      <div
-        style={{
-          padding: 24,
-          color: "#475569",
-          fontSize: 14,
-          lineHeight: 1.55,
-        }}
+      <PageShell
+        header={
+          <PageHeader
+            eyebrow="Review workspace"
+            title="Review Workspace"
+            subtitle="The operational surface for receiving, reviewing, coding and deciding evidence workflows."
+          />
+        }
       >
-        <strong>You do not have a reviewer role in this workspace.</strong>{" "}
-        Ask a workspace admin to invite you as a Reviewer or above.
-      </div>
+        <PageSection>
+          <EmptyState
+            framed
+            title="You do not have a reviewer role in this workspace."
+            purpose="Ask a workspace admin to invite you as a Reviewer or above to receive assignments here."
+          />
+        </PageSection>
+      </PageShell>
     );
   }
 
   const capabilities = new Set<ReviewerCapability>(workspace.capabilities);
 
   return (
-    <div
+    <PageShell
+      width="full"
       data-reviewer-workspace
       data-reviewer-role={workspace.role}
       style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
+        gap: 12,
+        paddingBlock: "var(--page-pad-y, 24px) 12px",
         minHeight: "calc(100vh - 64px)",
-        background: "#fafafa",
       }}
+      header={
+        <PageHeader
+          eyebrow="Review workspace"
+          title="Review Workspace"
+          subtitle="Receive, review, annotate, code and decide evidence workflows — without leaving the page."
+          contextStrip={<Badge tone="governance">Role: {workspace.role}</Badge>}
+        />
+      }
     >
       <WorkspaceRibbon workspace={workspace} statusBanner={statusBanner} />
 
@@ -760,7 +789,6 @@ function ReviewerWorkspaceShell() {
           display: "grid",
           gridTemplateColumns: "minmax(180px, 220px) 1fr minmax(320px, 380px)",
           gap: 12,
-          padding: 12,
           flex: 1,
           minHeight: 0,
         }}
@@ -870,7 +898,7 @@ function ReviewerWorkspaceShell() {
       ) : null}
 
       <CycleSidePaneHandler onCycle={cycleSidePane} />
-    </div>
+    </PageShell>
   );
 }
 
@@ -893,15 +921,7 @@ function EvidenceViewerColumn({
 }) {
   if (!workflowId || !evidenceId) {
     return (
-      <div
-        data-reviewer-viewer-empty
-        style={{
-          background: "#fff",
-          border: "1px solid rgba(15, 23, 42, 0.08)",
-          borderRadius: 12,
-          padding: 18,
-        }}
-      >
+      <Card data-reviewer-viewer-empty padding="comfortable">
         <OperationalEmptyState
           kicker="Reviewer workspace"
           title="No active review is assigned to you right now."
@@ -917,7 +937,7 @@ function EvidenceViewerColumn({
           ]}
           emptyStateCode="reviewer_workspace_no_active_review"
         />
-      </div>
+      </Card>
     );
   }
   return (
@@ -926,9 +946,10 @@ function EvidenceViewerColumn({
       data-reviewer-workflow-id={workflowId}
       data-reviewer-evidence-id={evidenceId}
       style={{
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 12,
+        background: "var(--surface-card, #fff)",
+        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.09))",
+        borderRadius: "var(--radius-card, 14px)",
+        boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
         padding: 8,
         display: "flex",
         flexDirection: "column",
@@ -937,12 +958,20 @@ function EvidenceViewerColumn({
       }}
     >
       <header
-        style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          fontSize: 12,
+          padding: "2px 4px",
+        }}
       >
-        <strong>Active evidence</strong>
+        <strong style={{ color: "var(--ink-primary, #0f172a)" }}>
+          Active evidence
+        </strong>
         <a
           href={`/evidence/${evidenceId}`}
-          style={{ color: "#0f172a", textDecoration: "underline" }}
+          style={{ color: "var(--ink-primary, #0f172a)", textDecoration: "underline" }}
         >
           Open full evidence ↗
         </a>
@@ -982,16 +1011,17 @@ function SidePaneNoEvidence({
     <section
       data-side-pane-no-evidence={mode}
       style={{
-        background: "rgba(15, 23, 42, 0.03)",
-        border: "1px dashed rgba(15, 23, 42, 0.18)",
-        borderRadius: 12,
+        background: "rgba(15, 23, 42, 0.015)",
+        border: "1px dashed var(--border-strong, rgba(15, 23, 42, 0.14))",
+        borderRadius: "var(--radius-card, 14px)",
         padding: 12,
-        color: "#475569",
+        color: "var(--ink-secondary, #475569)",
         fontSize: 12,
         lineHeight: 1.55,
       }}
     >
-      <strong>{mode}</strong> pane. {copy}
+      <strong style={{ color: "var(--ink-primary, #0f172a)" }}>{mode}</strong>{" "}
+      pane. {copy}
     </section>
   );
 }
@@ -1053,16 +1083,18 @@ function HelpOverlay({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#fff",
-          borderRadius: 12,
+          background: "var(--surface-card, #fff)",
+          borderRadius: "var(--radius-card, 14px)",
+          boxShadow: "var(--shadow-elevated, 0 24px 48px rgba(15,23,42,0.18))",
           padding: 20,
           maxWidth: 480,
           fontSize: 13,
           lineHeight: 1.55,
+          color: "var(--ink-primary, #0f172a)",
         }}
       >
         <h2 style={{ marginTop: 0, fontSize: 16 }}>Reviewer hotkeys</h2>
-        <p style={{ color: "#475569", fontSize: 12 }}>
+        <p style={{ color: "var(--ink-secondary, #475569)", fontSize: 12 }}>
           Press <kbd>?</kbd> to close. Hotkeys never fire inside input
           fields.
         </p>
@@ -1126,8 +1158,9 @@ function WorkspaceRibbon({
         alignItems: "center",
         gap: 12,
         padding: "10px 16px",
-        background: "#0f172a",
-        color: "#fafafa",
+        background: "var(--ink-primary, #0f172a)",
+        color: "var(--ink-inverse, #fafafa)",
+        borderRadius: "var(--radius-card, 14px)",
         fontSize: 12,
       }}
     >
@@ -1149,7 +1182,7 @@ function WorkspaceRibbon({
           style={{
             background: "#1e293b",
             padding: "4px 10px",
-            borderRadius: 999,
+            borderRadius: "var(--radius-pill, 999px)",
             border: "1px solid rgba(255,255,255,0.16)",
           }}
         >
@@ -1172,7 +1205,7 @@ function Pill({
       data-reviewer-pill={tone}
       style={{
         padding: "3px 8px",
-        borderRadius: 999,
+        borderRadius: "var(--radius-pill, 999px)",
         background:
           tone === "warn"
             ? "rgba(245, 158, 11, 0.2)"
@@ -1195,16 +1228,19 @@ function QueueRail({ workspace }: { workspace: ReviewerWorkspaceProjection }) {
     <aside
       data-reviewer-queue-rail
       style={{
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 12,
+        background: "var(--surface-card, #fff)",
+        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.09))",
+        borderRadius: "var(--radius-card, 14px)",
+        boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
         padding: 12,
         display: "flex",
         flexDirection: "column",
         gap: 6,
       }}
     >
-      <strong style={{ fontSize: 12, color: "#0f172a" }}>Queues</strong>
+      <strong style={{ fontSize: 12, color: "var(--ink-primary, #0f172a)" }}>
+        Queues
+      </strong>
       <QueueLine
         label="Assigned (mine)"
         count={workspace.queues.assigned}
@@ -1240,8 +1276,8 @@ function QueueRail({ workspace }: { workspace: ReviewerWorkspaceProjection }) {
         style={{
           marginTop: 8,
           paddingTop: 8,
-          borderTop: "1px solid rgba(15, 23, 42, 0.08)",
-          color: "#475569",
+          borderTop: "1px solid var(--border-subtle, rgba(15, 23, 42, 0.06))",
+          color: "var(--ink-secondary, #475569)",
           fontSize: 11,
           lineHeight: 1.5,
         }}
@@ -1253,7 +1289,7 @@ function QueueRail({ workspace }: { workspace: ReviewerWorkspaceProjection }) {
         href="/review/schemas"
         style={{
           fontSize: 11,
-          color: "#0f172a",
+          color: "var(--ink-primary, #0f172a)",
           marginTop: 8,
           textDecoration: "underline",
         }}
@@ -1262,13 +1298,13 @@ function QueueRail({ workspace }: { workspace: ReviewerWorkspaceProjection }) {
       </Link>
       <Link
         href="/review/disagreements"
-        style={{ fontSize: 11, color: "#0f172a", textDecoration: "underline" }}
+        style={{ fontSize: 11, color: "var(--ink-primary, #0f172a)", textDecoration: "underline" }}
       >
         Disagreements
       </Link>
       <Link
         href="/review/metrics"
-        style={{ fontSize: 11, color: "#0f172a", textDecoration: "underline" }}
+        style={{ fontSize: 11, color: "var(--ink-primary, #0f172a)", textDecoration: "underline" }}
       >
         Metrics
       </Link>
@@ -1296,10 +1332,10 @@ function QueueLine({
         alignItems: "center",
         flexWrap: "wrap",
         fontSize: 12,
-        color: "#0f172a",
+        color: "var(--ink-primary, #0f172a)",
         padding: "4px 6px",
-        borderRadius: 6,
-        background: "rgba(15, 23, 42, 0.03)",
+        borderRadius: "var(--radius-sm, 8px)",
+        background: "var(--surface-muted, rgba(15, 23, 42, 0.03))",
         textDecoration: "none",
       }}
     >
@@ -1309,7 +1345,7 @@ function QueueLine({
         <span
           style={{
             width: "100%",
-            color: "#64748b",
+            color: "var(--ink-muted, #64748b)",
             fontSize: 10,
             marginTop: 2,
           }}
@@ -1331,28 +1367,24 @@ function WorkflowSummaryCard({
   const projection = summary.projection;
   const nextDue = projection.slaDimensions.find((d) => d.dueAtUtc !== null) ?? null;
   return (
-    <section
+    <Card
       data-reviewer-workspace-summary
-      style={{
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 12,
-        padding: 12,
-        display: "grid",
-        gap: 10,
-      }}
+      padding="compact"
+      style={{ display: "grid", gap: 10 }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
         <div>
-          <strong style={{ display: "block", fontSize: 13 }}>Current assignment</strong>
-          <span style={{ color: "#475569", fontSize: 12 }}>
+          <strong style={{ display: "block", fontSize: 13, color: "var(--ink-primary, #0f172a)" }}>
+            Current assignment
+          </strong>
+          <span style={{ color: "var(--ink-secondary, #475569)", fontSize: 12 }}>
             Workflow {shortId(projection.workflowId)} linked to evidence{" "}
             {shortId(projection.evidenceId)}.
           </span>
         </div>
         <Link
           href={`/reviewer-ops/${projection.workflowId}`}
-          style={{ color: "#0f172a", fontSize: 12, textDecoration: "underline" }}
+          style={{ color: "var(--ink-primary, #0f172a)", fontSize: 12, textDecoration: "underline" }}
         >
           Open full inspector
         </Link>
@@ -1386,12 +1418,12 @@ function WorkflowSummaryCard({
       </div>
       <div
         style={{
-          background: "rgba(15, 23, 42, 0.03)",
-          border: "1px dashed rgba(15, 23, 42, 0.15)",
-          borderRadius: 10,
+          background: "var(--surface-muted, rgba(15, 23, 42, 0.03))",
+          border: "1px dashed var(--border-strong, rgba(15, 23, 42, 0.14))",
+          borderRadius: "var(--radius-md, 10px)",
           padding: "10px 12px",
           fontSize: 12,
-          color: "#475569",
+          color: "var(--ink-secondary, #475569)",
           lineHeight: 1.5,
         }}
       >
@@ -1407,26 +1439,22 @@ function WorkflowSummaryCard({
           ? `Open escalation: ${summary.openEscalation.reason.toLowerCase().replace(/_/g, " ")} (${summary.openEscalation.severity}).`
           : "No escalation is currently open."}
       </div>
-    </section>
+    </Card>
   );
 }
 
 function WorkspaceGuidanceCard() {
   return (
-    <section
+    <Card
       data-reviewer-workspace-guidance
-      style={{
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 12,
-        padding: 12,
-        display: "grid",
-        gap: 10,
-      }}
+      padding="compact"
+      style={{ display: "grid", gap: 10 }}
     >
       <div>
-        <strong style={{ display: "block", fontSize: 13 }}>How to use this page</strong>
-        <span style={{ color: "#475569", fontSize: 12, lineHeight: 1.5 }}>
+        <strong style={{ display: "block", fontSize: 13, color: "var(--ink-primary, #0f172a)" }}>
+          How to use this page
+        </strong>
+        <span style={{ color: "var(--ink-secondary, #475569)", fontSize: 12, lineHeight: 1.5 }}>
           This is the daily evidence decision surface. When no review is active,
           claim or inspect work from reviewer queues, check SLA pressure, or
           open evidence to start a real workflow through existing evidence
@@ -1447,7 +1475,7 @@ function WorkspaceGuidanceCard() {
           Open evidence
         </Link>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -1455,13 +1483,13 @@ function SummaryCell({ label, value }: { label: string; value: string }) {
   return (
     <div
       style={{
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 10,
+        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.09))",
+        borderRadius: "var(--radius-md, 10px)",
         padding: "8px 10px",
       }}
     >
-      <div style={{ color: "#64748b", fontSize: 11 }}>{label}</div>
-      <div style={{ color: "#0f172a", fontWeight: 600 }}>{value}</div>
+      <div style={{ color: "var(--ink-muted, #64748b)", fontSize: 11 }}>{label}</div>
+      <div style={{ color: "var(--ink-primary, #0f172a)", fontWeight: 600 }}>{value}</div>
     </div>
   );
 }
@@ -1481,13 +1509,13 @@ function formatRelativeTime(iso: string): string {
 
 const summaryLinkStyle = {
   padding: "6px 10px",
-  borderRadius: 999,
-  border: "1px solid rgba(15, 23, 42, 0.14)",
+  borderRadius: "var(--radius-pill, 999px)",
+  border: "1px solid var(--border-strong, rgba(15, 23, 42, 0.14))",
   textDecoration: "none",
-  color: "#0f172a",
+  color: "var(--ink-primary, #0f172a)",
   fontSize: 12,
   fontWeight: 600,
-  background: "#f8fafc",
+  background: "var(--surface-muted, #f8fafc)",
 } as const;
 
 // Phase 2A Closure — legacy EvidenceViewer replaced by
@@ -1531,19 +1559,12 @@ function ReasonForm({
         ? "What additional information is needed?"
         : "Brief summary of why this is being escalated.";
   return (
-    <section
+    <Card
       data-reviewer-reason-form={kind}
-      style={{
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.12)",
-        borderRadius: 12,
-        padding: 12,
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-      }}
+      padding="compact"
+      style={{ display: "flex", flexDirection: "column", gap: 6 }}
     >
-      <strong style={{ fontSize: 12, color: "#0f172a" }}>{title}</strong>
+      <strong style={{ fontSize: 12, color: "var(--ink-primary, #0f172a)" }}>{title}</strong>
       <textarea
         data-reviewer-reason-input
         value={value}
@@ -1553,8 +1574,10 @@ function ReasonForm({
         style={{
           fontSize: 12,
           padding: 8,
-          borderRadius: 8,
-          border: "1px solid rgba(15, 23, 42, 0.18)",
+          borderRadius: "var(--radius-sm, 8px)",
+          border: "1px solid var(--border-strong, rgba(15, 23, 42, 0.18))",
+          background: "var(--surface-card, #fff)",
+          color: "var(--ink-primary, #0f172a)",
           resize: "vertical",
           fontFamily: "inherit",
         }}
@@ -1566,48 +1589,32 @@ function ReasonForm({
           gap: 8,
           alignItems: "center",
           fontSize: 11,
-          color: tooLong ? "#dc2626" : "#475569",
+          color: tooLong ? "var(--status-risk-solid, #dc2626)" : "var(--ink-secondary, #475569)",
         }}
       >
         <span>
           {trimmed.length}/{maxLen}
         </span>
         <span style={{ flex: 1 }} />
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="sm"
           data-reviewer-reason-cancel
           onClick={onCancel}
-          style={{
-            padding: "5px 10px",
-            borderRadius: 6,
-            background: "transparent",
-            border: "1px solid rgba(15, 23, 42, 0.2)",
-            fontSize: 12,
-            cursor: "pointer",
-          }}
         >
           Cancel
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
           data-reviewer-reason-submit
           disabled={!ready}
           onClick={() => onSubmit(trimmed)}
-          style={{
-            padding: "5px 10px",
-            borderRadius: 6,
-            background: ready ? "#0f172a" : "#e2e8f0",
-            color: ready ? "#fafafa" : "#94a3b8",
-            border: "none",
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: ready ? "pointer" : "not-allowed",
-          }}
         >
           Submit
-        </button>
+        </Button>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -1657,26 +1664,19 @@ function DisagreeForm({
     !busy;
 
   return (
-    <section
+    <Card
       data-reviewer-disagree-form
       data-reviewer-disagree-phase={state.phase}
-      style={{
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.12)",
-        borderRadius: 12,
-        padding: 12,
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-      }}
+      padding="compact"
+      style={{ display: "flex", flexDirection: "column", gap: 6 }}
     >
-      <strong style={{ fontSize: 12, color: "#0f172a" }}>
+      <strong style={{ fontSize: 12, color: "var(--ink-primary, #0f172a)" }}>
         File a disagreement
       </strong>
       {state.phase === "LOADING" ? (
         <p
           data-reviewer-disagree-loading
-          style={{ fontSize: 12, color: "#475569", margin: 0 }}
+          style={{ fontSize: 12, color: "var(--ink-secondary, #475569)", margin: 0 }}
         >
           Loading prior decisions…
         </p>
@@ -1684,7 +1684,7 @@ function DisagreeForm({
       {state.phase === "EMPTY" ? (
         <p
           data-reviewer-disagree-empty
-          style={{ fontSize: 12, color: "#475569", margin: 0 }}
+          style={{ fontSize: 12, color: "var(--ink-secondary, #475569)", margin: 0 }}
         >
           No prior decision on file — disagree is only available after a
           decision is recorded.
@@ -1693,7 +1693,7 @@ function DisagreeForm({
       {state.phase === "ERROR" ? (
         <p
           data-reviewer-disagree-error
-          style={{ fontSize: 12, color: "#dc2626", margin: 0 }}
+          style={{ fontSize: 12, color: "var(--status-risk-solid, #dc2626)", margin: 0 }}
         >
           Could not load prior decisions — please retry.
         </p>
@@ -1702,7 +1702,7 @@ function DisagreeForm({
         <>
           <label
             htmlFor="reviewer-disagree-decision-select"
-            style={{ fontSize: 11, color: "#475569" }}
+            style={{ fontSize: 11, color: "var(--ink-secondary, #475569)" }}
           >
             Which decision are you challenging?
           </label>
@@ -1714,8 +1714,10 @@ function DisagreeForm({
             style={{
               fontSize: 12,
               padding: 6,
-              borderRadius: 6,
-              border: "1px solid rgba(15, 23, 42, 0.18)",
+              borderRadius: "var(--radius-sm, 8px)",
+              border: "1px solid var(--border-strong, rgba(15, 23, 42, 0.18))",
+              background: "var(--surface-card, #fff)",
+              color: "var(--ink-primary, #0f172a)",
               fontFamily: "inherit",
             }}
           >
@@ -1743,7 +1745,7 @@ function DisagreeForm({
           </select>
           <label
             htmlFor="reviewer-disagree-rationale"
-            style={{ fontSize: 11, color: "#475569" }}
+            style={{ fontSize: 11, color: "var(--ink-secondary, #475569)" }}
           >
             Rationale (required, ≤ {maxLen} chars)
           </label>
@@ -1757,8 +1759,10 @@ function DisagreeForm({
             style={{
               fontSize: 12,
               padding: 8,
-              borderRadius: 8,
-              border: "1px solid rgba(15, 23, 42, 0.18)",
+              borderRadius: "var(--radius-sm, 8px)",
+              border: "1px solid var(--border-strong, rgba(15, 23, 42, 0.18))",
+              background: "var(--surface-card, #fff)",
+              color: "var(--ink-primary, #0f172a)",
               resize: "vertical",
               fontFamily: "inherit",
             }}
@@ -1772,7 +1776,7 @@ function DisagreeForm({
           gap: 8,
           alignItems: "center",
           fontSize: 11,
-          color: tooLong ? "#dc2626" : "#475569",
+          color: tooLong ? "var(--status-risk-solid, #dc2626)" : "var(--ink-secondary, #475569)",
         }}
       >
         {state.phase === "READY" ? (
@@ -1781,43 +1785,27 @@ function DisagreeForm({
           </span>
         ) : null}
         <span style={{ flex: 1 }} />
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="sm"
           data-reviewer-disagree-cancel
           onClick={onCancel}
-          style={{
-            padding: "5px 10px",
-            borderRadius: 6,
-            background: "transparent",
-            border: "1px solid rgba(15, 23, 42, 0.2)",
-            fontSize: 12,
-            cursor: "pointer",
-          }}
         >
           Cancel
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
           data-reviewer-disagree-submit
           disabled={!canSubmit}
           onClick={() =>
             onSubmit({ originalDecisionId: selectedId, rationale: trimmed })
           }
-          style={{
-            padding: "5px 10px",
-            borderRadius: 6,
-            background: canSubmit ? "#0f172a" : "#e2e8f0",
-            color: canSubmit ? "#fafafa" : "#94a3b8",
-            border: "none",
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: canSubmit ? "pointer" : "not-allowed",
-          }}
         >
           File disagreement
-        </button>
+        </Button>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -1842,9 +1830,10 @@ function DecisionBar({
       style={{
         display: "flex",
         gap: 6,
-        background: "#fff",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
-        borderRadius: 12,
+        background: "var(--surface-card, #fff)",
+        border: "1px solid var(--border-default, rgba(15, 23, 42, 0.09))",
+        borderRadius: "var(--radius-card, 14px)",
+        boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
         padding: "10px 12px",
         flexWrap: "wrap",
         alignItems: "center",
@@ -1887,7 +1876,7 @@ function DecisionBar({
       />
       <span style={{ flex: 1 }} />
       <details>
-        <summary style={{ fontSize: 11, color: "#475569", cursor: "pointer" }}>
+        <summary style={{ fontSize: 11, color: "var(--ink-secondary, #475569)", cursor: "pointer" }}>
           Hotkeys
         </summary>
         <ul style={{ margin: 6, padding: 0, listStyle: "none", fontSize: 11 }}>
@@ -1895,14 +1884,14 @@ function DecisionBar({
             <li key={b.code} style={{ display: "flex", gap: 8 }}>
               <code
                 style={{
-                  background: "#f1f5f9",
+                  background: "var(--surface-muted, #f1f5f9)",
                   padding: "1px 6px",
-                  borderRadius: 4,
+                  borderRadius: "var(--radius-sm, 4px)",
                 }}
               >
                 {b.key}
               </code>
-              <span style={{ color: "#475569" }}>{b.code}</span>
+              <span style={{ color: "var(--ink-secondary, #475569)" }}>{b.code}</span>
             </li>
           ))}
         </ul>
@@ -1925,10 +1914,10 @@ function DecisionBtn({
   onClick: () => void;
 }) {
   const palette: Record<typeof tone, { bg: string; ink: string }> = {
-    ok: { bg: "#16a34a", ink: "#fafafa" },
-    warn: { bg: "#f59e0b", ink: "#0f172a" },
-    danger: { bg: "#dc2626", ink: "#fafafa" },
-    neutral: { bg: "#0f172a", ink: "#fafafa" },
+    ok: { bg: "var(--status-verified-solid, #16a34a)", ink: "var(--ink-inverse, #fafafa)" },
+    warn: { bg: "var(--status-pending-solid, #f59e0b)", ink: "var(--ink-primary, #0f172a)" },
+    danger: { bg: "var(--status-risk-solid, #dc2626)", ink: "var(--ink-inverse, #fafafa)" },
+    neutral: { bg: "var(--ink-primary, #0f172a)", ink: "var(--ink-inverse, #fafafa)" },
   };
   const p = palette[tone];
   return (
@@ -1939,10 +1928,10 @@ function DecisionBtn({
       data-reviewer-decision={label}
       style={{
         padding: "6px 12px",
-        borderRadius: 8,
+        borderRadius: "var(--radius-sm, 8px)",
         border: "none",
-        background: disabled ? "#e2e8f0" : p.bg,
-        color: disabled ? "#94a3b8" : p.ink,
+        background: disabled ? "var(--surface-muted, #e2e8f0)" : p.bg,
+        color: disabled ? "var(--ink-muted, #94a3b8)" : p.ink,
         fontSize: 12,
         fontWeight: 700,
         cursor: disabled ? "not-allowed" : "pointer",

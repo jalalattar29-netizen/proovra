@@ -32,6 +32,13 @@ import { OperationalBreadcrumb } from "../../../../components/navigation/Operati
 import { DestructionImpactPreview } from "../../../../components/governance/DestructionImpactPreview";
 import { DestructionCertificate } from "../../../../components/governance/DestructionCertificate";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import { StatusBadge } from "../../../../components/ui/StatusBadge";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Button } from "../../../../components/ui/Button";
+import { Badge } from "../../../../components/ui/Badge";
+import { EmptyState } from "../../../../components/ui/EmptyState";
+import { FilterBar } from "../../../../components/ui/FilterBar";
+import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 
 type ReviewStatus =
   | "PENDING"
@@ -251,24 +258,98 @@ function DestructionQueuePageInner() {
 
   const visible = useMemo(() => reviews ?? [], [reviews]);
 
-  return (
-    <main style={pageStyle}>
-      <OperationalBreadcrumb
-        routeId="governance.destruction"
-        items={[
-          { label: "Governance", href: "/governance" },
-          { label: "Destruction queue" },
-        ]}
-      />
-      <header>
-        <h1 style={titleStyle}>Destruction queue</h1>
-        <p style={mutedStyle}>
-          Every proposed destruction lands here for reviewer approval. Holds
-          and immutable retention block approval. Approval and execution
-          require step-up authentication.
-        </p>
-      </header>
+  const columns: DataTableColumn<Review>[] = [
+    {
+      key: "review",
+      header: "Review",
+      render: (r) => (
+        <div>
+          <div style={monoStyle}>{r.id.slice(0, 8)}…</div>
+          <div style={mutedStyle}>{formatUserDateTime(r.createdAt)}</div>
+        </div>
+      ),
+    },
+    {
+      key: "evidence",
+      header: "Evidence",
+      render: (r) => (
+        <div>
+          <div style={monoStyle}>{r.evidenceId.slice(0, 8)}…</div>
+          {r.retentionPolicyId ? (
+            <div style={mutedStyle}>
+              Policy {r.retentionPolicyId.slice(0, 8)}… v
+              {r.retentionPolicyVersion ?? "?"}
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: "reason",
+      header: "Reason",
+      render: (r) => REASON_LABEL[r.reason],
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => (
+        <div>
+          <StatusBadge status={r.status} />
+          {r.deferredUntilUtc ? (
+            <div style={mutedStyle}>
+              Until {formatUserDateTime(r.deferredUntilUtc)}
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: "decision",
+      header: "Decision",
+      render: (r) => (
+        <div>
+          {r.decisionNote ? (
+            <div style={{ fontSize: 13 }}>{r.decisionNote}</div>
+          ) : (
+            <span style={mutedStyle}>—</span>
+          )}
+          {r.decidedAtUtc ? (
+            <div style={mutedStyle}>{formatUserDateTime(r.decidedAtUtc)}</div>
+          ) : null}
+          {r.certificateHash ? (
+            <div style={{ marginTop: 4 }}>
+              <Badge tone="risk" subtle>
+                Certificate
+              </Badge>
+              <div style={monoSmallStyle}>
+                {r.certificateHash.slice(0, 16)}…
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
+  ];
 
+  return (
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Governance"
+          title="Destruction queue"
+          subtitle="Every proposed destruction lands here for reviewer approval. Holds and immutable retention block approval. Approval and execution require step-up authentication."
+          contextStrip={
+            <OperationalBreadcrumb
+              routeId="governance.destruction"
+              items={[
+                { label: "Governance", href: "/governance" },
+                { label: "Destruction queue" },
+              ]}
+            />
+          }
+        />
+      }
+    >
       <nav style={navStyle}>
         <Link href="/governance/lifecycle" style={navLinkStyle}>
           ← Governance operations
@@ -278,158 +359,109 @@ function DestructionQueuePageInner() {
         </Link>
       </nav>
 
-      <div style={toolbarStyle}>
-        <label style={filterLabelStyle}>
-          Status
-          <select
-            style={selectStyle}
-            value={filter}
-            onChange={(e) =>
-              setFilter(e.target.value as "ACTIVE" | "ALL" | ReviewStatus)
+      <PageSection
+        title="Review queue"
+        action={
+          <FilterBar>
+            <FilterBar.Select
+              label="Status"
+              showLabel
+              value={filter}
+              onChange={(v) =>
+                setFilter(v as "ACTIVE" | "ALL" | ReviewStatus)
+              }
+              options={[
+                { value: "ACTIVE", label: "Active (non-terminal)" },
+                { value: "ALL", label: "All" },
+                { value: "PENDING", label: "Pending" },
+                { value: "UNDER_REVIEW", label: "Under review" },
+                { value: "APPROVED", label: "Approved" },
+                { value: "DEFERRED", label: "Deferred" },
+                { value: "DENIED", label: "Denied" },
+                { value: "RESTORED", label: "Restored" },
+                { value: "EXECUTED", label: "Executed" },
+                { value: "CANCELLED", label: "Cancelled" },
+              ]}
+            />
+          </FilterBar>
+        }
+      >
+        {error ? <div style={errorBoxStyle}>{error}</div> : null}
+
+        {!teamId ? (
+          <EmptyState
+            framed
+            title="No workspace selected"
+            purpose="Switch to an organization workspace to view its destruction review queue."
+          />
+        ) : (
+          <DataTable
+            ariaLabel="Destruction review queue"
+            columns={columns}
+            rows={visible}
+            getRowId={(r) => r.id}
+            loading={!reviews}
+            rowActions={(r) => (
+              <div style={actionRowStyle}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => viewTimeline(r)}
+                >
+                  Timeline
+                </Button>
+                {/* Phase F — operational impact preview. Shows
+                    consequences before destructive transitions. */}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPreviewFor(r)}
+                  data-action="preview-impact"
+                >
+                  Impact
+                </Button>
+                {/* Phase F — destruction certificate viewer.
+                    Only available for EXECUTED reviews. */}
+                {r.status === "EXECUTED" ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setCertificateFor(r)}
+                    data-action="view-certificate"
+                  >
+                    Certificate
+                  </Button>
+                ) : null}
+                {ALLOWED_NEXT[r.status].map((next) => (
+                  <Button
+                    key={next}
+                    variant={
+                      next === "EXECUTED" || next === "APPROVED"
+                        ? "destructive"
+                        : "secondary"
+                    }
+                    size="sm"
+                    onClick={() => transition(r, next)}
+                    title={
+                      next === "APPROVED" || next === "EXECUTED"
+                        ? "Step-up authentication required"
+                        : undefined
+                    }
+                  >
+                    {STATUS_LABEL[next]}
+                  </Button>
+                ))}
+              </div>
+            )}
+            emptyState={
+              <EmptyState
+                title="No destruction requests pending"
+                purpose="No reviews match the current filter. Proposed destructions awaiting reviewer approval will appear here."
+              />
             }
-          >
-            <option value="ACTIVE">Active (non-terminal)</option>
-            <option value="ALL">All</option>
-            <option value="PENDING">Pending</option>
-            <option value="UNDER_REVIEW">Under review</option>
-            <option value="APPROVED">Approved</option>
-            <option value="DEFERRED">Deferred</option>
-            <option value="DENIED">Denied</option>
-            <option value="RESTORED">Restored</option>
-            <option value="EXECUTED">Executed</option>
-            <option value="CANCELLED">Cancelled</option>
-          </select>
-        </label>
-      </div>
-
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
-
-      {!teamId ? (
-        <p style={mutedStyle}>Switch to a workspace to view the queue.</p>
-      ) : !reviews ? (
-        <p style={mutedStyle}>Loading destruction queue…</p>
-      ) : visible.length === 0 ? (
-        <p style={mutedStyle}>No reviews match the current filter.</p>
-      ) : (
-        <section style={cardStyle}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Review</th>
-                <th style={thStyle}>Evidence</th>
-                <th style={thStyle}>Reason</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Decision</th>
-                <th style={thStyle}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((r) => (
-                <tr key={r.id}>
-                  <td style={tdStyle}>
-                    <div style={monoStyle}>{r.id.slice(0, 8)}…</div>
-                    <div style={mutedStyle}>
-                      {formatUserDateTime(r.createdAt)}
-                    </div>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={monoStyle}>{r.evidenceId.slice(0, 8)}…</div>
-                    {r.retentionPolicyId ? (
-                      <div style={mutedStyle}>
-                        Policy {r.retentionPolicyId.slice(0, 8)}… v
-                        {r.retentionPolicyVersion ?? "?"}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td style={tdStyle}>{REASON_LABEL[r.reason]}</td>
-                  <td style={tdStyle}>
-                    <span style={statusBadgeStyle(r.status)}>
-                      {STATUS_LABEL[r.status]}
-                    </span>
-                    {r.deferredUntilUtc ? (
-                      <div style={mutedStyle}>
-                        Until {formatUserDateTime(r.deferredUntilUtc)}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td style={tdStyle}>
-                    {r.decisionNote ? (
-                      <div style={{ fontSize: 13 }}>{r.decisionNote}</div>
-                    ) : (
-                      <span style={mutedStyle}>—</span>
-                    )}
-                    {r.decidedAtUtc ? (
-                      <div style={mutedStyle}>
-                        {formatUserDateTime(r.decidedAtUtc)}
-                      </div>
-                    ) : null}
-                    {r.certificateHash ? (
-                      <div style={{ marginTop: 4 }}>
-                        <span style={certBadgeStyle}>Certificate</span>
-                        <div style={monoSmallStyle}>
-                          {r.certificateHash.slice(0, 16)}…
-                        </div>
-                      </div>
-                    ) : null}
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={actionRowStyle}>
-                      <button
-                        type="button"
-                        style={secondaryButtonStyle}
-                        onClick={() => viewTimeline(r)}
-                      >
-                        Timeline
-                      </button>
-                      {/* Phase F — operational impact preview. Shows
-                          consequences before destructive transitions. */}
-                      <button
-                        type="button"
-                        style={secondaryButtonStyle}
-                        onClick={() => setPreviewFor(r)}
-                        data-action="preview-impact"
-                      >
-                        Impact
-                      </button>
-                      {/* Phase F — destruction certificate viewer.
-                          Only available for EXECUTED reviews. */}
-                      {r.status === "EXECUTED" ? (
-                        <button
-                          type="button"
-                          style={secondaryButtonStyle}
-                          onClick={() => setCertificateFor(r)}
-                          data-action="view-certificate"
-                        >
-                          Certificate
-                        </button>
-                      ) : null}
-                      {ALLOWED_NEXT[r.status].map((next) => (
-                        <button
-                          type="button"
-                          key={next}
-                          style={
-                            next === "EXECUTED" || next === "APPROVED"
-                              ? dangerButtonStyle
-                              : secondaryButtonStyle
-                          }
-                          onClick={() => transition(r, next)}
-                          title={
-                            next === "APPROVED" || next === "EXECUTED"
-                              ? "Step-up authentication required"
-                              : undefined
-                          }
-                        >
-                          {STATUS_LABEL[next]}
-                        </button>
-                      ))}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
+          />
+        )}
+      </PageSection>
 
       {timelineFor ? (
         <TimelineModal
@@ -501,7 +533,7 @@ function DestructionQueuePageInner() {
           </div>
         </div>
       ) : null}
-    </main>
+    </PageShell>
   );
 }
 
@@ -588,32 +620,11 @@ function TimelineModal({
 // Styles
 // -----------------------------------------------------------------------------
 
-const pageStyle: React.CSSProperties = {
-  maxWidth: 1200,
-  margin: "0 auto",
-  padding: "32px 24px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
-};
-const titleStyle: React.CSSProperties = {
-  fontSize: 26,
-  fontWeight: 700,
-  marginBottom: 4,
-  letterSpacing: -0.4,
-};
 const mutedStyle: React.CSSProperties = { fontSize: 12, color: "#64748b" };
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 600,
   marginBottom: 8,
-};
-const cardStyle: React.CSSProperties = {
-  marginTop: 16,
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  background: "#fff",
-  overflow: "hidden",
 };
 const navStyle: React.CSSProperties = {
   display: "flex",
@@ -628,49 +639,6 @@ const navLinkStyle: React.CSSProperties = {
   fontWeight: 600,
   textDecoration: "none",
 };
-const toolbarStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 12,
-  marginTop: 16,
-  marginBottom: 12,
-};
-const filterLabelStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 4,
-  fontSize: 12,
-  color: "#475569",
-};
-const selectStyle: React.CSSProperties = {
-  padding: "8px 12px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontSize: 14,
-  fontFamily: "inherit",
-  color: "#0f172a",
-  background: "#fff",
-};
-const tableStyle: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  fontSize: 13,
-};
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  padding: "12px 16px",
-  background: "#f8fafc",
-  borderBottom: "1px solid #e2e8f0",
-  fontWeight: 600,
-  fontSize: 12,
-  textTransform: "uppercase",
-  letterSpacing: 0.5,
-  color: "#475569",
-};
-const tdStyle: React.CSSProperties = {
-  padding: "12px 16px",
-  borderBottom: "1px solid #f1f5f9",
-  verticalAlign: "top",
-};
 const actionRowStyle: React.CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
@@ -682,16 +650,6 @@ const secondaryButtonStyle: React.CSSProperties = {
   color: "#0f172a",
   background: "#f1f5f9",
   border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 12,
-};
-const dangerButtonStyle: React.CSSProperties = {
-  padding: "5px 10px",
-  fontWeight: 600,
-  color: "#991b1b",
-  background: "#fef2f2",
-  border: "1px solid #fca5a5",
   borderRadius: 6,
   cursor: "pointer",
   fontSize: 12,
@@ -773,36 +731,3 @@ const transitionTextStyle: React.CSSProperties = {
   color: "#334155",
   fontWeight: 600,
 };
-const certBadgeStyle: React.CSSProperties = {
-  padding: "2px 8px",
-  fontSize: 11,
-  fontWeight: 600,
-  background: "#fef2f2",
-  border: "1px solid #fca5a5",
-  color: "#991b1b",
-  borderRadius: 999,
-};
-
-function statusBadgeStyle(status: ReviewStatus): React.CSSProperties {
-  const palette: Record<ReviewStatus, [string, string, string]> = {
-    PENDING: ["#fffbeb", "#fcd34d", "#92400e"],
-    UNDER_REVIEW: ["#eff6ff", "#bfdbfe", "#1e40af"],
-    APPROVED: ["#fff7ed", "#fed7aa", "#9a3412"],
-    DENIED: ["#f1f5f9", "#cbd5e1", "#334155"],
-    DEFERRED: ["#f5f3ff", "#ddd6fe", "#5b21b6"],
-    RESTORED: ["#ecfdf5", "#bbf7d0", "#166534"],
-    EXECUTED: ["#fef2f2", "#fca5a5", "#991b1b"],
-    CANCELLED: ["#f8fafc", "#e2e8f0", "#475569"],
-  };
-  const [bg, border, color] = palette[status];
-  return {
-    padding: "3px 10px",
-    fontSize: 12,
-    fontWeight: 600,
-    background: bg,
-    border: `1px solid ${border}`,
-    color,
-    borderRadius: 999,
-    display: "inline-block",
-  };
-}

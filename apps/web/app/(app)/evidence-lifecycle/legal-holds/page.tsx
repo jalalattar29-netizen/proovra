@@ -8,6 +8,12 @@ import {
   useStepUpAction,
 } from "../../../../components/identity-security/StepUpModal";
 import { useToast } from "../../../../components/ui";
+import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
+import { EmptyState } from "../../../../components/ui/EmptyState";
+import { StatusBadge } from "../../../../components/ui/StatusBadge";
 import { apiFetch, ApiError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { notifyApiError } from "../../../../lib/feedback/notify";
@@ -193,26 +199,47 @@ function Shell() {
     void refresh();
   }, [refresh]);
 
-  return (
-    <div
-      data-legal-holds-page
-      style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
-    >
-      <header style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, marginTop: 0 }}>Legal Holds</h1>
-        <p>
-          <a href="/evidence-lifecycle" style={{ fontSize: 12 }}>
-            ← Back to Evidence Lifecycle
-          </a>
-        </p>
-      </header>
+  const columns: DataTableColumn<LegalHold>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (h) => <span data-legal-hold-row={h.id}>{h.name}</span>,
+    },
+    { key: "kind", header: "Kind", render: (h) => <code>{h.kind}</code> },
+    { key: "reason", header: "Reason", render: (h) => h.reason },
+    { key: "state", header: "State", render: (h) => <StatusBadge status={h.state} /> },
+    { key: "scopeTarget", header: "Scope Target", render: (h) => h.scopeTargetId ?? "—" },
+    { key: "expires", header: "Expires", render: (h) => safeDate(h.expiresAtUtc) },
+    { key: "created", header: "Created", render: (h) => safeDate(h.createdAtUtc) },
+  ];
 
+  return (
+    <PageShell
+      data-legal-holds-page
+      header={
+        <PageHeader
+          eyebrow="Evidence Lifecycle"
+          title="Legal Holds"
+          subtitle="Place and release legal holds that prevent evidence from being deleted or destroyed."
+          primaryAction={
+            <Button
+              type="button"
+              variant="primary"
+              loading={busy}
+              disabled={busy}
+              onClick={() => void refresh()}
+            >
+              {busy ? "Loading…" : "Refresh"}
+            </Button>
+          }
+          contextStrip={
+            <a href="/evidence-lifecycle" style={{ fontSize: 12 }}>
+              ← Back to Evidence Lifecycle
+            </a>
+          }
+        />
+      }
+    >
       {denial ? (
         <div
           data-permission-denied={denial.denial}
@@ -231,18 +258,7 @@ function Shell() {
       ) : null}
 
       {/* Create form */}
-      <section
-        style={{
-          background: "rgba(15,23,42,0.03)",
-          border: "1px solid rgba(15,23,42,0.06)",
-          borderRadius: 10,
-          padding: 14,
-          marginBottom: 16,
-        }}
-      >
-        <strong style={{ display: "block", marginBottom: 10, fontSize: 14 }}>
-          Create Legal Hold
-        </strong>
+      <Card variant="admin" title="Create Legal Hold">
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <label style={labelStyle}>
             Kind
@@ -290,16 +306,17 @@ function Shell() {
               placeholder="optional"
             />
           </label>
-          <button
+          <Button
             type="button"
+            variant="primary"
+            loading={creating}
             disabled={creating || !name || !reason}
             onClick={() => void create()}
-            style={primaryButton}
           >
             {creating ? "Creating…" : "Create"}
-          </button>
+          </Button>
         </div>
-      </section>
+      </Card>
 
       {createError ? (
         <div
@@ -323,104 +340,38 @@ function Shell() {
           backend answers STEP_UP_REQUIRED for the create request. */}
       <StepUpModal control={stepUp} />
 
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void refresh()}
-        style={primaryButton}
-      >
-        {busy ? "Loading…" : "Refresh"}
-      </button>
-
-      <section
-        style={{
-          background: "#fff",
-          border: "1px solid rgba(15,23,42,0.08)",
-          borderRadius: 10,
-          padding: 8,
-          marginTop: 12,
-          overflowX: "auto",
-        }}
-      >
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "#475569" }}>
-              <th style={th}>Name</th>
-              <th style={th}>Kind</th>
-              <th style={th}>Reason</th>
-              <th style={th}>State</th>
-              <th style={th}>Scope Target</th>
-              <th style={th}>Expires</th>
-              <th style={th}>Created</th>
-              <th style={th}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {holds.length === 0 ? (
-              <tr>
-                <td colSpan={8} style={{ ...td, color: "#475569" }}>
-                  No legal holds.
-                </td>
-              </tr>
+      <PageSection title="Active legal holds">
+        <DataTable<LegalHold>
+          ariaLabel="Legal holds"
+          columns={columns}
+          rows={holds}
+          getRowId={(h) => h.id}
+          rowActions={(h) =>
+            h.state === "ACTIVE" ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => void release(h.id)}
+              >
+                Release
+              </Button>
             ) : (
-              holds.map((h) => (
-                <tr key={h.id} data-legal-hold-row={h.id}>
-                  <td style={td}>{h.name}</td>
-                  <td style={td}>
-                    <code>{h.kind}</code>
-                  </td>
-                  <td style={td}>{h.reason}</td>
-                  <td style={td}>
-                    <strong>{h.state}</strong>
-                  </td>
-                  <td style={td}>{h.scopeTargetId ?? "—"}</td>
-                  <td style={td}>{safeDate(h.expiresAtUtc)}</td>
-                  <td style={td}>{safeDate(h.createdAtUtc)}</td>
-                  <td style={td}>
-                    {h.state === "ACTIVE" ? (
-                      <button
-                        type="button"
-                        onClick={() => void release(h.id)}
-                        style={secondaryButton}
-                      >
-                        Release
-                      </button>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </section>
-    </div>
+              "—"
+            )
+          }
+          emptyState={
+            <EmptyState
+              title="No legal holds active"
+              purpose="Place a legal hold above to prevent evidence from being deleted or destroyed while an investigation or litigation is ongoing."
+            />
+          }
+        />
+      </PageSection>
+    </PageShell>
   );
 }
 
-const primaryButton = {
-  padding: "6px 12px",
-  border: "1px solid #0f172a",
-  background: "#0f172a",
-  color: "#fafafa",
-  fontWeight: 600,
-  fontSize: 12,
-  borderRadius: 8,
-  cursor: "pointer",
-} as const;
-const secondaryButton = {
-  padding: "4px 8px",
-  border: "1px solid #0f172a",
-  background: "#fff",
-  color: "#0f172a",
-  fontWeight: 600,
-  fontSize: 11,
-  borderRadius: 6,
-  cursor: "pointer",
-} as const;
-const th = { padding: "6px 8px", borderBottom: "1px solid #e2e8f0" } as const;
-const td = { padding: "6px 8px", borderBottom: "1px solid #f1f5f9" } as const;
 const labelStyle = { display: "flex", flexDirection: "column" as const, gap: 2, fontSize: 11, fontWeight: 600 };
 const inputStyle = {
   fontSize: 12,

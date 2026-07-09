@@ -20,6 +20,13 @@
  *   - No platform-context workspace-fragment reads — apiFetch only.
  *   - Strong TypeScript types throughout.
  *   - 403/404 maps to an honest "Billing admin only" empty state.
+ *
+ * Phase 7 (Enterprise UX): presentation migrated to the shared design
+ * system (Card / Badge / Button / DataTable / EmptyState). This tab
+ * renders INSIDE the org admin layout shell (which owns the org title +
+ * tab bar), so it uses Card headings — not a second PageHeader — to
+ * avoid a duplicate <h1>. All data reads, gating, testids, data-section
+ * markers and honest "—"/empty behaviour are unchanged.
  */
 
 import { useParams } from "next/navigation";
@@ -28,6 +35,11 @@ import { useCallback, useEffect, useState } from "react";
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
+import { Card } from "../../../../../../components/ui/Card";
+import { Badge } from "../../../../../../components/ui/Badge";
+import { Button } from "../../../../../../components/ui/Button";
+import { DataTable, type DataTableColumn } from "../../../../../../components/ui/DataTable";
+import { EmptyState } from "../../../../../../components/ui/EmptyState";
 
 // ---------------------------------------------------------------------------
 // Wire type — mirrors GET /v1/orgs/:id/billing/rollup. Counts only; the
@@ -118,33 +130,20 @@ function BillingTab() {
   }, [load]);
 
   return (
-    <section data-testid="org-admin-billing" data-org-id={orgId}>
+    <section
+      data-testid="org-admin-billing"
+      data-org-id={orgId}
+      style={{ display: "flex", flexDirection: "column", gap: 24 }}
+    >
       {/* Plan status + seat rollup */}
-      <section
+      <Card
+        variant="summary"
         data-section="billing-rollup"
-        style={cardStyle}
+        title="Billing & seats"
+        subtitle="Enterprise plan + seat usage across all workspaces. Requires ORG_BILLING_ADMIN or higher."
       >
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: "0.5rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Billing &amp; seats</h2>
-            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
-              Enterprise plan + seat usage across all workspaces. Requires
-              ORG_BILLING_ADMIN or higher.
-            </div>
-          </div>
-        </header>
-
         {state.kind === "loading" ? (
-          <div data-state="loading" style={{ fontSize: 13, opacity: 0.7 }}>
+          <div data-state="loading" style={mutedText}>
             Loading…
           </div>
         ) : state.kind === "error" ? (
@@ -158,7 +157,7 @@ function BillingTab() {
                   marginTop: 4,
                   fontSize: 11,
                   fontFamily: "monospace",
-                  opacity: 0.7,
+                  color: "var(--ink-muted, #94a3b8)",
                 }}
               >
                 Request id: {state.requestId}
@@ -168,46 +167,44 @@ function BillingTab() {
         ) : (
           <RollupBody data={state.data} />
         )}
-      </section>
+      </Card>
 
       {/* Billing contact */}
       {state.kind === "ready" ? (
-        <section data-section="billing-contact" style={cardStyle}>
-          <h2 style={{ margin: 0, fontSize: 16 }}>Billing contact</h2>
+        <Card
+          variant="admin"
+          data-section="billing-contact"
+          title="Billing contact"
+        >
           {state.data.billingOwner ? (
-            <div
-              data-testid="billing-owner"
-              style={{ fontSize: 13, marginTop: 8 }}
-            >
+            <div data-testid="billing-owner" style={{ fontSize: 13 }}>
               <div style={{ fontWeight: 600 }}>
                 {state.data.billingOwner.displayName ??
                   state.data.billingOwner.email ??
                   state.data.billingOwner.userId}
               </div>
               {state.data.billingOwner.email ? (
-                <div style={{ opacity: 0.75 }}>
+                <div style={{ color: "var(--ink-secondary, #475569)" }}>
                   {state.data.billingOwner.email}
                 </div>
               ) : null}
             </div>
           ) : (
-            <div
-              data-testid="billing-owner-empty"
-              style={{ fontSize: 13, opacity: 0.75, marginTop: 8 }}
-            >
+            <div data-testid="billing-owner-empty" style={mutedText}>
               No billing owner is set for this organization.
             </div>
           )}
-        </section>
+        </Card>
       ) : null}
 
       {/* Enterprise account-manager CTA — NOT self-serve checkout */}
-      <section
+      <Card
+        variant="status"
+        tone="governance"
         data-section="billing-account-manager"
-        style={cardStyle}
+        title="Contract changes"
       >
-        <h2 style={{ margin: 0, fontSize: 16 }}>Contract changes</h2>
-        <p style={{ fontSize: 13, opacity: 0.85, marginTop: 8 }}>
+        <p style={{ ...mutedText, lineHeight: 1.6 }}>
           Enterprise plans and seat counts are set by contract. To change your
           plan, add seats, or discuss billing, contact your account manager —
           enterprise contracts are not modified through the self-serve pricing
@@ -216,12 +213,13 @@ function BillingTab() {
         <a
           href={ACCOUNT_MANAGER_HREF}
           data-testid="billing-contact-account-manager"
-          className="cases-filter-chip"
-          style={{ display: "inline-block", marginTop: 4 }}
+          style={{ textDecoration: "none", display: "inline-block", marginTop: 12 }}
         >
-          Contact your account manager →
+          <Button variant="enterprise" size="sm">
+            Contact your account manager →
+          </Button>
         </a>
-      </section>
+      </Card>
     </section>
   );
 }
@@ -233,6 +231,39 @@ function RollupBody({ data }: { data: BillingRollup }) {
       : Object.entries(data.planCounts)
           .map(([plan, count]) => `${plan} × ${count}`)
           .join(", ");
+
+  const columns: DataTableColumn<RollupWorkspace>[] = [
+    {
+      key: "name",
+      header: "Workspace",
+      render: (w) => (
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 600 }}>{w.name}</div>
+          <div style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}>
+            {w.billingPlan ?? "FREE"} · {w.billingStatus ?? "NONE"}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "seats",
+      header: "Seats",
+      align: "right",
+      nowrap: true,
+      render: (w) => (
+        <span
+          style={{
+            fontVariantNumeric: "tabular-nums",
+            color: w.overSeat ? "var(--status-pending-fg, #b45309)" : undefined,
+            fontWeight: w.overSeat ? 600 : 400,
+          }}
+        >
+          {w.usedSeats} / {w.includedSeats} seats
+          {w.overSeat ? " · over" : ""}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div data-testid="billing-rollup-body">
@@ -260,61 +291,47 @@ function RollupBody({ data }: { data: BillingRollup }) {
         />
       </div>
 
-      <div style={{ fontSize: 12, opacity: 0.75, margin: "0.5rem 0 0.75rem" }}>
-        Plans in use: <strong>{planLabel}</strong>
+      <div
+        style={{
+          fontSize: 12,
+          color: "var(--ink-secondary, #475569)",
+          margin: "12px 0",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        Plans in use: <Badge tone="neutral" subtle>{planLabel}</Badge>
       </div>
 
-      <h3 style={{ margin: "0.5rem 0 0.25rem", fontSize: 14 }}>
+      <h3
+        style={{
+          margin: "12px 0 8px",
+          fontSize: 14,
+          color: "var(--ink-primary, #0f172a)",
+        }}
+      >
         Per-workspace summary
       </h3>
       {data.workspaces.length === 0 ? (
-        <div
-          data-testid="billing-workspaces-empty"
-          style={{ fontSize: 13, opacity: 0.75 }}
-        >
-          No workspaces are bound to this organization yet.
+        <div data-testid="billing-workspaces-empty">
+          <EmptyState
+            compact
+            framed
+            title="No workspaces on this plan"
+            purpose="Workspaces bound to this organization appear here with their plan and seat usage."
+          />
         </div>
       ) : (
-        <ul
-          data-testid="billing-workspaces-list"
-          style={{ listStyle: "none", padding: 0, margin: 0 }}
-        >
-          {data.workspaces.map((w) => (
-            <li
-              key={w.id}
-              data-workspace-id={w.id}
-              data-over-seat={w.overSeat ? "true" : "false"}
-              style={{
-                padding: "0.45rem 0",
-                borderBottom: "1px solid rgba(127,127,127,0.18)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-                flexWrap: "wrap",
-                fontSize: 13,
-              }}
-            >
-              <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                <div style={{ fontWeight: 500 }}>{w.name}</div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>
-                  {w.billingPlan ?? "FREE"} · {w.billingStatus ?? "NONE"}
-                </div>
-              </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontVariantNumeric: "tabular-nums",
-                  color: w.overSeat ? "#b45309" : undefined,
-                  fontWeight: w.overSeat ? 600 : 400,
-                }}
-              >
-                {w.usedSeats} / {w.includedSeats} seats
-                {w.overSeat ? " · over" : ""}
-              </div>
-            </li>
-          ))}
-        </ul>
+        <div data-testid="billing-workspaces-list">
+          <DataTable
+            ariaLabel="Per-workspace seat summary"
+            columns={columns}
+            rows={data.workspaces}
+            getRowId={(w) => w.id}
+          />
+        </div>
       )}
     </div>
   );
@@ -332,42 +349,31 @@ function Stat({
   tone?: "neutral" | "warn";
 }) {
   return (
-    <div data-testid={testId} style={statCardStyle}>
+    <Card variant="summary" padding="compact" data-testid={testId}>
       <div
         style={{
           fontSize: 22,
           fontWeight: 700,
-          color: tone === "warn" ? "#b45309" : undefined,
+          color:
+            tone === "warn" ? "var(--status-pending-fg, #b45309)" : undefined,
         }}
       >
         {value}
       </div>
-      <div style={{ fontSize: 12, opacity: 0.7 }}>{label}</div>
-    </div>
+      <div style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}>
+        {label}
+      </div>
+    </Card>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Styles — mirror the sibling admin tabs (security/overview) so the tab
-// bar renders a visually-consistent card surface.
-// ---------------------------------------------------------------------------
-
-const cardStyle: React.CSSProperties = {
-  padding: "1rem 1.1rem",
-  border: "1px solid rgba(127,127,127,0.3)",
-  borderRadius: 8,
-  marginBottom: "1rem",
+const mutedText: React.CSSProperties = {
+  fontSize: 13,
+  color: "var(--ink-secondary, #475569)",
 };
 
 const statGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
   gap: 12,
-  marginTop: 4,
-};
-
-const statCardStyle: React.CSSProperties = {
-  padding: "0.6rem 0.75rem",
-  border: "1px solid rgba(127,127,127,0.2)",
-  borderRadius: 6,
 };

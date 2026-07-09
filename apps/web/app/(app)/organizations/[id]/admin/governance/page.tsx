@@ -29,6 +29,13 @@
  *   - Strong TypeScript types throughout.
  *   - Governance policy CRUD is NOT duplicated here; the control center
  *     deep-links to the canonical mutation surfaces.
+ *
+ * Phase 7 (Enterprise UX): presentation migrated to the shared design
+ * system (Card / Badge / Button / PageSection / EmptyState). This tab
+ * renders INSIDE the org admin layout shell (which owns the org title +
+ * tab bar), so it uses PageSection headings — not a second PageHeader —
+ * to avoid a duplicate <h1>. All data reads, gating, testids, data-state
+ * markers and honest "—"/unavailable behaviour are unchanged.
  */
 
 import Link from "next/link";
@@ -39,6 +46,9 @@ import { PageRouteGate } from "../../../../../../components/navigation/PageRoute
 import { apiFetch, ApiError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { formatUtcAuditDateTime } from "../../../../../../lib/date";
+import { Card } from "../../../../../../components/ui/Card";
+import { Badge } from "../../../../../../components/ui/Badge";
+import { Button } from "../../../../../../components/ui/Button";
 
 // ---------------------------------------------------------------------------
 // Wire types — mirror GET /v1/orgs/:id/governance/control-center.
@@ -183,13 +193,22 @@ function GovernanceControlCenter() {
   const sections = state.kind === "ready" ? state.data.sections : null;
 
   return (
-    <section data-testid="org-admin-governance" data-org-id={orgId}>
+    <section
+      data-testid="org-admin-governance"
+      data-org-id={orgId}
+      style={{ display: "flex", flexDirection: "column", gap: 20 }}
+    >
       {/* -------------------------------------------------------------
           Header — what this control center is.
           ------------------------------------------------------------- */}
-      <section data-section="governance-intro" style={cardStyle}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>Governance Control Center</h2>
-        <p style={{ fontSize: 13, opacity: 0.85, marginTop: 8 }}>
+      <Card
+        variant="status"
+        tone="governance"
+        data-section="governance-intro"
+        title="Governance Control Center"
+        headerAction={<Badge tone="governance" dot>Read-only</Badge>}
+      >
+        <p style={mutedText}>
           A read-only view of evidence-governance posture across every
           workspace in this organization: legal holds preserving evidence,
           retention policies in force, destruction reviews awaiting a
@@ -200,45 +219,45 @@ function GovernanceControlCenter() {
         {state.kind === "ready" ? (
           <p
             data-testid="governance-scope"
-            style={{ fontSize: 12, opacity: 0.7, marginTop: 6 }}
+            style={{ ...subtleText, marginTop: 8 }}
           >
             Spanning {state.data.scope.workspaceCount} workspace
             {state.data.scope.workspaceCount === 1 ? "" : "s"} bound to this
             organization.
           </p>
         ) : null}
-      </section>
+      </Card>
 
       {state.kind === "loading" ? (
-        <div
-          data-state="loading"
-          style={{ ...cardStyle, marginTop: "1rem", fontSize: 13, opacity: 0.7 }}
-        >
-          Loading governance posture…
-        </div>
+        <Card variant="admin" data-state="loading">
+          <span style={subtleText}>Loading governance posture…</span>
+        </Card>
       ) : state.kind === "error" ? (
-        <div
+        <Card
+          variant="status"
+          tone="risk"
           data-state="error"
           data-testid="governance-error"
           role="alert"
-          style={{ ...cardStyle, marginTop: "1rem", fontSize: 13 }}
         >
-          {state.status === 403 || state.status === 404
-            ? "You don't have access to the organization governance control center. This view requires ORG_AUDITOR or higher."
-            : state.message}
+          <div style={{ fontSize: 13.5, color: "var(--ink-primary, #0f172a)" }}>
+            {state.status === 403 || state.status === 404
+              ? "You don't have access to the organization governance control center. This view requires ORG_AUDITOR or higher."
+              : state.message}
+          </div>
           {state.requestId ? (
             <div
               style={{
                 marginTop: 4,
                 fontSize: 11,
                 fontFamily: "monospace",
-                opacity: 0.7,
+                color: "var(--ink-muted, #94a3b8)",
               }}
             >
               Request id: {state.requestId}
             </div>
           ) : null}
-        </div>
+        </Card>
       ) : sections ? (
         <>
           {/* ---------------------------------------------------------
@@ -248,9 +267,8 @@ function GovernanceControlCenter() {
             data-section="governance-kpis"
             style={{
               display: "grid",
-              gap: 10,
+              gap: 12,
               gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-              margin: "1rem 0 1.25rem",
             }}
           >
             <Kpi
@@ -337,14 +355,10 @@ function GovernanceControlCenter() {
             }
           >
             {sections.legalHolds.data?.sample.map((h) => (
-              <li
-                key={h.id}
-                data-testid="legal-hold-row"
-                style={rowStyle}
-              >
+              <li key={h.id} data-testid="legal-hold-row" style={rowStyle}>
                 <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                  <div style={{ fontWeight: 500 }}>{h.title}</div>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>
+                  <div style={{ fontWeight: 600 }}>{h.title}</div>
+                  <div style={subtleText}>
                     Evidence {h.evidenceId.slice(0, 8)}… · placed{" "}
                     {formatUtcAuditDateTime(h.placedAtUtc)}
                     {h.reason ? ` · ${h.reason}` : ""}
@@ -353,9 +367,11 @@ function GovernanceControlCenter() {
                 <Link
                   href={`/evidence/${h.evidenceId}`}
                   data-testid="legal-hold-evidence-link"
-                  className="cases-filter-chip"
+                  style={linkReset}
                 >
-                  Open evidence →
+                  <Button variant="ghost" size="sm">
+                    Open evidence →
+                  </Button>
                 </Link>
               </li>
             ))}
@@ -384,8 +400,8 @@ function GovernanceControlCenter() {
             {sections.retention.data?.sample.map((p) => (
               <li key={p.id} data-testid="retention-policy-row" style={rowStyle}>
                 <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                  <div style={{ fontWeight: 500 }}>{p.displayName}</div>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>
+                  <div style={{ fontWeight: 600 }}>{p.displayName}</div>
+                  <div style={subtleText}>
                     {p.scope} ·{" "}
                     {p.retentionDays === null
                       ? "indefinite retention"
@@ -420,10 +436,10 @@ function GovernanceControlCenter() {
             {sections.destruction.data?.sample.map((d) => (
               <li key={d.id} data-testid="destruction-row" style={rowStyle}>
                 <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                  <div style={{ fontWeight: 500 }}>
+                  <div style={{ fontWeight: 600 }}>
                     Evidence {d.evidenceId.slice(0, 8)}…
                   </div>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>
+                  <div style={subtleText}>
                     {d.status} · {d.reason} · opened{" "}
                     {formatUtcAuditDateTime(d.createdAt)}
                   </div>
@@ -431,9 +447,11 @@ function GovernanceControlCenter() {
                 <Link
                   href={`/evidence/${d.evidenceId}`}
                   data-testid="destruction-evidence-link"
-                  className="cases-filter-chip"
+                  style={linkReset}
                 >
-                  Open evidence →
+                  <Button variant="ghost" size="sm">
+                    Open evidence →
+                  </Button>
                 </Link>
               </li>
             ))}
@@ -461,14 +479,12 @@ function GovernanceControlCenter() {
             {sections.audit.data?.events.map((e) => (
               <li key={e.id} data-testid="audit-row" style={rowStyle}>
                 <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                  <div style={{ fontWeight: 500 }}>{e.eventType}</div>
+                  <div style={{ fontWeight: 600 }}>{e.eventType}</div>
                   {e.targetType ? (
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>
-                      {e.targetType}
-                    </div>
+                    <div style={subtleText}>{e.targetType}</div>
                   ) : null}
                 </div>
-                <span style={{ opacity: 0.7, fontSize: 12 }}>
+                <span style={subtleText}>
                   {formatUtcAuditDateTime(e.createdAt)}
                 </span>
               </li>
@@ -478,15 +494,13 @@ function GovernanceControlCenter() {
           {/* ---------------------------------------------------------
               Canonical governance surfaces — deep-links.
               --------------------------------------------------------- */}
-          <section data-section="governance-deep-links" style={cardStyle}>
-            <h2 style={{ margin: 0, fontSize: 16 }}>
-              Canonical governance surfaces
-            </h2>
-            <p style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-              This control center is read-only. Each mutation workflow lives
-              on its canonical surface.
-            </p>
-            <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
+          <Card
+            variant="admin"
+            data-section="governance-deep-links"
+            title="Canonical governance surfaces"
+            subtitle="This control center is read-only. Each mutation workflow lives on its canonical surface."
+          >
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
               <DeepLinkRow
                 testId="gov-deep-link-retention-tab"
                 label="Retention & Legal hold"
@@ -530,7 +544,7 @@ function GovernanceControlCenter() {
                 href="/governance-platform"
               />
             </ul>
-          </section>
+          </Card>
         </>
       ) : null}
     </section>
@@ -559,32 +573,22 @@ function CoverageSection({
       : 0;
 
   return (
-    <section
+    <Card
+      variant="summary"
       data-section="governance-coverage"
       data-testid="section-coverage"
-      style={{ ...cardStyle, marginBottom: "1.25rem" }}
+      title="Coverage & custody health"
+      subtitle="Retention & legal-hold coverage and chain-of-custody status across the organization. Indicators are derived from live counts — never a synthetic health badge."
     >
-      <h2 style={{ margin: 0, fontSize: 16 }}>Coverage & custody health</h2>
-      <p style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-        Retention & legal-hold coverage and chain-of-custody status across the
-        organization. Indicators are derived from live counts — never a
-        synthetic health badge.
-      </p>
       {coverage.status === "unavailable" || !data ? (
         <div
           data-state="unavailable"
-          style={{
-            marginTop: 8,
-            padding: "0.6rem 0.7rem",
-            border: "1px dashed rgba(127,127,127,0.45)",
-            borderRadius: 6,
-            fontSize: 13,
-          }}
+          style={unavailableBox}
         >
           Coverage indicators are temporarily unavailable.
         </div>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           <CoverageRow
             testId="coverage-retention"
             label="Retention coverage"
@@ -642,7 +646,7 @@ function CoverageSection({
           />
         </ul>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -650,21 +654,38 @@ function CoverageSection({
 // Presentational helpers.
 // ---------------------------------------------------------------------------
 
-const cardStyle = {
-  padding: "1rem 1.1rem",
-  border: "1px solid rgba(127,127,127,0.3)",
+const mutedText = {
+  margin: 0,
+  fontSize: 13.5,
+  lineHeight: 1.6,
+  color: "var(--ink-secondary, #475569)",
+} as const;
+
+const subtleText = {
+  margin: 0,
+  fontSize: 12.5,
+  color: "var(--ink-muted, #94a3b8)",
+} as const;
+
+const linkReset = { textDecoration: "none", flexShrink: 0 } as const;
+
+const unavailableBox = {
+  padding: "10px 12px",
+  border: "1px dashed var(--border-strong, rgba(15,23,42,0.14))",
   borderRadius: 8,
+  fontSize: 13,
+  color: "var(--ink-secondary, #475569)",
 } as const;
 
 const rowStyle = {
-  padding: "0.5rem 0",
-  borderBottom: "1px solid rgba(127,127,127,0.18)",
+  padding: "10px 0",
+  borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
   gap: 12,
   flexWrap: "wrap",
-  fontSize: 13,
+  fontSize: 13.5,
 } as const;
 
 type PillState = { tone: "ok" | "warn"; text: string };
@@ -686,31 +707,34 @@ function Kpi({
   secondary: string;
 }) {
   return (
-    <div
-      data-testid={testId}
-      style={{
-        padding: "0.75rem 0.9rem",
-        border: "1px solid rgba(127,127,127,0.3)",
-        borderRadius: 8,
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        minHeight: 96,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          opacity: 0.7,
-          letterSpacing: 0.5,
-          textTransform: "uppercase",
-        }}
-      >
-        {label}
+    <Card variant="summary" padding="compact" data-testid={testId}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, minHeight: 84 }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: "var(--ink-muted, #94a3b8)",
+          }}
+        >
+          {label}
+        </div>
+        <div
+          style={{
+            fontSize: 26,
+            fontWeight: 700,
+            lineHeight: 1.1,
+            color: "var(--ink-primary, #0f172a)",
+          }}
+        >
+          {value}
+        </div>
+        <div style={{ fontSize: 12.5, color: "var(--ink-secondary, #475569)" }}>
+          {secondary}
+        </div>
       </div>
-      <div style={{ fontSize: 24, fontWeight: 700 }}>{value}</div>
-      <div style={{ fontSize: 12, opacity: 0.75 }}>{secondary}</div>
-    </div>
+    </Card>
   );
 }
 
@@ -732,53 +756,54 @@ function ListSection({
   children: React.ReactNode;
 }) {
   return (
-    <section
+    <Card
+      variant="summary"
       data-testid={testId}
       data-status={status}
-      style={{ ...cardStyle, marginBottom: "1.25rem" }}
-    >
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          gap: 12,
-          flexWrap: "wrap",
-          marginBottom: "0.25rem",
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: 16 }}>{title}</h2>
-        {footer}
-      </header>
-      {status === "unavailable" ? (
+      header={
         <div
-          data-state="unavailable"
           style={{
-            marginTop: 8,
-            padding: "0.6rem 0.7rem",
-            border: "1px dashed rgba(127,127,127,0.45)",
-            borderRadius: 6,
-            fontSize: 13,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            gap: 12,
+            flexWrap: "wrap",
           }}
         >
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 15,
+              fontWeight: 650,
+              color: "var(--ink-primary, #0f172a)",
+            }}
+          >
+            {title}
+          </h2>
+          {footer}
+        </div>
+      }
+    >
+      {status === "unavailable" ? (
+        <div data-state="unavailable" style={unavailableBox}>
           This section is temporarily unavailable.
         </div>
       ) : empty ? (
         <div
           data-state="empty"
-          style={{ marginTop: 8, fontSize: 13, opacity: 0.75 }}
+          style={{ fontSize: 13.5, color: "var(--ink-secondary, #475569)" }}
         >
           {emptyLabel}
         </div>
       ) : (
         <ul
-          style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}
+          style={{ listStyle: "none", padding: 0, margin: 0 }}
           data-state="populated"
         >
           {children}
         </ul>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -802,8 +827,8 @@ function CoverageRow({
       data-testid={testId}
       data-tone={pill.tone}
       style={{
-        padding: "0.55rem 0",
-        borderBottom: "1px solid rgba(127,127,127,0.18)",
+        padding: "11px 0",
+        borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -813,15 +838,15 @@ function CoverageRow({
     >
       <div style={{ minWidth: 0, flex: "1 1 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontWeight: 500 }}>{label}</span>
+          <span style={{ fontWeight: 600 }}>{label}</span>
           <StatusPill state={pill} />
         </div>
-        <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>
-          {description}
-        </div>
+        <div style={{ ...subtleText, marginTop: 2 }}>{description}</div>
       </div>
-      <Link href={href} className="cases-filter-chip">
-        {linkLabel} →
+      <Link href={href} style={linkReset}>
+        <Button variant="ghost" size="sm">
+          {linkLabel} →
+        </Button>
       </Link>
     </li>
   );
@@ -829,23 +854,10 @@ function CoverageRow({
 
 function StatusPill({ state }: { state: PillState }) {
   return (
-    <span
-      data-state={state.tone === "ok" ? "ok" : "not-configured"}
-      style={{
-        fontSize: 11,
-        padding: "1px 8px",
-        borderRadius: 999,
-        background:
-          state.tone === "ok"
-            ? "rgba(16,185,129,0.18)"
-            : "rgba(245,158,11,0.18)",
-        display: "inline-block",
-        fontWeight: 600,
-        letterSpacing: 0.3,
-        textTransform: "uppercase",
-      }}
-    >
-      {state.text}
+    <span data-state={state.tone === "ok" ? "ok" : "not-configured"}>
+      <Badge tone={state.tone === "ok" ? "verified" : "pending"} subtle>
+        {state.text}
+      </Badge>
     </span>
   );
 }
@@ -860,8 +872,10 @@ function DeepLink({
   href: string;
 }) {
   return (
-    <Link href={href} data-testid={testId} className="cases-filter-chip">
-      {label} →
+    <Link href={href} data-testid={testId} style={linkReset}>
+      <Button variant="ghost" size="sm">
+        {label} →
+      </Button>
     </Link>
   );
 }
@@ -880,8 +894,8 @@ function DeepLinkRow({
   return (
     <li
       style={{
-        padding: "0.5rem 0",
-        borderBottom: "1px solid rgba(127,127,127,0.18)",
+        padding: "10px 0",
+        borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -890,11 +904,13 @@ function DeepLinkRow({
       }}
     >
       <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-        <div style={{ fontWeight: 500 }}>{label}</div>
-        <div style={{ fontSize: 12, opacity: 0.75 }}>{description}</div>
+        <div style={{ fontWeight: 600 }}>{label}</div>
+        <div style={{ ...subtleText, marginTop: 2 }}>{description}</div>
       </div>
-      <Link href={href} data-testid={testId} className="cases-filter-chip">
-        Open →
+      <Link href={href} data-testid={testId} style={linkReset}>
+        <Button variant="secondary" size="sm">
+          Open →
+        </Button>
       </Link>
     </li>
   );

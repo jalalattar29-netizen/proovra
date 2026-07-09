@@ -23,6 +23,10 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
+import { PageSection } from "../../../../../../components/ui/PageShell";
+import { Card } from "../../../../../../components/ui/Card";
+import { Button } from "../../../../../../components/ui/Button";
+import { EmptyState } from "../../../../../../components/ui/EmptyState";
 import { apiFetch, ApiError } from "../../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../../lib/date";
 
@@ -87,21 +91,17 @@ function RetentionTab() {
   }, [load]);
 
   return (
-    <section data-testid="org-admin-retention" data-org-id={orgId}>
-      <section
+    <section
+      data-testid="org-admin-retention"
+      data-org-id={orgId}
+      style={{ display: "flex", flexDirection: "column", gap: 24 }}
+    >
+      <Card
+        variant="admin"
         data-section="retention-policy"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-          marginBottom: "1rem",
-        }}
+        title="Retention template"
+        subtitle="The published organization-level retention template. Workspaces inherit it unless overridden."
       >
-        <h2 style={{ margin: 0, fontSize: 16 }}>Retention template</h2>
-        <p style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-          The published organization-level retention template. Workspaces
-          inherit it unless overridden.
-        </p>
         {policy.kind === "loading" ? (
           <div data-state="loading" style={{ fontSize: 13, opacity: 0.7 }}>
             Loading…
@@ -125,21 +125,24 @@ function RetentionTab() {
             ) : null}
           </div>
         ) : policy.data.value === null ? (
-          <div
+          <EmptyState
             data-state="not-configured"
             data-testid="retention-not-configured"
-            style={{
-              padding: "0.6rem 0.7rem",
-              border: "1px dashed rgba(127,127,127,0.45)",
-              borderRadius: 6,
-              fontSize: 13,
-            }}
-          >
-            <strong>Not configured.</strong> No organization-level retention
-            template is published. Workspaces fall back to their workspace-
-            scoped retention policy. Publish a template from
-            Evidence Lifecycle → Retention to set the default.
-          </div>
+            framed
+            compact
+            title="No retention policy configured"
+            purpose="No organization-level retention template is published. Workspaces fall back to their workspace-scoped retention policy. Publish a template from Evidence Lifecycle → Retention to set the default."
+            action={
+              <Link
+                href="/evidence-lifecycle/retention"
+                style={{ textDecoration: "none" }}
+              >
+                <Button variant="secondary" size="sm">
+                  Open Evidence Lifecycle → Retention
+                </Button>
+              </Link>
+            }
+          />
         ) : (
           <div data-state="configured" style={{ fontSize: 13 }}>
             <div style={{ marginBottom: 6 }}>
@@ -170,20 +173,16 @@ function RetentionTab() {
             to this organization.
           </p>
         ) : null}
-      </section>
+      </Card>
 
-      <section
-        data-section="retention-deep-links"
-        style={{
-          padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
-        }}
+      <PageSection
+        title="Canonical retention & legal hold surfaces"
+        description="Retention runs, legal holds, and destruction reviews are mutated on the Evidence Lifecycle pages. Open them below."
       >
-        <h2 style={{ margin: 0, fontSize: 16 }}>
-          Canonical retention &amp; legal hold surfaces
-        </h2>
-        <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
+        <div
+          data-section="retention-deep-links"
+          style={{ display: "flex", flexDirection: "column", gap: 10 }}
+        >
           <DeepLink
             testId="ret-deep-link-retention"
             label="Evidence Lifecycle · Retention"
@@ -202,8 +201,8 @@ function RetentionTab() {
             description="Two-person destruction reviews + executions."
             href="/evidence-lifecycle/destruction"
           />
-        </ul>
-      </section>
+        </div>
+      </PageSection>
     </section>
   );
 }
@@ -220,28 +219,36 @@ function DeepLink({
   href: string;
 }) {
   return (
-    <li
-      style={{
-        padding: "0.5rem 0",
-        borderBottom: "1px solid rgba(127,127,127,0.18)",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 12,
-        flexWrap: "wrap",
-      }}
+    <Card
+      variant="summary"
+      padding="compact"
+      style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
     >
       <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-        <div style={{ fontWeight: 500 }}>{label}</div>
-        <div style={{ fontSize: 12, opacity: 0.75 }}>{description}</div>
+        <div
+          style={{
+            fontWeight: 600,
+            fontSize: 14,
+            color: "var(--ink-primary, #0f172a)",
+          }}
+        >
+          {label}
+        </div>
+        <div
+          style={{
+            fontSize: 12.5,
+            color: "var(--ink-secondary, #475569)",
+            marginTop: 2,
+          }}
+        >
+          {description}
+        </div>
       </div>
-      <Link
-        href={href}
-        data-testid={testId}
-        className="cases-filter-chip"
-      >
-        Open →
+      <Link href={href} data-testid={testId} style={{ textDecoration: "none", flexShrink: 0 }}>
+        <Button variant="secondary" size="sm">
+          Open →
+        </Button>
       </Link>
-    </li>
+    </Card>
   );
 }

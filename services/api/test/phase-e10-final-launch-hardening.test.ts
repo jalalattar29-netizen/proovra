@@ -245,12 +245,19 @@ describe("E10 Test 4 — existing rate-limit coverage preserved", () => {
     expect(intakeRoutes).toMatch(/enforceRateLimit/);
   });
 
-  it("MFA verify still throttles per-userId", () => {
+  it("MFA verify still throttles per-userId (multi-instance-safe shared limiter)", () => {
     const authRoutes = readApi("src/routes/auth.routes.ts");
-    // The audit confirmed an in-memory loginMfaAttempts map; the source
-    // grep MUST find the throttle logic. If the throttle moves, this
-    // test fires immediately.
-    expect(authRoutes).toMatch(/loginMfaAttempts|mfa.*attempt.*limit/i);
+    // Enterprise launch hardening — the MFA-verify throttle moved OFF the
+    // per-process in-memory Map onto the shared `enforceRateLimit` limiter
+    // (Redis when configured; in-memory fallback in dev/test) so multiple
+    // API instances can't multiply the attempt budget. The throttle must
+    // still exist AND route through the shared limiter with a user-scoped key.
+    expect(authRoutes).toMatch(/loginMfaIsRateLimited/);
+    expect(authRoutes).toMatch(
+      /enforceRateLimit\(\{[\s\S]*?`mfa-verify:\$\{userId\}`/,
+    );
+    // The old per-process Map must be gone (it was the multi-instance gap).
+    expect(authRoutes).not.toMatch(/const loginMfaAttempts = new Map/);
   });
 });
 

@@ -109,7 +109,16 @@ test("Phase 0 — orchestrator imports every tab + passes a single ctx prop", ()
     "EvidenceTechnicalAppendixTab",
   ]) {
     assert.match(PAGE, new RegExp(`import \\{ ${tab} \\} from "\\./_tabs/${tab}"`));
-    assert.match(PAGE, new RegExp(`<${tab} ctx=\\{ctx\\} />`));
+    // Each tab must be rendered with the single `ctx={ctx}` prop bag.
+    // The match tolerates additional props (e.g. the Technical Appendix
+    // tab legitimately takes an extra `onGoToCustody` prop) and
+    // multi-line JSX: we look for the opening `<TabName` tag followed by
+    // `ctx={ctx}` before the element closes (`/>` or `>`), allowing
+    // whitespace/newlines and other attributes in between.
+    assert.match(
+      PAGE,
+      new RegExp(`<${tab}\\b[^>]*?ctx=\\{ctx\\}[^>]*?/?>`, "s"),
+    );
   }
 });
 

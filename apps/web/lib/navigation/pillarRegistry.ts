@@ -239,6 +239,8 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   // -----------------------------------------------------------------
   ["platform.ops_center", "OPERATIONS"],
   ["platform.observability", "OPERATIONS"],
+  // Phase 8 — Platform production-readiness posture (backup/DR, keys, resiliency).
+  ["operations.readiness", "OPERATIONS"],
   ["platform.reliability", "OPERATIONS"],
   ["platform.queue_ops", "OPERATIONS"],
   // Phase IA-collapse — Messaging operations (SMS / WhatsApp / OTP
@@ -275,6 +277,10 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["account.organization_admin_access_reviews", "ADMIN"],
   ["account.organization_admin_retention", "ADMIN"],
   ["account.organization_admin_audit", "ADMIN"],
+  // Phase 8 (Enterprise Production Readiness) — Bulk invite, Reports, Readiness tabs.
+  ["account.organization_admin_bulk_invite", "ADMIN"],
+  ["account.organization_admin_reports", "ADMIN"],
+  ["account.organization_admin_readiness", "ADMIN"],
   ["account.organization_admin_security", "ADMIN"],
   // Phase 3 (Enterprise Identity) — Domains verification tab.
   ["account.organization_admin_domains", "ADMIN"],

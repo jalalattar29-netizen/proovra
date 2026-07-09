@@ -23,22 +23,20 @@ import { useTeamId } from "../../../../../lib/platform-context";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import {
   badgeStyle,
-  cardStyle,
   errorBoxStyle,
   formatDateTime,
   ghostButtonStyle,
-  headerRowStyle,
   mutedStyle,
-  pageStyle,
   sectionTitleStyle,
   statusBadgeStyle,
-  subtitleStyle,
   tableStyle,
   tdStyle,
-  thStyle,
-  titleStyle,
   TOKENS,
 } from "../ui-tokens";
+import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
+import { Button } from "../../../../../components/ui/Button";
+import { EmptyState } from "../../../../../components/ui/EmptyState";
+import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 
 type ActiveSession = {
   id: string;
@@ -188,27 +186,119 @@ export default function SessionsPage() {
 
   if (!teamId) {
     return (
-      <main style={pageStyle}>
-        <p style={mutedStyle}>Switch to a workspace.</p>
-      </main>
+      <PageShell header={<PageHeader eyebrow="Identity operations" title="Active Sessions" />}>
+        <EmptyState
+          framed
+          title="No workspace selected"
+          purpose="Switch to a workspace to view and revoke its active session inventory."
+        />
+      </PageShell>
     );
   }
 
-  return (
-    <main style={pageStyle}>
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Active Sessions</h1>
-          <p style={subtitleStyle}>
-            Workspace session inventory. IP + device previews shown; raw
-            values never persisted. Revoke goes through the Phase 19
-            session-revocation registry — JWT middleware rejects on the
-            next request. Click <strong>View timeline</strong> on any row
-            for the bounded identity-event reconstruction (login, MFA,
-            step-up, quarantine, revoke).
-          </p>
+  const columns: DataTableColumn<ActiveSession>[] = [
+    {
+      key: "user",
+      header: "User",
+      render: (s) => (
+        <code
+          style={{
+            fontFamily:
+              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+            fontSize: 12,
+          }}
+        >
+          {s.userId.slice(0, 12)}…
+        </code>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (s) =>
+        s.revoked ? (
+          <span style={statusBadgeStyle("REVOKED")}>revoked</span>
+        ) : new Date(s.expiresAtUtc) < new Date() ? (
+          <span style={statusBadgeStyle("DISABLED")}>expired</span>
+        ) : (
+          <span style={statusBadgeStyle("ACTIVE")}>active</span>
+        ),
+    },
+    {
+      key: "sso",
+      header: "SSO",
+      render: (s) => (
+        <span style={{ ...mutedStyle, fontSize: 11 }}>
+          {s.ssoConnectionId ? s.ssoConnectionId.slice(0, 8) + "…" : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "lastseen",
+      header: "Last seen",
+      nowrap: true,
+      render: (s) => <span style={mutedStyle}>{formatDateTime(s.lastSeenAtUtc)}</span>,
+    },
+    {
+      key: "issued",
+      header: "Issued",
+      nowrap: true,
+      render: (s) => <span style={mutedStyle}>{formatDateTime(s.issuedAtUtc)}</span>,
+    },
+    {
+      key: "expires",
+      header: "Expires",
+      nowrap: true,
+      render: (s) => <span style={mutedStyle}>{formatDateTime(s.expiresAtUtc)}</span>,
+    },
+    {
+      key: "device",
+      header: "Device",
+      render: (s) => (
+        <div style={{ fontSize: 11 }}>
+          <div>{s.ipPreview ?? "—"}</div>
+          <div style={mutedStyle}>{s.uaPreview ?? "—"}</div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      ),
+    },
+  ];
+
+  return (
+    <PageShell
+      header={
+        <PageHeader
+          eyebrow="Identity operations"
+          title="Active Sessions"
+          subtitle={
+            <>
+              Workspace session inventory. IP + device previews shown; raw
+              values never persisted. Revoke goes through the Phase 19
+              session-revocation registry — JWT middleware rejects on the
+              next request. Click <strong>View timeline</strong> on any row
+              for the bounded identity-event reconstruction (login, MFA,
+              step-up, quarantine, revoke).
+            </>
+          }
+          secondaryActions={
+            <Button variant="secondary" onClick={load}>
+              Refresh
+            </Button>
+          }
+        />
+      }
+    >
+      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+
+      <PageSection>
+        <div
+          style={{
+            display: "flex",
+            gap: 16,
+            alignItems: "center",
+            flexWrap: "wrap",
+            marginBottom: 12,
+          }}
+        >
           <label style={{ fontSize: 12 }}>
             <input
               type="checkbox"
@@ -225,119 +315,50 @@ export default function SessionsPage() {
             />{" "}
             Show expired
           </label>
-          <button type="button" style={ghostButtonStyle} onClick={load}>
-            Refresh
-          </button>
         </div>
-      </header>
-
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
-
-      <section style={{ ...cardStyle, marginTop: 16, padding: 0 }}>
-        {sessions === null ? (
-          <p style={{ ...mutedStyle, padding: 16 }}>Loading…</p>
-        ) : sessions.length === 0 ? (
-          <p style={{ ...mutedStyle, padding: 24 }}>No sessions match.</p>
-        ) : (
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>User</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>SSO</th>
-                <th style={thStyle}>Last seen</th>
-                <th style={thStyle}>Issued</th>
-                <th style={thStyle}>Expires</th>
-                <th style={thStyle}>Device</th>
-                <th style={thStyle}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sessions.map((s) => (
-                <tr key={s.id}>
-                  <td style={tdStyle}>
-                    <code
-                      style={{
-                        fontFamily:
-                          "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                        fontSize: 12,
-                      }}
-                    >
-                      {s.userId.slice(0, 12)}…
-                    </code>
-                  </td>
-                  <td style={tdStyle}>
-                    {s.revoked ? (
-                      <span style={statusBadgeStyle("REVOKED")}>revoked</span>
-                    ) : new Date(s.expiresAtUtc) < new Date() ? (
-                      <span style={statusBadgeStyle("DISABLED")}>expired</span>
-                    ) : (
-                      <span style={statusBadgeStyle("ACTIVE")}>active</span>
-                    )}
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ ...mutedStyle, fontSize: 11 }}>
-                      {s.ssoConnectionId
-                        ? s.ssoConnectionId.slice(0, 8) + "…"
-                        : "—"}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
-                      {formatDateTime(s.lastSeenAtUtc)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
-                      {formatDateTime(s.issuedAtUtc)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
-                      {formatDateTime(s.expiresAtUtc)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ fontSize: 11 }}>
-                      <div>{s.ipPreview ?? "—"}</div>
-                      <div style={mutedStyle}>{s.uaPreview ?? "—"}</div>
-                    </div>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        style={ghostButtonStyle}
-                        onClick={() => setTimelineFor(s.id)}
-                      >
-                        View timeline
-                      </button>
-                      {!s.revoked ? (
-                        <button
-                          type="button"
-                          style={ghostButtonStyle}
-                          disabled={busy === s.id}
-                          onClick={() => revoke(s.id)}
-                        >
-                          Revoke
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        style={ghostButtonStyle}
-                        disabled={busy === `all-${s.userId}`}
-                        onClick={() => revokeAllForUser(s.userId)}
-                      >
-                        Revoke all for user
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+        <DataTable
+          columns={columns}
+          rows={sessions ?? []}
+          getRowId={(s) => s.id}
+          loading={sessions === null}
+          ariaLabel="Active sessions inventory"
+          emptyState={
+            <EmptyState
+              title="No active sessions"
+              purpose="No sessions match the current filters. Toggle Show revoked / Show expired or refresh to broaden the view."
+            />
+          }
+          rowActions={(s) => (
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setTimelineFor(s.id)}
+              >
+                View timeline
+              </Button>
+              {!s.revoked ? (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={busy === s.id}
+                  onClick={() => revoke(s.id)}
+                >
+                  Revoke
+                </Button>
+              ) : null}
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={busy === `all-${s.userId}`}
+                onClick={() => revokeAllForUser(s.userId)}
+              >
+                Revoke all for user
+              </Button>
+            </div>
+          )}
+        />
+      </PageSection>
 
       {timelineFor ? (
         <SessionTimelineDrawer
@@ -346,7 +367,7 @@ export default function SessionsPage() {
           onClose={() => setTimelineFor(null)}
         />
       ) : null}
-    </main>
+    </PageShell>
   );
 }
 

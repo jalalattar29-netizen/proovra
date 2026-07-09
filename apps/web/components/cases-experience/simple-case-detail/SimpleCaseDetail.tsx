@@ -38,6 +38,13 @@ import { useRouter } from "next/navigation";
 
 import { apiFetch } from "../../../lib/api";
 import { Button, useToast } from "../../ui";
+// Phase 7B (visual-only) — canonical shared design-system primitives.
+// PageShell/PageHeader/PageSection from the barrel; Card / EmptyState /
+// Badge DEEP-imported (barrel serves the LEGACY four). The existing
+// legacy `Button` + `useToast` barrel import above is kept unchanged.
+import { PageShell, PageHeader, PageSection } from "../../ui";
+import { Card } from "../../ui/Card";
+import { EmptyState } from "../../ui/EmptyState";
 // Phase CASE-DETAIL-PERSONAL-UX — canonical confirmation hook. The
 // repo-wide Phase Final-D3 contract forbids raw `window.confirm` in
 // apps/web; this is the parity replacement.
@@ -145,45 +152,52 @@ export function SimpleCaseDetail({
 
   if (state.status === "loading") {
     return (
-      <main className="cc-page" data-simple-case-detail-loading>
-        <div className="cc-section">Loading case…</div>
-      </main>
+      <PageShell className="cc-page" data-simple-case-detail-loading>
+        <Card variant="summary">
+          <p style={{ margin: 0, color: "var(--ink-secondary, #475569)" }}>
+            Loading case…
+          </p>
+        </Card>
+      </PageShell>
     );
   }
   if (state.status === "auth_error") {
     return (
-      <main className="cc-page" data-simple-case-detail-auth>
-        <div className="cc-section">
+      <PageShell className="cc-page" data-simple-case-detail-auth>
+        <Card variant="status" tone="risk">
           You don&apos;t have access to this case.
-        </div>
-      </main>
+        </Card>
+      </PageShell>
     );
   }
   if (state.status === "not_found") {
     return (
-      <main className="cc-page" data-simple-case-detail-not-found>
-        <div className="cc-section">
-          <strong>Case not found</strong>
-          <p>
-            The case may have been deleted or moved.{" "}
-            <Link href="/cases">Back to cases</Link>
-          </p>
-        </div>
-      </main>
+      <PageShell className="cc-page" data-simple-case-detail-not-found>
+        <EmptyState
+          framed
+          title="Case not found"
+          purpose="The case may have been deleted or moved."
+          action={
+            <Link href="/cases">
+              <Button variant="secondary">Back to cases</Button>
+            </Link>
+          }
+        />
+      </PageShell>
     );
   }
   if (state.status === "unavailable") {
     return (
-      <main className="cc-page" data-simple-case-detail-unavailable>
-        <div className="cc-section">
+      <PageShell className="cc-page" data-simple-case-detail-unavailable>
+        <Card variant="status" tone="risk">
           {state.message}
           <div style={{ marginTop: 8 }}>
             <Button variant="secondary" onClick={() => void reload()}>
               Retry
             </Button>
           </div>
-        </div>
-      </main>
+        </Card>
+      </PageShell>
     );
   }
 
@@ -195,7 +209,7 @@ export function SimpleCaseDetail({
   const viewer = workspace.viewer;
 
   return (
-    <main
+    <PageShell
       className="cc-page"
       data-simple-case-detail
       data-case-id={caseDetail.id}
@@ -218,33 +232,40 @@ export function SimpleCaseDetail({
         style={{
           display: "flex",
           gap: 4,
-          borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
-          marginBottom: 16,
+          borderBottom: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+          marginBottom: 4,
         }}
       >
-        {TAB_ORDER.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            data-simple-case-tab={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: "8px 14px",
-              border: "none",
-              background: "transparent",
-              fontWeight: activeTab === tab.id ? 600 : 400,
-              borderBottom:
-                activeTab === tab.id
-                  ? "2px solid currentColor"
+        {TAB_ORDER.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              data-simple-case-tab={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: "8px 14px",
+                border: "none",
+                background: "transparent",
+                fontSize: 13,
+                fontWeight: isActive ? 650 : 500,
+                color: isActive
+                  ? "var(--ink-primary, #0f172a)"
+                  : "var(--ink-secondary, #475569)",
+                borderBottom: isActive
+                  ? "2px solid var(--brand-accent, #0f172a)"
                   : "2px solid transparent",
-              cursor: "pointer",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+                marginBottom: -1,
+                cursor: "pointer",
+              }}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </nav>
 
       {activeTab === "overview" ? (
@@ -339,7 +360,7 @@ export function SimpleCaseDetail({
           onError={(msg) => addToast(msg, "error")}
         />
       ) : null}
-    </main>
+    </PageShell>
   );
 }
 
@@ -363,18 +384,21 @@ function SimpleCaseHeader({
   onAddEvidence: () => void;
 }) {
   return (
-    <header className="cc-page-header" data-simple-case-header>
-      <div>
-        <p className="cc-kicker">
-          <Link href="/cases" data-simple-case-back>
-            ← Back to cases
-          </Link>
-        </p>
-        <h1 className="cc-title" data-simple-case-title>
-          {caseDetail.name}
-        </h1>
-        <p
-          className="cc-subtitle"
+    <PageHeader
+      className="cc-page-header"
+      data-simple-case-header
+      eyebrow={
+        <Link
+          href="/cases"
+          data-simple-case-back
+          style={{ color: "inherit", textDecoration: "none" }}
+        >
+          ← Back to cases
+        </Link>
+      }
+      title={<span data-simple-case-title>{caseDetail.name}</span>}
+      subtitle={
+        <span
           data-simple-case-subtitle
           style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
         >
@@ -395,29 +419,35 @@ function SimpleCaseHeader({
             <span
               className="cc-muted"
               data-simple-case-reloading
-              style={{ fontSize: 12 }}
+              style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}
             >
               Updating…
             </span>
           ) : null}
-        </p>
-        {caseDetail.description ? (
+        </span>
+      }
+      contextStrip={
+        caseDetail.description ? (
           <p
             className="cc-muted"
             data-simple-case-description
-            style={{ marginTop: 6 }}
+            style={{
+              margin: 0,
+              fontSize: 13,
+              color: "var(--ink-secondary, #475569)",
+            }}
           >
             {caseDetail.description}
           </p>
-        ) : null}
-      </div>
-      <div className="cc-meta">
-        {/* Phase CASES-PERSONAL-UX-CLEANUP (Final) — the header
-            now exposes ONLY the primary action ("Add evidence").
-            The previous "Case settings" button duplicated the
-            Settings tab and was removed per spec — clicking it
-            already routed to the tab so there was no second
-            destination. */}
+        ) : undefined
+      }
+      primaryAction={
+        /* Phase CASES-PERSONAL-UX-CLEANUP (Final) — the header
+           now exposes ONLY the primary action ("Add evidence").
+           The previous "Case settings" button duplicated the
+           Settings tab and was removed per spec — clicking it
+           already routed to the tab so there was no second
+           destination. */
         <Button
           onClick={onAddEvidence}
           disabled={!canLinkEvidence}
@@ -426,8 +456,8 @@ function SimpleCaseHeader({
         >
           Add evidence
         </Button>
-      </div>
-    </header>
+      }
+    />
   );
 }
 
@@ -447,18 +477,18 @@ function OverviewTab({
   needsAttention: ReturnType<typeof deriveNeedsAttention>;
 }) {
   return (
-    <section
+    <PageSection
       className="cc-section"
       role="tabpanel"
       aria-label="Overview"
       data-simple-case-overview
+      style={{ display: "flex", flexDirection: "column", gap: 16 }}
     >
-      <div
+      <Card
         className="cc-card"
         data-simple-case-summary
-        style={{ display: "grid", gap: 8 }}
+        title="Case summary"
       >
-        <strong>Case summary</strong>
         <div
           style={{
             display: "grid",
@@ -491,26 +521,25 @@ function OverviewTab({
             value={formatRelative(caseDetail.updatedAt)}
           />
         </div>
-      </div>
+      </Card>
 
-      <div
+      <Card
         className="cc-card"
         data-simple-case-needs-attention
-        style={{ marginTop: 16 }}
+        title="What needs attention"
       >
-        <strong>What needs attention</strong>
         {needsAttention.length === 0 ? (
           <p
             className="cc-muted"
             data-simple-case-attention-empty
-            style={{ marginTop: 6 }}
+            style={{ margin: 0, color: "var(--ink-secondary, #475569)" }}
           >
             No open issues. Reports and packages are up to date.
           </p>
         ) : (
           <ul
             data-simple-case-attention-items
-            style={{ marginTop: 6, paddingLeft: 18 }}
+            style={{ margin: 0, paddingLeft: 18 }}
           >
             {needsAttention.map((item) => (
               <li key={item.key} data-simple-case-attention-key={item.key}>
@@ -519,13 +548,13 @@ function OverviewTab({
             ))}
           </ul>
         )}
-      </div>
+      </Card>
 
       {/* Phase CASES-PERSONAL-UX-CLEANUP — the prior CTA card
           duplicated the tab strip and was removed per spec. The
           tab bar above the Overview body is the canonical
           navigation; no second surface is needed. */}
-    </section>
+    </PageSection>
   );
 }
 
@@ -535,12 +564,18 @@ function SummaryCell({ label, value }: { label: string; value: string }) {
       className="cc-stat-cell"
       style={{
         padding: "8px 10px",
-        background: "rgba(15, 23, 42, 0.04)",
-        borderRadius: 6,
+        background: "var(--surface-muted, #f1f4f9)",
+        borderRadius: "var(--radius-sm, 6px)",
       }}
     >
-      <div style={{ fontSize: 12, color: "#475569" }}>{label}</div>
-      <div style={{ fontWeight: 600 }}>{value}</div>
+      <div style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}>
+        {label}
+      </div>
+      <div
+        style={{ fontWeight: 600, color: "var(--ink-primary, #0f172a)" }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
@@ -606,39 +641,35 @@ function EvidenceTab({
   );
 
   return (
-    <section
+    <PageSection
       className="cc-section"
       role="tabpanel"
       aria-label="Evidence"
       data-simple-case-evidence
+      title={<>Evidence · {items.length}</>}
     >
       {/* Phase CASES-ATTACH-PICKER (Final) — the tab body no longer
           renders an Add-evidence button. The page header owns the
           single canonical entry point so the user can attach from
           any tab without duplicate affordances. */}
-      <header className="cc-section-header">
-        <h2 className="cc-section-title">
-          Evidence · {items.length}
-        </h2>
-      </header>
-
       {items.length === 0 ? (
-        <div
-          className="cc-section-note"
-          data-simple-case-evidence-empty
-          style={{ padding: 16 }}
-        >
-          <strong>No evidence linked yet.</strong>
-          <p>
-            Use <em>Add evidence</em> above to link files, photos,
-            videos, or documents to this case.
-          </p>
+        <div className="cc-section-note" data-simple-case-evidence-empty>
+          <EmptyState
+            framed
+            title="No evidence linked yet."
+            purpose={
+              <>
+                Use <em>Add evidence</em> above to link files, photos,
+                videos, or documents to this case.
+              </>
+            }
+          />
         </div>
       ) : (
         <ul
           className="cases-list"
           data-simple-case-evidence-items
-          style={{ display: "grid", gap: 8 }}
+          style={{ display: "grid", gap: 8, listStyle: "none", margin: 0, padding: 0 }}
         >
           {items.map((item) => (
             <li
@@ -650,20 +681,21 @@ function EvidenceTab({
                 gridTemplateColumns: "1fr auto",
                 alignItems: "center",
                 padding: "10px 12px",
-                border: "1px solid rgba(15, 23, 42, 0.08)",
-                borderRadius: 8,
+                border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+                borderRadius: "var(--radius-md, 10px)",
+                background: "var(--surface-card, #ffffff)",
               }}
             >
               <div>
                 <div
-                  style={{ fontWeight: 600 }}
+                  style={{ fontWeight: 600, color: "var(--ink-primary, #0f172a)" }}
                   data-simple-case-evidence-title
                 >
                   {getDisplayTitle(item)}
                 </div>
                 <div
                   className="cc-muted"
-                  style={{ fontSize: 12, display: "flex", gap: 8 }}
+                  style={{ fontSize: 12, display: "flex", gap: 8, color: "var(--ink-secondary, #475569)" }}
                 >
                   <span>{item.type}</span>
                   <span aria-hidden>·</span>
@@ -738,7 +770,7 @@ function EvidenceTab({
         </ul>
       )}
 
-    </section>
+    </PageSection>
   );
 }
 
@@ -918,23 +950,27 @@ function AttachEvidenceModal({
     >
       <div
         style={{
-          background: "#fff",
+          background: "var(--surface-card, #ffffff)",
           padding: 20,
-          borderRadius: 8,
+          borderRadius: "var(--radius-card, 14px)",
           width: "min(560px, 92vw)",
           maxHeight: "82vh",
           display: "flex",
           flexDirection: "column",
+          boxShadow: "var(--shadow-elevated, 0 20px 48px rgba(15,23,42,0.18))",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         <h3
           id="attach-evidence-title"
-          style={{ margin: "0 0 4px 0" }}
+          style={{ margin: "0 0 4px 0", color: "var(--ink-primary, #0f172a)" }}
         >
           Link evidence to case
         </h3>
-        <p className="cc-muted" style={{ margin: "0 0 12px 0" }}>
+        <p
+          className="cc-muted"
+          style={{ margin: "0 0 12px 0", color: "var(--ink-secondary, #475569)" }}
+        >
           Choose an existing evidence record from this workspace.
         </p>
 
@@ -948,8 +984,8 @@ function AttachEvidenceModal({
           style={{
             width: "100%",
             padding: "8px 10px",
-            border: "1px solid rgba(15, 23, 42, 0.2)",
-            borderRadius: 6,
+            border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+            borderRadius: "var(--radius-sm, 6px)",
             marginBottom: 12,
           }}
           disabled={busy}
@@ -959,8 +995,8 @@ function AttachEvidenceModal({
           style={{
             flex: 1,
             overflowY: "auto",
-            border: "1px solid rgba(15, 23, 42, 0.08)",
-            borderRadius: 6,
+            border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+            borderRadius: "var(--radius-md, 10px)",
             minHeight: 120,
           }}
           data-simple-case-attach-list
@@ -1011,9 +1047,9 @@ function AttachEvidenceModal({
                       padding: "10px 12px",
                       cursor: "pointer",
                       background: isSelected
-                        ? "rgba(30, 64, 175, 0.08)"
+                        ? "var(--status-info-bg, #eff6ff)"
                         : "transparent",
-                      borderBottom: "1px solid rgba(15, 23, 42, 0.06)",
+                      borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
@@ -1106,10 +1142,14 @@ function AttachEvidenceModal({
                       data-simple-case-attach-row-select={c.id}
                       disabled={busy}
                       style={{
-                        border: "1px solid rgba(15, 23, 42, 0.2)",
-                        background: isSelected ? "#1e40af" : "#fff",
-                        color: isSelected ? "#fff" : "#1e40af",
-                        borderRadius: 4,
+                        border: "1px solid var(--status-info-border, #bfdbfe)",
+                        background: isSelected
+                          ? "var(--status-info-solid, #2563eb)"
+                          : "var(--surface-card, #ffffff)",
+                        color: isSelected
+                          ? "#ffffff"
+                          : "var(--status-info-fg, #1e40af)",
+                        borderRadius: "var(--radius-sm, 6px)",
                         padding: "4px 10px",
                         cursor: "pointer",
                         fontSize: 12,
@@ -1180,31 +1220,41 @@ function ReportsPackagesTab({
   onOpenEvidence: (evidenceId: string) => void;
 }) {
   return (
-    <section
+    <PageSection
       className="cc-section"
       role="tabpanel"
       aria-label="Reports & Packages"
       data-simple-case-reports
     >
-      <div className="cc-card" data-simple-case-reports-summary>
-        <strong>Deliverable summary</strong>
-        <p className="cc-muted" style={{ marginTop: 4 }}>
+      <Card
+        className="cc-card"
+        data-simple-case-reports-summary
+        title="Deliverable summary"
+      >
+        <p
+          className="cc-muted"
+          style={{ margin: 0, color: "var(--ink-secondary, #475569)" }}
+        >
           {items.length === 0
             ? "Add evidence first to generate reports and verification packages."
             : `${deliverables.reportsReady} of ${items.length} evidence records have a report. ${deliverables.packagesReady} have a verification package.`}
         </p>
         {deliverables.needsAttention > 0 ? (
-          <p className="cc-muted" data-simple-case-reports-hint>
+          <p
+            className="cc-muted"
+            data-simple-case-reports-hint
+            style={{ marginTop: 4, color: "var(--ink-secondary, #475569)" }}
+          >
             Open the evidence record to generate missing deliverables.
           </p>
         ) : null}
-      </div>
+      </Card>
 
       {items.length > 0 ? (
         <ul
           className="cases-list"
           data-simple-case-reports-items
-          style={{ marginTop: 12, display: "grid", gap: 8 }}
+          style={{ marginTop: 12, display: "grid", gap: 8, listStyle: "none", padding: 0 }}
         >
           {items.map((item) => (
             <li
@@ -1215,20 +1265,21 @@ function ReportsPackagesTab({
                 display: "grid",
                 gridTemplateColumns: "1fr auto",
                 padding: "10px 12px",
-                border: "1px solid rgba(15, 23, 42, 0.08)",
-                borderRadius: 8,
+                border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+                borderRadius: "var(--radius-md, 10px)",
+                background: "var(--surface-card, #ffffff)",
               }}
             >
               <div>
                 <div
-                  style={{ fontWeight: 600 }}
+                  style={{ fontWeight: 600, color: "var(--ink-primary, #0f172a)" }}
                   data-simple-case-reports-title
                 >
                   {getDisplayTitle(item)}
                 </div>
                 <div
                   className="cc-muted"
-                  style={{ fontSize: 12, display: "flex", gap: 8 }}
+                  style={{ fontSize: 12, display: "flex", gap: 8, color: "var(--ink-secondary, #475569)" }}
                 >
                   <span
                     data-simple-case-reports-state-report={
@@ -1258,7 +1309,7 @@ function ReportsPackagesTab({
           ))}
         </ul>
       ) : null}
-    </section>
+    </PageSection>
   );
 }
 
@@ -1376,21 +1427,23 @@ function NotesTab({
   );
 
   return (
-    <section
+    <PageSection
       className="cc-section"
       role="tabpanel"
       aria-label="Notes"
       data-simple-case-notes
     >
-      <p className="cc-muted" data-simple-case-notes-boundary>
+      <p
+        className="cc-muted"
+        data-simple-case-notes-boundary
+        style={{ margin: "0 0 8px", color: "var(--ink-secondary, #475569)" }}
+      >
         Notes are private workspace notes. They do not change the
         recorded evidence integrity state.
       </p>
       {canComment ? (
-        <div
-          className="cc-card"
-          style={{ display: "grid", gap: 8, marginTop: 8 }}
-        >
+        <Card className="cc-card">
+          <div style={{ display: "grid", gap: 8 }}>
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -1401,8 +1454,8 @@ function NotesTab({
             style={{
               width: "100%",
               padding: 8,
-              borderRadius: 4,
-              border: "1px solid rgba(15, 23, 42, 0.2)",
+              borderRadius: "var(--radius-sm, 6px)",
+              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
             }}
           />
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -1414,12 +1467,13 @@ function NotesTab({
               {busy ? "Adding…" : "Add note"}
             </Button>
           </div>
-        </div>
+          </div>
+        </Card>
       ) : (
         <p
           className="cc-muted"
           data-simple-case-notes-readonly
-          style={{ marginTop: 8 }}
+          style={{ marginTop: 8, color: "var(--ink-secondary, #475569)" }}
         >
           You don&apos;t have permission to add notes on this case.
         </p>
@@ -1429,7 +1483,7 @@ function NotesTab({
         <p
           className="cc-muted"
           data-simple-case-notes-empty
-          style={{ marginTop: 12 }}
+          style={{ marginTop: 12, color: "var(--ink-muted, #94a3b8)" }}
         >
           No notes yet.
         </p>
@@ -1443,13 +1497,22 @@ function NotesTab({
               key={c.id}
               data-simple-case-notes-item={c.id}
               style={{
-                border: "1px solid rgba(15, 23, 42, 0.08)",
-                borderRadius: 8,
+                border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+                borderRadius: "var(--radius-md, 10px)",
                 padding: "8px 10px",
+                background: "var(--surface-card, #ffffff)",
                 opacity: c.resolvedAtUtc ? 0.6 : 1,
               }}
             >
-              <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{c.body}</p>
+              <p
+                style={{
+                  margin: 0,
+                  whiteSpace: "pre-wrap",
+                  color: "var(--ink-primary, #0f172a)",
+                }}
+              >
+                {c.body}
+              </p>
               <div
                 className="cc-muted"
                 style={{
@@ -1473,7 +1536,7 @@ function NotesTab({
                       style={{
                         border: "none",
                         background: "transparent",
-                        color: "#1e40af",
+                        color: "var(--status-info-fg, #1e40af)",
                         cursor: "pointer",
                         fontSize: 11,
                       }}
@@ -1490,7 +1553,7 @@ function NotesTab({
                       style={{
                         border: "none",
                         background: "transparent",
-                        color: "#b91c1c",
+                        color: "var(--status-risk-fg, #991b1b)",
                         cursor: "pointer",
                         fontSize: 11,
                       }}
@@ -1504,7 +1567,7 @@ function NotesTab({
           ))}
         </ul>
       )}
-    </section>
+    </PageSection>
   );
 }
 
@@ -1637,13 +1700,14 @@ function SettingsTab({
   }, [caseId, onDeleted, addToast, confirm]);
 
   return (
-    <section
+    <PageSection
       className="cc-section"
       role="tabpanel"
       aria-label="Settings"
       data-simple-case-settings
+      style={{ display: "flex", flexDirection: "column", gap: 16 }}
     >
-      <div className="cc-card" data-simple-case-settings-rename>
+      <Card className="cc-card" data-simple-case-settings-rename>
         <strong>Case name</strong>
         <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
           <input
@@ -1655,8 +1719,8 @@ function SettingsTab({
             style={{
               flex: 1,
               padding: 8,
-              border: "1px solid rgba(15, 23, 42, 0.2)",
-              borderRadius: 4,
+              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+              borderRadius: "var(--radius-sm, 6px)",
             }}
           />
           <Button
@@ -1672,7 +1736,7 @@ function SettingsTab({
             Save
           </Button>
         </div>
-      </div>
+      </Card>
 
       {/* Phase CASES-STATUS-MANUAL — Status is plain organizational
           metadata. One dropdown lets the user pick any status from
@@ -1682,11 +1746,7 @@ function SettingsTab({
           confirm modal; on cancel/error the <select>'s `value` is
           driven from `caseDetail.status` so it snaps back to the
           current status without extra local state. */}
-      <div
-        className="cc-card"
-        data-simple-case-settings-status
-        style={{ marginTop: 16 }}
-      >
+      <Card className="cc-card" data-simple-case-settings-status>
         <label
           htmlFor="simple-case-settings-status-select"
           style={{ display: "block", fontWeight: 600 }}
@@ -1696,7 +1756,7 @@ function SettingsTab({
         <p
           className="cc-muted"
           data-simple-case-settings-status-help
-          style={{ marginTop: 4 }}
+          style={{ marginTop: 4, color: "var(--ink-secondary, #475569)" }}
         >
           Use status to organize your case. This does not change
           evidence integrity, reports, packages, or retention.
@@ -1721,8 +1781,8 @@ function SettingsTab({
             }}
             style={{
               padding: "6px 10px",
-              border: "1px solid rgba(15, 23, 42, 0.2)",
-              borderRadius: 4,
+              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+              borderRadius: "var(--radius-sm, 6px)",
               minWidth: 180,
             }}
           >
@@ -1737,15 +1797,14 @@ function SettingsTab({
             ))}
           </select>
         </div>
-      </div>
+      </Card>
 
-      <div
-        className="cc-card"
-        data-simple-case-settings-delete
-        style={{ marginTop: 16 }}
-      >
+      <Card className="cc-card" data-simple-case-settings-delete>
         <strong>Delete case</strong>
-        <p className="cc-muted" style={{ marginTop: 4 }}>
+        <p
+          className="cc-muted"
+          style={{ marginTop: 4, color: "var(--ink-secondary, #475569)" }}
+        >
           Deleting this case will not delete preserved evidence
           records. Evidence remains available in the Evidence Library
           unless separately archived or restricted.
@@ -1768,7 +1827,7 @@ function SettingsTab({
             Delete case
           </Button>
         </div>
-      </div>
-    </section>
+      </Card>
+    </PageSection>
   );
 }

@@ -35,18 +35,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { formatUtcAuditDateTime } from "../../../../lib/date";
+import { Card } from "../../../../components/ui/Card";
+import { Button } from "../../../../components/ui/Button";
+import { Badge } from "../../../../components/ui/Badge";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 
 // -----------------------------------------------------------------------------
 // Shared styles (kept inline so this card doesn't pull in unrelated tokens).
 // -----------------------------------------------------------------------------
-
-const cardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: 14,
-  padding: 18,
-  marginBottom: 14,
-};
 
 const sectionTitleStyle: React.CSSProperties = {
   margin: 0,
@@ -81,28 +77,6 @@ const labelStyle: React.CSSProperties = {
   color: "rgba(220,225,222,0.75)",
   marginTop: 8,
   marginBottom: 4,
-};
-
-const primaryButton: React.CSSProperties = {
-  padding: "8px 14px",
-  borderRadius: 999,
-  border: "1px solid rgba(125, 200, 175, 0.45)",
-  background: "rgba(125, 200, 175, 0.20)",
-  color: "#dce1de",
-  cursor: "pointer",
-  fontSize: 13,
-  fontWeight: 700,
-};
-
-const secondaryButton: React.CSSProperties = {
-  padding: "8px 14px",
-  borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.15)",
-  background: "rgba(255,255,255,0.06)",
-  color: "#dce1de",
-  cursor: "pointer",
-  fontSize: 13,
-  fontWeight: 600,
 };
 
 const errorBox: React.CSSProperties = {
@@ -213,7 +187,7 @@ function PasswordChangeCard() {
   }, [currentPassword, newPassword, confirmPassword, revokeOthers]);
 
   return (
-    <section style={cardStyle} data-cc-password-change-card>
+    <Card variant="admin" style={{ marginBottom: 14 }} data-cc-password-change-card>
       <h2 style={sectionTitleStyle}>Change password</h2>
       <p style={mutedStyle}>
         Use at least 12 characters with upper- and lower-case letters and a
@@ -281,23 +255,21 @@ function PasswordChangeCard() {
           Sign out my other sessions
         </label>
         <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-          <button
+          <Button
             type="submit"
+            variant="primary"
+            size="sm"
+            loading={busy}
             disabled={!canSubmit}
-            style={{
-              ...primaryButton,
-              opacity: canSubmit ? 1 : 0.55,
-              cursor: canSubmit ? "pointer" : "not-allowed",
-            }}
             data-cc-password-submit
           >
             {busy ? "Updating…" : "Update password"}
-          </button>
+          </Button>
         </div>
         {error ? <div style={errorBox}>{error}</div> : null}
         {ok ? <div style={okBox}>{ok}</div> : null}
       </form>
-    </section>
+    </Card>
   );
 }
 
@@ -380,7 +352,7 @@ function ActiveSessionsCard() {
   }, [confirm, load, sessions]);
 
   return (
-    <section style={cardStyle} data-cc-active-sessions-card>
+    <Card variant="admin" style={{ marginBottom: 14 }} data-cc-active-sessions-card>
       <div
         style={{
           display: "flex",
@@ -392,15 +364,16 @@ function ActiveSessionsCard() {
         <h2 style={{ ...sectionTitleStyle, marginBottom: 0 }}>
           Your active sessions
         </h2>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => void revokeOthers()}
+          loading={busy}
           disabled={busy || sessions === null}
-          style={secondaryButton}
           data-cc-revoke-others
         >
           {busy ? "Working…" : "Sign out other sessions"}
-        </button>
+        </Button>
       </div>
       <p style={mutedStyle}>
         Sessions you are signed into right now. Each row shows where the
@@ -410,7 +383,11 @@ function ActiveSessionsCard() {
       {sessions === null ? (
         <p style={mutedStyle}>Loading…</p>
       ) : sessions.length === 0 ? (
-        <p style={mutedStyle}>No active sessions found.</p>
+        <EmptyState
+          compact
+          title="No active sessions found"
+          purpose="Devices you are currently signed into appear here, with the location each session was issued from."
+        />
       ) : (
         <ul
           style={{
@@ -441,19 +418,9 @@ function ActiveSessionsCard() {
               <div style={{ fontWeight: 700, color: "#dce1de" }}>
                 {s.isCurrent ? "This device" : s.uaPreview ?? "Unknown device"}
                 {s.quarantined ? (
-                  <span
-                    style={{
-                      marginLeft: 8,
-                      padding: "1px 8px",
-                      borderRadius: 999,
-                      fontSize: 10,
-                      background: "rgba(241,162,58,0.20)",
-                      border: "1px solid rgba(241,162,58,0.45)",
-                      color: "#f0d2a0",
-                    }}
-                  >
+                  <Badge tone="pending" subtle style={{ marginLeft: 8 }}>
                     QUARANTINED
-                  </span>
+                  </Badge>
                 ) : null}
               </div>
               <div style={mutedStyle}>
@@ -470,7 +437,7 @@ function ActiveSessionsCard() {
 
       {error ? <div style={errorBox}>{error}</div> : null}
       {notice ? <div style={okBox}>{notice}</div> : null}
-    </section>
+    </Card>
   );
 }
 
@@ -531,7 +498,7 @@ function SecurityEventsCard() {
   const rows = useMemo(() => events ?? [], [events]);
 
   return (
-    <section style={cardStyle} data-cc-security-events-card>
+    <Card variant="admin" style={{ marginBottom: 14 }} data-cc-security-events-card>
       <h2 style={sectionTitleStyle}>Recent security events</h2>
       <p style={mutedStyle}>
         Bounded timeline of identity and auth events tied to your account.
@@ -543,7 +510,11 @@ function SecurityEventsCard() {
       {events === null ? (
         <p style={mutedStyle}>Loading…</p>
       ) : rows.length === 0 ? (
-        <p style={mutedStyle}>No security events in the recent window.</p>
+        <EmptyState
+          compact
+          title="No security events in the recent window"
+          purpose="Identity and auth events tied to your account appear here as they occur."
+        />
       ) : (
         <ul
           style={{
@@ -570,21 +541,17 @@ function SecurityEventsCard() {
                 <span aria-hidden style={severityDot(ev.severity)} />
                 <strong style={{ fontWeight: 700 }}>{ev.action}</strong>
                 {ev.outcome ? (
-                  <span
+                  <Badge
+                    tone="neutral"
+                    subtle
                     style={{
                       marginLeft: 8,
-                      padding: "1px 6px",
-                      borderRadius: 999,
-                      fontSize: 10,
-                      background: "rgba(255,255,255,0.08)",
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      color: "rgba(220,225,222,0.85)",
                       textTransform: "uppercase",
                       letterSpacing: 0.4,
                     }}
                   >
                     {ev.outcome}
-                  </span>
+                  </Badge>
                 ) : null}
               </div>
               <div style={{ ...mutedStyle, marginTop: 2 }}>
@@ -596,7 +563,7 @@ function SecurityEventsCard() {
           ))}
         </ul>
       )}
-    </section>
+    </Card>
   );
 }
 
