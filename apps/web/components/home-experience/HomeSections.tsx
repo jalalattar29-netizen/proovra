@@ -35,7 +35,10 @@ import type {
   WorkspaceHealthMetric,
 } from "./home-view-model";
 import {
+  ANALYTICS_PALETTE,
+  HOME_ACCENT,
   HOME_COLORS,
+  HOME_SEMANTIC,
   HOME_TINTS,
   HOME_WARN,
   homeCardCtaStyle,
@@ -43,10 +46,132 @@ import {
   homeCardStyle,
   homeCardTitleStyle,
   homeChipStyle,
+  homeOpsRowStyle,
+  homeOuterCardStyle,
+  homeSecondaryButtonStyle,
   homeWarningCardStyle,
+  infoBadgeStyle,
+  successBadgeStyle,
   toneColor,
   type HomeTone,
 } from "./home-theme";
+
+// ============================================================================
+// Local visual helpers (Phase HOME-DENSITY — pure presentational)
+// ============================================================================
+
+/** Cap for how many list rows any Home module renders by default. Purely a
+ * RENDER cap — the underlying data/counts are untouched (summary tiles and
+ * "view all" footers still reflect the full totals). */
+const HOME_PREVIEW_LIMIT = 3;
+
+/** MIDDLE-truncate a long identifier / UUID so BOTH the start and end stay
+ * legible (e.g. `dd440009-5606-4a44-…-1792a3780fe0`). The full id is always
+ * available via a `title=` tooltip and to assistive tech on the row. Purely
+ * presentational — keys, hrefs and testids still use the full id. */
+function middleTruncate(id: string, head = 18, tail = 8): string {
+  if (!id) return id;
+  if (id.length <= head + tail + 1) return id;
+  return `${id.slice(0, head)}…${id.slice(-tail)}`;
+}
+
+/** Shared indigo action-link colour for every "Open verify → / Open reports →
+ * / View pipeline → / View all links →" affordance across the Operations
+ * cards, with a subtle hover — one consistent accent, never per-card. */
+function OpsActionLink({
+  href,
+  external,
+  children,
+  extraProps,
+  style,
+}: {
+  href: string;
+  external?: boolean;
+  children: ReactNode;
+  extraProps?: Record<string, unknown>;
+  style?: React.CSSProperties;
+}) {
+  const [hover, setHover] = useState(false);
+  const merged: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 650,
+    color: HOME_ACCENT.ink,
+    textDecoration: hover ? "underline" : "none",
+    whiteSpace: "nowrap",
+    ...style,
+  };
+  const handlers = {
+    onMouseEnter: () => setHover(true),
+    onMouseLeave: () => setHover(false),
+  };
+  if (external) {
+    return (
+      <a href={href} style={merged} {...handlers} {...extraProps}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} style={merged} {...handlers} {...extraProps}>
+      {children}
+    </Link>
+  );
+}
+
+/** Equal-height Operations card: SectionCard content laid out as a flex
+ * column that fills 100% of a stretched grid cell so all four cards align
+ * their headings, summary blocks and bottom edges. Applied via SectionCard's
+ * `fill` prop. */
+const opsCardFillStyle: React.CSSProperties = {
+  height: "100%",
+  display: "flex",
+  flexDirection: "column",
+};
+
+/** Subtle inner-row surface used when an outer card wrapper is made
+ * transparent so rows integrate with the page background. */
+const innerRowSurfaceStyle: React.CSSProperties = {
+  background: "rgba(255, 255, 255, 0.64)",
+  border: "1px solid rgba(15, 23, 42, 0.05)",
+};
+
+/** The premium light secondary action — white surface, indigo text, subtle
+ * indigo border — with an inline hover (matches the design tokens). */
+function HomeSecondaryLink({
+  href,
+  external,
+  children,
+  extraProps,
+  style,
+}: {
+  href: string;
+  external?: boolean;
+  children: ReactNode;
+  extraProps?: Record<string, unknown>;
+  style?: React.CSSProperties;
+}) {
+  const [hover, setHover] = useState(false);
+  const hoverStyle: React.CSSProperties = hover
+    ? { background: "rgba(79, 70, 229, 0.06)", borderColor: "rgba(79, 70, 229, 0.32)" }
+    : {};
+  const merged: React.CSSProperties = { ...homeSecondaryButtonStyle, ...style, ...hoverStyle };
+  const handlers = {
+    onMouseEnter: () => setHover(true),
+    onMouseLeave: () => setHover(false),
+  };
+  if (external) {
+    return (
+      <a href={href} style={merged} {...handlers} {...extraProps}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} style={merged} {...handlers} {...extraProps}>
+      {children}
+    </Link>
+  );
+}
 
 // ============================================================================
 // Shared primitives
@@ -57,14 +182,22 @@ function SectionCard({
   cta,
   children,
   testId,
+  fill,
 }: {
   title: string;
   cta?: { label: string; href: string } | null;
   children: ReactNode;
   testId?: string;
+  /** Equal-height mode: the card fills its stretched grid cell (height:100%)
+   * and lays its body out as a growing flex column so siblings align. */
+  fill?: boolean;
 }) {
   return (
-    <section className="home-card" data-self-serve-section={testId} style={cardStyle}>
+    <section
+      className="home-card"
+      data-self-serve-section={testId}
+      style={fill ? { ...outerCardStyle, ...opsCardFillStyle } : outerCardStyle}
+    >
       <header style={cardHeaderStyle}>
         <h2 style={cardTitleStyle}>{title}</h2>
         {cta ? (
@@ -73,7 +206,9 @@ function SectionCard({
           </Link>
         ) : null}
       </header>
-      <div style={cardBodyStyle}>{children}</div>
+      <div style={fill ? { ...cardBodyStyle, flex: 1, display: "flex", flexDirection: "column" } : cardBodyStyle}>
+        {children}
+      </div>
     </section>
   );
 }
@@ -182,8 +317,10 @@ const warnBadgeStyle: React.CSSProperties = {
   color: HOME_WARN.badgeText,
 };
 
-/** The dark, clearly-clickable action button shared by both queue
- * cards. Subtle hover lightens the slate fill. */
+/** The clearly-clickable action button shared by both queue cards — now the
+ * premium LIGHT secondary treatment (white surface, indigo text, subtle
+ * indigo border + hover), matching the "All evidence →" action language
+ * instead of the old heavy dark fill. */
 function QueueActionLink({
   href,
   fallback,
@@ -193,27 +330,14 @@ function QueueActionLink({
   fallback: boolean;
   children: ReactNode;
 }) {
-  const [hover, setHover] = useState(false);
   return (
-    <Link
+    <HomeSecondaryLink
       href={href}
-      data-queue-action={fallback ? "navigate-fallback" : "navigate"}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        display: "inline-block",
-        padding: "9px 15px",
-        borderRadius: 12,
-        background: hover ? "#374151" : HOME_WARN.buttonBg,
-        color: HOME_WARN.buttonText,
-        fontWeight: 650,
-        fontSize: 13,
-        textDecoration: "none",
-        transition: "background 140ms ease",
-      }}
+      extraProps={{ "data-queue-action": fallback ? "navigate-fallback" : "navigate" }}
+      style={{ padding: "9px 15px", fontSize: 13 }}
     >
       {children}
-    </Link>
+    </HomeSecondaryLink>
   );
 }
 
@@ -500,7 +624,7 @@ export function ActiveMatters({
         </div>
       ) : (
         <ul style={listStyle}>
-          {rows.map((r) => {
+          {rows.slice(0, HOME_PREVIEW_LIMIT).map((r) => {
             // Phase HOME-INTELLIGENCE — verdict chip: Action required /
             // Needs work / Healthy, plus a report-readiness chip from
             // /v1/reports caseIds.
@@ -512,7 +636,7 @@ export function ActiveMatters({
                   : { label: "Healthy", bg: "#dcfce7", fg: "#166534" };
             return (
               <li key={r.caseId} data-matter-id={r.caseId} data-matter-verdict={r.verdict} data-matter-needs-work={String(r.needsWork)} style={listItemStyle}>
-                <Link href={r.href} style={listItemLinkStyle}>
+                <Link href={r.href} style={{ ...listItemLinkStyle, ...innerRowSurfaceStyle }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
                     <span style={listItemTitleStyle}>{r.caseName}</span>
                     <span style={listItemTimeStyle}>{formatRelative(r.lastActivityAtUtc)}</span>
@@ -559,6 +683,17 @@ export function ActiveMatters({
               </li>
             );
           })}
+          {rows.length > HOME_PREVIEW_LIMIT ? (
+            <li style={listItemStyle}>
+              <Link
+                href="/cases"
+                data-matter-view-all={rows.length}
+                style={{ display: "inline-block", marginTop: 4, fontSize: 12, fontWeight: 600, color: HOME_COLORS.indigo, textDecoration: "none" }}
+              >
+                View all {rows.length} →
+              </Link>
+            </li>
+          ) : null}
         </ul>
       )}
     </SectionCard>
@@ -569,17 +704,49 @@ export function ActiveMatters({
 // 3. INTAKE PIPELINE — the collection lifecycle, not a link count.
 // ============================================================================
 
-function StageChip({ label, count, tone, last }: { label: string; count: number; tone: string; last: boolean }) {
-  const fg = tone === "danger" ? "#991b1b" : tone === "warn" ? "#9a3412" : tone === "ok" ? "#166534" : "#0f172a";
-  const bg = tone === "danger" ? "#fef2f2" : tone === "warn" ? "#fffbeb" : tone === "ok" ? "#f0fdf4" : "#f8fafc";
+// Phase HOME-POLISH — stage tiles are coloured ONLY by count: a positive
+// "active/ok" stage reads success green, a positive "warn" stage reads amber,
+// a positive "danger" stage reads restrained critical; every 0-count stage
+// stays quiet neutral (a zero stage never looks active). Labels render in
+// FULL (two lines allowed) inside a 3-column × 2-row grid — never clipped.
+function StageTile({ label, count, tone }: { label: string; count: number; tone: string }) {
+  const active = count > 0;
+  // "Active links" is the positive / live intake stage — when it has a live
+  // count it must read in the SHARED enterprise success green (same token as
+  // "verification pages live" / "Reports ready" / Live badges), not neutral.
+  // Every other stage keeps its data-driven tone (amber for awaiting, quiet
+  // neutral for delivered/pending/failed/zero — zeros never green).
+  const effectiveTone = active && label === "Active links" ? "ok" : tone;
+  const sem =
+    !active
+      ? { fg: HOME_SEMANTIC.neutral.numberInk, bg: HOME_SEMANTIC.neutral.softBg, border: HOME_SEMANTIC.neutral.border }
+      : effectiveTone === "danger"
+        ? { fg: HOME_SEMANTIC.critical.strong, bg: HOME_SEMANTIC.critical.softBg, border: HOME_SEMANTIC.critical.border }
+        : effectiveTone === "warn"
+          ? { fg: HOME_SEMANTIC.amber.strong, bg: HOME_SEMANTIC.amber.softBg, border: HOME_SEMANTIC.amber.border }
+          : effectiveTone === "ok"
+            ? { fg: HOME_SEMANTIC.success.strong, bg: HOME_SEMANTIC.success.softBg, border: HOME_SEMANTIC.success.border }
+            : { fg: HOME_SEMANTIC.neutral.numberInk, bg: HOME_SEMANTIC.neutral.softBg, border: HOME_SEMANTIC.neutral.border };
   return (
-    <>
-      <div data-intake-stage={label} style={{ flex: "1 1 0", minWidth: 0, padding: "6px 6px", borderRadius: 8, background: bg, textAlign: "center" }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: fg }}>{count}</div>
-        <div style={{ fontSize: 10, color: "#5d6d71", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
-      </div>
-      {!last ? <span aria-hidden style={{ color: "#cbd5e1", alignSelf: "center", fontSize: 12 }}>→</span> : null}
-    </>
+    <div
+      data-intake-stage={label}
+      style={{
+        minWidth: 0,
+        padding: "8px 8px",
+        borderRadius: 10,
+        background: sem.bg,
+        border: `1px solid ${sem.border}`,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "flex-start",
+        gap: 2,
+        textAlign: "center",
+      }}
+    >
+      <div style={{ fontSize: 18, fontWeight: 700, color: sem.fg, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{count}</div>
+      <div style={{ fontSize: 10.5, color: active ? sem.fg : HOME_SEMANTIC.neutral.secondary, lineHeight: 1.25, wordBreak: "break-word" }}>{label}</div>
+    </div>
   );
 }
 
@@ -596,7 +763,7 @@ export function IntakePipelineCard({
 }) {
   if (locked) {
     return (
-      <SectionCard title="Intake pipeline" testId="intake-pipeline">
+      <SectionCard title="Intake pipeline" testId="intake-pipeline" fill>
         <div data-intake-locked>
           <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
             Request evidence securely from a client, witness, source, or contributor — with delivery
@@ -615,7 +782,7 @@ export function IntakePipelineCard({
   }
   if (pipeline.empty) {
     return (
-      <SectionCard title="Intake pipeline" testId="intake-pipeline">
+      <SectionCard title="Intake pipeline" testId="intake-pipeline" fill>
         <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
           Request evidence securely from a client, witness, source, or contributor — then track
           delivery and review what comes back.
@@ -631,22 +798,34 @@ export function IntakePipelineCard({
     );
   }
   return (
-    <SectionCard title="Intake pipeline" testId="intake-pipeline">
-      {/* Lifecycle visual — every count a real number. */}
-      <div data-intake-stages style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-        {pipeline.stages.map((st, i) => (
-          <StageChip key={st.key} label={st.label} count={st.count} tone={st.tone} last={i === pipeline.stages.length - 1} />
+    <SectionCard title="Intake pipeline" testId="intake-pipeline" fill>
+      {/* Lifecycle visual — every count a real number. A 3-column × 2-row
+          tile grid so every stage label stays FULLY readable (no clipping);
+          colour is driven by count only (see StageTile). */}
+      <div
+        data-intake-stages
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gap: 6,
+          marginBottom: 12,
+        }}
+      >
+        {pipeline.stages.map((st) => (
+          <StageTile key={st.key} label={st.label} count={st.count} tone={st.tone} />
         ))}
       </div>
       {pipeline.links.length > 0 ? (
-        <ul style={listStyle}>
-          {pipeline.links.map((r) => {
+        <ul style={{ ...listStyle, marginTop: "auto" }}>
+          {/* Phase HOME-DENSITY — cap to 3 rows; the stage counts above
+              reflect the full pipeline. */}
+          {pipeline.links.slice(0, HOME_PREVIEW_LIMIT).map((r) => {
             const failed = r.delivery?.failed === true;
             return (
-              <li key={r.id} data-collection-id={r.id} style={{ ...listItemStyle, ...listItemLinkStyle }}>
+              <li key={r.id} data-collection-id={r.id} style={{ ...listItemStyle, ...listItemLinkStyle, ...homeOpsRowStyle }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                  <span style={listItemTitleStyle}>{r.label}</span>
-                  <span style={listItemTimeStyle}>
+                  <span style={{ ...listItemTitleStyle, minWidth: 0 }} title={r.label}>{r.label}</span>
+                  <span style={{ ...listItemTimeStyle, whiteSpace: "nowrap", flexShrink: 0 }}>
                     {r.usedCount}
                     {r.maxUses != null ? ` / ${r.maxUses}` : ""} used
                     {/* Ticket 4 — expiresAtUtc was mapped but never
@@ -660,11 +839,13 @@ export function IntakePipelineCard({
                   {r.delivery ? (
                     <span
                       data-delivery-status={r.delivery.status}
-                      style={{
-                        ...chipStyle,
-                        background: failed ? "#fee2e2" : r.delivery.statusLabel === "Delivered" ? "#dcfce7" : "rgba(79,70,229,0.08)",
-                        color: failed ? "#991b1b" : r.delivery.statusLabel === "Delivered" ? "#166534" : "#4338ca",
-                      }}
+                      style={
+                        failed
+                          ? { ...homeChipStyle, background: HOME_SEMANTIC.critical.softBg, color: HOME_SEMANTIC.critical.strong, border: `1px solid ${HOME_SEMANTIC.critical.border}` }
+                          : r.delivery.statusLabel === "Delivered"
+                            ? successBadgeStyle
+                            : { ...homeChipStyle, background: HOME_SEMANTIC.info.softBg, color: HOME_SEMANTIC.info.strong, border: `1px solid ${HOME_SEMANTIC.info.border}` }
+                      }
                     >
                       {r.delivery.channel} · {r.delivery.statusLabel}
                       {/* Ticket 4 — delivery.at was mapped but never
@@ -672,7 +853,7 @@ export function IntakePipelineCard({
                       {r.delivery.at ? ` · ${formatRelative(r.delivery.at)}` : ""}
                     </span>
                   ) : (
-                    <span style={chipStyle}>Not yet sent</span>
+                    <span style={{ ...homeChipStyle, background: HOME_SEMANTIC.neutral.softBg, color: HOME_SEMANTIC.neutral.secondary, border: `1px solid ${HOME_SEMANTIC.neutral.border}` }}>Not yet sent</span>
                   )}
                   {failed && r.delivery ? (
                     <RetryDeliveryButton
@@ -682,14 +863,25 @@ export function IntakePipelineCard({
                       onRetried={onChanged}
                     />
                   ) : (
-                    <Link href={r.href} style={{ ...listItemTimeStyle, color: "#4f46e5", fontWeight: 600 }}>
+                    <OpsActionLink href={r.href} style={{ marginLeft: "auto" }}>
                       Open →
-                    </Link>
+                    </OpsActionLink>
                   )}
                 </div>
               </li>
             );
           })}
+          {pipeline.links.length > HOME_PREVIEW_LIMIT ? (
+            <li style={listItemStyle}>
+              <OpsActionLink
+                href="/intake-links"
+                extraProps={{ "data-collection-view-all": pipeline.links.length }}
+                style={{ display: "inline-block", marginTop: 4 }}
+              >
+                View pipeline →
+              </OpsActionLink>
+            </li>
+          ) : null}
         </ul>
       ) : null}
     </SectionCard>
@@ -700,14 +892,35 @@ export function IntakePipelineCard({
 // 4. REPORT PRODUCTION — ready / pending / failed deliverable status.
 // ============================================================================
 
-function ProductionStat({ label, value, tone }: { label: string; value: number; tone?: "danger" | "ok" }) {
+// Phase HOME-POLISH — a summary tile coloured by count using the unified
+// semantic system: a positive "ok" tile reads success green, a positive
+// "warn" tile reads amber; a "danger"/zero tile stays restrained neutral so
+// "0 Failed" never dominates the card in red.
+function ProductionStat({ label, value, tone }: { label: string; value: number; tone?: "danger" | "warn" | "ok" }) {
   const active = value > 0;
-  const fg = tone === "danger" && active ? "#991b1b" : tone === "ok" && active ? "#166534" : "#0f172a";
-  const bg = tone === "danger" && active ? "#fef2f2" : tone === "ok" && active ? "#f0fdf4" : "#f8fafc";
+  const sem =
+    active && tone === "ok"
+      ? { fg: HOME_SEMANTIC.success.strong, bg: HOME_SEMANTIC.success.softBg, border: HOME_SEMANTIC.success.border, num: HOME_SEMANTIC.success.strong }
+      : active && tone === "warn"
+        ? { fg: HOME_SEMANTIC.amber.strong, bg: HOME_SEMANTIC.amber.softBg, border: HOME_SEMANTIC.amber.border, num: HOME_SEMANTIC.amber.strong }
+        : active && tone === "danger"
+          ? { fg: HOME_SEMANTIC.critical.strong, bg: HOME_SEMANTIC.critical.softBg, border: HOME_SEMANTIC.critical.border, num: HOME_SEMANTIC.critical.strong }
+          : { fg: HOME_SEMANTIC.neutral.secondary, bg: HOME_SEMANTIC.neutral.softBg, border: HOME_SEMANTIC.neutral.border, num: HOME_SEMANTIC.neutral.numberInk };
   return (
-    <div data-report-stat={label} style={{ flex: "1 1 0", minWidth: 0, padding: "6px 8px", borderRadius: 8, background: bg, textAlign: "center" }}>
-      <div style={{ fontSize: 18, fontWeight: 700, color: fg }}>{value}</div>
-      <div style={{ fontSize: 10.5, color: "#5d6d71", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+    <div
+      data-report-stat={label}
+      style={{
+        flex: "1 1 0",
+        minWidth: 0,
+        padding: "8px 8px",
+        borderRadius: 10,
+        background: sem.bg,
+        border: `1px solid ${sem.border}`,
+        textAlign: "center",
+      }}
+    >
+      <div style={{ fontSize: 18, fontWeight: 700, color: sem.num, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+      <div style={{ fontSize: 10.5, color: sem.fg, lineHeight: 1.2 }}>{label}</div>
     </div>
   );
 }
@@ -726,11 +939,11 @@ export function ReportProductionCard({
     production.reportsReady + production.packagesReady + production.reportsPending + production.packagesPending + production.reportsFailed + production.packagesFailed > 0 ||
     production.recent.length > 0;
   return (
-    <SectionCard title="Report production" testId="report-production">
+    <SectionCard title="Report production" testId="report-production" cta={{ label: "Open reports", href: "/reports" }} fill>
       <div data-report-production-stats style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         <ProductionStat label="Reports ready" value={production.reportsReady} tone="ok" />
         <ProductionStat label="Packages ready" value={production.packagesReady} tone="ok" />
-        <ProductionStat label="Pending" value={production.reportsPending + production.packagesPending} />
+        <ProductionStat label="Pending" value={production.reportsPending + production.packagesPending} tone="warn" />
         <ProductionStat label="Failed" value={production.reportsFailed + production.packagesFailed} tone="danger" />
       </div>
       {/* Phase HOME-INTELLIGENCE — deliverable issues that need the
@@ -757,21 +970,49 @@ export function ReportProductionCard({
       ) : production.recent.length === 0 ? (
         <EmptyState>No reports generated yet — the counts above update as production runs.</EmptyState>
       ) : (
-        <ul style={listStyle}>
-          {production.recent.map((r) => (
-            <li key={r.evidenceId} style={{ ...listItemStyle, ...listItemLinkStyle }} data-report-evidence-id={r.evidenceId}>
-              <Link href={r.actions.open} style={{ ...listItemTitleStyle, textDecoration: "none" }} data-report-action="open">
-                {r.evidenceTitle}
-              </Link>
-              <span style={listItemMetaStyle}>
-                <span style={chipStyle}>Report{r.version != null ? ` v${r.version}` : ""}</span>
-                {r.packageReady ? <span style={chipStyle}>Package</span> : null}
-                <span style={listItemTimeStyle}>{formatRelative(r.generatedAtUtc)}</span>
-              </span>
-              <ReportRowActions row={r} />
-            </li>
-          ))}
-        </ul>
+        <>
+          {/* Phase HOME-DENSITY — cap to 3 preview items; the counts above
+              already reflect the full totals. */}
+          <ul style={{ ...listStyle, marginTop: "auto" }}>
+            {production.recent.slice(0, HOME_PREVIEW_LIMIT).map((r) => {
+              const hasTitle = Boolean(r.evidenceTitle && r.evidenceTitle !== r.evidenceId);
+              const displayLabel = hasTitle ? (r.evidenceTitle as string) : middleTruncate(r.evidenceId);
+              return (
+                <li key={r.evidenceId} style={{ ...listItemStyle, padding: "8px 10px", borderRadius: 8, ...homeOpsRowStyle }} data-report-evidence-id={r.evidenceId}>
+                  <Link
+                    href={r.actions.open}
+                    style={{ ...listItemTitleStyle, minWidth: 0, textDecoration: "none", fontFamily: hasTitle ? undefined : "ui-monospace, SFMono-Regular, Menlo, monospace" }}
+                    title={r.evidenceId}
+                    data-report-action="open"
+                  >
+                    {displayLabel}
+                  </Link>
+                  <span style={listItemMetaStyle}>
+                    <span style={infoBadgeStyle}>Report{r.version != null ? ` v${r.version}` : ""}</span>
+                    {r.packageReady ? (
+                      <span style={successBadgeStyle}>Package ready</span>
+                    ) : (
+                      <span style={{ ...homeChipStyle, background: HOME_SEMANTIC.neutral.softBg, color: HOME_SEMANTIC.neutral.secondary, border: `1px solid ${HOME_SEMANTIC.neutral.border}` }}>
+                        No package
+                      </span>
+                    )}
+                    <span style={listItemTimeStyle}>{formatRelative(r.generatedAtUtc)}</span>
+                  </span>
+                  <ReportRowActions row={r} />
+                </li>
+              );
+            })}
+          </ul>
+          {production.recent.length > HOME_PREVIEW_LIMIT ? (
+            <OpsActionLink
+              href="/reports"
+              extraProps={{ "data-report-view-all": production.recent.length }}
+              style={{ display: "inline-block", marginTop: 8 }}
+            >
+              Open reports →
+            </OpsActionLink>
+          ) : null}
+        </>
       )}
     </SectionCard>
   );
@@ -791,6 +1032,7 @@ export function ReportProductionCard({
 function ReportRowActions({ row }: { row: import("./home-view-model").RecentReportRow }) {
   const [busy, setBusy] = useState<"pdf" | "package" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   async function trigger(kind: "pdf" | "package", path: string) {
     if (busy) return;
@@ -827,39 +1069,118 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
 
   const pdfPath = row.actions.reportPdfApiPath;
   const pkgPath = row.actions.packageZipApiPath;
+  const hasOverflow = Boolean(pdfPath || pkgPath || row.actions.verify);
+
+  // Phase HOME-DENSITY — one primary "Open" action stays inline; the
+  // secondary download/verify actions collapse into a compact "⋯" overflow
+  // menu so the row is no longer four side-by-side buttons. Every href,
+  // onClick and data-testid is preserved, just relocated.
+  const overflowItemStyle: React.CSSProperties = {
+    display: "block",
+    width: "100%",
+    textAlign: "left",
+    padding: "8px 12px",
+    background: "transparent",
+    border: "none",
+    color: HOME_COLORS.ink,
+    fontSize: 12.5,
+    fontWeight: 600,
+    textDecoration: "none",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  };
 
   return (
     <>
-      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }} data-report-actions>
+      <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }} data-report-actions>
         <Link href={row.actions.open} style={secondaryButtonStyle} data-report-action="open-evidence">
           Open
         </Link>
-        {pdfPath ? (
-          <button
-            type="button"
-            onClick={() => void trigger("pdf", pdfPath)}
-            disabled={busy !== null}
-            style={{ ...secondaryButtonStyle, cursor: busy ? "wait" : "pointer", border: "1px solid #e2e8f0", background: "#fff" }}
-            data-report-action="download-pdf"
-          >
-            {busy === "pdf" ? "Opening…" : "Download PDF"}
-          </button>
-        ) : null}
-        {pkgPath ? (
-          <button
-            type="button"
-            onClick={() => void trigger("package", pkgPath)}
-            disabled={busy !== null}
-            style={{ ...secondaryButtonStyle, cursor: busy ? "wait" : "pointer", border: "1px solid #e2e8f0", background: "#fff" }}
-            data-report-action="download-package"
-          >
-            {busy === "package" ? "Opening…" : "Download package"}
-          </button>
-        ) : null}
-        {row.actions.verify ? (
-          <a href={row.actions.verify} style={secondaryButtonStyle} data-report-action="open-verify">
-            Verify page
-          </a>
+        {hasOverflow ? (
+          <span style={{ position: "relative", display: "inline-flex" }}>
+            <button
+              type="button"
+              aria-label="More actions"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+              onBlur={() => setTimeout(() => setMenuOpen(false), 120)}
+              data-report-overflow-toggle={String(menuOpen)}
+              style={{
+                ...secondaryButtonStyle,
+                padding: "5px 10px",
+                lineHeight: 1,
+                fontSize: 16,
+                cursor: "pointer",
+              }}
+            >
+              ⋯
+            </button>
+            {menuOpen ? (
+              <div
+                role="menu"
+                data-report-overflow-menu
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  right: 0,
+                  zIndex: 20,
+                  minWidth: 168,
+                  padding: "4px 0",
+                  background: "#fff",
+                  border: "1px solid rgba(15,23,42,0.10)",
+                  borderRadius: 10,
+                  boxShadow: "0 12px 32px rgba(15,23,42,0.14)",
+                  overflow: "hidden",
+                }}
+              >
+                {pdfPath ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void trigger("pdf", pdfPath);
+                    }}
+                    disabled={busy !== null}
+                    style={{ ...overflowItemStyle, cursor: busy ? "wait" : "pointer" }}
+                    data-report-action="download-pdf"
+                  >
+                    {busy === "pdf" ? "Opening…" : "Download PDF"}
+                  </button>
+                ) : null}
+                {pkgPath ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void trigger("package", pkgPath);
+                    }}
+                    disabled={busy !== null}
+                    style={{ ...overflowItemStyle, cursor: busy ? "wait" : "pointer" }}
+                    data-report-action="download-package"
+                  >
+                    {busy === "package" ? "Opening…" : "Download package"}
+                  </button>
+                ) : null}
+                {row.actions.verify ? (
+                  <a
+                    href={row.actions.verify}
+                    role="menuitem"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setMenuOpen(false)}
+                    style={overflowItemStyle}
+                    data-report-action="open-verify"
+                  >
+                    Verify page
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+          </span>
         ) : null}
       </div>
       {error ? (
@@ -875,29 +1196,42 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
 // 5. VERIFICATION HEALTH — can others verify my evidence?
 // ============================================================================
 
-function VerifyStat({ label, value, tone }: { label: string; value: number; tone?: "danger" | "ok" }) {
-  const active = value > 0;
-  const fg = tone === "danger" && active ? "#991b1b" : tone === "ok" && active ? "#166534" : "#0f172a";
-  const bg = tone === "danger" && active ? "#fef2f2" : tone === "ok" && active ? "#f0fdf4" : "#f8fafc";
+// Phase HOME-POLISH — the "Not published" / "Suspended" tiles stay QUIET
+// NEUTRAL: a zero (or non-live) value is never coloured green or loud red on
+// this card; only the live count (rendered as the hero tile) earns success.
+function VerifyStat({ label, value }: { label: string; value: number; tone?: "danger" | "ok" }) {
   return (
-    <div data-verify-stat={label} style={{ flex: "1 1 0", minWidth: 0, padding: "6px 8px", borderRadius: 8, background: bg, textAlign: "center" }}>
-      <div style={{ fontSize: 18, fontWeight: 700, color: fg }}>{value}</div>
-      <div style={{ fontSize: 10.5, color: "#5d6d71", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+    <div
+      data-verify-stat={label}
+      style={{
+        flex: "1 1 0",
+        minWidth: 0,
+        padding: "8px 8px",
+        borderRadius: 10,
+        background: HOME_SEMANTIC.neutral.softBg,
+        border: `1px solid ${HOME_SEMANTIC.neutral.border}`,
+        textAlign: "center",
+      }}
+    >
+      <div style={{ fontSize: 18, fontWeight: 700, color: HOME_SEMANTIC.neutral.numberInk, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+      <div style={{ fontSize: 10.5, color: HOME_SEMANTIC.neutral.secondary, lineHeight: 1.2 }}>{label}</div>
     </div>
   );
 }
 
 export function VerificationHealthCard({ health }: { health: VerificationHealth }) {
+  const liveActive = health.live > 0;
   return (
-    <SectionCard title="Public verification links" testId="verification-health">
+    <SectionCard title="Public verification links" testId="verification-health" fill>
       {health.empty ? (
         <p data-verify-empty style={{ margin: "0 0 10px 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
           Public verification links appear once you publish a record — letting anyone independently
           confirm your evidence.
         </p>
       ) : null}
-      {/* Phase HOME-POLISH — Live verification is PROOVRA's public
-          face: it gets the hero treatment, not a flat tile. */}
+      {/* Phase HOME-POLISH — Live verification is PROOVRA's public face: it
+          gets the hero treatment in the UNIFIED success green (only when live
+          > 0; a zero count stays neutral, never green). */}
       <div data-verify-stats style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
         <div
           data-verify-stat="Live"
@@ -906,19 +1240,19 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
             minWidth: 0,
             padding: "10px 12px",
             borderRadius: 12,
-            background: `linear-gradient(145deg, ${HOME_TINTS.teal} 0%, rgba(14,116,144,0.03) 100%)`,
-            border: "1px solid rgba(14,116,144,0.18)",
+            background: liveActive ? HOME_SEMANTIC.success.softBg : HOME_SEMANTIC.neutral.softBg,
+            border: `1px solid ${liveActive ? HOME_SEMANTIC.success.border : HOME_SEMANTIC.neutral.border}`,
           }}
         >
-          <div style={{ fontSize: 26, fontWeight: 780, color: HOME_COLORS.teal, lineHeight: 1 }}>
+          <div style={{ fontSize: 26, fontWeight: 780, color: liveActive ? HOME_SEMANTIC.success.strong : HOME_SEMANTIC.neutral.numberInk, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
             {health.live}
           </div>
-          <div style={{ fontSize: 11, color: HOME_COLORS.slate, marginTop: 4 }}>
+          <div style={{ fontSize: 11, color: "#526071", marginTop: 4 }}>
             verification page{health.live === 1 ? "" : "s"} live
           </div>
         </div>
         <VerifyStat label="Not published" value={health.unpublished} />
-        <VerifyStat label="Suspended" value={health.suspended} tone="danger" />
+        <VerifyStat label="Suspended" value={health.suspended} />
       </div>
       {/* Phase HOME-INTELLIGENCE — cross-signal verification issues
           (package↔publish and report↔package gaps), real counts only. */}
@@ -957,27 +1291,66 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
           </div>
           <ul style={{ ...listStyle, gap: 4 }}>
             {health.recentPublications.map((pub) => (
-              <li key={pub.href + pub.occurredAt} style={{ ...listItemStyle, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, background: HOME_TINTS.teal }}>
-                <Link href={pub.href} style={{ ...listItemTitleStyle, textDecoration: "none", color: HOME_COLORS.teal, fontSize: 12.5 }}>
+              <li key={pub.href + pub.occurredAt} style={{ ...listItemStyle, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, background: HOME_SEMANTIC.success.subtleBg }}>
+                <Link href={pub.href} style={{ ...listItemTitleStyle, minWidth: 0, textDecoration: "none", color: HOME_SEMANTIC.success.text, fontSize: 12.5 }} title={pub.label}>
                   {pub.label}
                 </Link>
-                <span style={listItemTimeStyle}>{formatRelative(pub.occurredAt)}</span>
+                <span style={{ ...listItemTimeStyle, flexShrink: 0 }}>{formatRelative(pub.occurredAt)}</span>
               </li>
             ))}
           </ul>
         </div>
       ) : null}
+      {/* Phase HOME-DENSITY — cap to 3 verify rows; each row is a compact
+          shortened id + status + "Open verify →" instead of a wall of raw
+          UUIDs. The full list stays one click away via "View all". */}
       {health.verifiable.length > 0 ? (
-        <ul style={{ ...listStyle, marginTop: 10, gap: 4 }}>
-          {health.verifiable.map((v) => (
-            <li key={v.evidenceId} data-verifiable-id={v.evidenceId} style={{ ...listItemStyle, padding: "6px 8px", borderRadius: 6, background: "#f8fafc", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <span style={listItemTitleStyle}>{v.title}</span>
-              <a href={v.verifyHref} data-verify-open style={{ ...listItemTimeStyle, color: "#4f46e5", fontWeight: 600 }}>
-                Open verify →
-              </a>
-            </li>
-          ))}
-        </ul>
+        <div style={{ marginTop: "auto" }}>
+          <ul style={{ ...listStyle, marginTop: 10, gap: 4 }}>
+            {health.verifiable.slice(0, HOME_PREVIEW_LIMIT).map((v) => {
+              const hasTitle = Boolean(v.title && v.title !== v.evidenceId);
+              const displayLabel = hasTitle ? (v.title as string) : middleTruncate(v.evidenceId);
+              return (
+                <li
+                  key={v.evidenceId}
+                  data-verifiable-id={v.evidenceId}
+                  style={{
+                    ...listItemStyle,
+                    padding: "6px 8px",
+                    borderRadius: 8,
+                    ...homeOpsRowStyle,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <span
+                      style={{ ...listItemTitleStyle, minWidth: 0, fontFamily: hasTitle ? undefined : "ui-monospace, SFMono-Regular, Menlo, monospace" }}
+                      title={v.evidenceId}
+                    >
+                      {displayLabel}
+                    </span>
+                    <span style={{ ...successBadgeStyle, flexShrink: 0 }}>Live</span>
+                  </span>
+                  <OpsActionLink href={v.verifyHref} external extraProps={{ "data-verify-open": true }} style={{ flexShrink: 0 }}>
+                    Open verify →
+                  </OpsActionLink>
+                </li>
+              );
+            })}
+          </ul>
+          {health.verifiable.length > HOME_PREVIEW_LIMIT ? (
+            <OpsActionLink
+              href="/evidence"
+              extraProps={{ "data-verify-view-all": health.verifiable.length }}
+              style={{ display: "inline-block", marginTop: 8 }}
+            >
+              View all links →
+            </OpsActionLink>
+          ) : null}
+        </div>
       ) : null}
     </SectionCard>
   );
@@ -1006,7 +1379,7 @@ export function WorkspaceHealthCard({
   const verdict = HEALTH_OVERALL[overall];
   const vc = toneColor(verdict.tone);
   return (
-    <SectionCard title="Workspace health" testId="workspace-health">
+    <SectionCard title="Workspace health" testId="workspace-health" fill>
       {/* Phase HOME-POLISH — one overall verdict derived from the
           metric tones, then the health board. */}
       <div
@@ -1077,10 +1450,19 @@ function trustRows(
   return rows;
 }
 
+// Phase HOME-POLISH — trust-row surface + text resolved through the UNIFIED
+// semantic system (ok→success, warn→amber, danger→critical, else neutral).
+function trustToneStyle(tone: "ok" | "warn" | "danger" | "neutral"): { bg: string; border: string; value: string } {
+  if (tone === "danger") return { bg: HOME_SEMANTIC.critical.softBg, border: HOME_SEMANTIC.critical.border, value: HOME_SEMANTIC.critical.strong };
+  if (tone === "warn") return { bg: HOME_SEMANTIC.amber.softBg, border: HOME_SEMANTIC.amber.border, value: HOME_SEMANTIC.amber.strong };
+  if (tone === "ok") return { bg: HOME_SEMANTIC.success.softBg, border: HOME_SEMANTIC.success.border, value: HOME_SEMANTIC.success.strong };
+  return { bg: HOME_SEMANTIC.neutral.softBg, border: HOME_SEMANTIC.neutral.border, value: HOME_SEMANTIC.neutral.numberInk };
+}
+
 export function TrustStateCard({ trust }: { trust: TrustState }) {
   const rows = trustRows(trust);
   return (
-    <SectionCard title="Verification summary" testId="trust-state">
+    <SectionCard title="Verification summary" testId="trust-state" fill>
       {trust.empty ? (
         <p data-trust-empty style={{ margin: "0 0 10px 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
           No evidence captured yet — these are the integrity signals each record will earn once
@@ -1088,26 +1470,31 @@ export function TrustStateCard({ trust }: { trust: TrustState }) {
         </p>
       ) : null}
       <ul style={{ ...listStyle, gap: 4 }}>
-        {rows.map((r) => (
-          <li
-            key={r.key}
-            data-trust-key={r.key}
-            style={{
-              ...listItemStyle,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "8px 10px",
-              borderRadius: 6,
-              background: r.tone === "danger" ? "#fef2f2" : r.tone === "warn" ? "#fffbeb" : r.tone === "ok" ? "#f0fdf4" : "#f8fafc",
-            }}
-          >
-            <span style={{ fontSize: 13, color: "#0f172a" }}>{r.label}</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: r.tone === "danger" ? "#991b1b" : r.tone === "warn" ? "#9a3412" : r.tone === "ok" ? "#166534" : "#0f172a" }}>
-              {r.value}
-            </span>
-          </li>
-        ))}
+        {rows.map((r) => {
+          const ts = trustToneStyle(r.tone);
+          return (
+            <li
+              key={r.key}
+              data-trust-key={r.key}
+              style={{
+                ...listItemStyle,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+                padding: "8px 10px",
+                borderRadius: 8,
+                background: ts.bg,
+                border: `1px solid ${ts.border}`,
+              }}
+            >
+              <span style={{ fontSize: 13, color: HOME_COLORS.ink, minWidth: 0 }}>{r.label}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: ts.value, whiteSpace: "nowrap", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+                {r.value}
+              </span>
+            </li>
+          );
+        })}
       </ul>
       {trust.empty ? (
         <Link
@@ -1118,7 +1505,7 @@ export function TrustStateCard({ trust }: { trust: TrustState }) {
           Capture first evidence
         </Link>
       ) : null}
-      <p style={{ marginTop: 10, fontSize: 11, color: "#94a3b8", lineHeight: 1.4 }}>
+      <p style={{ marginTop: "auto", paddingTop: 10, fontSize: 11, color: "#94a3b8", lineHeight: 1.4 }}>
         PROOVRA records integrity signals; it does not determine factual truth or legal admissibility.
       </p>
     </SectionCard>
@@ -1214,45 +1601,82 @@ export function StorageUsageCard({ usage }: { usage: StorageUsage | null }) {
       {!usage ? (
         <EmptyState>Storage details will appear once your billing is set up.</EmptyState>
       ) : (
-        <>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
-            <span style={{ fontSize: 22, fontWeight: 700, color: "#0f172a" }}>{usage.usedLabel ?? "—"}</span>
-            <span style={{ fontSize: 13, color: "#5d6d71" }}>
-              of {usage.limitLabel ?? "—"} {usage.usagePercent != null ? `· ${usage.usagePercent}%` : ""}
-            </span>
+        // Phase HOME-POLISH (#10/#11) — this card now sits in a FULL-WIDTH
+        // row, so its content is distributed horizontally instead of hugging
+        // the left edge: LEFT = usage figure + percentage; CENTER = a long
+        // progress bar; RIGHT = capacity forecast + "Manage plan" action.
+        // Collapses to a stacked column on narrow viewports. Real values only.
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 24,
+          }}
+        >
+          {/* LEFT — headline usage + percentage. */}
+          <div style={{ flex: "0 0 auto", minWidth: 160 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <span style={{ fontSize: 24, fontWeight: 700, color: "#0f172a", fontVariantNumeric: "tabular-nums" }}>{usage.usedLabel ?? "—"}</span>
+              <span style={{ fontSize: 13, color: "#5d6d71" }}>of {usage.limitLabel ?? "—"}</span>
+            </div>
+            {usage.usagePercent != null ? (
+              <div style={{ marginTop: 4, fontSize: 12.5, fontWeight: 600, color: "#64748b", fontVariantNumeric: "tabular-nums" }}>
+                {usage.usagePercent}% used
+              </div>
+            ) : null}
           </div>
-          <div
-            data-storage-bar
-            data-storage-near-limit={String(usage.nearLimit)}
-            data-storage-limit-reached={String(usage.limitReached)}
-            style={{ width: "100%", height: 8, borderRadius: 4, background: "#e2e8f0", overflow: "hidden" }}
-          >
+
+          {/* CENTER — long usage progress bar, grows to fill the wide card. */}
+          <div style={{ flex: "1 1 260px", minWidth: 200 }}>
             <div
-              style={{
-                width: `${Math.min(100, Math.max(0, usage.usagePercent ?? 0))}%`,
-                height: "100%",
-                background: usage.limitReached ? "#dc2626" : usage.nearLimit ? "#d97706" : "#4f46e5",
-                transition: "width 200ms ease",
-              }}
-            />
+              data-storage-bar
+              data-storage-near-limit={String(usage.nearLimit)}
+              data-storage-limit-reached={String(usage.limitReached)}
+              style={{ width: "100%", height: 10, borderRadius: 5, background: ANALYTICS_PALETTE.storageTrack, overflow: "hidden" }}
+            >
+              <div
+                style={{
+                  width: `${Math.min(100, Math.max(0, usage.usagePercent ?? 0))}%`,
+                  height: "100%",
+                  background: usage.limitReached
+                    ? HOME_SEMANTIC.critical.strong
+                    : usage.nearLimit
+                      ? HOME_SEMANTIC.amber.strong
+                      : ANALYTICS_PALETTE.storageBar,
+                  borderRadius: 5,
+                  transition: "width 200ms ease",
+                }}
+              />
+            </div>
           </div>
-          {usage.forecastRecords != null && !usage.limitReached ? (
-            <p data-storage-forecast={usage.forecastRecords} style={{ margin: "10px 0 0 0", fontSize: 12, color: "#5d6d71" }}>
-              Room for ≈ {usage.forecastRecords.toLocaleString()} more record
-              {usage.forecastRecords === 1 ? "" : "s"} at your current average size.
-            </p>
-          ) : null}
-          {usage.nearLimit || usage.limitReached ? (
-            <p style={{ margin: "12px 0 0 0", fontSize: 13, color: usage.limitReached ? "#991b1b" : "#9a3412" }}>
-              {usage.limitReached
-                ? "Storage limit reached — top up or upgrade to keep capturing."
-                : "Approaching your storage limit."}{" "}
-              <Link href={usage.upgradeHref} data-storage-upgrade style={{ color: usage.limitReached ? "#991b1b" : "#9a3412", fontWeight: 600 }}>
-                Manage plan →
-              </Link>
-            </p>
-          ) : null}
-        </>
+
+          {/* RIGHT — capacity forecast / limit status + the manage action. */}
+          <div style={{ flex: "1 1 200px", minWidth: 180 }}>
+            {usage.forecastRecords != null && !usage.limitReached ? (
+              <p data-storage-forecast={usage.forecastRecords} style={{ margin: 0, fontSize: 12.5, color: "#5d6d71", lineHeight: 1.5 }}>
+                Room for ≈ {usage.forecastRecords.toLocaleString()} more record
+                {usage.forecastRecords === 1 ? "" : "s"} at your current average size.
+              </p>
+            ) : null}
+            {usage.nearLimit || usage.limitReached ? (
+              <p style={{ margin: usage.forecastRecords != null && !usage.limitReached ? "8px 0 0 0" : 0, fontSize: 13, color: usage.limitReached ? HOME_SEMANTIC.critical.strong : "#9a3412", lineHeight: 1.5 }}>
+                {usage.limitReached
+                  ? "Storage limit reached — top up or upgrade to keep capturing."
+                  : "Approaching your storage limit."}{" "}
+                <Link href={usage.upgradeHref} data-storage-upgrade style={{ color: usage.limitReached ? HOME_SEMANTIC.critical.strong : "#9a3412", fontWeight: 600 }}>
+                  Manage plan →
+                </Link>
+              </p>
+            ) : (
+              <div style={{ marginTop: usage.forecastRecords != null ? 8 : 0 }}>
+                <Link href={usage.upgradeHref} data-storage-upgrade style={{ ...homeSecondaryButtonStyle }}>
+                  View storage →
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </SectionCard>
   );
@@ -1364,6 +1788,13 @@ export function HomeSkeleton() {
 // Phase HOME-POLISH — every SectionCard now uses the shared premium
 // card vocabulary from home-theme.ts (glassy white, soft depth).
 const cardStyle: React.CSSProperties = homeCardStyle;
+// Phase HOME-POLISH (#2/#12) — the shared SectionCard OUTER surface is the
+// translucent glass module (~0.48 white + blur) so large modules integrate
+// with the branded page background instead of stacking "white card inside
+// white card". Inner rows/tiles keep their stronger ~0.72 surfaces for
+// readability; the near-solid `cardStyle` still backs the distinct
+// Action-needed queue module (not a SectionCard).
+const outerCardStyle: React.CSSProperties = homeOuterCardStyle;
 const cardHeaderStyle: React.CSSProperties = homeCardHeaderStyle;
 const cardTitleStyle: React.CSSProperties = homeCardTitleStyle;
 const cardCtaStyle: React.CSSProperties = homeCardCtaStyle;

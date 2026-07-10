@@ -75,6 +75,9 @@ import { getRouteDisclosureTier } from "../../lib/navigation/disclosureModel";
 import {
   emit as emitStateEvent,
 } from "../../lib/platform-context/state-observability";
+// Compact storage widget — its own file so this module never imports
+// apiFetch (pinned by the Phase 38.9 no-apiFetch source contract).
+import { SidebarStorageWidget } from "./SidebarStorageWidget";
 
 /**
  * PHASE 38.9 — Canonical sidebar.
@@ -820,6 +823,8 @@ const teamId =
             </div>
           ) : null}
         </div>
+
+        <SidebarStorageWidget />
 
         <Link href="/support" className="app-sidebar-v2-help" title="Contact support">
           <CircleHelp size={20} strokeWidth={1.75} />

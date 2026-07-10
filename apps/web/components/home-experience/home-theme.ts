@@ -74,12 +74,18 @@ export function toneColor(tone: HomeTone): { fg: string; bg: string; dot: string
  * internal padding. Dense cards/tables can raise opacity via
  * `homeCardDenseStyle`. */
 export const homeCardStyle: React.CSSProperties = {
-  background: "rgba(255, 255, 255, 0.88)",
-  border: "1px solid rgba(15, 23, 42, 0.07)",
-  borderRadius: 20,
-  padding: 22,
+  // Unified translucent OUTER-card surface shared by EVERY large Home module
+  // (Overview / Operations / Analytics) so no module reads as solid white —
+  // the branded page background shows through consistently. Inner rows/cells
+  // stay more opaque for readability.
+  background: "rgba(255, 255, 255, 0.30)",
+  border: "1px solid rgba(255, 255, 255, 0.50)",
+  borderRadius: 18,
+  padding: 20,
   margin: 0,
-  boxShadow: "0 16px 40px rgba(15, 23, 42, 0.055)",
+  boxShadow: "0 10px 26px rgba(15, 23, 42, 0.025)",
+  backdropFilter: "blur(5px)",
+  WebkitBackdropFilter: "blur(5px)",
 };
 
 /** Denser variant for tables / data-heavy panels — a stronger opacity so
@@ -90,31 +96,179 @@ export const homeCardDenseStyle: React.CSSProperties = {
 };
 
 /** Premium enterprise WARNING surface (Action needed / needs-attention).
- * Warm ivory, restrained amber accent — serious + operational, never the
- * cheap saturated-orange block. */
+ * A near-WHITE card with only a thin muted-amber LEFT accent — restrained
+ * and enterprise, never a full yellow fill or saturated-orange block. */
 export const HOME_WARN = {
-  bg: "rgba(255, 250, 240, 0.9)",
-  bgSolid: "#FFF9ED",
-  border: "rgba(180, 116, 35, 0.18)",
-  accent: "#B7791F",
+  bg: "rgba(255, 255, 255, 0.72)",
+  bgSolid: "#ffffff",
+  border: "rgba(15, 23, 42, 0.07)",
+  // Muted enterprise amber for the thin left accent line (not bright yellow).
+  accent: "#C8922D",
   accentDeep: "#A16207",
-  badgeBg: "rgba(180, 116, 35, 0.10)",
+  // Status badge: very light warm ivory + muted amber/brown text.
+  badgeBg: "rgba(200, 146, 45, 0.10)",
   badgeText: "#7C4A03",
-  buttonBg: "#1F2937",
-  buttonText: "#ffffff",
 } as const;
 
-/** The premium enterprise warning card — ivory glass + a restrained amber
- * left accent. Consistent radius/shadow with the default card. */
+/** The enterprise warning card — near-white surface, a thin ~3px muted-amber
+ * left accent line, a very subtle neutral border + soft shadow. */
 export const homeWarningCardStyle: React.CSSProperties = {
   background: HOME_WARN.bg,
   border: `1px solid ${HOME_WARN.border}`,
   borderLeft: `3px solid ${HOME_WARN.accent}`,
-  borderRadius: 20,
-  padding: 22,
+  borderRadius: 18,
+  padding: 20,
   margin: 0,
-  boxShadow: "0 16px 40px rgba(120, 74, 3, 0.05)",
+  boxShadow: "0 10px 28px rgba(15, 23, 42, 0.045)",
 };
+
+/** Light enterprise SECONDARY action button — white surface, subtle indigo
+ * border, indigo/blue-violet text. The premium secondary-action language
+ * shared by Home module CTAs (matches "All evidence →" text actions), never
+ * a heavy black fill. */
+export const homeSecondaryButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  padding: "8px 14px",
+  borderRadius: 10,
+  background: "rgba(255, 255, 255, 0.94)",
+  border: "1px solid rgba(79, 70, 229, 0.20)",
+  color: "#4F46E5",
+  fontSize: 12.5,
+  fontWeight: 650,
+  textDecoration: "none",
+  whiteSpace: "nowrap",
+  boxShadow: "0 6px 16px rgba(79, 70, 229, 0.06)",
+  cursor: "pointer",
+};
+
+/** Indigo/blue-violet accent family for file-type badges (DOC/IMG/etc.) and
+ * other Home chips — consistent with the "All evidence →" action colour. */
+export const HOME_ACCENT = {
+  ink: "#4F46E5",
+  inkStrong: "#5B4FE8",
+  bg: "rgba(79, 70, 229, 0.08)",
+  border: "rgba(79, 70, 229, 0.10)",
+} as const;
+
+/** ONE unified enterprise semantic colour system for the Operations tab.
+ * Every success/healthy/completed state uses the SAME green; every pending
+ * uses the SAME amber; every failure uses the SAME red; zero/neutral states
+ * stay quiet. No turquoise/mint/cyan, no per-card random greens. */
+export const HOME_SEMANTIC = {
+  success: {
+    strong: "#167A5B",
+    text: "#176B52",
+    icon: "#168064",
+    softBg: "#EAF7F1",
+    subtleBg: "rgba(22, 122, 91, 0.08)",
+    border: "rgba(22, 122, 91, 0.16)",
+  },
+  amber: {
+    strong: "#A86612",
+    softBg: "#FFF6E5",
+    border: "rgba(168, 102, 18, 0.17)",
+  },
+  critical: {
+    strong: "#B9383E",
+    softBg: "#FDEEEF",
+    border: "rgba(185, 56, 62, 0.16)",
+  },
+  info: {
+    // Restrained indigo for informational badges (e.g. "Report v2").
+    strong: "#5146D8",
+    softBg: "rgba(79, 70, 229, 0.08)",
+    border: "rgba(79, 70, 229, 0.12)",
+  },
+  neutral: {
+    numberInk: "#111827",
+    secondary: "#64748B",
+    softBg: "rgba(248, 250, 252, 0.78)",
+    border: "rgba(15, 23, 42, 0.045)",
+  },
+} as const;
+
+/** Chip base (inlined to avoid a TDZ ref to `homeChipStyle` defined later). */
+const CHIP_BASE: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+  padding: "3px 9px",
+  borderRadius: 999,
+  fontSize: 11,
+  fontWeight: 650,
+  whiteSpace: "nowrap",
+};
+
+/** Shared success badge (Live / Package ready / Active links / …). */
+export const successBadgeStyle: React.CSSProperties = {
+  ...CHIP_BASE,
+  background: HOME_SEMANTIC.success.softBg,
+  color: HOME_SEMANTIC.success.strong,
+  border: `1px solid ${HOME_SEMANTIC.success.border}`,
+};
+
+/** Shared informational badge (e.g. "Report v2"). */
+export const infoBadgeStyle: React.CSSProperties = {
+  ...CHIP_BASE,
+  background: HOME_SEMANTIC.info.softBg,
+  color: HOME_SEMANTIC.info.strong,
+  border: `1px solid ${HOME_SEMANTIC.info.border}`,
+};
+
+/** Consistent inner list-row surface shared by every Operations card. */
+export const homeOpsRowStyle: React.CSSProperties = {
+  background: "rgba(248, 250, 252, 0.72)",
+  border: "1px solid rgba(15, 23, 42, 0.045)",
+  borderRadius: 12,
+};
+
+/** Large OUTER module surface — lighter + more translucent than the inner
+ * rows/tiles so the page background shows through and we avoid the
+ * "white card inside white card" look. Inner rows use homeOpsRowStyle /
+ * ~0.72 white for readability; charts stay transparent. Subtle, not heavy
+ * glassmorphism. */
+export const homeOuterCardStyle: React.CSSProperties = {
+  background: "rgba(255, 255, 255, 0.30)",
+  border: "1px solid rgba(255, 255, 255, 0.50)",
+  borderRadius: 18,
+  padding: 20,
+  boxShadow: "0 10px 26px rgba(15, 23, 42, 0.025)",
+  backdropFilter: "blur(5px)",
+  WebkitBackdropFilter: "blur(5px)",
+};
+
+/** Inner metric cell / tile surface — more opaque than the translucent
+ * outer module so small numbers stay readable, but not solid white. */
+export const homeInnerCellStyle: React.CSSProperties = {
+  background: "rgba(255, 255, 255, 0.64)",
+  border: "1px solid rgba(15, 23, 42, 0.045)",
+  borderRadius: 12,
+};
+
+/** Refined ANALYTICS-only palette (charts). Kept SEPARATE from the semantic
+ * status system (HOME_SEMANTIC) — analytics colours never leak into health
+ * status rows and vice-versa. */
+export const ANALYTICS_PALETTE = {
+  // Two clean series for the Evidence Activity chart.
+  evidenceSeries: "#6D4AFF",
+  reportsSeries: "#2F6FE4",
+  // Records-by-type donut — Indigo & Rose enterprise palette. These are the
+  // LEGEND-dot base colours (each matches its donut segment gradient).
+images: "#A92F54",
+documents: "#6654E8",
+videos: "#3974DC",
+audio: "#746FE8",
+archives: "#293A58",
+//   // Storage progress value.
+  storageBar: "#5B4FE8",
+  storageTrack: "rgba(226, 232, 240, 0.88)",
+  // Chart chrome.
+  gridLine: "rgba(15, 23, 42, 0.07)",
+  axisText: "#7A8699",
+  legendText: "#556274",
+} as const;
 
 export const homeCardHeaderStyle: React.CSSProperties = {
   display: "flex",

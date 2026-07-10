@@ -287,8 +287,10 @@ test("integrity queue item carries the real severity breakdown", () => {
 
 test("Trust State rows are tone-styled for failed/pending/success", () => {
   assert.match(SECTIONS_SRC, /tone:\s*trust\.tsaFailed > 0 \? "danger" : trust\.tsaPending > 0 \? "warn"/);
-  // The row renderer maps tones to status colors.
-  assert.match(SECTIONS_SRC, /r\.tone === "danger"[\s\S]{0,120}r\.tone === "warn"/);
+  // The row renderer maps tones to the unified HOME_SEMANTIC colour system
+  // (danger → critical/red, warn → amber).
+  assert.match(SECTIONS_SRC, /tone === "danger"[\s\S]{0,160}HOME_SEMANTIC\.critical/);
+  assert.match(SECTIONS_SRC, /tone === "warn"[\s\S]{0,160}HOME_SEMANTIC\.amber/);
 });
 
 // ---------------------------------------------------------------------------

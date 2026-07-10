@@ -29,13 +29,17 @@ import type {
   WorkspacePriority,
 } from "./home-view-model";
 import {
+  ANALYTICS_PALETTE,
+  HOME_ACCENT,
   HOME_COLORS,
+  HOME_SEMANTIC,
   HOME_TINTS,
   homeCardCtaStyle,
   homeCardHeaderStyle,
   homeCardStyle,
   homeCardTitleStyle,
   homeChipStyle,
+  homeOuterCardStyle,
   iconBlockStyle,
   toneColor,
 } from "./home-theme";
@@ -387,7 +391,7 @@ function Sparkline({ values, color, uid }: { values: number[]; color: string; ui
 
 export function KpiRow({ kpis }: { kpis: HomeKpi[] }) {
   return (
-    <div style={kpiRowStyle} data-home-kpi-row>
+    <div className="home-kpi-grid" data-home-kpi-row>
       {kpis.map((k) => {
         const surface = KPI_SURFACE[k.key];
         const tone = toneColor(k.tone);
@@ -553,34 +557,36 @@ export function EvidenceActivityChart({
   const hasData = series.totalEvidence > 0 || series.totalReports > 0;
 
   return (
-    <section className="home-card" style={homeCardStyle} data-self-serve-section="evidence-activity">
+    <section
+      className="home-card"
+      style={{ ...homeOuterCardStyle, height: "100%", display: "flex", flexDirection: "column" }}
+      data-self-serve-section="evidence-activity"
+    >
       <header style={chartHeaderStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={iconBlockStyle(HOME_TINTS.indigo, 32)}>
-            <Icon d={ICONS.spark} color={HOME_COLORS.indigo} size={16} />
+        {/* Header is title + subtitle stacked left, no decorative icon. */}
+        <div style={{ minWidth: 0 }}>
+          <h2 style={activityTitleStyle}>Evidence activity</h2>
+          <span style={activitySubtitleStyle}>
+            Last 14 days{series.sampled ? " · latest 100 records" : ""}
           </span>
-          <div>
-            <h2 style={homeCardTitleStyle}>Evidence activity</h2>
-            <span style={chartSubtitleStyle}>
-              Last 14 days{series.sampled ? " · latest 100 records" : ""}
-            </span>
-          </div>
         </div>
         {hasData ? (
           <div style={legendStyle}>
             <span style={legendItemStyle}>
-              <span style={{ ...legendSwatchStyle, background: HOME_COLORS.wine }} />
+              <span style={{ ...legendSwatchStyle, background: ANALYTICS_PALETTE.evidenceSeries }} />
               Evidence ({series.totalEvidence})
             </span>
             <span style={legendItemStyle}>
-              <span style={{ ...legendSwatchStyle, background: HOME_COLORS.teal }} />
+              <span style={{ ...legendSwatchStyle, background: ANALYTICS_PALETTE.reportsSeries }} />
               Reports ({series.totalReports})
             </span>
           </div>
         ) : null}
       </header>
       {hasData ? (
-        <ActivityBars series={series} />
+        <div style={activityChartAreaStyle}>
+          <ActivityBars series={series} />
+        </div>
       ) : (
         <p style={chartEmptyStyle}>
           Activity appears here as evidence is captured and reports are
@@ -592,17 +598,25 @@ export function EvidenceActivityChart({
 }
 
 function ActivityBars({ series }: { series: EvidenceActivitySeries }) {
-  const W = 720;
-  const H = 190;
-  const PAD_L = 26;
+  const W = 760;
+  const H = 240;
+  const PAD_L = 24;
   const PAD_B = 22;
-  const PAD_T = 10;
+  const PAD_T = 8;
   const innerW = W - PAD_L - 6;
   const innerH = H - PAD_B - PAD_T;
   const n = series.points.length;
   const group = innerW / n;
-  const barW = Math.min(12, group / 2.6);
-  const max = Math.max(1, ...series.points.map((p) => Math.max(p.evidence, p.reports)));
+  const barW = Math.min(14, group / 2.6);
+  // Add y-axis headroom so the tallest bar occupies ~45–65% of the usable
+  // plot height instead of touching the top grid line. The DATA is
+  // unchanged — only the domain max grows (dataMax 12 → ~18-20), which
+  // shortens every bar proportionally and leaves calm space above.
+  const dataMax = Math.max(
+    1,
+    ...series.points.map((p) => Math.max(p.evidence, p.reports)),
+  );
+  const max = Math.max(dataMax + 1, Math.ceil(dataMax * 1.7));
   const y = (v: number) => PAD_T + innerH - (v / max) * innerH;
 
   const tickCount = Math.min(4, max);
@@ -613,41 +627,36 @@ function ActivityBars({ series }: { series: EvidenceActivitySeries }) {
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
-      style={{ width: "100%", height: "auto", display: "block" }}
+      preserveAspectRatio="none"
+      style={{ width: "100%", height: "100%", display: "block" }}
       role="img"
       aria-label={`Evidence activity over the last 14 days: ${series.totalEvidence} evidence records, ${series.totalReports} reports.`}
     >
-      <defs>
-        <linearGradient id="ha-ev" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={HOME_COLORS.wine} />
-          <stop offset="100%" stopColor="#a8345f" />
-        </linearGradient>
-        <linearGradient id="ha-rp" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={HOME_COLORS.teal} />
-          <stop offset="100%" stopColor="#38b6c9" />
-        </linearGradient>
-      </defs>
       {ticks.map((t) => (
         <g key={t}>
-          <line x1={PAD_L} x2={W - 4} y1={y(t)} y2={y(t)} stroke="rgba(15,23,42,0.06)" strokeWidth="1" />
-          <text x={PAD_L - 6} y={y(t) + 3.5} textAnchor="end" fontSize="9" fill={HOME_COLORS.muted}>
+          <line x1={PAD_L} x2={W - 4} y1={y(t)} y2={y(t)} stroke={ANALYTICS_PALETTE.gridLine} strokeWidth="1" />
+          <text x={PAD_L - 6} y={y(t) + 3.5} textAnchor="end" fontSize="9" fill={ANALYTICS_PALETTE.axisText}>
             {t}
           </text>
         </g>
       ))}
-      <line x1={PAD_L} x2={W - 4} y1={y(0)} y2={y(0)} stroke="rgba(15,23,42,0.14)" strokeWidth="1" />
+      <line x1={PAD_L} x2={W - 4} y1={y(0)} y2={y(0)} stroke={ANALYTICS_PALETTE.gridLine} strokeWidth="1" />
       {series.points.map((p, i) => {
         const cx = PAD_L + i * group + group / 2;
         return (
           <g key={p.dayLabel + i}>
+            {/* Baseline marker at EVERY one of the 14 day positions — so
+                zero-activity days are visibly present on a continuous
+                14-day axis rather than reading as empty gaps. */}
+            <circle cx={cx} cy={y(0)} r={1} fill={ANALYTICS_PALETTE.axisText} opacity={0.32} />
             {p.evidence > 0 ? (
               <rect
                 x={cx - barW - 1}
                 y={y(p.evidence)}
                 width={barW}
                 height={Math.max(2, y(0) - y(p.evidence))}
-                rx={2.5}
-                fill="url(#ha-ev)"
+                rx={1.5}
+                fill={ANALYTICS_PALETTE.evidenceSeries}
               >
                 <title>{`${p.dayLabel}: ${p.evidence} evidence record${p.evidence === 1 ? "" : "s"}`}</title>
               </rect>
@@ -658,14 +667,14 @@ function ActivityBars({ series }: { series: EvidenceActivitySeries }) {
                 y={y(p.reports)}
                 width={barW}
                 height={Math.max(2, y(0) - y(p.reports))}
-                rx={2.5}
-                fill="url(#ha-rp)"
+                rx={1.5}
+                fill={ANALYTICS_PALETTE.reportsSeries}
               >
                 <title>{`${p.dayLabel}: ${p.reports} report${p.reports === 1 ? "" : "s"} generated`}</title>
               </rect>
             ) : null}
             {i % 2 === 0 ? (
-              <text x={cx} y={H - 8} textAnchor="middle" fontSize="9" fill={HOME_COLORS.muted}>
+              <text x={cx} y={H - 8} textAnchor="middle" fontSize="9" fill={ANALYTICS_PALETTE.axisText}>
                 {p.dayLabel}
               </text>
             ) : null}
@@ -703,7 +712,7 @@ export function RecentEvidenceCard({ rows }: { rows: RichRecentEvidenceRow[] }) 
         </p>
       ) : (
         <ul style={recentListStyle}>
-          {rows.map((r) => {
+          {rows.slice(0, 3).map((r) => {
             const chip = toneColor(r.trustChip.tone);
             return (
               <li key={r.id} style={{ margin: 0, padding: 0 }}>
@@ -749,14 +758,67 @@ function formatRelativeShort(iso: string): string {
 // Evidence by type — SVG donut + legend (sample-labelled).
 // ============================================================================
 
-const DONUT_COLORS = [
-  HOME_COLORS.wine,
-  HOME_COLORS.indigo,
-  HOME_COLORS.teal,
-  HOME_COLORS.violet,
-  "#64748b",
-  "#94a3b8",
+// Records-by-type donut colours — mapped by the category KEY so each
+// evidence type keeps a stable, cohesive analytics hue. Falls back to a
+// quiet neutral for any unrecognised key.
+const DONUT_COLOR_BY_KEY: Record<string, string> = {
+  images: ANALYTICS_PALETTE.images,
+  image: ANALYTICS_PALETTE.images,
+  photo: ANALYTICS_PALETTE.images,
+  photos: ANALYTICS_PALETTE.images,
+  documents: ANALYTICS_PALETTE.documents,
+  document: ANALYTICS_PALETTE.documents,
+  docs: ANALYTICS_PALETTE.documents,
+  videos: ANALYTICS_PALETTE.videos,
+  video: ANALYTICS_PALETTE.videos,
+  audio: ANALYTICS_PALETTE.audio,
+  archives: ANALYTICS_PALETTE.archives,
+  archive: ANALYTICS_PALETTE.archives,
+};
+
+function donutColorForKey(key: string): string {
+  return DONUT_COLOR_BY_KEY[key.toLowerCase()] ?? ANALYTICS_PALETTE.archives;
+}
+
+// Per-segment premium linear-gradient stops for the donut ring — a subtle
+// two-stop sheen per category that flows red → magenta-purple → violet →
+// blue → deep navy. Mapped by category KEY; unrecognised keys (folders,
+// other, …) fall back to the archives navy so the ring never breaks the
+// progression. No glow/neon — just a restrained light→dark within-hue
+// gradient. The LEGEND dots stay on the flat ANALYTICS_PALETTE base
+// colours so each dot maps exactly to its segment.
+const DONUT_GRADIENT_BY_KEY: Record<string, readonly [string, string]> = {
+  // Images — elegant wine rose, less bright and less alert-like
+  images: ["#D56A84", "#A83A5B"],
+  image: ["#D56A84", "#A83A5B"],
+  photo: ["#D56A84", "#A83A5B"],
+  photos: ["#D56A84", "#A83A5B"],
+
+  // Documents — premium indigo
+  documents: ["#9582FF", "#6654E8"],
+  document: ["#9582FF", "#6654E8"],
+  docs: ["#9582FF", "#6654E8"],
+
+  // Videos — enterprise blue
+  videos: ["#6FA1F7", "#3974DC"],
+  video: ["#6FA1F7", "#3974DC"],
+
+  // Audio — soft periwinkle blue, no green or cyan
+  audio: ["#A9A7FF", "#746FE8"],
+
+  // Archives — deep slate navy
+  archives: ["#536581", "#293A58"],
+  archive: ["#536581", "#293A58"],
+};
+
+const DONUT_ARCHIVES_GRADIENT: readonly [string, string] = [
+  "#536581",
+  "#293A58",
 ];
+
+function donutGradientForKey(key: string): readonly [string, string] {
+  return DONUT_GRADIENT_BY_KEY[key.toLowerCase()] ?? DONUT_ARCHIVES_GRADIENT;
+}
 
 export function EvidenceTypeDonutCard({
   distribution,
@@ -795,8 +857,27 @@ export function EvidenceTypeDonutCard({
     ? "Counts each preserved file inside multipart evidence packages."
     : "Counts primary evidence records, not files inside packages.";
   return (
-    <section className="home-card" style={homeCardStyle} data-self-serve-section="evidence-types">
-      <header style={homeCardHeaderStyle}>
+    <section
+      className="home-card"
+      style={{
+        ...homeOuterCardStyle,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        // Indigo & Rose enterprise palette — glass card surface (this card
+        // only) so it blends with the dashboard rather than reading as a
+        // solid white rectangle.
+        background: "rgba(255, 255, 255, 0.34)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+        border: "1px solid rgba(255, 255, 255, 0.52)",
+        boxShadow: "0 10px 28px rgba(15, 23, 42, 0.035)",
+        borderRadius: 20,
+        padding: 20,
+      }}
+      data-self-serve-section="evidence-types"
+    >
+      <header style={donutHeaderStyle}>
         {/* Phase HOME-RECORDS-BY-TYPE — record-level by default. When
             the backend aggregate endpoint is reachable, a Files toggle
             exposes the EvidencePart-level view ("Preserved files by
@@ -804,29 +885,22 @@ export function EvidenceTypeDonutCard({
             old "Evidence by type" wording implied a file-level count;
             the truthful rename + provenance subtitle make the contract
             explicit. */}
-        <h2 style={homeCardTitleStyle}>Records by type</h2>
-        <span
-          style={chartSubtitleStyle}
-          data-evidence-types-subtitle
-          title={subtitleTitle}
-        >
-          {subtitle}
-        </span>
+        <div style={{ minWidth: 0 }}>
+          <h2 style={donutTitleStyle}>Records by type</h2>
+          <span
+            style={donutSubtitleStyle}
+            data-evidence-types-subtitle
+            title={subtitleTitle}
+          >
+            {subtitle}
+          </span>
+        </div>
         {hasFilesView ? (
           <div
             role="tablist"
             aria-label="Records or preserved files"
             data-evidence-types-toggle
-            style={{
-              display: "inline-flex",
-              gap: 0,
-              marginTop: 4,
-              borderRadius: 999,
-              border: `1px solid ${HOME_COLORS.cardBorder}`,
-              padding: 2,
-              fontSize: 11,
-              fontWeight: 600,
-            }}
+            style={segmentedControlStyle}
           >
             <button
               type="button"
@@ -834,15 +908,20 @@ export function EvidenceTypeDonutCard({
               aria-selected={mode === "records"}
               data-evidence-types-tab="records"
               onClick={() => setMode("records")}
+              onMouseEnter={(e) => {
+                if (mode !== "records")
+                  e.currentTarget.style.background = "#F8FAFC";
+              }}
+              onMouseLeave={(e) => {
+                if (mode !== "records")
+                  e.currentTarget.style.background = "transparent";
+              }}
               style={{
-                padding: "4px 10px",
-                borderRadius: 999,
-                border: 0,
-                cursor: "pointer",
-                background:
-                  mode === "records" ? HOME_COLORS.ink : "transparent",
-                color:
-                  mode === "records" ? "#fff" : HOME_COLORS.slate,
+                ...segmentedButtonStyle,
+                background: mode === "records" ? "#111827" : "transparent",
+                color: mode === "records" ? "#fff" : HOME_COLORS.slate,
+                border:
+                  mode === "records" ? "1px solid transparent" : "1px solid #E5E7EB",
               }}
             >
               Records
@@ -853,15 +932,20 @@ export function EvidenceTypeDonutCard({
               aria-selected={mode === "files"}
               data-evidence-types-tab="files"
               onClick={() => setMode("files")}
+              onMouseEnter={(e) => {
+                if (mode !== "files")
+                  e.currentTarget.style.background = "#F8FAFC";
+              }}
+              onMouseLeave={(e) => {
+                if (mode !== "files")
+                  e.currentTarget.style.background = "transparent";
+              }}
               style={{
-                padding: "4px 10px",
-                borderRadius: 999,
-                border: 0,
-                cursor: "pointer",
-                background:
-                  mode === "files" ? HOME_COLORS.ink : "transparent",
-                color:
-                  mode === "files" ? "#fff" : HOME_COLORS.slate,
+                ...segmentedButtonStyle,
+                background: mode === "files" ? "#111827" : "transparent",
+                color: mode === "files" ? "#fff" : HOME_COLORS.slate,
+                border:
+                  mode === "files" ? "1px solid transparent" : "1px solid #E5E7EB",
               }}
             >
               Preserved files
@@ -877,16 +961,18 @@ export function EvidenceTypeDonutCard({
         </p>
       ) : (
         <div style={donutWrapStyle}>
-          <Donut slices={slices} total={sampleSize} files={isFilesMode} />
+          <div style={donutChartColStyle}>
+            <Donut slices={slices} total={sampleSize} files={isFilesMode} />
+          </div>
           <ul style={donutLegendStyle}>
-            {slices.map((s, i) => (
+            {slices.map((s) => (
               <li key={s.key} style={donutLegendItemStyle}>
                 <span
-                  style={{ ...legendSwatchStyle, background: DONUT_COLORS[i % DONUT_COLORS.length] }}
+                  style={{ ...legendSwatchStyle, borderRadius: 999, background: donutColorForKey(s.key) }}
                 />
-                <span style={{ flex: 1, color: HOME_COLORS.slate }}>{s.label}</span>
-                <span style={{ color: HOME_COLORS.ink, fontWeight: 650 }}>{s.count}</span>
-                <span style={{ color: HOME_COLORS.muted, width: 38, textAlign: "right" }}>
+                <span style={donutLegendLabelStyle}>{s.label}</span>
+                <span style={donutLegendCountStyle}>{s.count}</span>
+                <span style={donutLegendPercentStyle}>
                   {s.percent}%
                 </span>
               </li>
@@ -907,14 +993,22 @@ function Donut({
   total: number;
   files?: boolean;
 }) {
-  const R = 42;
+  // ~9% larger ring, lighter stroke + a hairline gap between slices for a
+  // premium, continuous enterprise donut (still pure stroke-dasharray SVG).
+  const R = 48;
   const C = 2 * Math.PI * R;
+  const GAP = 1.6;
   let offset = 0;
+  // Stable, collision-free gradient id per segment key so multiple donuts
+  // (Records / Preserved files) on the page keep distinct <defs>.
+  const gradId = (key: string) =>
+    `donut-grad-${files ? "files" : "records"}-${key.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
   return (
     <svg
       width="128"
       height="128"
       viewBox="0 0 128 128"
+      shapeRendering="geometricPrecision"
       role="img"
       aria-label={
         files
@@ -922,10 +1016,31 @@ function Donut({
           : `Evidence type distribution across ${total} records.`
       }
     >
-      <circle cx="64" cy="64" r={R} fill="none" stroke="#eef0f5" strokeWidth="15" />
-      {slices.map((s, i) => {
+      <defs>
+        {slices.map((s) => {
+          const [from, to] = donutGradientForKey(s.key);
+          return (
+            <linearGradient
+              key={s.key}
+              id={gradId(s.key)}
+              x1="0"
+              y1="0"
+              x2="1"
+              y2="1"
+            >
+              <stop offset="0%" stopColor={from} />
+              <stop offset="100%" stopColor={to} />
+            </linearGradient>
+          );
+        })}
+      </defs>
+      <circle cx="64" cy="64" r={R} fill="none" stroke="#E1E6EF" strokeWidth="11.5" />
+      {slices.map((s) => {
         const frac = total > 0 ? s.count / total : 0;
-        const dash = frac * C;
+        const seg = frac * C;
+        // Hairline gap after each slice so the ring reads as separated but
+        // still continuous; clamped so tiny slices never vanish.
+        const dash = slices.length > 1 ? Math.max(seg - GAP, 0.5) : seg;
         const el = (
           <circle
             key={s.key}
@@ -933,8 +1048,8 @@ function Donut({
             cy="64"
             r={R}
             fill="none"
-            stroke={DONUT_COLORS[i % DONUT_COLORS.length]}
-            strokeWidth="15"
+            stroke={`url(#${gradId(s.key)})`}
+            strokeWidth="11.5"
             strokeLinecap={slices.length > 1 ? "butt" : "round"}
             strokeDasharray={`${dash} ${C - dash}`}
             strokeDashoffset={-offset}
@@ -943,13 +1058,28 @@ function Donut({
             <title>{`${s.label}: ${s.count} (${s.percent}%)`}</title>
           </circle>
         );
-        offset += dash;
+        offset += seg;
         return el;
       })}
-      <text x="64" y="61" textAnchor="middle" fontSize="22" fontWeight="750" fill={HOME_COLORS.ink}>
+      <text
+        x="64"
+        y="59"
+        textAnchor="middle"
+        fontSize="20"
+        fontWeight="750"
+        fill={HOME_COLORS.ink}
+        style={{ fontVariantNumeric: "tabular-nums" }}
+      >
         {total}
       </text>
-      <text x="64" y="77" textAnchor="middle" fontSize="9.5" fill={HOME_COLORS.muted}>
+      <text
+        x="64"
+        y="78"
+        textAnchor="middle"
+        fontSize="9"
+        fill="#7A8699"
+        letterSpacing="0.35"
+      >
         {files ? "files" : "records"}
       </text>
     </svg>
@@ -983,15 +1113,6 @@ const headerSubtitleStyle: React.CSSProperties = {
   fontSize: 14,
   lineHeight: 1.5,
   color: HOME_COLORS.slate,
-};
-const kpiRowStyle: React.CSSProperties = {
-  display: "grid",
-  // Wider KPI tiles so the first row feels balanced and the five cards
-  // span naturally across the container instead of floating narrow.
-  // min(100%, …) guarantees a single tile never overflows the narrowest
-  // mobile viewport (no horizontal scroll).
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 248px), 1fr))",
-  gap: 16,
 };
 const kpiCardStyle: React.CSSProperties = {
   display: "flex",
@@ -1069,9 +1190,26 @@ const chartHeaderStyle: React.CSSProperties = {
   gap: 10,
   flexWrap: "wrap",
 };
-const chartSubtitleStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: HOME_COLORS.muted,
+// Evidence Activity — refined title/subtitle (no decorative icon block).
+const activityTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 15.5,
+  fontWeight: 680,
+  color: "#172033",
+  letterSpacing: -0.1,
+};
+const activitySubtitleStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: 2,
+  fontSize: 12.5,
+  color: "#718096",
+};
+// Chart-area region — flexes to fill the card so the plot is large, not a
+// tiny graphic in a big rectangle.
+const activityChartAreaStyle: React.CSSProperties = {
+  flex: 1,
+  minHeight: 220,
+  display: "flex",
 };
 const chartEmptyStyle: React.CSSProperties = {
   margin: 0,
@@ -1121,8 +1259,9 @@ const typeBadgeStyle: React.CSSProperties = {
   width: 38,
   height: 32,
   borderRadius: 9,
-  background: HOME_TINTS.wine,
-  color: HOME_COLORS.wine,
+  background: HOME_ACCENT.bg,
+  color: HOME_ACCENT.ink,
+  border: `1px solid ${HOME_ACCENT.border}`,
   fontSize: 10,
   fontWeight: 750,
   letterSpacing: 0.4,
@@ -1144,11 +1283,69 @@ const recentMetaStyle: React.CSSProperties = {
   color: HOME_COLORS.muted,
 };
 
+// Records-by-type header — stacked title/subtitle left, segmented control
+// right; aligned to the top so a two-line title never pushes the control.
+const donutHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  marginBottom: 18,
+  gap: 12,
+  flexWrap: "wrap",
+};
+const donutTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 15.5,
+  fontWeight: 700,
+  color: "#172033",
+  letterSpacing: -0.1,
+};
+const donutSubtitleStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: 2,
+  fontSize: 12.5,
+  fontWeight: 500,
+  color: "#94A3B8",
+};
+// Equal-width two-button segmented control. Fixed per-button min-width so
+// "Preserved files" always sits on one line and both buttons match width.
+const segmentedControlStyle: React.CSSProperties = {
+  display: "inline-flex",
+  gap: 6,
+  flexShrink: 0,
+  borderRadius: 999,
+  border: 0,
+  padding: 0,
+  fontSize: 11.5,
+  fontWeight: 600,
+  background: "transparent",
+  boxShadow: "none",
+};
+const segmentedButtonStyle: React.CSSProperties = {
+  minWidth: 104,
+  padding: "5px 12px",
+  borderRadius: 999,
+  border: 0,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+  textAlign: "center",
+  lineHeight: 1.2,
+  transition: "background 120ms ease, color 120ms ease",
+};
+// Balanced two-column body: donut left (with breathing room), legend right.
 const donutWrapStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "160px minmax(0, 1fr)",
+  alignItems: "center",
+  gap: 22,
+  flex: 1,
+  minHeight: 220,
+};
+const donutChartColStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 18,
-  flexWrap: "wrap",
+  justifyContent: "center",
+  padding: 0,
 };
 const donutLegendStyle: React.CSSProperties = {
   listStyle: "none",
@@ -1156,15 +1353,37 @@ const donutLegendStyle: React.CSSProperties = {
   margin: 0,
   display: "flex",
   flexDirection: "column",
-  gap: 7,
+  gap: 8,
   flex: 1,
-  minWidth: 170,
+  minWidth: 200,
 };
 const donutLegendItemStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 8,
-  fontSize: 12.5,
+  fontSize: 12,
+};
+const donutLegendLabelStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  color: HOME_SEMANTIC.neutral.secondary,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+const donutLegendCountStyle: React.CSSProperties = {
+  color: HOME_SEMANTIC.neutral.numberInk,
+  fontWeight: 650,
+  fontVariantNumeric: "tabular-nums",
+  minWidth: 38,
+  textAlign: "right",
+};
+const donutLegendPercentStyle: React.CSSProperties = {
+  color: "#8A94A6",
+  fontVariantNumeric: "tabular-nums",
+  fontWeight: 600,
+  width: 40,
+  textAlign: "right",
 };
 
 const priorityListStyle: React.CSSProperties = {

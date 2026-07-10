@@ -33,6 +33,8 @@
  * (it would duplicate the <h1> and CTA).
  */
 
+import { useState } from "react";
+
 import { PageShell, PageSection } from "../ui";
 
 import { useHomeData } from "./useHomeData";
@@ -44,7 +46,6 @@ import {
   IntakePipelineCard,
   OperationalQueue,
   ReportProductionCard,
-  StorageUsageCard,
   TeamWorkCard,
   TrustStateCard,
   VerificationHealthCard,
@@ -63,6 +64,7 @@ import { isFreePlan, isProOrTeam } from "./home-view-model";
 
 export function SelfServeHomeDashboard() {
   const state = useHomeData();
+  const [tab, setTab] = useState<HomeTabId>("overview");
 
   if (state.status === "loading") {
     return (
@@ -103,100 +105,147 @@ export function SelfServeHomeDashboard() {
           Search / inbox live in the global app header, not duplicated. */}
       <HomeHeader hero={vm.heroAction} />
 
-      {/* Operational summary band — one state, one sentence, one action.
-          Honest-null aware (onboarding state for zero-data users). */}
-      <ExecutiveSummaryBand summary={vm.executiveSummary} />
-
-      {/* Premium KPI cards — five real view-model numbers. */}
-      <KpiRow kpis={vm.kpis} />
-
-      {/* What needs me now — the operational decision surfaces. Action
-          needed (queue) pairs with either onboarding (true zero-data
-          users) or the ranked "What needs attention" priorities. */}
-      <PageSection
-        title="What needs you now"
-        description="Open actions and the workspace priorities ranked by severity."
-        style={sectionStyle}
+      {/* Enterprise information architecture — the single long page is now
+          four focused workspace views (segmented control). Operations,
+          Analytics and Activity relocate their modules off the Overview so
+          the landing view answers only "what needs my attention now" and
+          fits a desktop viewport with minimal scroll. All data wiring is
+          unchanged; each module keeps its data-testid/data-* contract. */}
+      <div
+        className="home-tabs"
+        role="tablist"
+        aria-label="Workspace views"
+        data-home-tabs
       >
-        <div style={rowQueueChartStyle}>
-          <OperationalQueue
-            items={vm.operationalQueue}
-            hero={vm.heroAction}
-            workspaceId={vm.workspaceId}
-            onChanged={state.reload}
-          />
-          {vm.showGettingStarted ? (
-            <GettingStartedChecklist
-              steps={vm.checklist}
-              complete={vm.checklistComplete}
-            />
-          ) : (
-            <WorkspacePrioritiesCard priorities={vm.workspacePriorities} />
-          )}
-        </div>
-      </PageSection>
+        {HOME_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            className="home-tab"
+            data-home-tab={t.id}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      {/* Recent work — the newest captures and the active matter
-          portfolio. Both deep-link into the working routes. */}
-      <PageSection
-        title="Your recent work"
-        description="The latest evidence you captured and the matters in progress."
-        style={sectionStyle}
-      >
-        <div style={rowTwoColStyle}>
-          <RecentEvidenceCard rows={vm.richRecentEvidence} />
-          <ActiveMatters rows={vm.activeMatters} summary={vm.caseHealthSummary} />
-        </div>
-      </PageSection>
+      {tab === "overview" ? (
+        <div className="home-tabpanel" role="tabpanel" data-home-tabpanel="overview">
+          {/* Operational summary band — one state, one sentence, one action. */}
+          <ExecutiveSummaryBand summary={vm.executiveSummary} />
 
-      {/* Verification & production — REAL, honest-null operational data,
-          now shown INLINE as first-class dashboard sections (no collapse,
-          no "View" accordion). Every card keeps its data-testid/data-*
-          contract; nothing was removed, only surfaced. */}
-      <PageSection
-        title="Verification & production"
-        description="Trust posture, verification health, report production, and the intake pipeline."
-        style={sectionStyle}
-      >
-        <div style={gridStyle}>
-          <TrustStateCard trust={vm.trustState} />
-          <VerificationHealthCard health={vm.verificationHealth} />
-          <ReportProductionCard production={vm.reportProduction} isFreePlan={free} />
-          <IntakePipelineCard
-            pipeline={vm.intakePipeline}
-            workspaceId={vm.workspaceId}
-            onChanged={state.reload}
-            locked={!pro}
-          />
-        </div>
-      </PageSection>
+          {/* Five KPI cards — equal-width, equal-height 5-column grid
+              (KpiRow renders the .home-kpi-grid internally). */}
+          <KpiRow kpis={vm.kpis} />
 
-      {/* Workspace insight — health posture, records-by-type, evidence
-          activity and the recent activity feed. */}
-      <PageSection
-        title="Workspace insight"
-        description="Workspace health, records by type, evidence activity, and recent events."
-        style={sectionStyle}
-      >
-        <div style={gridStyle}>
-          <WorkspaceHealthCard metrics={vm.workspaceHealth} overall={vm.workspaceHealthOverall} />
-          <EvidenceTypeDonutCard
-            distribution={vm.typeDistribution}
-            preservedFiles={vm.preservedFilesByType}
-          />
-          <EvidenceActivityChart series={vm.activitySeries} />
-          <ActivityFeed groups={vm.activity} />
-        </div>
-        <div style={{ marginTop: 16 }}>
-          <StorageUsageCard usage={vm.storage} />
-        </div>
-      </PageSection>
+          {/* Action queue + workspace priorities (or onboarding checklist). */}
+          <PageSection
+            title="What needs you now"
+            description="Open actions and the workspace priorities ranked by severity."
+            style={sectionStyle}
+          >
+            <div style={rowQueueChartStyle}>
+              <OperationalQueue
+                items={vm.operationalQueue}
+                hero={vm.heroAction}
+                workspaceId={vm.workspaceId}
+                onChanged={state.reload}
+              />
+              {vm.showGettingStarted ? (
+                <GettingStartedChecklist
+                  steps={vm.checklist}
+                  complete={vm.checklistComplete}
+                />
+              ) : (
+                <WorkspacePrioritiesCard priorities={vm.workspacePriorities} />
+              )}
+            </div>
+          </PageSection>
 
-      {/* Team Work — organization workspaces only (null in Personal Space). */}
-      {vm.teamWork ? <TeamWorkCard team={vm.teamWork} /> : null}
+          {/* Recent evidence + active matters. */}
+          <PageSection
+            title="Your recent work"
+            description="The latest evidence you captured and the matters in progress."
+            style={sectionStyle}
+          >
+            <div style={rowTwoColStyle}>
+              <RecentEvidenceCard rows={vm.richRecentEvidence} />
+              <ActiveMatters rows={vm.activeMatters} summary={vm.caseHealthSummary} />
+            </div>
+          </PageSection>
+        </div>
+      ) : null}
+
+      {tab === "operations" ? (
+        <div className="home-tabpanel" role="tabpanel" data-home-tabpanel="operations">
+          {/* Operational production modules — trust posture, verification
+              health, report production, and the intake pipeline. */}
+          <PageSection
+            title="Verification & production"
+            description="Trust posture, verification health, report production, and the intake pipeline."
+            style={sectionStyle}
+          >
+            {/* Row 1 — Verification Summary + Public Verification Links,
+                balanced. Row 2 — Report Production (wider track) beside the
+                Intake Pipeline, so neither is cramped in a narrow 3-up. */}
+            <div className="home-ops-row">
+              <VerificationHealthCard health={vm.verificationHealth} />
+              <TrustStateCard trust={vm.trustState} />
+            </div>
+            <div className="home-ops-row-2" style={{ marginTop: 16 }}>
+              <ReportProductionCard production={vm.reportProduction} isFreePlan={free} />
+              <IntakePipelineCard
+                pipeline={vm.intakePipeline}
+                workspaceId={vm.workspaceId}
+                onChanged={state.reload}
+                locked={!pro}
+              />
+            </div>
+          </PageSection>
+        </div>
+      ) : null}
+
+      {tab === "analytics" ? (
+        <div className="home-tabpanel" role="tabpanel" data-home-tabpanel="analytics">
+          {/* Row 1 — workspace health, records by type, evidence activity.
+              Row 2 — the full-width Recent Activity module (moved here from
+              the retired Activity tab). Storage now lives in the sidebar. */}
+          <PageSection
+            title="Workspace analytics"
+            description="Workspace health, records by type, evidence activity, and recent activity."
+            style={sectionStyle}
+          >
+            <div className="home-analytics-grid">
+              <WorkspaceHealthCard metrics={vm.workspaceHealth} overall={vm.workspaceHealthOverall} />
+              <EvidenceTypeDonutCard
+                distribution={vm.typeDistribution}
+                preservedFiles={vm.preservedFilesByType}
+              />
+              <EvidenceActivityChart series={vm.activitySeries} />
+              <div className="home-analytics-full">
+                <ActivityFeed groups={vm.activity} />
+              </div>
+            </div>
+          </PageSection>
+
+          {/* Team Work — organization workspaces only (null in Personal). */}
+          {vm.teamWork ? <TeamWorkCard team={vm.teamWork} /> : null}
+        </div>
+      ) : null}
     </PageShell>
   );
 }
+
+type HomeTabId = "overview" | "operations" | "analytics";
+
+const HOME_TABS: ReadonlyArray<{ id: HomeTabId; label: string }> = [
+  { id: "overview", label: "Overview" },
+  { id: "operations", label: "Operations" },
+  { id: "analytics", label: "Analytics" },
+];
 
 // Phase 7C — PageShell owns the page frame (max-width, `--page-pad-x`,
 // `--page-pad-y`, section gap), matching every other authenticated page.
@@ -218,15 +267,6 @@ const rowTwoColStyle: React.CSSProperties = {
 const rowQueueChartStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))",
-  gap: 16,
-  alignItems: "stretch",
-};
-// The operational dashboard grid — 2-up on desktop, wrapping cleanly to a
-// single column on narrow viewports. Used for the (now inline, no-longer-
-// collapsed) verification/production + workspace-insight sections.
-const gridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))",
   gap: 16,
   alignItems: "stretch",
 };

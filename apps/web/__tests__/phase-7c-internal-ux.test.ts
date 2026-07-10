@@ -74,9 +74,10 @@ test("/home shows operational cards inline (no collapse) and drops the Get-thing
     /Get things done/,
     "the 'Get things done' primary-action section must be removed",
   );
-  // The operational cards still render as first-class content.
+  // The operational cards still render as first-class content. (Storage
+  // moved out of the dashboard into a compact sidebar widget.)
   assert.match(src, /VerificationHealthCard/, "verification health card renders inline");
-  assert.match(src, /StorageUsageCard/, "storage card renders inline");
+  assert.match(src, /EvidenceActivityChart/, "evidence activity card renders inline");
   // The premium shell section primitive is in use.
   assert.match(src, /PageSection/, "Home must use the shared PageSection for premium grouping");
 });
