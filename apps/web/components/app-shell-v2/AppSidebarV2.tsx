@@ -187,29 +187,31 @@ const BADGE_PALETTE: Record<
   SidebarBadgeTone,
   { bg: string; ink: string; border: string; dot: string }
 > = {
+  // Light-surface palette — the sidebar is now a light branded artwork, so
+  // badge inks are enterprise-dark (never pale/white) for readable contrast.
   neutral: {
-    bg: "rgba(255, 255, 255, 0.08)",
-    ink: "rgba(244, 247, 245, 0.85)",
-    border: "rgba(255, 255, 255, 0.16)",
-    dot: "#94a3b8",
+    bg: "rgba(20, 26, 34, 0.06)",
+    ink: "#4B5565",
+    border: "rgba(20, 26, 34, 0.12)",
+    dot: "#7A8597",
   },
   warning: {
-    bg: "rgba(245, 158, 11, 0.18)",
-    ink: "#fde68a",
+    bg: "rgba(245, 158, 11, 0.16)",
+    ink: "#92580A",
     border: "rgba(245, 158, 11, 0.4)",
-    dot: "#f59e0b",
+    dot: "#D97706",
   },
   high: {
-    bg: "rgba(239, 68, 68, 0.18)",
-    ink: "#fecaca",
-    border: "rgba(239, 68, 68, 0.45)",
-    dot: "#ef4444",
+    bg: "rgba(239, 68, 68, 0.14)",
+    ink: "#B42318",
+    border: "rgba(239, 68, 68, 0.4)",
+    dot: "#DC2626",
   },
   critical: {
-    bg: "rgba(239, 68, 68, 0.32)",
-    ink: "#fee2e2",
-    border: "rgba(239, 68, 68, 0.65)",
-    dot: "#b91c1c",
+    bg: "rgba(239, 68, 68, 0.20)",
+    ink: "#912018",
+    border: "rgba(239, 68, 68, 0.55)",
+    dot: "#B42318",
   },
 };
 
@@ -381,9 +383,9 @@ function SidebarLink({
             textTransform: "uppercase",
             padding: "1px 6px",
             borderRadius: 999,
-            background: "rgba(148, 163, 184, 0.18)",
-            border: "1px solid rgba(148, 163, 184, 0.4)",
-            color: "rgba(244, 247, 245, 0.7)",
+            background: "rgba(20, 26, 34, 0.06)",
+            border: "1px solid rgba(20, 26, 34, 0.14)",
+            color: "#5A6576",
           }}
         >
           {degradationLabel}
@@ -757,7 +759,7 @@ const teamId =
         className="app-sidebar-v2-brand-mark"
       />
       <img
-        src="/assets/branding/footer-logo.png"
+        src="/assets/branding/logo-dark.png"
         alt=""
         aria-hidden="true"
         className="app-sidebar-v2-brand-logo"

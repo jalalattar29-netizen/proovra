@@ -67,17 +67,53 @@ export function toneColor(tone: HomeTone): { fg: string; bg: string; dot: string
   }
 }
 
-/** The canonical Home card — premium white surface, subtle border, soft
- * enterprise shadow, 16px radius (same radius/shadow language as every
- * dashboard panel). Generous padding for calm hierarchy. */
+/** The canonical Home card — one consistent enterprise surface shared by
+ * every Home widget: a lightly translucent white that reads as premium
+ * glass over the branded app background (never a flat pure-white block),
+ * a single hairline border, one soft depth shadow, 20px radius and calm
+ * internal padding. Dense cards/tables can raise opacity via
+ * `homeCardDenseStyle`. */
 export const homeCardStyle: React.CSSProperties = {
-  background: HOME_COLORS.card,
-  border: "1px solid rgba(15, 23, 42, 0.08)",
-  borderRadius: 16,
-  padding: 20,
+  background: "rgba(255, 255, 255, 0.88)",
+  border: "1px solid rgba(15, 23, 42, 0.07)",
+  borderRadius: 20,
+  padding: 22,
   margin: 0,
-  boxShadow:
-    "0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 20px rgba(15, 23, 42, 0.05)",
+  boxShadow: "0 16px 40px rgba(15, 23, 42, 0.055)",
+};
+
+/** Denser variant for tables / data-heavy panels — a stronger opacity so
+ * small text keeps full contrast. Same border/shadow/radius language. */
+export const homeCardDenseStyle: React.CSSProperties = {
+  ...homeCardStyle,
+  background: "rgba(255, 255, 255, 0.94)",
+};
+
+/** Premium enterprise WARNING surface (Action needed / needs-attention).
+ * Warm ivory, restrained amber accent — serious + operational, never the
+ * cheap saturated-orange block. */
+export const HOME_WARN = {
+  bg: "rgba(255, 250, 240, 0.9)",
+  bgSolid: "#FFF9ED",
+  border: "rgba(180, 116, 35, 0.18)",
+  accent: "#B7791F",
+  accentDeep: "#A16207",
+  badgeBg: "rgba(180, 116, 35, 0.10)",
+  badgeText: "#7C4A03",
+  buttonBg: "#1F2937",
+  buttonText: "#ffffff",
+} as const;
+
+/** The premium enterprise warning card — ivory glass + a restrained amber
+ * left accent. Consistent radius/shadow with the default card. */
+export const homeWarningCardStyle: React.CSSProperties = {
+  background: HOME_WARN.bg,
+  border: `1px solid ${HOME_WARN.border}`,
+  borderLeft: `3px solid ${HOME_WARN.accent}`,
+  borderRadius: 20,
+  padding: 22,
+  margin: 0,
+  boxShadow: "0 16px 40px rgba(120, 74, 3, 0.05)",
 };
 
 export const homeCardHeaderStyle: React.CSSProperties = {
@@ -142,11 +178,11 @@ export const homePageStyle: React.CSSProperties = {
   // Vertical rhythm + section gaps stay on the 8px grid.
   maxWidth: 1600,
   margin: "0 auto",
-  padding: "4px 0 56px",
+  padding: "4px 0 40px",
   fontFamily:
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   display: "flex",
   flexDirection: "column",
-  gap: 24,
+  gap: 20,
   background: "transparent",
 };

@@ -37,10 +37,13 @@ import type {
 import {
   HOME_COLORS,
   HOME_TINTS,
+  HOME_WARN,
   homeCardCtaStyle,
   homeCardHeaderStyle,
   homeCardStyle,
   homeCardTitleStyle,
+  homeChipStyle,
+  homeWarningCardStyle,
   toneColor,
   type HomeTone,
 } from "./home-theme";
@@ -157,17 +160,61 @@ export function HeroNextAction({ action }: { action: HeroAction }) {
 // 1. OPERATIONAL QUEUE — the most important widget. What needs action now.
 // ============================================================================
 
+// Phase HOME-POLISH (amber) — the queue no longer paints saturated
+// orange/red surfaces. Every action card is the premium ivory
+// `homeWarningCardStyle`; severity only selects a restrained badge
+// label (the accent stays amber across the board). Critical still
+// reads as "Needs attention" so the surface never turns into a loud
+// red block.
 function severityStyle(sev: OperationalQueueItem["severity"]): {
-  bg: string;
-  border: string;
-  fg: string;
   chipLabel: string;
 } {
-  if (sev === "critical")
-    return { bg: "#fef2f2", border: "rgba(220,38,38,0.28)", fg: HOME_COLORS.dangerDeep, chipLabel: "Critical" };
-  if (sev === "warn")
-    return { bg: "#fffaf0", border: "rgba(217,119,6,0.28)", fg: HOME_COLORS.warnDeep, chipLabel: "Needs attention" };
-  return { bg: "rgba(79,70,229,0.05)", border: "rgba(79,70,229,0.22)", fg: "#4338ca", chipLabel: "Action" };
+  if (sev === "critical") return { chipLabel: "Needs attention" };
+  if (sev === "warn") return { chipLabel: "Needs attention" };
+  return { chipLabel: "Action" };
+}
+
+/** Small amber pill used for the severity/status label — restrained
+ * badge tokens, never a loud orange fill. */
+const warnBadgeStyle: React.CSSProperties = {
+  ...homeChipStyle,
+  background: HOME_WARN.badgeBg,
+  color: HOME_WARN.badgeText,
+};
+
+/** The dark, clearly-clickable action button shared by both queue
+ * cards. Subtle hover lightens the slate fill. */
+function QueueActionLink({
+  href,
+  fallback,
+  children,
+}: {
+  href: string;
+  fallback: boolean;
+  children: ReactNode;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <Link
+      href={href}
+      data-queue-action={fallback ? "navigate-fallback" : "navigate"}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: "inline-block",
+        padding: "9px 15px",
+        borderRadius: 12,
+        background: hover ? "#374151" : HOME_WARN.buttonBg,
+        color: HOME_WARN.buttonText,
+        fontWeight: 650,
+        fontSize: 13,
+        textDecoration: "none",
+        transition: "background 140ms ease",
+      }}
+    >
+      {children}
+    </Link>
+  );
 }
 
 function QueueRow({
@@ -189,41 +236,48 @@ function QueueRow({
       data-queue-severity={item.severity}
       data-queue-fallback={String(item.fallback)}
       style={{
+        ...homeWarningCardStyle,
         listStyle: "none",
-        padding: prominent ? "14px 16px" : "10px 12px",
-        borderRadius: 12,
-        background: s.bg,
-        border: `1px solid ${s.border}`,
-        borderLeft: `4px solid ${s.fg}`,
+        padding: 18,
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-          <span
-            data-queue-priority-chip={item.severity}
-            style={{ ...chipStyle, background: s.fg, color: "white", fontSize: 10, letterSpacing: 0.4, textTransform: "uppercase" }}
-          >
+          <span data-queue-priority-chip={item.severity} style={warnBadgeStyle}>
             {s.chipLabel}
           </span>
-          <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: s.fg, textTransform: "uppercase" }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: HOME_WARN.accentDeep, textTransform: "uppercase" }}>
             {item.label}
           </span>
         </span>
         <span style={listItemTimeStyle}>{item.occurredAt ? formatRelative(item.occurredAt) : ""}</span>
       </div>
-      <div style={{ fontSize: prominent ? 16 : 14, fontWeight: 650, color: HOME_COLORS.ink, margin: "5px 0 8px 0" }}>
+      <div style={{ fontSize: prominent ? 16 : 15, fontWeight: 650, color: HOME_COLORS.ink, margin: "8px 0 10px 0", lineHeight: 1.35 }}>
         {item.title}
       </div>
       {item.breakdown && item.breakdown.length > 0 ? (
-        <div data-queue-breakdown style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "0 0 9px 0" }}>
+        <div data-queue-breakdown style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "0 0 14px 0" }}>
           {item.breakdown.map((b) => (
-            <span key={b} style={{ ...chipStyle, background: "rgba(255,255,255,0.75)", color: s.fg, border: `1px solid ${s.border}` }}>
+            <span
+              key={b}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: HOME_COLORS.slate,
+              }}
+            >
+              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: HOME_WARN.accent, flexShrink: 0 }} />
               {b}
             </span>
           ))}
         </div>
       ) : null}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: "auto" }}>
         {item.action.kind === "retry_delivery" && item.action.messageId ? (
           <RetryDeliveryButton
             messageId={item.action.messageId}
@@ -232,13 +286,9 @@ function QueueRow({
             onRetried={onChanged}
           />
         ) : (
-          <Link
-            href={item.action.href}
-            data-queue-action={item.fallback ? "navigate-fallback" : "navigate"}
-            style={{ ...secondaryButtonStyle, background: s.fg, color: "white", border: `1px solid ${s.fg}` }}
-          >
+          <QueueActionLink href={item.action.href} fallback={item.fallback}>
             {item.action.label}
-          </Link>
+          </QueueActionLink>
         )}
       </div>
     </li>
@@ -263,13 +313,27 @@ export function OperationalQueue({
       style={{ ...cardStyle, padding: 18 }}
     >
       <header style={cardHeaderStyle}>
-        <h2 style={cardTitleStyle}>
+        <h2 style={{ ...cardTitleStyle, display: "inline-flex", alignItems: "center", gap: 8 }}>
           {/* Phase HOME-COPY — "Action needed" is plainer than the
               previous "Operational queue" (enterprise jargon that
               didn't read well for individuals, journalists, or small
               businesses). Same data; clearer intent — these are the
               things the user can act on right now. */}
-          {items.length > 0 ? `Action needed · ${items.length}` : "Action needed"}
+          Action needed
+          {items.length > 0 ? (
+            <span
+              style={{
+                ...homeChipStyle,
+                background: HOME_WARN.badgeBg,
+                color: HOME_WARN.badgeText,
+                letterSpacing: 0,
+                textTransform: "none",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {items.length}
+            </span>
+          ) : null}
         </h2>
       </header>
       {items.length === 0 ? (
@@ -277,8 +341,19 @@ export function OperationalQueue({
         <HeroNextAction action={hero} />
       ) : (
         <>
-          {/* Phase HOME-POLISH — top 3 only; the queue stays scannable. */}
-          <ul style={{ ...listStyle, gap: 8 }}>
+          {/* Phase HOME-POLISH — top 3 only; the queue stays scannable.
+              Compact 2-up grid on desktop, stacking on tablet/mobile. */}
+          <ul
+            style={{
+              listStyle: "none",
+              padding: 0,
+              margin: 0,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))",
+              gap: 16,
+              alignItems: "stretch",
+            }}
+          >
             {items.slice(0, 3).map((item, i) => (
               <QueueRow
                 key={item.id}

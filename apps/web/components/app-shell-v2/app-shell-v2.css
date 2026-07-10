@@ -18,16 +18,37 @@
   --content-ink-muted: var(--ink-secondary);
   --content-hover-bg: rgba(15, 23, 42, 0.05);
   --content-hover-border: rgba(15, 23, 42, 0.09);
-  --nav-ink: rgba(226, 232, 240, 0.82);
-  --nav-ink-strong: #F8FAFC;
-  --nav-ink-muted: rgba(226, 232, 240, 0.42);
-  --nav-icon-idle: rgba(226, 232, 240, 0.62);
-  --nav-hover-bg: rgba(255, 255, 255, 0.05);
-  --nav-active-bg: rgba(255, 255, 255, 0.06);
-  --nav-divider: rgba(255, 255, 255, 0.08);
+  /* Light branded sidebar — the rail background is a very light artwork
+     (assets/cards/sidebar.png), so every nav foreground colour is
+     enterprise-dark for excellent contrast + readability. Never white. */
+  --nav-ink: #1A1F2B;                /* primary labels */
+  --nav-ink-strong: #141A22;         /* active / hover strong text */
+  --nav-ink-muted: #7A8597;          /* muted labels */
+  --nav-ink-secondary: #4B5565;      /* secondary labels / section titles */
+  --nav-icon-idle: #495469;          /* inactive icons */
+  --nav-icon-hover: #2F3A52;         /* hover icons */
+  --nav-icon-active: #223354;        /* active icons — PROOVRA brand navy */
+  --nav-hover-bg: rgba(255, 255, 255, 0.30);    /* very light white wash */
+  --nav-active-bg: rgba(255, 255, 255, 0.45);   /* soft white capsule */
+  --nav-active-border: rgba(255, 255, 255, 0.55);
+  --nav-divider: rgba(255, 255, 255, 0.25);
 
+  /* AUTHENTICATED APP SHELL BACKGROUND (internal pages only).
+     The branded artwork is attached ONCE, centrally, to the app-shell
+     container so every logged-in page inherits it — never repeated per
+     page. It stays fixed while content scrolls; on long pages the fallback
+     colour continues naturally below the image, on short pages min-height
+     keeps the viewport filled. The sidebar (fixed, own image) overlays
+     column 1, so this background shows only behind the header + content
+     area — it never overrides the sidebar. Public/marketing/login/verify
+     pages are outside .app-shell-v2 and are unaffected. */
   min-height: 100vh;
-  background: var(--shell-bg);
+  background-color: var(--shell-bg, #F8FAFC);
+  background-image: url("/assets/backgrounds/app-shell-bg.png");
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: var(--content-ink);
 
   /* PHASE 1 — TRUE 2×2 GRID (PUSH MODE).
@@ -93,7 +114,9 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--shell-bg);
+  /* Transparent — the app-shell background (on .app-shell-v2) shows
+     through here; not repeated per slot. */
+  background: transparent;
 }
 
 .app-shell-v2-mobile-overlay,
@@ -116,33 +139,21 @@
   width: var(--sidebar-collapsed);
   height: 100vh;
   overflow: hidden;
-  /* PREMIUM ENTERPRISE SURFACE — a calm navy → graphite gradient built
-     from the canonical sidebar tokens (--nav-surface-top / -mid /
-     -bottom). No photo backdrop, no overlay, no legibility hacks: solid
-     dark ink means nav copy reads cleanly at any width. A faint indigo
-     glow at the top ties the rail to the --brand-accent without a
-     violet wash. */
-  background-color: var(--nav-surface-top);
-  background-image:
-    radial-gradient(
-      120% 60% at 50% -8%,
-      color-mix(in srgb, var(--brand-accent) 12%, transparent) 0%,
-      transparent 60%
-    ),
-    linear-gradient(
-      180deg,
-      var(--nav-surface-top) 0%,
-      var(--nav-surface-mid) 46%,
-      var(--nav-surface-bottom) 100%
-    );
+  /* PREMIUM LIGHT ENTERPRISE SURFACE — the branded artwork IS the
+     background. One image, shown naturally: no CSS gradient, no overlay,
+     no tint, no blur, no opacity layer. The artwork already carries the
+     visual identity; foreground nav colours (above) are enterprise-dark
+     so copy stays highly readable over it. */
+  background-image: url("/assets/cards/sidebar.png");
   background-repeat: no-repeat;
+  background-position: center;
   background-size: cover;
   border-right: 1px solid var(--nav-divider);
   color: var(--nav-ink);
   transition: width var(--sidebar-transition);
   z-index: 95;
   isolation: isolate;
-  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.02);
+  box-shadow: 1px 0 0 rgba(20, 26, 34, 0.04);
 }
 
 /* Hover / keyboard-focus expands the rail; the auto grid track
@@ -177,7 +188,8 @@
   display: flex;
   align-items: center;
   margin-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  /* No divider under the logo — the brand area blends naturally into the
+     sidebar background. */
 }
 
 .app-sidebar-v2-brand-mark {
@@ -254,9 +266,9 @@
    groups read as discrete enterprise sections. */
 .app-sidebar-v2-group-title {
   padding: 2px 18px 8px;
-  /* Readable group label — brighter than the deep-muted body ink so the
-     section headers scan as structure, not noise, over the navy. */
-  color: rgba(226, 232, 240, 0.6);
+  /* Readable section header — enterprise secondary slate so the group
+     titles scan as structure, not noise, over the light artwork. */
+  color: var(--nav-ink-secondary);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -311,40 +323,34 @@
   font-weight: 500;
   letter-spacing: -0.006em;
   position: relative;
+  /* Calm, premium interaction feedback (Linear / Stripe / Notion). */
   transition:
-    background 120ms ease,
-    color 120ms ease;
+    background 200ms ease,
+    color 200ms ease,
+    box-shadow 200ms ease;
   overflow: hidden;
 }
 
 .app-sidebar-v2-link:hover {
+  /* Extremely subtle: a very light white wash, no glow, no animation
+     overload. */
   background: var(--nav-hover-bg);
   color: var(--nav-ink-strong);
 }
 
 .app-sidebar-v2-link.is-active {
-  /* Enterprise active state: an accent-tinted glass surface + a
-     rounded 3px accent rail + stronger typography. The tint is derived
-     from --brand-accent so it tracks the design-token accent; a hairline
-     accent inset border lifts the row off the navy without a heavy glow. */
-  background: color-mix(in srgb, var(--brand-accent) 16%, transparent);
+  /* Modern enterprise active state (Linear / Stripe / Notion / Atlassian):
+     a soft, elegant rounded capsule that lifts off the light artwork.
+     A soft white surface + a hairline white border (rendered as an inset
+     ring so it never shifts layout by a pixel) + a very subtle drop
+     shadow. No accent rail, no glow, no loud gradient. */
+  background: var(--nav-active-bg);
   color: var(--nav-ink-strong);
   font-weight: 600;
+  border-radius: 10px;
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--brand-accent) 22%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.app-sidebar-v2-link.is-active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
-  background: var(--brand-accent);
-  border-radius: 0 3px 3px 0;
-  box-shadow: 0 0 10px color-mix(in srgb, var(--brand-accent) 55%, transparent);
+    inset 0 0 0 1px var(--nav-active-border),
+    0 10px 25px rgba(30, 41, 59, 0.06);
 }
 
 .app-sidebar-v2-link-icon {
@@ -357,7 +363,7 @@
   background: transparent;
   border: none;
   flex: 0 0 40px;
-  transition: color 120ms ease;
+  transition: color 200ms ease;
 }
 
 .app-sidebar-v2-link-icon svg {
@@ -366,13 +372,14 @@
 }
 
 .app-sidebar-v2-link:hover .app-sidebar-v2-link-icon {
-  color: var(--nav-ink-strong);
+  color: var(--nav-icon-hover);
 }
 
-/* Active icon takes the accent so the whole row reads as "here" at a
-   glance — critical in the collapsed icon rail where the label is hidden. */
+/* Active icon takes the calm PROOVRA brand navy (not a bright/saturated
+   accent) so the whole row reads as "here" at a glance — critical in the
+   collapsed icon rail where the label is hidden. */
 .app-sidebar-v2-link.is-active .app-sidebar-v2-link-icon {
-  color: var(--brand-accent);
+  color: var(--nav-icon-active);
 }
 
 /* Keyboard focus — a clear accent ring inset so it never clips against
@@ -475,7 +482,9 @@
 
 .app-shell-v2-content-wrap {
   min-width: 0;
-  background: var(--shell-bg);
+  /* Transparent so the single app-shell background (on .app-shell-v2)
+     shows through — the image is not repeated here. */
+  background: transparent;
   display: flex;
   flex-direction: column;
 }
@@ -483,8 +492,14 @@
 .app-shell-v2-content {
   min-width: 0;
   padding: 28px 40px 56px;
-  background: var(--shell-bg);
+  background: transparent;
   flex: 1 1 auto;
+  /* Content-area card readability over the light artwork. Cards read
+     `var(--surface-card)`; a high-opacity translucent white keeps every
+     card/panel/table crisp and readable while picking up a subtle premium
+     frost from the background. Scoped to the content area only — the
+     sidebar, header, and all public/marketing pages are unaffected. */
+  --surface-card: rgba(255, 255, 255, 0.92);
 }
 
 /* =====================================================================
@@ -497,9 +512,14 @@
      which is itself position:sticky. Positioning is handled by the
      slot; the bar is now a plain block. */
   height: var(--header-h);
-  background: var(--surface-header, #F8FAFC);
-  border-bottom: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.08));
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+  /* Header floats over the app-shell background — no white bar, no bottom
+     border/separator, no shadow. An extremely subtle glass layer only, so
+     the header reads cleanly while merging with the branded surface. */
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: none;
+  box-shadow: none;
 }
 
 .app-topbar-v2-inner,
@@ -731,20 +751,22 @@
   gap: 8px;
   padding: 12px 20px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  /* Stronger enterprise glass — clearly clickable over the dark navy alert,
+     with a soft depth shadow. Not a flashy colour. */
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   color: #ffffff;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
   text-decoration: none;
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
-  transition: background 120ms ease, border-color 120ms ease;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+  transition: background 160ms ease, border-color 160ms ease;
 }
 
 .home-exec-action:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 /* Primary action — the header's single filled CTA (enterprise indigo). */
@@ -1335,6 +1357,11 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: var(--header-h) minmax(0, 1fr);
     transition: none;
+    /* iOS Safari mishandles `background-attachment: fixed` at cover size
+       (over-scales the image). Use `scroll` on mobile — still cover +
+       center top; on long pages the image scrolls and the fallback colour
+       continues below, on short pages cover fills the viewport. */
+    background-attachment: scroll;
   }
 
   .app-shell-v2-sidebar-slot {

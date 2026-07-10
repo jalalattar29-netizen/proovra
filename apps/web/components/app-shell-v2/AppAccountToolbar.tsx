@@ -5,12 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bell,
-  Camera,
   ChevronDown,
   CreditCard,
   HelpCircle,
   LogOut,
   Menu,
+  Plus,
   Search,
   Settings,
   ShieldCheck,
@@ -271,23 +271,32 @@ export function AppAccountToolbar({
 
         <div className="app-header-zone-right">
           <Link
-            href="/capture"
+            href="/cases"
             className="app-header-primary-action"
             data-app-header-primary-action
           >
-            <Camera size={16} strokeWidth={2} />
-            <span>New Evidence</span>
+            <Plus size={16} strokeWidth={2} />
+            <span>New Case</span>
           </Link>
 
           <span className="app-header-divider" aria-hidden="true" />
 
-          <div
-            className="app-topbar-v2-runtime"
-            data-app-topbar-runtime
-            aria-label="System status"
-          >
-            <GlobalRuntimeIndicator teamId={runtimeTeamId} />
-          </div>
+          {/* System-status indicator is an operator surface that only has
+              meaning for a team/organization runtime. In a Personal
+              Workspace `runtimeTeamId` is null and GlobalRuntimeIndicator
+              renders nothing — so we skip the whole wrapper here to avoid
+              an empty, label-less, non-interactive element (and its gap)
+              in the header. It stays fully intact for Organization / Team /
+              Enterprise / Admin workspaces where it has a real status. */}
+          {runtimeTeamId ? (
+            <div
+              className="app-topbar-v2-runtime"
+              data-app-topbar-runtime
+              aria-label="System status"
+            >
+              <GlobalRuntimeIndicator teamId={runtimeTeamId} />
+            </div>
+          ) : null}
 
           <InboxIndicator />
 

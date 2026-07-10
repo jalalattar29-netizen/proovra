@@ -334,6 +334,15 @@ export function ExecutiveSummaryBand({ summary }: { summary: ExecutiveSummary })
           </svg>
         </Link>
       ) : null}
+      {/* Artwork column — reserves the right zone for the PROOVRA hexagon
+          background so the action button sits BETWEEN the alert copy and the
+          artwork (not flush to the far-right edge, not floating over the
+          mark). It shrinks toward zero and wraps on narrow screens so the
+          layout stacks naturally: text, then button, then artwork. */}
+      <div
+        aria-hidden
+        style={{ flex: "0 1 clamp(120px, 20%, 260px)", minWidth: 0 }}
+      />
     </section>
   );
 }

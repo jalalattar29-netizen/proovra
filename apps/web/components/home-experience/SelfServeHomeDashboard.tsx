@@ -33,10 +33,7 @@
  * (it would duplicate the <h1> and CTA).
  */
 
-import Link from "next/link";
-
 import { PageShell, PageSection } from "../ui";
-import { Card } from "../ui/Card";
 
 import { useHomeData } from "./useHomeData";
 import {
@@ -62,7 +59,6 @@ import {
   RecentEvidenceCard,
   WorkspacePrioritiesCard,
 } from "./HomeDashboardSections";
-import { HOME_COLORS } from "./home-theme";
 import { isFreePlan, isProOrTeam } from "./home-view-model";
 
 export function SelfServeHomeDashboard() {
@@ -153,89 +149,48 @@ export function SelfServeHomeDashboard() {
         </div>
       </PageSection>
 
-      {/* Primary actions — the core workflow entry points. Clean action
-          cards (Card `action` variant) over the exact working routes;
-          no fabricated data, pure navigation. */}
+      {/* Verification & production — REAL, honest-null operational data,
+          now shown INLINE as first-class dashboard sections (no collapse,
+          no "View" accordion). Every card keeps its data-testid/data-*
+          contract; nothing was removed, only surfaced. */}
       <PageSection
-        title="Get things done"
-        description="Jump straight into the core evidence workflows."
+        title="Verification & production"
+        description="Trust posture, verification health, report production, and the intake pipeline."
         style={sectionStyle}
       >
-        <div style={actionsRowStyle}>
-          <PrimaryActionCard
-            href="/capture"
-            label="Capture evidence"
-            hint="Seal a photo, video, document, or screen recording."
-          />
-          <PrimaryActionCard
-            href="/evidence"
-            label="All evidence"
-            hint="Browse, filter, and manage every record."
-          />
-          <PrimaryActionCard
-            href="/cases"
-            label="Matters & cases"
-            hint="Group related evidence and track it end-to-end."
-          />
-          <PrimaryActionCard
-            href="/reports"
-            label="Reports"
-            hint="Generate and download signed evidence reports."
+        <div style={gridStyle}>
+          <TrustStateCard trust={vm.trustState} />
+          <VerificationHealthCard health={vm.verificationHealth} />
+          <ReportProductionCard production={vm.reportProduction} isFreePlan={free} />
+          <IntakePipelineCard
+            pipeline={vm.intakePipeline}
+            workspaceId={vm.workspaceId}
+            onChanged={state.reload}
+            locked={!pro}
           />
         </div>
       </PageSection>
 
-      {/* ─────────────────────────────────────────────────────────────
-          OPERATIONAL DETAIL — relegated diagnostics. Every card below is
-          real, honest-null data; it simply lives one click away so the
-          landing page stays a clean Evidence Operations overview instead
-          of a diagnostic wall. Collapsed by default. Nothing here was
-          deleted — the full trust posture, verification links, workspace
-          health, records-by-type, intake pipeline, report production,
-          activity streams and storage all still render (and keep their
-          data-testid/data-* contracts) when expanded.
-          ───────────────────────────────────────────────────────────── */}
-      <details data-home-diagnostics style={detailsStyle}>
-        <summary style={summaryStyle}>
-          <span style={summaryLabelStyle}>Operational detail</span>
-          <span style={summaryHintStyle}>
-            Full trust posture, verification links, workspace health, intake
-            pipeline, report production, and activity — one click away.
-          </span>
-          <span aria-hidden style={summaryChevronStyle}>▾</span>
-        </summary>
-
-        <div style={detailsBodyStyle}>
-          <div style={rowTwoColStyle}>
-            <TrustStateCard trust={vm.trustState} />
-            <VerificationHealthCard health={vm.verificationHealth} />
-          </div>
-          <div style={rowTwoColStyle}>
-            <ReportProductionCard production={vm.reportProduction} isFreePlan={free} />
-            <IntakePipelineCard
-              pipeline={vm.intakePipeline}
-              workspaceId={vm.workspaceId}
-              onChanged={state.reload}
-              locked={!pro}
-            />
-          </div>
-          <div style={rowTwoColStyle}>
-            <WorkspaceHealthCard metrics={vm.workspaceHealth} overall={vm.workspaceHealthOverall} />
-            <EvidenceTypeDonutCard
-              distribution={vm.typeDistribution}
-              preservedFiles={vm.preservedFilesByType}
-            />
-          </div>
-          <div style={rowTwoColStyle}>
-            <EvidenceActivityChart series={vm.activitySeries} />
-            <ActivityFeed groups={vm.activity} />
-          </div>
-          <div style={rowTwoColStyle}>
-            <StorageUsageCard usage={vm.storage} />
-            <div />
-          </div>
+      {/* Workspace insight — health posture, records-by-type, evidence
+          activity and the recent activity feed. */}
+      <PageSection
+        title="Workspace insight"
+        description="Workspace health, records by type, evidence activity, and recent events."
+        style={sectionStyle}
+      >
+        <div style={gridStyle}>
+          <WorkspaceHealthCard metrics={vm.workspaceHealth} overall={vm.workspaceHealthOverall} />
+          <EvidenceTypeDonutCard
+            distribution={vm.typeDistribution}
+            preservedFiles={vm.preservedFilesByType}
+          />
+          <EvidenceActivityChart series={vm.activitySeries} />
+          <ActivityFeed groups={vm.activity} />
         </div>
-      </details>
+        <div style={{ marginTop: 16 }}>
+          <StorageUsageCard usage={vm.storage} />
+        </div>
+      </PageSection>
 
       {/* Team Work — organization workspaces only (null in Personal Space). */}
       {vm.teamWork ? <TeamWorkCard team={vm.teamWork} /> : null}
@@ -243,115 +198,35 @@ export function SelfServeHomeDashboard() {
   );
 }
 
-/**
- * Primary-action tile — a clean navigation card over one core workflow
- * route. Uses the shared premium `Card` (action variant) wrapped in a
- * Next <Link> so the whole tile is a real, keyboard-navigable link. No
- * data, no metrics — pure navigation.
- */
-function PrimaryActionCard({
-  href,
-  label,
-  hint,
-}: {
-  href: string;
-  label: string;
-  hint: string;
-}) {
-  return (
-    <Link href={href} data-home-action={href} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
-      <Card variant="action" padding="comfortable" style={{ height: "100%" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, minHeight: 78 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: HOME_COLORS.ink, letterSpacing: -0.2 }}>
-            {label}
-          </span>
-          <span style={{ fontSize: 12.5, lineHeight: 1.45, color: HOME_COLORS.slate }}>
-            {hint}
-          </span>
-          <span style={{ marginTop: "auto", fontSize: 12.5, fontWeight: 650, color: HOME_COLORS.indigo }}>
-            Open →
-          </span>
-        </div>
-      </Card>
-    </Link>
-  );
-}
-
 // Phase 7C — PageShell owns the page frame (max-width, `--page-pad-x`,
 // `--page-pad-y`, section gap), matching every other authenticated page.
 // We do NOT re-apply the home-theme `homePageStyle` outer gutter here —
-// that would double the shell's horizontal padding (the exact
-// double-gutter home-theme.ts warns about). The only override is a touch
-// more bottom breathing room so the relegated-diagnostics disclosure
-// isn't flush with the viewport edge on a long scroll.
-const pageShellStyle: React.CSSProperties = { paddingBottom: 56 };
+// that would double the shell's horizontal padding.
+const pageShellStyle: React.CSSProperties = { paddingBottom: 40 };
 // PageSection already owns its header margin; kill the extra block so the
 // section title sits tight above its cards.
 const sectionStyle: React.CSSProperties = { display: "block" };
 // minmax(0, …) keeps charts/lists from forcing horizontal overflow on
-// narrow viewports; auto-fit collapses to one column under ~720px.
+// narrow viewports; auto-fit collapses to one column under ~720px. Gaps
+// tightened (16px) so the dashboard reads dense + premium, not spread out.
 const rowTwoColStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))",
-  gap: 20,
+  gap: 16,
   alignItems: "stretch",
 };
 const rowQueueChartStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))",
-  gap: 20,
-  alignItems: "stretch",
-};
-const actionsRowStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
   gap: 16,
   alignItems: "stretch",
 };
-
-// Relegated-diagnostics disclosure — a premium collapsed panel. Closed
-// by default so the landing page stays clean; opens to the full
-// operational detail. Styled inline with the home-theme tokens (the
-// shared card vocabulary) rather than forking a shared component.
-const detailsStyle: React.CSSProperties = {
-  border: `1px solid ${HOME_COLORS.cardBorder}`,
-  borderRadius: 16,
-  background: HOME_COLORS.card,
-  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
-  overflow: "hidden",
-};
-const summaryStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: "16px 20px",
-  cursor: "pointer",
-  listStyle: "none",
-  userSelect: "none",
-};
-const summaryLabelStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 700,
-  color: HOME_COLORS.ink,
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-  flexShrink: 0,
-};
-const summaryHintStyle: React.CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  fontSize: 12.5,
-  color: HOME_COLORS.slate,
-  lineHeight: 1.45,
-};
-const summaryChevronStyle: React.CSSProperties = {
-  fontSize: 14,
-  color: HOME_COLORS.muted,
-  flexShrink: 0,
-};
-const detailsBodyStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 20,
-  padding: "0 20px 20px",
+// The operational dashboard grid — 2-up on desktop, wrapping cleanly to a
+// single column on narrow viewports. Used for the (now inline, no-longer-
+// collapsed) verification/production + workspace-insight sections.
+const gridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))",
+  gap: 16,
+  alignItems: "stretch",
 };

@@ -63,6 +63,12 @@ export function useHomeData(): HomeData {
   const activeSpace = useActiveSpace();
   const activeSpaceType = activeSpace?.type ?? null;
   const orgs = useOrganizations();
+  // Read `orgs` through a ref inside `reload` so the callback's identity
+  // does NOT change on every render when `useOrganizations()` returns a
+  // fresh array reference — which would otherwise re-fire the mount effect
+  // and refetch the whole dashboard on every render.
+  const orgsRef = useRef(orgs);
+  orgsRef.current = orgs;
 
   const [state, setState] = useState<HomeDataState>({
     status: "loading",
@@ -70,7 +76,16 @@ export function useHomeData(): HomeData {
   });
 
   const reload = useCallback(async () => {
-    setState({ status: "loading", viewModel: null });
+    // KEEP-PREVIOUS-DATA — only show the full-page skeleton on the FIRST
+    // load (no prior view-model). Every subsequent refresh (dependency
+    // change, or the throttled focus/visibility revalidation below) keeps
+    // the current dashboard on screen and swaps in fresh data when it
+    // arrives — so returning to /home never blanks to a skeleton or
+    // "reloads" the whole page. Background GETs only; no mutations, no
+    // upload/finalize/report side effects run from Home.
+    setState((prev) =>
+      prev.viewModel ? prev : { status: "loading", viewModel: null },
+    );
 
     const scoped = (path: string): string =>
       workspaceId
@@ -162,7 +177,7 @@ export function useHomeData(): HomeData {
       recordsByTypePromise,
     ]);
 
-    const orgsInput: HomeOrgsInput = orgs.map((o) => ({
+    const orgsInput: HomeOrgsInput = orgsRef.current.map((o) => ({
       id: o.id,
       name: o.name,
       displayName: o.displayName,
@@ -189,7 +204,9 @@ export function useHomeData(): HomeData {
     });
 
     setState({ status: "ready", viewModel });
-  }, [workspaceId, activeSpaceType, activeSpace?.displayName, plan, orgs]);
+    // `orgs` is intentionally read via `orgsRef` (not a dep) so this
+    // callback stays referentially stable across renders.
+  }, [workspaceId, activeSpaceType, activeSpace?.displayName, plan]);
 
   useEffect(() => {
     void reload();

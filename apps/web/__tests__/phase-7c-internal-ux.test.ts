@@ -55,16 +55,28 @@ test("/admin/provisioning has no 'admin workspace' copy and uses useActiveWorksp
 });
 
 // ---------------------------------------------------------------------------
-// /home — diagnostics must NOT be the default content; they are relegated
-// behind a disclosure (clean landing page, not a signals dump).
+// /home — the operational cards are now first-class inline dashboard
+// sections (no collapse/accordion). The old <details data-home-diagnostics>
+// disclosure and the "Get things done" primary-action block were removed so
+// the page reads like a real dense operations dashboard, not a landing page
+// with a hidden drawer.
 // ---------------------------------------------------------------------------
-test("/home relegates dense diagnostics behind a disclosure (not a default dump)", () => {
+test("/home shows operational cards inline (no collapse) and drops the Get-things-done block", () => {
   const src = read("components/home-experience/SelfServeHomeDashboard.tsx");
-  assert.match(
+  // No collapsible disclosure and no "Get things done" primary-action row.
+  assert.doesNotMatch(
     src,
-    /data-home-diagnostics/,
-    "Home must relegate deep diagnostics into a <details data-home-diagnostics> disclosure, not render them as default content",
+    /data-home-diagnostics|<details/,
+    "Home must NOT hide operational cards behind a <details> disclosure",
   );
+  assert.doesNotMatch(
+    src,
+    /Get things done/,
+    "the 'Get things done' primary-action section must be removed",
+  );
+  // The operational cards still render as first-class content.
+  assert.match(src, /VerificationHealthCard/, "verification health card renders inline");
+  assert.match(src, /StorageUsageCard/, "storage card renders inline");
   // The premium shell section primitive is in use.
   assert.match(src, /PageSection/, "Home must use the shared PageSection for premium grouping");
 });
@@ -161,12 +173,21 @@ test("/reports has no raw .cc-page terminal states or btn-secondary buttons", ()
 // Sidebar/header — the live shell CSS uses the new enterprise nav tokens;
 // the live header is AppAccountToolbar (AppTopbarV2 is a dead fragment).
 // ---------------------------------------------------------------------------
-test("app shell uses the new enterprise nav-surface tokens", () => {
+test("app shell sidebar uses the branded light surface + enterprise-dark nav ink", () => {
   const css = read("components/app-shell-v2/app-shell-v2.css");
+  // The sidebar background is now the branded light artwork (not the old
+  // dark --nav-surface-* gradient), shown naturally with no overlay.
   assert.match(
     css,
-    /--nav-surface-(top|mid|bottom)/,
-    "sidebar must be built from the new --nav-surface-* tokens",
+    /background-image:\s*url\(["']?\/assets\/cards\/sidebar\.png/,
+    "sidebar must use the branded light background image",
+  );
+  // Foreground nav ink must be enterprise-dark for readability on the light
+  // surface — never the old near-white nav ink.
+  assert.match(
+    css,
+    /--nav-ink:\s*#1A1F2B/i,
+    "primary nav labels must be enterprise-dark on the light sidebar",
   );
 });
 
