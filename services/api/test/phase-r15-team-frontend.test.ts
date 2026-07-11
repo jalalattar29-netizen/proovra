@@ -21,7 +21,7 @@
  *     token in props.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
@@ -33,6 +33,26 @@ function read(rel: string): string {
   const full = join(repoRoot, rel);
   if (!existsSync(full)) throw new Error(`R15: missing required file: ${rel}`);
   return readFileSync(full, "utf8");
+}
+/**
+ * The team-detail page was decomposed into a slim orchestrator
+ * (`[teamId]/page.tsx`) plus one file per tab under `[teamId]/_tabs/`.
+ * The detail-experience content assertions below must therefore read the
+ * orchestrator AND every tab file — the tab markup / testids now live in
+ * the `_tabs/*` modules, not inline in page.tsx.
+ */
+function readDetailExperience(): string {
+  const base = "apps/web/app/(app)/collaboration-teams/[teamId]";
+  let combined = read(`${base}/page.tsx`);
+  const tabsDir = join(repoRoot, base, "_tabs");
+  if (existsSync(tabsDir)) {
+    for (const f of readdirSync(tabsDir)) {
+      if (f.endsWith(".tsx") || f.endsWith(".ts")) {
+        combined += "\n" + readFileSync(join(tabsDir, f), "utf8");
+      }
+    }
+  }
+  return combined;
 }
 function exists(rel: string): boolean {
   return existsSync(join(repoRoot, rel));
@@ -187,9 +207,7 @@ describe("Phase R15 — Stages 4-12: pages exist on disk", () => {
 
 describe("Phase R15 — Stages 4-12: page content", () => {
   const overview = read("apps/web/app/(app)/collaboration-teams/page.tsx");
-  const detail = read(
-    "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx",
-  );
+  const detail = readDetailExperience();
   const accept = read(
     "apps/web/app/(app)/collaboration-teams/invites/[token]/accept/page.tsx",
   );

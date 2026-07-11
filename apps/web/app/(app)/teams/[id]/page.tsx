@@ -162,27 +162,24 @@ function roleTone(role: string) {
 
   if (normalized === "OWNER") {
     return {
-      border: "1px solid rgba(183,157,132,0.20)",
-      background:
-        "linear-gradient(180deg, rgba(214,184,157,0.14) 0%, rgba(255,255,255,0.44) 100%)",
-      color: "#8a6e57",
+      border: "1px solid #D8CCFF",
+      background: "#F3F0FF",
+      color: "#4F46E5",
     };
   }
 
   if (normalized === "ADMIN") {
     return {
-      border: "1px solid rgba(79,112,107,0.18)",
-      background:
-        "linear-gradient(180deg, rgba(191,232,223,0.20) 0%, rgba(255,255,255,0.44) 100%)",
-      color: "#2d5b59",
+      border: "1px solid rgba(22,122,91,0.16)",
+      background: "#EAF7F1",
+      color: "#167A5B",
     };
   }
 
   return {
-    border: "1px solid rgba(79,112,107,0.12)",
-    background:
-      "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
-    color: "#4d6165",
+    border: "1px solid rgba(15,23,42,0.08)",
+    background: "#F1F5F9",
+    color: "#475569",
   };
 }
 
@@ -191,36 +188,32 @@ function billingTone(status?: string | null) {
 
   if (normalized === "ACTIVE") {
     return {
-      border: "1px solid rgba(79,112,107,0.18)",
-      background:
-        "linear-gradient(180deg, rgba(191,232,223,0.20) 0%, rgba(255,255,255,0.44) 100%)",
-      color: "#2d5b59",
+      border: "1px solid rgba(22,122,91,0.16)",
+      background: "#EAF7F1",
+      color: "#167A5B",
     };
   }
 
   if (normalized === "PAST_DUE") {
     return {
-      border: "1px solid rgba(183,157,132,0.20)",
-      background:
-        "linear-gradient(180deg, rgba(214,184,157,0.14) 0%, rgba(255,255,255,0.44) 100%)",
-      color: "#8a6e57",
+      border: "1px solid rgba(168,102,18,0.17)",
+      background: "#FFF6E5",
+      color: "#A86612",
     };
   }
 
   if (normalized === "CANCELED") {
     return {
-      border: "1px solid rgba(194,78,78,0.20)",
-      background:
-        "linear-gradient(180deg, rgba(194,78,78,0.10) 0%, rgba(255,255,255,0.44) 100%)",
-      color: "#8b3e3e",
+      border: "1px solid rgba(178,52,66,0.18)",
+      background: "#FFF1F2",
+      color: "#B23442",
     };
   }
 
   return {
-    border: "1px solid rgba(79,112,107,0.12)",
-    background:
-      "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
-    color: "#4d6165",
+    border: "1px solid rgba(15,23,42,0.08)",
+    background: "#F1F5F9",
+    color: "#475569",
   };
 }
 
@@ -1275,10 +1268,10 @@ function TeamDetailPageBody() {
 
         .teams-detail-page-shell .team-field:focus,
         .teams-detail-page-shell .team-select:focus {
-          border-color: rgba(79, 112, 107, 0.24);
+          border-color: #8b7cf6;
           box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.78),
-            0 0 0 3px rgba(79, 112, 107, 0.08),
+            0 0 0 3px rgba(139, 124, 246, 0.14),
             0 12px 24px rgba(0, 0, 0, 0.06);
         }
 
@@ -1994,10 +1987,9 @@ function TeamDetailPageBody() {
                       <span
                         style={{
                           ...statPillBase,
-                          border: "1px solid rgba(79,112,107,0.12)",
-                          background:
-                            "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
-                          color: "#4d6165",
+                          border: "1px solid rgba(15,23,42,0.08)",
+                          background: "#F1F5F9",
+                          color: "#475569",
                         }}
                       >
                         {team.stats?.memberCount ?? team.members?.length ?? 0} members
@@ -2007,10 +1999,9 @@ function TeamDetailPageBody() {
                         <span
                           style={{
                             ...statPillBase,
-                            border: "1px solid rgba(194,78,78,0.20)",
-                            background:
-                              "linear-gradient(180deg, rgba(194,78,78,0.10) 0%, rgba(255,255,255,0.44) 100%)",
-                            color: "#8b3e3e",
+                            border: "1px solid rgba(178,52,66,0.18)",
+                            background: "#FFF1F2",
+                            color: "#B23442",
                           }}
                         >
                           Over member limit

@@ -247,13 +247,15 @@ function PersonaWizardPageInner() {
             any time.
           </p>
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-            <Button
-              variant="primary"
+            <button
+              type="button"
+              className="app-header-primary-action"
               data-persona-wizard-next
               onClick={() => setStep(2)}
+              style={{ height: 42, padding: "0 18px", fontSize: 14, borderRadius: 12 }}
             >
               Continue
-            </Button>
+            </button>
           </div>
         </Card>
       ) : null}
@@ -278,9 +280,9 @@ function PersonaWizardPageInner() {
                   style={{
                     textAlign: "left",
                     padding: "10px 12px",
-                    borderRadius: 8,
-                    border: `1px solid ${selected ? "#1e293b" : "#cbd5e1"}`,
-                    background: selected ? "#eef2ff" : "#fff",
+                    borderRadius: 10,
+                    border: `1px solid ${selected ? "#D8CCFF" : "rgba(100,116,139,0.22)"}`,
+                    background: selected ? "#F3F0FF" : "rgba(255,255,255,0.92)",
                     cursor: "pointer",
                   }}
                 >
@@ -300,13 +302,15 @@ function PersonaWizardPageInner() {
             >
               Back
             </Button>
-            <Button
-              variant="primary"
+            <button
+              type="button"
+              className="app-header-primary-action"
               onClick={() => setStep(3)}
               data-persona-wizard-next
+              style={{ height: 42, padding: "0 18px", fontSize: 14, borderRadius: 12 }}
             >
               Continue
-            </Button>
+            </button>
           </div>
         </Card>
       ) : null}
@@ -375,13 +379,15 @@ function PersonaWizardPageInner() {
             >
               Back
             </Button>
-            <Button
-              variant="primary"
+            <button
+              type="button"
+              className="app-header-primary-action"
               onClick={() => setStep(4)}
               data-persona-wizard-next
+              style={{ height: 42, padding: "0 18px", fontSize: 14, borderRadius: 12 }}
             >
               Continue
-            </Button>
+            </button>
           </div>
         </Card>
       ) : null}
@@ -405,10 +411,10 @@ function PersonaWizardPageInner() {
                     alignItems: "flex-start",
                     gap: 8,
                     padding: "8px 10px",
-                    border: `1px solid ${selected ? "#1e293b" : "#cbd5e1"}`,
-                    borderRadius: 6,
+                    border: `1px solid ${selected ? "#D8CCFF" : "rgba(100,116,139,0.22)"}`,
+                    borderRadius: 10,
                     cursor: "pointer",
-                    background: selected ? "#eef2ff" : "#fff",
+                    background: selected ? "#F3F0FF" : "rgba(255,255,255,0.92)",
                   }}
                   data-persona-wizard-density-option={d.id}
                 >
@@ -471,14 +477,17 @@ function PersonaWizardPageInner() {
             >
               Back
             </Button>
-            <Button
-              variant="primary"
+            <button
+              type="button"
+              className="app-header-primary-action"
               data-persona-wizard-save
-              loading={saving}
+              disabled={saving}
+              aria-busy={saving || undefined}
               onClick={() => void persistProfile({ onboardingCompleted: true })}
+              style={{ height: 42, padding: "0 18px", fontSize: 14, borderRadius: 12 }}
             >
               {saving ? "Saving…" : "Save persona"}
-            </Button>
+            </button>
             <Button
               variant="ghost"
               data-persona-wizard-save-draft

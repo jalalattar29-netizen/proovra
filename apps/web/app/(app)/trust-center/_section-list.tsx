@@ -134,19 +134,10 @@ export function TrustCenterSectionList({
       <div style={{ marginBottom: 12 }}>
         <button
           type="button"
+          className="app-header-primary-action"
           data-trust-center-page-refresh={anchor}
           onClick={() => void refresh()}
           disabled={busy}
-          style={{
-            padding: "6px 12px",
-            border: "1px solid #0f172a",
-            background: "#0f172a",
-            color: "#fafafa",
-            fontWeight: 600,
-            fontSize: 12,
-            borderRadius: 8,
-            cursor: "pointer",
-          }}
         >
           {busy
             ? "Loading…"
@@ -221,12 +212,8 @@ export function TrustCenterSectionList({
               data-trust-center-page-section={a.section}
               data-trust-article-state={a.state}
               data-trust-article-version={a.version}
-              style={{
-                background: "#fff",
-                border: "1px solid rgba(15, 23, 42, 0.08)",
-                borderRadius: 10,
-                padding: 12,
-              }}
+              className="cases-panel cases-inner"
+              style={{ padding: 14 }}
             >
               <header
                 style={{

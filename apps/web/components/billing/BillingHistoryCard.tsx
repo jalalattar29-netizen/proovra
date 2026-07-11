@@ -1,6 +1,6 @@
 "use client";
 
-import { Card } from "../../components/ui";
+import { Badge, type BadgeTone } from "../ui/Badge";
 import { formatUserDateTime } from "../../lib/date";
 import type { BillingPaymentSummary } from "./types";
 
@@ -20,110 +20,62 @@ function formatDate(value: string) {
   return formatted === "Not available" ? "—" : formatted;
 }
 
-function toneForStatus(status: string) {
+// Semantic status tone: paid/succeeded → green (verified), refunded →
+// neutral (slate), failed → red (risk); everything else neutral.
+function toneForStatus(status: string): BadgeTone {
   const normalized = status.trim().toUpperCase();
-
-  if (normalized === "SUCCEEDED") {
-    return {
-      color: "#2b6a55",
-      background: "rgba(127,189,180,0.16)",
-      border: "1px solid rgba(127,189,180,0.20)",
-    };
-  }
-
-  if (normalized === "FAILED") {
-    return {
-      color: "#8b3e3e",
-      background: "rgba(194,78,78,0.10)",
-      border: "1px solid rgba(194,78,78,0.16)",
-    };
-  }
-
-  if (normalized === "REFUNDED") {
-    return {
-      color: "#7a624d",
-      background: "rgba(183,157,132,0.12)",
-      border: "1px solid rgba(183,157,132,0.18)",
-    };
-  }
-
-  return {
-    color: "#415257",
-    background: "rgba(79,112,107,0.08)",
-    border: "1px solid rgba(79,112,107,0.12)",
-  };
+  if (normalized === "SUCCEEDED") return "verified";
+  if (normalized === "FAILED") return "risk";
+  if (normalized === "REFUNDED") return "neutral";
+  return "neutral";
 }
 
 export function BillingHistoryCard({ items }: Props) {
   return (
-    <Card
-      className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-      style={{
-        border: "1px solid rgba(79,112,107,0.16)",
-        boxShadow:
-          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
-      }}
-    >
+    <div className="cases-panel" style={{ overflow: "hidden" }}>
       <div className="relative z-10 p-6 md:p-7">
-        <div className="mb-2 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+        <div className="mb-2 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#172033]">
           Recent Payments
         </div>
 
-        <div className="mb-5 text-[0.9rem] leading-[1.7] text-[#5d6d71]">
+        <div className="mb-5 text-[0.9rem] leading-[1.7] text-[#475569]">
           Review recent billing activity across personal and workspace payments.
         </div>
 
         {items.length === 0 ? (
-          <div className="text-[0.94rem] leading-[1.7] text-[#5d6d71]">
-            No billing payments recorded yet.
+          <div className="cases-empty" data-billing-history-empty>
+            <strong>No payments yet</strong>
+            <p>Billing payments will appear here after your first checkout.</p>
           </div>
         ) : (
           <div className="grid gap-3">
-            {items.map((item) => {
-              const tone = toneForStatus(item.status);
-
-              return (
-                <div
-                  key={item.id}
-                  className="rounded-[18px] border px-4 py-4"
-                  style={{
-                    border: "1px solid rgba(79,112,107,0.10)",
-                    background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-                  }}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[0.96rem] font-semibold text-[#21353a]">
-                        {item.provider} · {formatMoney(item.amountCents, item.currency)}
-                      </div>
-                      <div className="mt-1 text-[0.85rem] leading-[1.7] text-[#5d6d71]">
-                        Created: {formatDate(item.createdAt)}
-                        {" · "}
-                        {item.teamId ? "Team payment" : "Personal payment"}
-                      </div>
-                      <div className="mt-1 break-all text-[0.80rem] text-[#7a878a]">
-                        Provider payment ID: {item.providerPaymentId}
-                      </div>
+            {items.map((item) => (
+              <div key={item.id} className="cases-inner px-4 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[0.96rem] font-semibold text-[#172033]">
+                      {item.provider} ·{" "}
+                      {formatMoney(item.amountCents, item.currency)}
                     </div>
-
-                    <div
-                      className="rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-                      style={{
-                        color: tone.color,
-                        background: tone.background,
-                        border: tone.border,
-                      }}
-                    >
-                      {item.status}
+                    <div className="mt-1 text-[0.85rem] leading-[1.7] text-[#475569]">
+                      Created: {formatDate(item.createdAt)}
+                      {" · "}
+                      {item.teamId ? "Team payment" : "Personal payment"}
+                    </div>
+                    <div className="mt-1 break-all text-[0.80rem] text-[#5F6878]">
+                      Provider payment ID: {item.providerPaymentId}
                     </div>
                   </div>
+
+                  <Badge tone={toneForStatus(item.status)} data-payment-status>
+                    {item.status}
+                  </Badge>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 }

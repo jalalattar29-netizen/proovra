@@ -620,9 +620,9 @@ function IntakeLinksPageInner() {
     return (
       <main style={pageStyle} data-testid="intake-links-feature-disabled">
         <h1 style={titleStyle}>External intake links</h1>
-        <div style={infoBoxStyle}>
+        <div className="cases-empty" style={{ marginTop: 16, alignItems: "flex-start", textAlign: "left" }}>
           <strong>Not enabled yet</strong>
-          <p style={{ marginTop: 8 }}>
+          <p>
             External intake links aren't turned on for your account yet.
             Contact your IT administrator or your PROOVRA support contact
             to enable this feature for your workspace.
@@ -640,33 +640,69 @@ function IntakeLinksPageInner() {
           row above was intentionally removed — it duplicated the H1
           and pushed the page CTA below the fold on smaller screens. */}
       <header style={headerRowStyle}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <h1 style={titleStyle}>External Intake Links</h1>
-          <p style={subtitleStyle}>
-            Create secure links so people outside your workspace can
-            upload photos, videos, audio, or documents.
-          </p>
+        <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "flex-start", gap: 12 }}>
+          {/* §9 — premium enterprise icon surface, matching the Cases /
+              Home compact page-header language (no emoji, no neon blob). */}
+          <span
+            aria-hidden
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 12,
+              display: "grid",
+              placeItems: "center",
+              flexShrink: 0,
+              background:
+                "linear-gradient(145deg, rgba(91,79,233,0.10), rgba(73,184,255,0.08))",
+              border: "1px solid rgba(91,79,233,0.16)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8)",
+            }}
+          >
+            <svg
+              width="21"
+              height="21"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#5B4FE9"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={titleStyle}>External Intake Links</h1>
+            <p style={subtitleStyle}>
+              Create secure links so people outside your workspace can
+              upload photos, videos, audio, or documents.
+            </p>
+          </div>
         </div>
         {currentTeam ? (
           <button
             type="button"
-            style={primaryButtonStyle}
+            className="app-header-primary-action"
             onClick={() => openCreate()}
             disabled={!currentTeam}
             data-intake-links-new-cta="true"
           >
-            New intake link
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <span>New intake link</span>
           </button>
         ) : null}
       </header>
 
       {!currentTeam ? (
-        <div style={infoBoxStyle} data-intake-links-loading>
+        <div className="cases-empty" style={{ marginTop: 16 }} data-intake-links-loading>
           Loading workspace…
         </div>
       ) : null}
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? <div style={errorBoxStyle} className="cases-panel" data-intake-links-error>{error}</div> : null}
 
       {/* Operations Console — the primary surface when links exist.
           Replaces the legacy stacked-card layout with a searchable +
@@ -910,11 +946,10 @@ function SenderIdentitySelector({
             onChange={(e) => onNameChange(e.target.value)}
             aria-invalid={Boolean(nameError)}
             data-intake-link-sender-custom-name="true"
+            className="cases-form-input"
             style={{
               ...inputStyle,
-              borderColor: nameError
-                ? "#dc2626"
-                : (inputStyle.border as string),
+              ...(nameError ? { borderColor: "#dc2626" } : {}),
               marginBottom: 4,
             }}
           />
@@ -1365,7 +1400,8 @@ function EmptyState({
 }) {
   return (
     <section
-      style={emptyStateStyle}
+      className="cases-empty"
+      style={{ ...emptyStateStyle, alignItems: "flex-start", textAlign: "left" }}
       data-intake-links-empty="true"
       aria-label="No intake links yet"
     >
@@ -1379,11 +1415,14 @@ function EmptyState({
       <div style={emptyStateActionsStyle}>
         <button
           type="button"
-          style={primaryButtonStyle}
+          className="app-header-primary-action"
           onClick={onCreate}
           data-intake-links-empty-create="true"
         >
-          New intake link
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <span>New intake link</span>
         </button>
         <a
           href="#intake-links-howitworks"
@@ -2131,6 +2170,7 @@ function CreateLinkModal({
 
         <label style={labelStyle}>Recipient label (optional)</label>
         <input
+          className="cases-form-input"
           style={inputStyle}
           placeholder="e.g. John Smith — claim 4842"
           value={recipientLabel}
@@ -2148,11 +2188,10 @@ function CreateLinkModal({
               <span style={{ color: "#b91c1c" }}>(required)</span>
             </label>
             <input
+              className="cases-form-input"
               style={{
                 ...inputStyle,
-                borderColor: emailRequiredAndMissing
-                  ? "#dc2626"
-                  : (inputStyle.border as string),
+                ...(emailRequiredAndMissing ? { borderColor: "#dc2626" } : {}),
               }}
               type="email"
               value={recipientEmail}
@@ -2167,6 +2206,7 @@ function CreateLinkModal({
           <>
             <label style={labelStyle}>Recipient email (optional)</label>
             <input
+              className="cases-form-input"
               style={inputStyle}
               type="email"
               value={recipientEmail}
@@ -2184,11 +2224,10 @@ function CreateLinkModal({
               <span style={{ color: "#b91c1c" }}>(required)</span>
             </label>
             <input
+              className="cases-form-input"
               style={{
                 ...inputStyle,
-                borderColor: phoneError
-                  ? "#dc2626"
-                  : (inputStyle.border as string),
+                ...(phoneError ? { borderColor: "#dc2626" } : {}),
               }}
               type="tel"
               placeholder="+14155550123"
@@ -2227,11 +2266,10 @@ function CreateLinkModal({
           <>
             <label style={labelStyle}>Recipient phone (optional)</label>
             <input
+              className="cases-form-input"
               style={{
                 ...inputStyle,
-                borderColor: phoneError
-                  ? "#dc2626"
-                  : (inputStyle.border as string),
+                ...(phoneError ? { borderColor: "#dc2626" } : {}),
               }}
               type="tel"
               placeholder="+14155550123"
@@ -2260,6 +2298,7 @@ function CreateLinkModal({
 
         <label style={labelStyle}>Expires in (hours)</label>
         <input
+          className="cases-form-input"
           style={inputStyle}
           type="number"
           min={1}
@@ -2270,6 +2309,7 @@ function CreateLinkModal({
 
         <label style={labelStyle}>Max files per session</label>
         <input
+          className="cases-form-input"
           style={inputStyle}
           type="number"
           min={1}
@@ -2304,6 +2344,7 @@ function CreateLinkModal({
 
         <label style={labelStyle}>Consent / disclosure text (optional)</label>
         <textarea
+          className="cases-form-input"
           style={{ ...inputStyle, minHeight: 80 }}
           value={consentText}
           onChange={(e) => setConsentText(e.target.value.slice(0, 4000))}
@@ -2428,6 +2469,7 @@ function RawTokenRevealModal({
           link.
         </p>
         <input
+          className="cases-form-input"
           style={{ ...inputStyle, fontFamily: "monospace", fontSize: 12 }}
           readOnly
           value={intakeUrl}
@@ -2443,9 +2485,9 @@ function RawTokenRevealModal({
           <div
             style={{
               ...infoBoxStyle,
-              background: "#dcfce7",
-              border: "1px solid #86efac",
-              color: "#166534",
+              background: "#EAF7F1",
+              border: "1px solid rgba(22,122,91,0.16)",
+              color: "#167A5B",
             }}
             data-intake-link-delivery-result="sent"
           >
@@ -2483,9 +2525,9 @@ function RawTokenRevealModal({
           <div
             style={{
               ...infoBoxStyle,
-              background: "#dcfce7",
-              border: "1px solid #86efac",
-              color: "#166534",
+              background: "#EAF7F1",
+              border: "1px solid rgba(22,122,91,0.16)",
+              color: "#167A5B",
             }}
             data-intake-link-send-success
           >
@@ -2654,34 +2696,54 @@ const cardStyle: React.CSSProperties = {
   borderRadius: 8,
   marginTop: 12,
 };
+// Canonical primary — the enterprise indigo gradient shared with the
+// app-header `.app-header-primary-action` CTA (used inside the create /
+// send modals where a className swap is awkward alongside conditional
+// disabled styling). Same tokens, no white-bg/indigo-text variant.
 const primaryButtonStyle: React.CSSProperties = {
-  padding: "10px 20px",
-  fontWeight: 600,
+  padding: "0 18px",
+  height: 40,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: 650,
+  fontSize: 13,
   color: "#fff",
-  background: "#0f172a",
-  border: 0,
-  borderRadius: 8,
+  background: "linear-gradient(135deg, #6b5bff 0%, #5949e4 100%)",
+  border: "1px solid rgba(89, 73, 228, 0.5)",
+  borderRadius: 10,
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.12)",
   cursor: "pointer",
 };
 const secondaryButtonStyle: React.CSSProperties = {
-  padding: "8px 16px",
-  fontWeight: 500,
-  color: "#0f172a",
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  borderRadius: 8,
+  padding: "0 16px",
+  height: 40,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: 600,
+  fontSize: 13,
+  color: "#172033",
+  background: "rgba(255, 255, 255, 0.85)",
+  border: "1px solid rgba(15, 23, 42, 0.12)",
+  borderRadius: 10,
   cursor: "pointer",
 };
 // dangerButtonStyle removed — it was used only by the legacy
 // IntakeLinkCard's Revoke button. The Operations Console owns its
 // own destructive-action styling now.
 const disabledButtonStyle: React.CSSProperties = {
-  padding: "10px 20px",
-  fontWeight: 600,
+  padding: "0 18px",
+  height: 40,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: 650,
+  fontSize: 13,
   color: "#94a3b8",
   background: "#f1f5f9",
   border: "1px solid #e2e8f0",
-  borderRadius: 8,
+  borderRadius: 10,
   cursor: "not-allowed",
 };
 const infoBoxStyle: React.CSSProperties = {
@@ -2702,17 +2764,15 @@ const errorBoxStyle: React.CSSProperties = {
   borderRadius: 8,
   fontSize: 14,
 };
+// Layout metrics only — the indigo focus ring / border / background come
+// from the canonical `.cases-form-input` class applied at each call site.
 const inputStyle: React.CSSProperties = {
   display: "block",
   width: "100%",
-  padding: "8px 12px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
+  padding: "9px 12px",
   marginBottom: 12,
   fontSize: 14,
   fontFamily: "inherit",
-  color: "#0f172a",
-  background: "#fff",
   boxSizing: "border-box",
 };
 // modalSelectStyle — used by every <select> inside CreateLinkModal.
@@ -2824,9 +2884,9 @@ const howItWorksCardStyle: React.CSSProperties = {
   alignItems: "flex-start",
   gap: 12,
   padding: "14px 16px",
-  background: "#ffffff",
-  border: "1px solid #e2e8f0",
-  borderRadius: 10,
+  background: "rgba(255, 255, 255, 0.70)",
+  border: "1px solid rgba(15, 23, 42, 0.05)",
+  borderRadius: 12,
   boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
 };
 const howItWorksCardSecondaryStyle: React.CSSProperties = {
@@ -2881,9 +2941,9 @@ const tileStyle: React.CSSProperties = {
   alignItems: "center",
   gap: 12,
   padding: "14px 16px",
-  background: "#ffffff",
-  border: "1px solid #e2e8f0",
-  borderRadius: 10,
+  background: "rgba(255, 255, 255, 0.70)",
+  border: "1px solid rgba(15, 23, 42, 0.05)",
+  borderRadius: 12,
   boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
 };
 const tileTitleStyle: React.CSSProperties = {
@@ -2902,21 +2962,19 @@ const tileStartButtonStyle: React.CSSProperties = {
   padding: "6px 14px",
   fontSize: 13,
   fontWeight: 600,
-  color: "#0f172a",
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
+  color: "#172033",
+  background: "rgba(255, 255, 255, 0.85)",
+  border: "1px solid rgba(15, 23, 42, 0.12)",
+  borderRadius: 8,
   cursor: "pointer",
 };
 
-// Empty state.
+// Empty state — surface (background / border / radius) is owned by the
+// canonical `.cases-empty` class; this object only carries the outer
+// spacing so the class treatment shows through.
 const emptyStateStyle: React.CSSProperties = {
   marginTop: 24,
   padding: "32px 32px 28px",
-  background: "#ffffff",
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
 };
 const emptyStateTitleStyle: React.CSSProperties = {
   fontSize: 18,
@@ -3101,13 +3159,17 @@ const safetyNoteStyle: React.CSSProperties = {
   borderRadius: 8,
   lineHeight: 1.5,
 };
+// Modal surface — opaque enough to read as a dialog over the dimmed
+// backdrop, but using the canonical radius / border / shadow language so
+// it reads as part of the same design system as the .cases-panel modules.
 const modalStyle: React.CSSProperties = {
-  background: "#fff",
-  borderRadius: 12,
+  background: "#ffffff",
+  border: "1px solid rgba(15, 23, 42, 0.06)",
+  borderRadius: 18,
   padding: 24,
   maxWidth: 560,
   width: "100%",
   maxHeight: "90vh",
   overflow: "auto",
-  boxShadow: "0 20px 60px rgba(15, 23, 42, 0.25)",
+  boxShadow: "0 24px 60px rgba(15, 23, 42, 0.28)",
 };

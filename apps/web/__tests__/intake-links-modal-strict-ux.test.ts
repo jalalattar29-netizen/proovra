@@ -52,11 +52,15 @@ describe("Pin 1 — /intake-links breadcrumb removed", () => {
 
   it("the H1 + subtitle are still the first content inside <main>", () => {
     const src = read(PAGE);
-    // The page should start with `<main style={pageStyle}>` then
-    // the header row containing the H1 "External Intake Links".
+    // The page should start with `<main style={pageStyle}>` then the header
+    // row containing the H1 "External Intake Links". The canonical Cases/Home
+    // migration inserts a premium icon surface (42×42 gradient + link SVG)
+    // ahead of the H1, so the window allows for that header chrome — but the
+    // H1 must still be the first textual content (no breadcrumb above it; the
+    // breadcrumb-removal invariant is pinned by the tests above).
     assert.match(
       src,
-      /<main style=\{pageStyle\}>[\s\S]{0,1500}<h1 style=\{titleStyle\}>External Intake Links<\/h1>/,
+      /<main style=\{pageStyle\}>[\s\S]{0,2400}<h1 style=\{titleStyle\}>External Intake Links<\/h1>/,
     );
   });
 });

@@ -183,9 +183,12 @@ test("Backfill script supports --all flag and routes through every indexer", () 
 // ===========================================================================
 
 test("Search input is wrapped in a positioned container and the SearchTypeahead dropdown is mounted alongside", () => {
+  // The canonical Cases migration wraps the field in `.cases-search-field`
+  // (which adds a leading magnifier icon) but preserves the `position: relative`
+  // anchor the SearchTypeahead dropdown needs, with the <input> still inside it.
   assert.match(
     SEARCH_PAGE,
-    /<div style=\{\{ position: "relative", flex: 1 \}\}>\s*\n?\s*<input/,
+    /position: "relative", flex: 1 \}\}>[\s\S]{0,700}<input/,
   );
   assert.match(SEARCH_PAGE, /<SearchTypeahead\b/);
 });

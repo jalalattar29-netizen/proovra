@@ -4,7 +4,8 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Button, useToast, Skeleton } from "../../../components/ui";
+import { useToast, Skeleton, PageShell, PageHeader, PageSection } from "../../../components/ui";
+import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
@@ -49,6 +50,7 @@ export default function BillingPage() {
 
 function BillingPageInner() {
   const { addToast } = useToast();
+  const { confirm } = useConfirmAction();
   const searchParams = useSearchParams();
 
   const [loading, setLoading] = useState(true);
@@ -144,6 +146,19 @@ function BillingPageInner() {
 
   const handleCancelSubscription = useCallback(
     async (teamId: string) => {
+      const teamName =
+        teams.find((team) => team.id === teamId)?.name ?? "this workspace";
+      const ok = await confirm({
+        title: `Cancel subscription for "${teamName}"?`,
+        description:
+          "This cancels the dedicated TEAM subscription for this workspace. The workspace stays visible and can be reactivated later, but paid TEAM capability ends at the current period.",
+        confirmLabel: "Cancel subscription",
+        cancelLabel: "Keep subscription",
+        tone: "danger",
+        testId: "billing-cancel-subscription",
+      });
+      if (!ok) return;
+
       try {
         setCancelBusyTeamId(teamId);
         addToast("Cancelling team subscription...", "info");
@@ -167,11 +182,22 @@ function BillingPageInner() {
         setCancelBusyTeamId(null);
       }
     },
-    [addToast, loadOverview]
+    [addToast, loadOverview, confirm, teams]
   );
 
   const handleCancelStorageAddon = useCallback(
     async (addonId: string) => {
+      const ok = await confirm({
+        title: "Cancel recurring storage add-on?",
+        description:
+          "This cancels the legacy recurring storage add-on. Storage already included in your base plan is unaffected; only this recurring add-on stops renewing.",
+        confirmLabel: "Cancel add-on",
+        cancelLabel: "Keep add-on",
+        tone: "danger",
+        testId: "billing-cancel-storage-addon",
+      });
+      if (!ok) return;
+
       try {
         setCancelBusyAddonId(addonId);
         addToast("Cancelling recurring storage add-on...", "info");
@@ -195,20 +221,7 @@ function BillingPageInner() {
         setCancelBusyAddonId(null);
       }
     },
-    [addToast, loadOverview]
-  );
-
-  const headerButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(58,92,95,0.55)",
-        color: "#e6f1ee",
-        background:
-          "linear-gradient(180deg, rgba(44,74,72,0.95) 0%, rgba(20,38,42,0.98) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(12,30,32,0.35)",
-      }) as const,
-    []
+    [addToast, loadOverview, confirm]
   );
 
   const allTeams = useMemo(() => teams, [teams]);
@@ -242,210 +255,181 @@ function BillingPageInner() {
   }, [personal, allTeams, payments, storageAddons]);
 
   return (
-    <div className="section app-section billing-page-shell">
-      <div className="app-hero app-hero-full">
-        <div className="container">
-          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
-            <div style={{ maxWidth: 820 }}>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  background: "rgba(255,255,255,0.04)",
-                  padding: "8px 16px",
-                  fontSize: "0.68rem",
-                  fontWeight: 500,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.28em",
-                  color: "#afbbb7",
-                }}
-              >
-                <span
-                  style={{
-                    width: 4,
-                    height: 4,
-                    borderRadius: 999,
-                    background: "#b79d84",
-                    opacity: 0.8,
-                    display: "inline-block",
-                  }}
-                />
-                Billing Console
-              </div>
-
-              <h1
-                className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
-                style={{ margin: "20px 0 0" }}
-              >
-                Manage personal and team billing
-                <span style={{ color: "#c3ebe2" }}>
-                  {" "}
-                  from one workspace console
-                </span>
-                .
-              </h1>
-
-              <p
-                style={{
-                  marginTop: 14,
-                  color: "#afbbb7",
-                  fontSize: 15,
-                  lineHeight: 1.8,
-                  maxWidth: 760,
-                }}
-              >
-                Review storage, members, subscriptions, add-ons, and payment
-                history in one place. Workspaces remain visible here even when
-                their dedicated TEAM subscription is canceled or inactive, so the
-                operator can still review and reactivate them from the same console.
-              </p>
-            </div>
-
-            <div>
-              <Link href="/pricing">
-                <Button
-                  className="app-responsive-btn min-w-[220px] rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold"
-                  style={headerButtonStyle}
-                >
-                  View pricing
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div
-        className="app-body app-body-full"
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          background:
-            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
-          paddingTop: 40,
-        }}
-      >
-        <div
-          className="container relative z-10"
-          style={{
-            display: "grid",
-            gap: 24,
-            paddingBottom: 72,
-          }}
-        >
-          {loading ? (
-            <div style={{ display: "grid", gap: 16 }}>
-              <Skeleton width="100%" height="220px" />
-              <Skeleton width="100%" height="220px" />
-              <Skeleton width="100%" height="220px" />
-            </div>
-          ) : error ? (
+    <PageShell
+      data-billing-page
+      header={
+        <PageHeader
+          title={
             <div
-              className="rounded-[20px] border px-4 py-4 text-[0.95rem]"
+              className="cases-page-heading"
+              style={{ display: "flex", alignItems: "center", gap: 12 }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 12,
+                  display: "grid",
+                  placeItems: "center",
+                  flexShrink: 0,
+                  background:
+                    "linear-gradient(145deg, rgba(91,79,233,0.10), rgba(73,184,255,0.08))",
+                  border: "1px solid rgba(91,79,233,0.16)",
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8)",
+                }}
+              >
+                <svg
+                  width="21"
+                  height="21"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#5B4FE9"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="2" y="5" width="20" height="14" rx="2" />
+                  <path d="M2 10h20" />
+                </svg>
+              </span>
+              <h1 className="cc-title" data-billing-title>
+                Billing
+              </h1>
+            </div>
+          }
+          subtitle={
+            <p className="cc-subtitle" data-billing-subtitle>
+              Review storage, members, subscriptions, add-ons, and payment
+              history in one place. Workspaces stay visible here even when their
+              TEAM subscription is canceled, so you can review and reactivate
+              them from the same console.
+            </p>
+          }
+          primaryAction={
+            <Link href="/pricing" className="app-header-primary-action" data-billing-view-pricing>
+              <span>View pricing</span>
+            </Link>
+          }
+        />
+      }
+    >
+      {loading ? (
+        <PageSection>
+          <div style={{ display: "grid", gap: 16 }}>
+            <Skeleton width="100%" height="220px" />
+            <Skeleton width="100%" height="220px" />
+            <Skeleton width="100%" height="220px" />
+          </div>
+        </PageSection>
+      ) : error ? (
+        <PageSection>
+          <div
+            className="cases-panel"
+            role="alert"
+            style={{
+              padding: "16px 18px",
+              fontSize: "0.95rem",
+              color: "#991b1b",
+            }}
+          >
+            {error}
+          </div>
+        </PageSection>
+      ) : (
+        <>
+          <PageSection data-billing-summary>
+            <div
               style={{
-                border: "1px solid rgba(194,78,78,0.18)",
-                background: "rgba(164,84,84,0.10)",
-                color: "#9f3535",
+                display: "grid",
+                gap: 12,
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
               }}
             >
-              {error}
-            </div>
-          ) : (
-            <>
-              <div
-                style={{
-                  display: "grid",
-                  gap: 12,
-                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                }}
-              >
-                {summaryCards.map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-[20px] border px-4 py-4"
-                    style={{
-                      border: "1px solid rgba(79,112,107,0.12)",
-                      background:
-                        "linear-gradient(180deg, rgba(255,255,255,0.66) 0%, rgba(243,245,242,0.94) 100%)",
-                    }}
-                  >
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9b826b]">
-                      {item.label}
-                    </div>
-                    <div className="mt-2 text-[1rem] font-semibold text-[#21353a]">
-                      {item.value}
-                    </div>
+              {summaryCards.map((item) => (
+                <div
+                  key={item.label}
+                  className="cases-inner"
+                  style={{ padding: "16px 18px" }}
+                >
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5F6878]">
+                    {item.label}
                   </div>
+                  <div className="mt-2 text-[1.05rem] font-semibold text-[#172033]">
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </PageSection>
+
+          <PageSection>
+            <CheckoutPanel
+              key={`${initialTargetType}-${initialPlan}-${selectedTeamId || "no-team-selected"}`}
+              personal={personal}
+              teams={allTeams}
+              initialSelectedTeamId={selectedTeamId}
+              initialTargetType={initialTargetType}
+              initialPlan={initialPlan}
+              onCheckoutCompleted={loadOverview}
+            />
+          </PageSection>
+
+          <PageSection>
+            <PersonalWorkspaceCard workspace={personal} />
+          </PageSection>
+
+          <PageSection>
+            {allTeams.length > 0 ? (
+              <div style={{ display: "grid", gap: 20 }}>
+                {allTeams.map((team) => (
+                  <TeamWorkspaceCard
+                    key={team.id}
+                    workspace={team}
+                    onSelectForCheckout={handleSelectTeamForCheckout}
+                    onCancelSubscription={handleCancelSubscription}
+                    busy={cancelBusyTeamId === team.id}
+                  />
                 ))}
               </div>
+            ) : (
+              <div className="cases-empty" data-billing-no-workspaces>
+                {/* Phase IA-self-serve-completion — "operate shared
+                    evidence workflows" replaced with plain-language
+                    copy. /workflows is ENTERPRISE_ONLY in the tier
+                    table; advertising workflow features to a
+                    self-serve user on the Billing page misleads them
+                    about what's included. */}
+                <strong>No workspaces yet</strong>
+                <p>
+                  Create one to share cases and evidence with collaborators, or
+                  activate a dedicated TEAM subscription later to raise your
+                  owned-workspace limit.
+                </p>
+              </div>
+            )}
+          </PageSection>
 
-              <CheckoutPanel
-                key={`${initialTargetType}-${initialPlan}-${selectedTeamId || "no-team-selected"}`}
-                personal={personal}
-                teams={allTeams}
-                initialSelectedTeamId={selectedTeamId}
-                initialTargetType={initialTargetType}
-                initialPlan={initialPlan}
-                onCheckoutCompleted={loadOverview}
-              />
+          <PageSection>
+            <StorageAddonsPanel
+              items={storageAddons}
+              cancelBusyId={cancelBusyAddonId}
+              onCancelRecurring={handleCancelStorageAddon}
+              onBuyMore={() => {
+                try {
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                } catch {
+                  window.scrollTo(0, 0);
+                }
+              }}
+            />
+          </PageSection>
 
-              <PersonalWorkspaceCard workspace={personal} />
-
-              {allTeams.length > 0 ? (
-                <div style={{ display: "grid", gap: 20 }}>
-                  {allTeams.map((team) => (
-                    <TeamWorkspaceCard
-                      key={team.id}
-                      workspace={team}
-                      onSelectForCheckout={handleSelectTeamForCheckout}
-                      onCancelSubscription={handleCancelSubscription}
-                      busy={cancelBusyTeamId === team.id}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div
-                  className="rounded-[20px] border px-4 py-4 text-[0.95rem]"
-                  style={{
-                    border: "1px solid rgba(79,112,107,0.12)",
-                    background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.66) 0%, rgba(243,245,242,0.94) 100%)",
-                    color: "#5d6d71",
-                  }}
-                >
-                  {/* Phase IA-self-serve-completion — "operate shared
-                      evidence workflows" replaced with plain-language
-                      copy. /workflows is ENTERPRISE_ONLY in the tier
-                      table; advertising workflow features to a
-                      self-serve user on the Billing page misleads them
-                      about what's included. */}
-                  No workspaces yet. Create one to share cases and
-                  evidence with collaborators, or activate a dedicated TEAM
-                  subscription later to raise your owned-workspace limit.
-                </div>
-              )}
-
-              <StorageAddonsPanel
-                items={storageAddons}
-                cancelBusyId={cancelBusyAddonId}
-                onCancelRecurring={handleCancelStorageAddon}
-                onBuyMore={() => {
-                  try {
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  } catch {
-                    window.scrollTo(0, 0);
-                  }
-                }}
-              />
-
-              <BillingHistoryCard items={payments} />
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+          <PageSection>
+            <BillingHistoryCard items={payments} />
+          </PageSection>
+        </>
+      )}
+    </PageShell>
   );
 }

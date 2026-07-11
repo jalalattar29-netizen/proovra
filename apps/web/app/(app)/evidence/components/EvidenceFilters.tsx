@@ -51,6 +51,7 @@ export function EvidenceFilters({
           <label htmlFor="evidence-search">Search</label>
           <input
             id="evidence-search"
+            className="cases-form-input"
             value={value.search}
             onChange={(event) => update("search", event.target.value)}
             placeholder="Search title, filename, or record ID"
@@ -61,6 +62,7 @@ export function EvidenceFilters({
           <label htmlFor="scope-filter">Workspace scope</label>
           <select
             id="scope-filter"
+            className="cases-form-input"
             value={value.scope}
             onChange={(event) => update("scope", event.target.value as EvidenceListScope)}
           >
@@ -73,7 +75,7 @@ export function EvidenceFilters({
 
         <div className="evidence-library-filter-group">
           <label htmlFor="status-filter">Status</label>
-          <select id="status-filter" value={value.status} onChange={(event) => update("status", event.target.value)}>
+          <select id="status-filter" className="cases-form-input" value={value.status} onChange={(event) => update("status", event.target.value)}>
             <option value="all">All</option>
             <option value="created">Created</option>
             <option value="uploading">Uploading</option>
@@ -85,7 +87,7 @@ export function EvidenceFilters({
 
         <div className="evidence-library-filter-group">
           <label htmlFor="type-filter">Evidence type</label>
-          <select id="type-filter" value={value.type} onChange={(event) => update("type", event.target.value)}>
+          <select id="type-filter" className="cases-form-input" value={value.type} onChange={(event) => update("type", event.target.value)}>
             <option value="all">All</option>
             <option value="image">Image</option>
             <option value="video">Video</option>
@@ -98,7 +100,7 @@ export function EvidenceFilters({
 
         <div className="evidence-library-filter-group">
           <label htmlFor="review-filter">Review</label>
-          <select id="review-filter" value={value.review} onChange={(event) => update("review", event.target.value)}>
+          <select id="review-filter" className="cases-form-input" value={value.review} onChange={(event) => update("review", event.target.value)}>
             <option value="all">All</option>
             <option value="review-ready">Review-ready marker recorded</option>
             <option value="review-required">Review required</option>
@@ -110,6 +112,7 @@ export function EvidenceFilters({
           <label htmlFor="export-filter">Export</label>
           <select
             id="export-filter"
+            className="cases-form-input"
             value={value.exportReadiness}
             onChange={(event) => update("exportReadiness", event.target.value)}
           >
@@ -123,6 +126,7 @@ export function EvidenceFilters({
           <label htmlFor="case-filter">Case</label>
           <select
             id="case-filter"
+            className="cases-form-input"
             value={value.caseAssignment}
             onChange={(event) => update("caseAssignment", event.target.value)}
           >
@@ -134,7 +138,7 @@ export function EvidenceFilters({
 
         <div className="evidence-library-filter-group">
           <label htmlFor="retention-filter">Retention</label>
-          <select id="retention-filter" value={value.retention} onChange={(event) => update("retention", event.target.value)}>
+          <select id="retention-filter" className="cases-form-input" value={value.retention} onChange={(event) => update("retention", event.target.value)}>
             <option value="all">All</option>
             <option value="protected">Storage protection recorded</option>
             <option value="unprotected">Protection not recorded</option>
@@ -143,7 +147,7 @@ export function EvidenceFilters({
 
         <div className="evidence-library-filter-group">
           <label htmlFor="sort-filter">Sort</label>
-          <select id="sort-filter" value={value.sort} onChange={(event) => update("sort", event.target.value)}>
+          <select id="sort-filter" className="cases-form-input" value={value.sort} onChange={(event) => update("sort", event.target.value)}>
             <option value="newest">Newest</option>
             <option value="oldest">Oldest</option>
             <option value="priority">Reviewer priority</option>

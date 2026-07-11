@@ -6,9 +6,14 @@
   --detail-line-strong: rgba(15, 23, 42, 0.16);
   --detail-panel: #ffffff;
   --detail-subtle: #f8fbfa;
-  --detail-teal: #0f5c56;
-  --detail-teal-strong: #0a4b45;
-  --detail-teal-soft: #edf6f3;
+  /* PROOVRA design-system migration — the detail accent was a teal
+     brand color (#0f5c56). Remapped to the canonical indigo accent so
+     kickers, active tabs, primary buttons, focus rings and inline
+     links match Home/Cases. The variable names are kept to avoid a
+     risky rename across ~20 call sites. */
+  --detail-teal: #4f46e5;
+  --detail-teal-strong: #4338ca;
+  --detail-teal-soft: #f3f0ff;
   --detail-bronze: #8d6438;
   --detail-bronze-soft: #faf5ed;
   --detail-green: #16794a;
@@ -182,7 +187,7 @@
 .evidence-detail-hero-meta .evidence-detail-pill:nth-child(2) {
   color: var(--detail-teal);
   background: var(--detail-teal-soft);
-  border-color: rgba(15, 92, 86, 0.14);
+  border-color: rgba(79, 70, 229, 0.14);
 }
 
 .evidence-detail-hero-meta .evidence-detail-pill:nth-child(4) {
@@ -233,9 +238,9 @@
 
 .evidence-detail-hero-actions button:first-child,
 .evidence-detail-hero-actions button:nth-child(2) {
-  background: linear-gradient(180deg, #12675f 0%, #084a44 100%) !important;
-  border: 1px solid rgba(8, 74, 68, 0.22) !important;
-  color: #ffffff !important;
+  background: var(--btn-primary-bg, linear-gradient(180deg, #4f46e5, #4338ca)) !important;
+  border: 1px solid var(--btn-primary-border, #4338ca) !important;
+  color: var(--btn-primary-color, #ffffff) !important;
 }
 
 .evidence-detail-hero-actions button:not(:first-child):not(:nth-child(2)),
@@ -285,7 +290,7 @@
 
 .evidence-detail-tab:hover {
   background: #ffffff;
-  border-color: rgba(15, 92, 86, 0.2);
+  border-color: rgba(79, 70, 229, 0.2);
   transform: translateY(-1px);
 }
 
@@ -363,7 +368,7 @@
   height: 32px;
   flex: 0 0 auto;
   border-radius: 11px;
-  border: 1px solid rgba(15, 92, 86, 0.16);
+  border: 1px solid rgba(79, 70, 229, 0.16);
   background: var(--detail-teal-soft);
   color: var(--detail-teal);
 }
@@ -496,12 +501,12 @@ button.evidence-detail-item-card {
     background-color 120ms ease;
 }
 button.evidence-detail-item-card:hover {
-  border-color: rgba(15, 92, 86, 0.35);
+  border-color: rgba(79, 70, 229, 0.35);
 }
 button.evidence-detail-item-card:focus-visible {
   outline: none;
   border-color: var(--detail-teal, #0f5c56);
-  box-shadow: 0 0 0 3px rgba(15, 92, 86, 0.18);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
 }
 .evidence-detail-item-card--selected,
 button.evidence-detail-item-card[aria-pressed="true"] {
@@ -532,7 +537,7 @@ button.evidence-detail-item-card[aria-pressed="true"] {
 .evidence-detail-item-card .evidence-detail-pill {
   color: var(--detail-teal);
   background: var(--detail-teal-soft);
-  border-color: rgba(15, 92, 86, 0.15);
+  border-color: rgba(79, 70, 229, 0.15);
 }
 
 .evidence-detail-signal-list {
@@ -546,7 +551,7 @@ button.evidence-detail-item-card[aria-pressed="true"] {
 
 .evidence-detail-signal-card.info {
   background: var(--detail-teal-soft);
-  border-color: rgba(15, 92, 86, 0.15);
+  border-color: rgba(79, 70, 229, 0.15);
 }
 
 .evidence-detail-signal-card.danger {
@@ -647,8 +652,8 @@ button.evidence-detail-item-card[aria-pressed="true"] {
 .evidence-library-textarea:focus,
 .evidence-library-panel select:focus {
   outline: none;
-  border-color: rgba(15, 92, 86, 0.5);
-  box-shadow: 0 0 0 4px rgba(15, 92, 86, 0.08);
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
 }
 
 .evidence-detail-label-edit {

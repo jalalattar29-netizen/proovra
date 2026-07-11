@@ -398,6 +398,16 @@ function SettingsPageInner() {
           border-radius: 12px !important;
         }
 
+        /* Unify all settings form fields on the canonical indigo focus
+           ring — override the legacy teal input focus box-shadow so
+           there is no green focus anywhere in Settings. */
+        .settings-page-shell .cases-form-input:focus,
+        .settings-page-shell .cases-form-input:focus-visible {
+          outline: none;
+          border-color: #8b7cf6 !important;
+          box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.14) !important;
+        }
+
         .settings-page-shell textarea {
           min-height: 120px;
         }
@@ -446,17 +456,17 @@ function SettingsPageInner() {
             {sectionHeader(<Icons.Dashboard />, "Profile")}
 
             <div className="mb-5 flex items-center gap-4">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(214,184,157,0.12)_0%,rgba(255,255,255,0.56)_100%)] text-[1.35rem] font-bold text-[#23373b] shadow-[0_10px_22px_rgba(0,0,0,0.08)]">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(79,70,229,0.16)] bg-[linear-gradient(180deg,rgba(243,240,255,0.9)_0%,rgba(255,255,255,0.56)_100%)] text-[1.35rem] font-bold text-[#4F46E5] shadow-[0_10px_22px_rgba(15,23,42,0.06)]">
                     {initials}
                   </div>
 
                   <div>
-                    <div className="text-[12px] text-[#6a777b]">Account</div>
-                    <div className="text-[1.05rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+                    <div className="text-[12px] text-[#5F6B7D]">Account</div>
+                    <div className="text-[1.05rem] font-semibold tracking-[-0.02em] text-[#172033]">
                       {user?.displayName || user?.email || "Guest User"}
                     </div>
                     {user?.email ? (
-                      <div className="text-[13px] text-[#5d6d71]">{user.email}</div>
+                      <div className="text-[13px] text-[#5F6B7D]">{user.email}</div>
                     ) : null}
                   </div>
                 </div>
@@ -464,8 +474,9 @@ function SettingsPageInner() {
                 <div className="grid gap-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <div className="mb-2 text-[13px] text-[#5d6d71]">First name</div>
+                      <div className="mb-2 text-[13px] text-[#5F6B7D]">First name</div>
                       <Input
+                        className="cases-form-input"
                         value={firstName}
                         onChange={setFirstName}
                         placeholder="First name"
@@ -474,8 +485,9 @@ function SettingsPageInner() {
                     </div>
 
                     <div>
-                      <div className="mb-2 text-[13px] text-[#5d6d71]">Last name</div>
+                      <div className="mb-2 text-[13px] text-[#5F6B7D]">Last name</div>
                       <Input
+                        className="cases-form-input"
                         value={lastName}
                         onChange={setLastName}
                         placeholder="Last name"
@@ -485,8 +497,9 @@ function SettingsPageInner() {
                   </div>
 
                   <div>
-                    <div className="mb-2 text-[13px] text-[#5d6d71]">Display name</div>
+                    <div className="mb-2 text-[13px] text-[#5F6B7D]">Display name</div>
                     <Input
+                      className="cases-form-input"
                       value={displayName}
                       onChange={setDisplayName}
                       placeholder="Public display name"
@@ -496,8 +509,9 @@ function SettingsPageInner() {
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <div className="mb-2 text-[13px] text-[#5d6d71]">Country</div>
+                      <div className="mb-2 text-[13px] text-[#5F6B7D]">Country</div>
                       <Input
+                        className="cases-form-input"
                         value={country}
                         onChange={setCountry}
                         placeholder="e.g. Germany, Syria"
@@ -506,8 +520,9 @@ function SettingsPageInner() {
                     </div>
 
                     <div>
-                      <div className="mb-2 text-[13px] text-[#5d6d71]">Timezone</div>
+                      <div className="mb-2 text-[13px] text-[#5F6B7D]">Timezone</div>
                       <Input
+                        className="cases-form-input"
                         value={timezone}
                         onChange={setTimezone}
                         placeholder="e.g. Europe/Berlin"
@@ -517,9 +532,9 @@ function SettingsPageInner() {
                   </div>
 
                   <div>
-                    <div className="mb-2 text-[13px] text-[#5d6d71]">Bio</div>
+                    <div className="mb-2 text-[13px] text-[#5F6B7D]">Bio</div>
                     <textarea
-                      className="input"
+                      className="input cases-form-input"
                       value={bio}
                       onChange={(e) => setBio(e.target.value.slice(0, 280))}
                       placeholder="A short bio (optional)"
@@ -531,9 +546,14 @@ function SettingsPageInner() {
                 </div>
 
                 <div className="mt-5 flex flex-wrap gap-3">
-                  <Button variant="primary" onClick={handleSaveProfile}>
+                  <button
+                    type="button"
+                    className="app-header-primary-action"
+                    onClick={handleSaveProfile}
+                    style={{ height: 42, padding: "0 18px", fontSize: 14, borderRadius: 12 }}
+                  >
                     Save profile
-                  </Button>
+                  </button>
 
                   <Button variant="secondary" onClick={handleSignOut}>
                     Sign out
@@ -548,14 +568,14 @@ function SettingsPageInner() {
                   {sectionHeader(<Icons.Security />, "Security")}
 
                   <div className="grid gap-4">
-                    <div className="flex items-center justify-between gap-4 border-b border-[rgba(79,112,107,0.08)] pb-3">
-                      <span className="text-[#5d6d71]">Login method</span>
-                      <span className="text-[#21353a]">{user?.provider ?? "—"}</span>
+                    <div className="flex items-center justify-between gap-4 border-b border-[rgba(15,23,42,0.06)] pb-3">
+                      <span className="text-[#5F6B7D]">Login method</span>
+                      <span className="text-[#172033]">{user?.provider ?? "—"}</span>
                     </div>
 
-                    <div className="flex items-center justify-between gap-4 border-b border-[rgba(79,112,107,0.08)] pb-3">
-                      <span className="text-[#5d6d71]">Session</span>
-                      <span className="font-semibold text-[#2d5b59]">Active</span>
+                    <div className="flex items-center justify-between gap-4 border-b border-[rgba(15,23,42,0.06)] pb-3">
+                      <span className="text-[#5F6B7D]">Session</span>
+                      <span className="font-semibold text-[#2f7d5b]">Active</span>
                     </div>
 
                     <Link
@@ -581,7 +601,7 @@ function SettingsPageInner() {
 
                   <div className="grid gap-4">
                     <div className="flex flex-col gap-3">
-                      <span className="text-[#5d6d71]">UI language</span>
+                      <span className="text-[#5F6B7D]">UI language</span>
 <div className="settings-language-dropdown-wrap" style={{ position: "relative" }}>
     <button
     type="button"
@@ -624,11 +644,11 @@ onClick={(e) => {
         right: 0,
         zIndex: 80,
         borderRadius: 20,
-        border: "1px solid rgba(79,112,107,0.12)",
+        border: "1px solid rgba(15,23,42,0.08)",
         background:
-          "linear-gradient(180deg, rgba(252,253,251,0.98) 0%, rgba(243,245,242,0.99) 100%)",
+          "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,249,252,0.99) 100%)",
         boxShadow:
-          "0 18px 38px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.7)",
+          "0 18px 38px rgba(15,23,42,0.10), inset 0 1px 0 rgba(255,255,255,0.7)",
         backdropFilter: "blur(10px)",
         WebkitBackdropFilter: "blur(10px)",
         padding: 8,
@@ -650,10 +670,8 @@ onClick={(e) => {
               width: "100%",
               minHeight: 46,
               border: "none",
-              background: active
-                ? "linear-gradient(180deg, rgba(58,92,95,0.10) 0%, rgba(20,38,42,0.08) 100%)"
-                : "transparent",
-              color: "#23373b",
+              background: active ? "#F3F0FF" : "transparent",
+              color: active ? "#4F46E5" : "#23373b",
               borderRadius: 14,
               textAlign: "left",
               padding: "0 14px",
@@ -670,7 +688,7 @@ onClick={(e) => {
             {active ? (
               <span
                 style={{
-                  color: "#3a5d61",
+                  color: "#4F46E5",
                   fontWeight: 700,
                   fontSize: 13,
                   flexShrink: 0,
@@ -687,7 +705,7 @@ onClick={(e) => {
 </div>
                     </div>
 
-                    <p className="m-0 text-[13px] text-[#6a777b]">
+                    <p className="m-0 text-[13px] text-[#5F6B7D]">
                       Language preference will be used for future UI updates.
                     </p>
                   </div>
@@ -699,9 +717,9 @@ onClick={(e) => {
                   {sectionHeader(<Icons.Billing />, "Subscription")}
 
                   <div className="grid gap-4">
-                    <div className="flex items-center justify-between gap-4 border-b border-[rgba(79,112,107,0.08)] pb-3">
-                      <span className="text-[#5d6d71]">Current plan</span>
-                      <span className="font-semibold text-[#8a6e57]">{plan}</span>
+                    <div className="flex items-center justify-between gap-4 border-b border-[rgba(15,23,42,0.06)] pb-3">
+                      <span className="text-[#5F6B7D]">Current plan</span>
+                      <span className="font-semibold text-[#4F46E5]">{plan}</span>
                     </div>
 
                     <div>
@@ -735,7 +753,7 @@ onClick={(e) => {
                   {sectionHeader(<Icons.Security />, "Account security")}
 
                   <div className="grid gap-4">
-                    <p className="m-0 text-[13px] text-[#5d6d71]">
+                    <p className="m-0 text-[13px] text-[#5F6B7D]">
                       Change your password, review active sessions, sign
                       out of other devices, and view recent security
                       events.
@@ -767,7 +785,7 @@ onClick={(e) => {
                     {sectionHeader(<Icons.Security />, "Identity & Security")}
 
                     <div className="grid gap-4">
-                      <p className="m-0 text-[13px] text-[#5d6d71]">
+                      <p className="m-0 text-[13px] text-[#5F6B7D]">
                         Workspace identity operations: MFA policy, trusted
                         devices, session revocations, and MFA recovery
                         approvals. Operator/admin access required.
@@ -807,7 +825,7 @@ onClick={(e) => {
                       </Button>
 
                       {latestCookieConsent ? (
-                        <div className="text-[12px] text-[#6a777b]">
+                        <div className="text-[12px] text-[#5F6B7D]">
                           Cookie consent v{latestCookieConsent.consentVersion} — saved on{" "}
                           {formatUserDateTime(latestCookieConsent.createdAt)}
                         </div>
@@ -816,7 +834,7 @@ onClick={(e) => {
                       {legalAcceptances.length > 0 ? (
                         <div className="mt-1 grid gap-2">
                           {legalAcceptances.slice(0, 4).map((item) => (
-                            <div key={item.id} className="text-[12px] text-[#6a777b]">
+                            <div key={item.id} className="text-[12px] text-[#5F6B7D]">
                               {item.policyKey} v{item.policyVersion} —{" "}
                               {formatUserDateTime(item.acceptedAt)}
                             </div>

@@ -1095,7 +1095,14 @@ function SearchInner() {
             style={searchFormStyle}
             data-search-form
           >
-            <div style={{ position: "relative", flex: 1 }}>
+            <div className="cases-search-field" style={{ position: "relative", flex: 1 }}>
+              {/* Canonical leading search icon (indigo-focus field). */}
+              <span className="cases-search-icon" aria-hidden>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m21 21-4.3-4.3" />
+                </svg>
+              </span>
               <input
                 value={qDraft}
                 onChange={(e) => setQDraft(e.target.value)}
@@ -1129,6 +1136,7 @@ function SearchInner() {
                   }
                 }}
                 placeholder="Search evidence, cases, reports, notes, OCR text…"
+                className="cases-filter-search"
                 style={searchInputStyle}
                 maxLength={200}
                 aria-label="Search query"
@@ -1364,6 +1372,7 @@ function SearchInner() {
               onChange={(e) =>
                 updateFilter({ sort: e.target.value as SortMode })
               }
+              className="cases-form-input"
               style={selectStyle}
             >
               {SORT_MODES.map((m) => (
@@ -1472,6 +1481,7 @@ function SearchInner() {
                 value={dateSinceDraft}
                 onChange={(e) => setDateSinceDraft(e.target.value)}
                 data-search-filter-date-since-input="true"
+                className="cases-form-input"
                 style={inputStyle}
               />
             </label>
@@ -1482,6 +1492,7 @@ function SearchInner() {
                 value={dateUntilDraft}
                 onChange={(e) => setDateUntilDraft(e.target.value)}
                 data-search-filter-date-until-input="true"
+                className="cases-form-input"
                 style={inputStyle}
               />
             </label>
@@ -1611,6 +1622,7 @@ function SearchInner() {
           </div>
           {!results || results.rows.length === 0 ? (
             <div
+              className="cases-empty"
               style={emptyStateStyle}
               data-search-empty-state
               data-search-empty-state-filters-active={
@@ -2807,15 +2819,11 @@ const searchFormStyle: React.CSSProperties = {
   flex: "1 1 360px",
 };
 
+// Layout only — border / radius / background / indigo focus ring come
+// from the canonical `.cases-filter-search` class (with its leading
+// search icon). Keeps the flex sizing the three-column header needs.
 const searchInputStyle: React.CSSProperties = {
   flex: 1,
-  minHeight: 42,
-  padding: "0 14px",
-  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-  borderRadius: "var(--radius-md, 12px)",
-  fontSize: 14,
-  background: "var(--surface-card, #fff)",
-  color: "var(--ink-primary, #0f172a)",
   minWidth: 240,
 };
 
@@ -2873,16 +2881,21 @@ const chipGroupStyle: React.CSSProperties = {
   gap: 4,
 };
 
+// Compact filter-rail chip — canonical indigo active state
+// (#F3F0FF / #D8CCFF / #4F46E5), the same tab language as Home / Cases.
+// The compact metrics are kept (the rail is denser than the Cases
+// segment strip) but the colours map onto the shared design system;
+// active never reads as the old dark-slate pill.
 function chipButtonStyle(active: boolean): React.CSSProperties {
   return {
-    padding: "3px 8px",
+    padding: "4px 10px",
     fontSize: 11,
-    fontWeight: 500,
+    fontWeight: 600,
     borderRadius: 999,
     border: "1px solid",
-    background: active ? "#1e293b" : "#fff",
-    color: active ? "#fff" : "#334155",
-    borderColor: active ? "#1e293b" : "#cbd5e1",
+    background: active ? "#F3F0FF" : "rgba(255,255,255,0.85)",
+    color: active ? "#4F46E5" : "#5F6878",
+    borderColor: active ? "#D8CCFF" : "rgba(15,23,42,0.10)",
     cursor: "pointer",
   };
 }
@@ -3004,21 +3017,18 @@ const resultsHeaderStyle: React.CSSProperties = {
 // markup; this container gives them the shared design system's centered,
 // token-framed placeholder treatment (matching the Card `empty` variant
 // language).
+// Surface (background / border / radius) is owned by the canonical
+// `.cases-empty` class applied at the call site; this object keeps the
+// center-column spacing + typography the honest empty-state branches rely
+// on. The former dashed-placeholder surface props were removed so the
+// canonical translucent surface shows through.
 const emptyStateStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
   justifyContent: "center",
   gap: 4,
   padding: "48px 24px",
   margin: "8px 0",
-  textAlign: "center",
-  color: "var(--ink-secondary, #475569)",
   fontSize: 13.5,
   lineHeight: 1.6,
-  borderRadius: "var(--radius-card, 14px)",
-  border: "1px dashed var(--border-strong, rgba(15,23,42,0.14))",
-  background: "rgba(15,23,42,0.015)",
 };
 
 const resultListStyle: React.CSSProperties = {

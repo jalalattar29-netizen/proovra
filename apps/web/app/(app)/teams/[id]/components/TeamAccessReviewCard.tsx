@@ -94,10 +94,10 @@ type LoadState =
   | { kind: "error"; message: string };
 
 const ROLE_TONE: Record<RoleId, { bg: string; border: string; fg: string }> = {
-  OWNER: { bg: "rgba(214,184,157,0.12)", border: "rgba(183,157,132,0.30)", fg: "#8a6e57" },
-  ADMIN: { bg: "rgba(45,91,89,0.08)", border: "rgba(45,91,89,0.24)", fg: "#2d5b59" },
-  MEMBER: { bg: "rgba(120,120,120,0.05)", border: "rgba(120,120,120,0.18)", fg: "#4d6165" },
-  VIEWER: { bg: "rgba(120,120,120,0.05)", border: "rgba(120,120,120,0.14)", fg: "#6a777b" },
+  OWNER: { bg: "#F3F0FF", border: "#D8CCFF", fg: "#4F46E5" },
+  ADMIN: { bg: "#EAF7F1", border: "rgba(22,122,91,0.16)", fg: "#167A5B" },
+  MEMBER: { bg: "#F1F5F9", border: "rgba(15,23,42,0.08)", fg: "#475569" },
+  VIEWER: { bg: "#F1F5F9", border: "rgba(15,23,42,0.08)", fg: "#5F6B7D" },
 };
 
 function RoleBadge({ role }: { role: RoleId }) {
@@ -126,10 +126,10 @@ function RoleBadge({ role }: { role: RoleId }) {
 function KindPill({ kind }: { kind: "MEMBER" | "EXTERNAL" | "PENDING_INVITE" }) {
   const palette =
     kind === "MEMBER"
-      ? { bg: "rgba(45,91,89,0.06)", border: "rgba(45,91,89,0.18)", fg: "#2d5b59", label: "Member" }
+      ? { bg: "#EAF7F1", border: "rgba(22,122,91,0.16)", fg: "#167A5B", label: "Member" }
       : kind === "EXTERNAL"
-        ? { bg: "rgba(214,184,157,0.10)", border: "rgba(183,157,132,0.26)", fg: "#8a6e57", label: "External" }
-        : { bg: "rgba(120,120,120,0.05)", border: "rgba(120,120,120,0.18)", fg: "#5d6d71", label: "Pending invite" };
+        ? { bg: "#FFF6E5", border: "rgba(168,102,18,0.17)", fg: "#A86612", label: "External" }
+        : { bg: "#F1F5F9", border: "rgba(15,23,42,0.08)", fg: "#5F6B7D", label: "Pending invite" };
   return (
     <span
       style={{
@@ -153,14 +153,6 @@ function KindPill({ kind }: { kind: "MEMBER" | "EXTERNAL" | "PENDING_INVITE" }) 
 
 function formatDate(iso: string): string {
   return formatUserDate(iso);
-}
-
-function cardShellStyle() {
-  return {
-    border: "1px solid rgba(79,112,107,0.16)",
-    boxShadow:
-      "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
-  } as const;
 }
 
 export function TeamAccessReviewCard({ teamId }: { teamId: string }) {
@@ -197,22 +189,18 @@ export function TeamAccessReviewCard({ teamId }: { teamId: string }) {
 
   return (
     <Card
-      className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
-      style={cardShellStyle()}
       data-team-access-review-card
     >
-      <div className="settings-silver-card__bg" />
-      <div className="settings-silver-card__overlay" />
-      <div className="settings-silver-card__content p-6 md:p-7">
+      <div>
         <header className="mb-4">
           {/* Phase IA-self-serve-completion — "Access review" is
               SOC2-audit vocabulary. Renamed to plain-language
               "Member roles" without changing the underlying
               aggregator endpoint or restriction semantics. */}
-          <h2 className="m-0 text-[1.08rem] font-semibold tracking-[-0.03em] text-[#21353a]">
+          <h2 className="m-0 text-[1.08rem] font-semibold tracking-[-0.03em] text-[#172033]">
             Member roles
           </h2>
-          <p className="m-0 mt-1 text-[12.5px] leading-snug text-[#6a777b]">
+          <p className="m-0 mt-1 text-[12.5px] leading-snug text-[#5F6B7D]">
             Everyone with access to this team today — members, pending
             invites, and external collaborators with case-scoped access.
             Use this list to check who can see what before changing roles
@@ -223,7 +211,7 @@ export function TeamAccessReviewCard({ teamId }: { teamId: string }) {
         {state.kind === "loading" ? (
           <p
             data-team-access-review-loading
-            className="m-0 text-[13px] text-[#6a777b]"
+            className="m-0 text-[13px] text-[#5F6B7D]"
           >
             Loading access review…
           </p>
@@ -232,7 +220,7 @@ export function TeamAccessReviewCard({ teamId }: { teamId: string }) {
         {state.kind === "error" ? (
           <p
             data-team-access-review-error
-            className="m-0 text-[13px] text-[#a14040]"
+            className="m-0 text-[13px] text-[#B23442]"
           >
             {state.message}
           </p>
@@ -401,27 +389,23 @@ function Ready({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           data-team-access-review-search
+          className="cases-form-input"
           style={{
             flex: "1 1 200px",
             padding: "6px 10px",
             borderRadius: 999,
-            border: "1px solid rgba(79,112,107,0.16)",
-            background: "rgba(255,255,255,0.55)",
             fontSize: 13,
-            color: "#21353a",
           }}
         />
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value as typeof filter)}
           data-team-access-review-filter
+          className="cases-form-input"
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: "1px solid rgba(79,112,107,0.16)",
-            background: "rgba(255,255,255,0.55)",
             fontSize: 13,
-            color: "#21353a",
           }}
         >
           <option value="all">All ({rows.length})</option>
@@ -434,7 +418,7 @@ function Ready({
       {visible.length === 0 ? (
         <p
           data-team-access-review-empty
-          className="m-0 mt-2 text-[12.5px] text-[#6a777b]"
+          className="m-0 mt-2 text-[12.5px] text-[#5F6B7D]"
         >
           {rows.length === 0
             ? "No one has access to this workspace yet."
@@ -461,8 +445,8 @@ function Ready({
                 gap: 10,
                 padding: "10px 12px",
                 borderRadius: 14,
-                border: "1px solid rgba(79,112,107,0.10)",
-                background: "rgba(255,255,255,0.42)",
+                border: "1px solid rgba(15,23,42,0.05)",
+                background: "rgba(255,255,255,0.70)",
               }}
             >
               <div style={{ flex: "1 1 auto", minWidth: 0 }}>
@@ -470,7 +454,7 @@ function Ready({
                   style={{
                     fontSize: 13.5,
                     fontWeight: 600,
-                    color: "#21353a",
+                    color: "#172033",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
@@ -483,7 +467,7 @@ function Ready({
                   style={{
                     marginTop: 3,
                     fontSize: 11.5,
-                    color: "#6a777b",
+                    color: "#5F6B7D",
                   }}
                   data-team-access-review-row-meta
                 >
@@ -504,7 +488,7 @@ function Ready({
       )}
 
       <p
-        className="m-0 mt-3 text-[11px] text-[#6a777b]"
+        className="m-0 mt-3 text-[11px] text-[#5F6B7D]"
         data-team-access-review-footnote
       >
         Internal members are managed in the Members card above.
@@ -529,10 +513,10 @@ function SummaryStat({
 }) {
   const palette =
     tone === "member"
-      ? { bg: "rgba(45,91,89,0.06)", border: "rgba(45,91,89,0.18)", fg: "#2d5b59" }
+      ? { bg: "#EAF7F1", border: "rgba(22,122,91,0.16)", fg: "#167A5B" }
       : tone === "external"
-        ? { bg: "rgba(214,184,157,0.10)", border: "rgba(183,157,132,0.26)", fg: "#8a6e57" }
-        : { bg: "rgba(120,120,120,0.05)", border: "rgba(120,120,120,0.18)", fg: "#5d6d71" };
+        ? { bg: "#FFF6E5", border: "rgba(168,102,18,0.17)", fg: "#A86612" }
+        : { bg: "#F1F5F9", border: "rgba(15,23,42,0.08)", fg: "#5F6B7D" };
   return (
     <div
       data-testid={testid}

@@ -116,13 +116,27 @@ function focusFirstIn(dialog: HTMLElement | null) {
 // -----------------------------------------------------------------------------
 
 // §9/§10 — light-theme accents. The confirm button on a neutral dialog is
-// the app primary indigo; danger is the app rose; warning is the app amber.
-function toneAccent(tone: ConfirmActionTone): { color: string; bg: string; border: string } {
+// the app primary indigo; danger is the app rose. Warning is a refined
+// enterprise amber for workflow confirmations (NOT destructive, NOT the old
+// pale brown #A86612): base #B86B16 with hover #9F5910 / active #874A0C via
+// the shared `[data-confirm-action-tone="warning"]` rules in
+// app-primitives.css.
+function toneAccent(tone: ConfirmActionTone): {
+  color: string;
+  bg: string;
+  border: string;
+  shadow?: string;
+} {
   switch (tone) {
     case "danger":
       return { color: "#fff", bg: "#C9363E", border: "#C9363E" };
     case "warning":
-      return { color: "#fff", bg: "#A86612", border: "#8A520E" };
+      return {
+        color: "#FFFFFF",
+        bg: "#B86B16",
+        border: "rgba(135, 74, 12, 0.28)",
+        shadow: "0 4px 12px rgba(159, 89, 16, 0.16)",
+      };
     case "neutral":
     default:
       return { color: "#fff", bg: "#5B4FE8", border: "#4F46E5" };
@@ -308,15 +322,15 @@ function ConfirmActionModal({
                 height: 34,
                 borderRadius: 10,
                 flexShrink: 0,
+                // Danger keeps the rose treatment; warning uses the soft,
+                // restrained amber container (§3): #FFF4E5 / #F4D3A4 / #A85F12.
                 background:
-                  tone === "danger"
-                    ? "rgba(201,54,62,0.09)"
-                    : "rgba(168,102,18,0.10)",
+                  tone === "danger" ? "rgba(201,54,62,0.09)" : "#FFF4E5",
                 border:
                   tone === "danger"
                     ? "1px solid rgba(201,54,62,0.18)"
-                    : "1px solid rgba(168,102,18,0.20)",
-                color: tone === "danger" ? "#C9363E" : "#A86612",
+                    : "1px solid #F4D3A4",
+                color: tone === "danger" ? "#C9363E" : "#A85F12",
               }}
             >
               {tone === "danger" ? (
@@ -444,6 +458,7 @@ function ConfirmActionModal({
               border: `1px solid ${accent.border}`,
               background: accent.bg,
               color: accent.color,
+              boxShadow: accent.shadow,
               cursor: confirmDisabled ? "not-allowed" : "pointer",
               opacity: confirmDisabled ? 0.55 : 1,
               fontSize: 13,

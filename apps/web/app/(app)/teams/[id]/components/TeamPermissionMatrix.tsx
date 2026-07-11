@@ -306,24 +306,24 @@ const ROLE_LABELS: Record<RoleId, string> = {
 
 const ROLE_TONE: Record<RoleId, { bg: string; border: string; fg: string }> = {
   OWNER: {
-    bg: "rgba(214,184,157,0.12)",
-    border: "rgba(183,157,132,0.30)",
-    fg: "#8a6e57",
+    bg: "#F3F0FF",
+    border: "#D8CCFF",
+    fg: "#4F46E5",
   },
   ADMIN: {
-    bg: "rgba(45,91,89,0.08)",
-    border: "rgba(45,91,89,0.24)",
-    fg: "#2d5b59",
+    bg: "#EAF7F1",
+    border: "rgba(22,122,91,0.16)",
+    fg: "#167A5B",
   },
   MEMBER: {
-    bg: "rgba(120,120,120,0.05)",
-    border: "rgba(120,120,120,0.18)",
-    fg: "#4d6165",
+    bg: "#F1F5F9",
+    border: "rgba(15,23,42,0.08)",
+    fg: "#475569",
   },
   VIEWER: {
-    bg: "rgba(120,120,120,0.05)",
-    border: "rgba(120,120,120,0.14)",
-    fg: "#6a777b",
+    bg: "#F1F5F9",
+    border: "rgba(15,23,42,0.08)",
+    fg: "#5F6B7D",
   },
 };
 
@@ -413,17 +413,17 @@ export function TeamPermissionMatrix({
   return (
     <section
       data-team-permission-matrix
-      className="rounded-[24px] border border-[rgba(79,112,107,0.10)] bg-white/55 p-5 md:p-6"
+      className="cases-panel p-5 md:p-6"
     >
       <header className="mb-4">
         {/* Phase IA-self-serve-completion — "Permission matrix" reads
             as SOC2-audit vocabulary to a 3-person law office. Renamed
             to plain-language "Who can do what" without changing the
             grid semantics or the underlying RBAC mapping. */}
-        <h2 className="m-0 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+        <h2 className="m-0 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#172033]">
           Who can do what
         </h2>
-        <p className="m-0 mt-1 text-[12.5px] leading-snug text-[#6a777b]">
+        <p className="m-0 mt-1 text-[12.5px] leading-snug text-[#5F6B7D]">
           What each role on this team can do. This list mirrors the API —
           if a cell isn't checked, the action is blocked for that role.{" "}
           {currentRole ? (
@@ -455,8 +455,8 @@ export function TeamPermissionMatrix({
                   textAlign: "left",
                   padding: "8px 10px",
                   fontWeight: 600,
-                  color: "#21353a",
-                  borderBottom: "1px solid rgba(79,112,107,0.10)",
+                  color: "#172033",
+                  borderBottom: "1px solid rgba(15,23,42,0.08)",
                   width: "55%",
                 }}
               >
@@ -470,7 +470,7 @@ export function TeamPermissionMatrix({
                     textAlign: "center",
                     padding: "8px 10px",
                     fontWeight: 600,
-                    borderBottom: "1px solid rgba(79,112,107,0.10)",
+                    borderBottom: "1px solid rgba(15,23,42,0.08)",
                   }}
                 >
                   <HeaderBadge role={r} />
@@ -490,7 +490,7 @@ export function TeamPermissionMatrix({
                     fontWeight: 700,
                     letterSpacing: 0.6,
                     textTransform: "uppercase",
-                    color: "#6a777b",
+                    color: "#5F6B7D",
                   }}
                 >
                   {category}
@@ -503,14 +503,14 @@ export function TeamPermissionMatrix({
                   style={{
                     background:
                       expanded === cap.id
-                        ? "rgba(214,184,157,0.06)"
+                        ? "#F3F0FF"
                         : "transparent",
                   }}
                 >
                   <td
                     style={{
                       padding: "8px 10px",
-                      borderBottom: "1px solid rgba(79,112,107,0.06)",
+                      borderBottom: "1px solid rgba(15,23,42,0.05)",
                     }}
                   >
                     <button
@@ -524,7 +524,7 @@ export function TeamPermissionMatrix({
                         border: 0,
                         padding: 0,
                         font: "inherit",
-                        color: "#21353a",
+                        color: "#172033",
                         textAlign: "left",
                         cursor: "pointer",
                       }}
@@ -535,7 +535,7 @@ export function TeamPermissionMatrix({
                         style={{
                           marginLeft: 8,
                           fontSize: 11,
-                          color: "#7a878b",
+                          color: "#8793A6",
                         }}
                       >
                         {expanded === cap.id ? "Hide details ▴" : "Details ▾"}
@@ -550,7 +550,7 @@ export function TeamPermissionMatrix({
                           background: "rgba(255,255,255,0.55)",
                           borderRadius: 8,
                           fontSize: 12.5,
-                          color: "#4d6165",
+                          color: "#475569",
                           lineHeight: 1.5,
                         }}
                       >
@@ -561,7 +561,7 @@ export function TeamPermissionMatrix({
                               marginTop: 6,
                               fontSize: 11,
                               fontFamily: "monospace",
-                              color: "#7a878b",
+                              color: "#8793A6",
                             }}
                           >
                             backend: {cap.backendNote}
@@ -576,7 +576,7 @@ export function TeamPermissionMatrix({
                       style={{
                         textAlign: "center",
                         padding: "8px 10px",
-                        borderBottom: "1px solid rgba(79,112,107,0.06)",
+                        borderBottom: "1px solid rgba(15,23,42,0.05)",
                       }}
                     >
                       <CapabilityCheckmark
@@ -593,7 +593,7 @@ export function TeamPermissionMatrix({
       </div>
 
       <p
-        className="m-0 mt-3 text-[11.5px] text-[#6a777b]"
+        className="m-0 mt-3 text-[11.5px] text-[#5F6B7D]"
         data-permission-matrix-footnote
       >
         Custom roles are not supported on the current plan. Workspace

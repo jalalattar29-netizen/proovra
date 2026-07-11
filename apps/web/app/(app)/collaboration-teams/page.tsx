@@ -12,30 +12,33 @@
  * personal-first rescue mean a fresh personal user lands here without
  * any "Activate an organization" wall.
  *
- * Phase 7C — VISUAL redesign only. Wrapper migrated from the raw
- * `.cc-page` chrome to the shared PageShell/PageHeader/PageSection +
- * Card/Badge/Button/EmptyState primitives. No data-fetching, permission,
- * billing-limit, or behaviour changes — every data-testid / data-* and
- * the plan-capacity logic are preserved verbatim.
+ * VISUAL redesign — migrated onto the neutral `app-*` internal-product
+ * design system (Home/Cases visual language): `.app-page-header`,
+ * the Cases filter bar (`.cases-toolbar`/`.cases-segments`/`.cases-search-
+ * field`), `.app-table-surface` + `.app-table[data-responsive]`,
+ * `AppListbox`, `AppStatusBadge`, `.app-empty`. No data-fetching,
+ * permission, billing-limit, route or behaviour changes — every
+ * data-testid / data-* and the plan-capacity logic are preserved
+ * verbatim. Client-side search / filter / sort operate purely on the
+ * ALREADY-FETCHED teams array (no new API calls).
  */
 
 "use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import {
   PageShell,
-  PageHeader,
-  PageSection,
   useToast,
 } from "../../../components/ui";
-import { Card } from "../../../components/ui/Card";
-import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
-import { EmptyState } from "../../../components/ui/EmptyState";
+import { AppListbox } from "../../../components/app-primitives/AppListbox";
+import { AppStatusBadge } from "../../../components/app-primitives/AppStatusBadge";
+import { PlanLimitBadge } from "../../../components/billing/PlanLimitBadge";
 import { ApiError } from "../../../lib/api";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { formatUserDate } from "../../../lib/date";
@@ -44,14 +47,13 @@ import {
   listTeams,
   type CollaborationTeamSummary,
 } from "../../../lib/api/collaboration-teams";
-import { useBillingSummary } from "../../../lib/api/billing-summary";
-import { PlanLimitBadge } from "../../../components/billing/PlanLimitBadge";
 import { useAccount, usePersonalSpace } from "../../../lib/platform-context";
 import type { WorkspacePlan } from "../../../lib/platform-context/types";
 import {
   COLLABORATION_TEAM_TYPES,
   getCollaborationTeamPlanLimits,
   type CollaborationTeamType,
+  type CollaborationTeamStatus,
 } from "@proovra/shared";
 
 export default function TeamsOverviewPage() {
@@ -62,6 +64,23 @@ export default function TeamsOverviewPage() {
   );
 }
 
+// =============================================================================
+// Client-side controls — search / filter / sort operate on the already-loaded
+// teams array in memory. No new API calls are made.
+// =============================================================================
+
+type StatusFilter = "ALL" | CollaborationTeamStatus;
+type TypeFilter = "ALL" | CollaborationTeamType;
+type SortKey = "ACTIVITY_DESC" | "ACTIVITY_ASC" | "NAME_ASC" | "MEMBERS_DESC";
+
+const TEAM_TYPE_LABELS: Record<CollaborationTeamType, string> = {
+  GENERAL: "General",
+  INVESTIGATION: "Investigation",
+  LEGAL: "Legal",
+  REVIEW: "Review",
+  COMPLIANCE: "Compliance",
+};
+
 function TeamsOverview() {
   const router = useRouter();
   const { addToast } = useToast();
@@ -71,6 +90,13 @@ function TeamsOverview() {
   );
   const [teams, setTeams] = useState<ReadonlyArray<CollaborationTeamSummary>>([]);
   const [createOpen, setCreateOpen] = useState(false);
+
+  // Client-side control state (no new fetches — filters/sorts operate on the
+  // already-fetched `teams` array).
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
+  const [sortKey, setSortKey] = useState<SortKey>("ACTIVITY_DESC");
 
   // Plan capacity is sourced from the canonical platform-context envelope
   // (no fabricated counts). Plan resolution order:
@@ -92,11 +118,6 @@ function TeamsOverview() {
     () => teams.filter((t) => t.status === "ACTIVE").length,
     [teams],
   );
-  // PROOVRA Phase 10 — additive plan-aware chip. Reads the same
-  // canonical envelope as the existing `PlanCapacityBadge` but
-  // through the shared `useBillingSummary` helper so all four
-  // /collaboration-teams pages render identical plan UX.
-  const billingSummary = useBillingSummary(ownedTeamCount);
   const maxTeams = planLimits.maxTeams;
   const planContextReady = planForCapacity !== null;
   const atCapacity = planContextReady && ownedTeamCount >= maxTeams;
@@ -129,64 +150,101 @@ function TeamsOverview() {
     void refresh();
   }, []);
 
-  const headerActions = (
-    <div
-      className="cc-meta"
-      style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
-    >
-      {billingSummary && !loading && !error ? (
-        <PlanLimitBadge
-          kind="TEAMS_USED"
-          current={billingSummary.teamsUsed}
-          max={billingSummary.teamsMax}
-          planLabel={billingSummary.plan}
-        />
-      ) : null}
-      {planForCapacity !== null && !loading && !error ? (
-        <PlanCapacityBadge
-          plan={planForCapacity}
-          ownedTeamCount={ownedTeamCount}
-          maxTeams={maxTeams}
-          atCapacity={atCapacity}
-        />
-      ) : null}
-      {atCapacity && planForCapacity !== null ? (
-        <UpgradeCTA
-          ownedTeamCount={ownedTeamCount}
-          maxTeams={maxTeams}
-          plan={planForCapacity}
-        />
-      ) : null}
-      <Button
-        variant="primary"
-        data-testid="create-team-button"
-        onClick={() => setCreateOpen(true)}
-        disabled={atCapacity}
-        aria-disabled={atCapacity || undefined}
-        aria-label={
-          createDisabledReason
-            ? `Create Team — ${createDisabledReason}`
-            : "Create Team"
-        }
-        title={createDisabledReason ?? undefined}
-      >
-        Create team
-      </Button>
+  // Derived, in-memory view of the fetched teams. Never triggers a fetch.
+  const visibleTeams = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = teams.filter((t) => {
+      if (statusFilter !== "ALL" && t.status !== statusFilter) return false;
+      if (typeFilter !== "ALL" && t.teamType !== typeFilter) return false;
+      if (q) {
+        const haystack = `${t.name} ${t.description ?? ""}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+    const activityMs = (t: CollaborationTeamSummary) =>
+      t.lastActivityAt ? new Date(t.lastActivityAt).getTime() : 0;
+    const sorted = [...filtered];
+    switch (sortKey) {
+      case "ACTIVITY_ASC":
+        sorted.sort((a, b) => activityMs(a) - activityMs(b));
+        break;
+      case "NAME_ASC":
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "MEMBERS_DESC":
+        sorted.sort((a, b) => b.memberCount - a.memberCount);
+        break;
+      case "ACTIVITY_DESC":
+      default:
+        sorted.sort((a, b) => activityMs(b) - activityMs(a));
+        break;
+    }
+    return sorted;
+  }, [teams, search, statusFilter, typeFilter, sortKey]);
+
+  const controlsActive =
+    search.trim().length > 0 ||
+    statusFilter !== "ALL" ||
+    typeFilter !== "ALL";
+
+  const header = (
+    <div className="app-page-header" data-testid="collaboration-teams-header">
+      <div className="app-page-header__lead">
+        <span className="app-page-header__icon" aria-hidden="true">
+          <TeamsGlyph />
+        </span>
+        <div className="app-page-header__text">
+          <h1 className="app-page-header__title">Collaboration Teams</h1>
+          <p className="app-page-header__subtitle">
+            Coordinate people, assignments, and evidence work together. A Team
+            is a collaboration space — not a workspace or organization. Personal
+            users and organizations can both create Teams; no Organization is
+            required.
+          </p>
+        </div>
+      </div>
+      <div className="app-page-header__actions">
+        {planForCapacity !== null && !loading && !error ? (
+          <PlanLimitBadge
+            kind="TEAMS_USED"
+            current={ownedTeamCount}
+            max={maxTeams}
+            planLabel={planForCapacity}
+          />
+        ) : null}
+        {atCapacity && planForCapacity !== null ? (
+          <UpgradeCTA
+            ownedTeamCount={ownedTeamCount}
+            maxTeams={maxTeams}
+            plan={planForCapacity}
+          />
+        ) : null}
+        <button
+          type="button"
+          className="app-primary-action"
+          data-testid="create-team-button"
+          onClick={() => setCreateOpen(true)}
+          disabled={atCapacity}
+          aria-disabled={atCapacity || undefined}
+          aria-label={
+            createDisabledReason
+              ? `Create Team — ${createDisabledReason}`
+              : "Create Team"
+          }
+          title={createDisabledReason ?? undefined}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <span>Create team</span>
+        </button>
+      </div>
     </div>
   );
 
   return (
-    <PageShell
-      data-testid="collaboration-teams-overview"
-      header={
-        <PageHeader
-          eyebrow="Collaboration"
-          title="Collaboration Teams"
-          subtitle="Collaboration Teams coordinate people, assignments, and evidence work together. A Team here is a collaboration space — not a workspace or organization. Personal users and organizations can both create Teams; no Organization is required."
-          primaryAction={headerActions}
-        />
-      }
-    >
+    <PageShell data-testid="collaboration-teams-overview" header={header}>
       {loading ? (
         <LoadingState />
       ) : error ? (
@@ -203,7 +261,27 @@ function TeamsOverview() {
           createDisabledReason={createDisabledReason}
         />
       ) : (
-        <TeamsGrid teams={teams} />
+        <>
+          <TeamsToolbar
+            search={search}
+            onSearch={setSearch}
+            statusFilter={statusFilter}
+            onStatusFilter={setStatusFilter}
+            typeFilter={typeFilter}
+            onTypeFilter={setTypeFilter}
+            sortKey={sortKey}
+            onSort={setSortKey}
+          />
+          {visibleTeams.length === 0 ? (
+            <NoMatchesState onReset={() => {
+              setSearch("");
+              setStatusFilter("ALL");
+              setTypeFilter("ALL");
+            }} controlsActive={controlsActive} />
+          ) : (
+            <TeamsTable teams={visibleTeams} />
+          )}
+        </>
       )}
 
       {createOpen ? (
@@ -221,36 +299,148 @@ function TeamsOverview() {
 }
 
 // =============================================================================
-// Teams grid
+// Controls toolbar
 // =============================================================================
 
-function TeamsGrid({
+function TeamsToolbar({
+  search,
+  onSearch,
+  statusFilter,
+  onStatusFilter,
+  typeFilter,
+  onTypeFilter,
+  sortKey,
+  onSort,
+}: {
+  search: string;
+  onSearch: (v: string) => void;
+  statusFilter: StatusFilter;
+  onStatusFilter: (v: StatusFilter) => void;
+  typeFilter: TypeFilter;
+  onTypeFilter: (v: TypeFilter) => void;
+  sortKey: SortKey;
+  onSort: (v: SortKey) => void;
+}) {
+  const statusOptions = [
+    { value: "ALL", label: "All statuses" },
+    { value: "ACTIVE", label: "Active", markerColor: "#45B27D" },
+    { value: "ARCHIVED", label: "Archived", markerColor: "#94A3B8" },
+  ] as const;
+
+  const typeOptions: Array<{ value: TypeFilter; label: string }> = [
+    { value: "ALL", label: "All types" },
+    ...COLLABORATION_TEAM_TYPES.map((t) => ({
+      value: t as TypeFilter,
+      label: TEAM_TYPE_LABELS[t],
+    })),
+  ];
+
+  const sortOptions = [
+    { value: "ACTIVITY_DESC", label: "Last activity (newest)" },
+    { value: "ACTIVITY_ASC", label: "Last activity (oldest)" },
+    { value: "NAME_ASC", label: "Name (A–Z)" },
+    { value: "MEMBERS_DESC", label: "Most members" },
+  ] as const;
+
+  return (
+    // §1 — reuse the EXACT Cases filter-bar styling: the `.cases-toolbar`
+    // row, the translucent `.cases-segments` control tray (background /
+    // border / radius / height / spacing / hover / active / typography /
+    // transitions / focus all inherited from the approved Cases page), and
+    // the `.cases-search-field` + `.cases-filter-search` search. No new /
+    // duplicate styles are introduced.
+    <div className="cases-toolbar" data-testid="teams-toolbar">
+      <div
+        className="cases-segments"
+        role="group"
+        aria-label="Filter teams"
+      >
+        <div style={{ width: 168 }}>
+          <AppListbox<StatusFilter>
+            value={statusFilter}
+            options={statusOptions.map((o) => ({ ...o }))}
+            onChange={onStatusFilter}
+            ariaLabel="Filter by status"
+          />
+        </div>
+        <div style={{ width: 180 }}>
+          <AppListbox<TypeFilter>
+            value={typeFilter}
+            options={typeOptions}
+            onChange={onTypeFilter}
+            ariaLabel="Filter by team type"
+          />
+        </div>
+        <div style={{ width: 210 }}>
+          <AppListbox<SortKey>
+            value={sortKey}
+            options={sortOptions.map((o) => ({ ...o }))}
+            onChange={onSort}
+            ariaLabel="Sort teams"
+          />
+        </div>
+      </div>
+
+      <div className="cases-toolbar-right">
+        <div className="cases-search-field">
+          <span className="cases-search-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </span>
+          <input
+            type="search"
+            className="cases-filter-search"
+            placeholder="Search teams…"
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            aria-label="Search teams by name or description"
+            data-testid="teams-search-input"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Teams table
+// =============================================================================
+
+function TeamsTable({
   teams,
 }: {
   teams: ReadonlyArray<CollaborationTeamSummary>;
 }) {
   return (
-    <PageSection
-      title="Your teams"
-      description="Collaboration Teams you belong to in this workspace."
-    >
-      <div
-        data-testid="teams-list"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-          gap: 16,
-        }}
-      >
-        {teams.map((t) => (
-          <TeamCard key={t.id} team={t} />
-        ))}
-      </div>
-    </PageSection>
+    <div className="app-table-surface" data-testid="teams-list">
+      <table className="app-table" data-responsive>
+        <thead>
+          <tr>
+            <th scope="col">Team</th>
+            <th scope="col">Type</th>
+            <th scope="col">Members</th>
+            <th scope="col">Pending invites</th>
+            <th scope="col">Open assignments</th>
+            <th scope="col">Your role</th>
+            <th scope="col">Last activity</th>
+            <th scope="col" style={{ textAlign: "right" }}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {teams.map((t) => (
+            <TeamRow key={t.id} team={t} />
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
-function TeamCard({ team }: { team: CollaborationTeamSummary }) {
+function TeamRow({ team }: { team: CollaborationTeamSummary }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   const lastActivity = useMemo(() => {
     if (!team.lastActivityAt) return "No activity yet";
     try {
@@ -260,127 +450,231 @@ function TeamCard({ team }: { team: CollaborationTeamSummary }) {
     }
   }, [team.lastActivityAt]);
 
+  const href = `/collaboration-teams/${team.id}`;
+
   return (
-    <Link
-      href={`/collaboration-teams/${team.id}`}
-      className="proovra-card-link"
-      data-testid={`team-card-${team.id}`}
-      style={{ textDecoration: "none", color: "inherit", display: "block" }}
-    >
-      <Card
-        variant="action"
-        style={{ height: "100%" }}
-        header={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              gap: 10,
-            }}
+    <tr data-testid={`team-card-${team.id}`}>
+      <td data-label="Team">
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+          <Link
+            href={href}
+            className="app-table__primary"
+            data-testid={`team-link-${team.id}`}
+            style={{ textDecoration: "none", color: "inherit" }}
           >
-            <div
+            {team.name}
+          </Link>
+          {team.description ? (
+            <span
+              className="app-table__muted"
               style={{
-                fontSize: 16,
-                fontWeight: 650,
-                lineHeight: 1.3,
-                color: "var(--ink-primary, #0f172a)",
-                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
               }}
             >
-              {team.name}
-            </div>
-            <TeamTypeBadge type={team.teamType} />
-          </div>
-        }
-        footer={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <span
-              style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)" }}
-            >
-              Last activity: {lastActivity}
+              {team.description}
             </span>
-            {team.viewerRole ? <RoleBadge role={team.viewerRole} /> : null}
-          </div>
-        }
-      >
-        {team.description ? (
-          <p
-            style={{
-              color: "var(--ink-secondary, #475569)",
-              fontSize: 13.5,
-              lineHeight: 1.5,
-              margin: "0 0 12px",
-            }}
-          >
-            {team.description}
-          </p>
-        ) : null}
-        <div
-          style={{
-            display: "flex",
-            gap: 16,
-            fontSize: 13,
-            color: "var(--ink-secondary, #475569)",
-            flexWrap: "wrap",
-          }}
-        >
-          <span>
-            <strong style={{ color: "var(--ink-primary, #0f172a)" }}>
-              {team.memberCount}
-            </strong>{" "}
-            members
-          </span>
-          {team.pendingInviteCount > 0 ? (
-            <span>
-              <strong style={{ color: "var(--status-pending-fg, #78350f)" }}>
-                {team.pendingInviteCount}
-              </strong>{" "}
-              pending invites
-            </span>
-          ) : null}
-          {team.openAssignmentCount > 0 ? (
-            <span>
-              <strong style={{ color: "var(--status-info-fg, #1e40af)" }}>
-                {team.openAssignmentCount}
-              </strong>{" "}
-              open
-            </span>
-          ) : null}
+          ) : (
+            <span className="app-table__muted">No description</span>
+          )}
         </div>
-      </Card>
-    </Link>
+      </td>
+      <td data-label="Type">
+        <AppStatusBadge tone="slate">{TEAM_TYPE_LABELS[team.teamType]}</AppStatusBadge>
+      </td>
+      <td data-label="Members">
+        <strong style={{ color: "#172033", fontWeight: 650 }}>
+          {team.memberCount}
+        </strong>
+      </td>
+      <td data-label="Pending invites">
+        {team.pendingInviteCount > 0 ? (
+          <AppStatusBadge tone="amber">{team.pendingInviteCount}</AppStatusBadge>
+        ) : (
+          <span className="app-table__muted" aria-label="No pending invites">—</span>
+        )}
+      </td>
+      <td data-label="Open assignments">
+        {team.openAssignmentCount > 0 ? (
+          <AppStatusBadge tone="indigo">{team.openAssignmentCount}</AppStatusBadge>
+        ) : (
+          <span className="app-table__muted" aria-label="No open assignments">—</span>
+        )}
+      </td>
+      <td data-label="Your role">
+        {team.viewerRole ? (
+          <AppStatusBadge tone="indigo">{team.viewerRole}</AppStatusBadge>
+        ) : (
+          <span className="app-table__muted">—</span>
+        )}
+      </td>
+      <td data-label="Last activity">
+        <span className="app-table__muted">{lastActivity}</span>
+      </td>
+      <td data-label="" style={{ textAlign: "right" }}>
+        <div className="app-table__actions">
+          <Link
+            href={href}
+            className="app-secondary-action"
+            data-testid={`team-open-${team.id}`}
+            style={{ height: 30, padding: "0 12px" }}
+          >
+            Open
+          </Link>
+          <RowOverflowMenu
+            teamId={team.id}
+            teamName={team.name}
+            open={menuOpen}
+            onOpenChange={setMenuOpen}
+          />
+        </div>
+      </td>
+    </tr>
   );
 }
 
-function TeamTypeBadge({ type }: { type: CollaborationTeamType }) {
-  const labels: Record<CollaborationTeamType, string> = {
-    GENERAL: "General",
-    INVESTIGATION: "Investigation",
-    LEGAL: "Legal",
-    REVIEW: "Review",
-    COMPLIANCE: "Compliance",
-  };
-  return (
-    <Badge tone="info" subtle>
-      {labels[type]}
-    </Badge>
-  );
-}
+function RowOverflowMenu({
+  teamId,
+  teamName,
+  open,
+  onOpenChange,
+}: {
+  teamId: string;
+  teamName: string;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  // Enterprise context-menu behaviour: the popup renders through a portal
+  // into <body> with `position: fixed` (reusing the shared
+  // `.app-listbox__popup` surface) so it escapes the table's
+  // `overflow: hidden` and every stacking context — it can never be clipped
+  // or sit behind the following section. Anchored to the trigger's rect,
+  // right-aligned, auto-flips near the viewport bottom, follows on
+  // scroll/resize, and closes on outside click and Escape (focus returns
+  // to the trigger).
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [coords, setCoords] = useState<{
+    right: number;
+    top?: number;
+    bottom?: number;
+  } | null>(null);
 
-function RoleBadge({ role }: { role: string }) {
+  const MENU_HEIGHT_ESTIMATE = 150;
+
+  const position = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - r.bottom;
+    const openUp = spaceBelow < MENU_HEIGHT_ESTIMATE && r.top > spaceBelow;
+    setCoords(
+      openUp
+        ? { right: window.innerWidth - r.right, bottom: window.innerHeight - r.top + 6 }
+        : { right: window.innerWidth - r.right, top: r.bottom + 6 },
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    position();
+    const onReflow = () => position();
+    const onPointer = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t)) return;
+      if (menuRef.current?.contains(t)) return;
+      onOpenChange(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onOpenChange(false);
+        triggerRef.current?.focus();
+      }
+    };
+    window.addEventListener("scroll", onReflow, true);
+    window.addEventListener("resize", onReflow);
+    document.addEventListener("pointerdown", onPointer, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", onReflow, true);
+      window.removeEventListener("resize", onReflow);
+      document.removeEventListener("pointerdown", onPointer, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, position, onOpenChange]);
+
   return (
-    <Badge tone="governance" subtle>
-      {role}
-    </Badge>
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="app-ghost-action"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`More actions for ${teamName}`}
+        data-testid={`team-actions-${teamId}`}
+        onClick={() => onOpenChange(!open)}
+        style={{ padding: "6px 8px" }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="12" cy="5" r="1.6" />
+          <circle cx="12" cy="12" r="1.6" />
+          <circle cx="12" cy="19" r="1.6" />
+        </svg>
+      </button>
+      {open && coords && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={menuRef}
+              role="menu"
+              aria-label={`Actions for ${teamName}`}
+              data-testid={`team-actions-menu-${teamId}`}
+              className="app-listbox__popup"
+              style={{
+                position: "fixed",
+                right: coords.right,
+                left: "auto",
+                top: coords.top,
+                bottom: coords.bottom,
+                width: 200,
+                zIndex: 100000,
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+              }}
+            >
+              <Link
+                href={`/collaboration-teams/${teamId}`}
+                role="menuitem"
+                className="app-ghost-action"
+                style={{ justifyContent: "flex-start", width: "100%" }}
+              >
+                Open team
+              </Link>
+              <Link
+                href={`/collaboration-teams/${teamId}?tab=invites`}
+                role="menuitem"
+                className="app-ghost-action"
+                style={{ justifyContent: "flex-start", width: "100%" }}
+              >
+                Invite member
+              </Link>
+              <Link
+                href={`/collaboration-teams/${teamId}?tab=settings`}
+                role="menuitem"
+                className="app-ghost-action"
+                style={{ justifyContent: "flex-start", width: "100%" }}
+              >
+                Settings
+              </Link>
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
 
@@ -394,37 +688,13 @@ function RoleBadge({ role }: { role: string }) {
 // page is at capacity the Create-Team button is disabled with an
 // explanatory aria-label/title and an inline UpgradeCTA points to /billing
 // (the canonical billing surface — see COLLABORATION_TEAM_BILLING_UPGRADE_CTA).
+//
+// NOTE: the SINGLE plan-usage indicator on this page is the canonical
+// `PlanLimitBadge` (kind="TEAMS_USED"), matching the team-detail and
+// collaboration-hub surfaces. The previously-duplicated local capacity badge
+// was removed as part of the app-* redesign (spec §2A — exactly one compact
+// plan-usage chip, consistent across every Teams surface).
 // =============================================================================
-
-function PlanCapacityBadge({
-  plan,
-  ownedTeamCount,
-  maxTeams,
-  atCapacity,
-}: {
-  plan: WorkspacePlan;
-  ownedTeamCount: number;
-  maxTeams: number;
-  atCapacity: boolean;
-}) {
-  return (
-    <Badge
-      tone={atCapacity ? "risk" : "verified"}
-      dot
-      data-testid="collaboration-teams-plan-capacity-badge"
-      data-at-capacity={atCapacity ? "true" : "false"}
-      aria-label={`${ownedTeamCount} of ${maxTeams} Teams used on ${plan} plan`}
-      title={`Plan ${plan}: ${ownedTeamCount} of ${maxTeams} Teams used`}
-    >
-      <strong style={{ fontWeight: 700 }}>{ownedTeamCount}</strong>
-      <span aria-hidden="true" style={{ margin: "0 3px" }}>
-        of
-      </span>
-      <strong style={{ fontWeight: 700 }}>{maxTeams}</strong>
-      <span style={{ opacity: 0.85, marginLeft: 4 }}>teams used</span>
-    </Badge>
-  );
-}
 
 function UpgradeCTA({
   ownedTeamCount,
@@ -438,13 +708,11 @@ function UpgradeCTA({
   return (
     <Link
       href="/billing"
+      className="app-secondary-action"
       data-testid="collaboration-teams-upgrade-cta"
       aria-label={`Upgrade — your ${plan} plan allows up to ${maxTeams} Teams (currently using ${ownedTeamCount})`}
-      style={{ textDecoration: "none" }}
     >
-      <Button variant="enterprise" size="sm">
-        Upgrade plan
-      </Button>
+      Upgrade plan
     </Link>
   );
 }
@@ -478,70 +746,111 @@ function TeamsEmptyState({
       createDisabledReason ??
       `Your ${planLabel} plan doesn't include Teams. Upgrade to create one.`;
     return (
-      <Card
-        variant="empty"
+      <div
+        className="app-empty"
         data-testid="teams-empty-state"
         data-requires-upgrade="true"
       >
-        <EmptyState
-          icon={<TeamsGlyph />}
-          title="Collaboration Teams are part of a paid plan"
-          purpose={`${reason} Teams give you shared assignments, member invites, and collaborative review on cases and evidence.`}
-          action={
-            <div
-              style={{
-                display: "inline-flex",
-                gap: 10,
-                flexWrap: "wrap",
-                justifyContent: "center",
-              }}
-            >
-              <Link
-                href="/billing"
-                data-testid="teams-empty-upgrade-cta"
-                aria-label={`Upgrade plan — ${reason}`}
-                style={{ textDecoration: "none" }}
-              >
-                <Button variant="enterprise">Upgrade plan</Button>
-              </Link>
-              <Button
-                variant="secondary"
-                onClick={onCreate}
-                disabled
-                aria-disabled="true"
-                aria-label={`Create Team — ${reason}`}
-                title={reason}
-              >
-                Create team
-              </Button>
-            </div>
-          }
-        />
-      </Card>
+        <span className="app-empty__icon" aria-hidden="true">
+          <TeamsGlyph />
+        </span>
+        <strong>Collaboration Teams are part of a paid plan</strong>
+        <p>
+          {reason} Teams give you shared assignments, member invites, and
+          collaborative review on cases and evidence.
+        </p>
+        <div
+          style={{
+            display: "inline-flex",
+            gap: 10,
+            flexWrap: "wrap",
+            justifyContent: "center",
+            marginTop: 4,
+          }}
+        >
+          <Link
+            href="/billing"
+            className="app-primary-action"
+            data-testid="teams-empty-upgrade-cta"
+            aria-label={`Upgrade plan — ${reason}`}
+          >
+            Upgrade plan
+          </Link>
+          <button
+            type="button"
+            className="app-secondary-action"
+            onClick={onCreate}
+            disabled
+            aria-disabled="true"
+            aria-label={`Create Team — ${reason}`}
+            title={reason}
+          >
+            Create team
+          </button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card variant="empty" data-testid="teams-empty-state">
-      <EmptyState
-        icon={<TeamsGlyph />}
-        title="No collaboration Teams yet"
-        purpose="Create a Team to collaborate on cases, evidence, reviews, and assignments. Teams work in both personal and organization workspaces — no Organization is required."
-        action={
-          <Button variant="primary" onClick={onCreate}>
-            Create team
-          </Button>
-        }
-      />
-    </Card>
+    <div className="app-empty" data-testid="teams-empty-state">
+      <span className="app-empty__icon" aria-hidden="true">
+        <TeamsGlyph />
+      </span>
+      <strong>No collaboration Teams yet</strong>
+      <p>
+        Create a Team to collaborate on cases, evidence, reviews, and
+        assignments. Teams work in both personal and organization workspaces —
+        no Organization is required.
+      </p>
+      <button
+        type="button"
+        className="app-primary-action"
+        onClick={onCreate}
+        style={{ marginTop: 4 }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        <span>Create team</span>
+      </button>
+    </div>
+  );
+}
+
+function NoMatchesState({
+  onReset,
+  controlsActive,
+}: {
+  onReset: () => void;
+  controlsActive: boolean;
+}) {
+  return (
+    <div className="app-empty" data-testid="teams-no-matches">
+      <span className="app-empty__icon" aria-hidden="true">
+        <TeamsGlyph />
+      </span>
+      <strong>No teams match your filters</strong>
+      <p>Try a different search term or clear the active filters.</p>
+      {controlsActive ? (
+        <button
+          type="button"
+          className="app-secondary-action"
+          onClick={onReset}
+          style={{ marginTop: 4 }}
+        >
+          Clear filters
+        </button>
+      ) : null}
+    </div>
   );
 }
 
 function TeamsGlyph() {
   return (
     <svg
-      width="26"
-      height="26"
+      width="24"
+      height="24"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -560,28 +869,20 @@ function TeamsGlyph() {
 
 function LoadingState() {
   return (
-    <div
-      data-testid="teams-loading"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-        gap: 16,
-      }}
-    >
-      {[0, 1, 2].map((i) => (
-        <div
-          key={i}
-          style={{
-            height: 132,
-            borderRadius: "var(--radius-card, 14px)",
-            background:
-              "linear-gradient(90deg, rgba(15,23,42,0.03) 0%, rgba(15,23,42,0.06) 50%, rgba(15,23,42,0.03) 100%)",
-            backgroundSize: "200% 100%",
-            animation: "shimmer 1.5s linear infinite",
-            border: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
-          }}
-        />
-      ))}
+    <div className="app-table-surface" data-testid="teams-loading">
+      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            style={{ display: "flex", alignItems: "center", gap: 16 }}
+          >
+            <div className="app-skeleton" style={{ height: 14, flex: "2 1 0" }} />
+            <div className="app-skeleton" style={{ height: 14, flex: "1 1 0" }} />
+            <div className="app-skeleton" style={{ height: 14, flex: "1 1 0" }} />
+            <div className="app-skeleton" style={{ height: 14, width: 72 }} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -596,32 +897,35 @@ function ErrorState({
   onRetry: () => void;
 }) {
   return (
-    <Card
-      variant="status"
-      tone="risk"
-      data-testid="teams-error"
-      title="Couldn't load Teams"
-    >
-      <p style={{ color: "var(--ink-secondary, #475569)", margin: "0 0 8px" }}>
-        {message}
-      </p>
-      {requestId ? (
-        <p
-          style={{
-            color: "var(--ink-muted, #94a3b8)",
-            fontSize: 12,
-            fontFamily: "monospace",
-            margin: "0 0 12px",
-          }}
-          data-testid="error-request-id"
-        >
-          Request id: {requestId}
+    <div className="app-panel" data-testid="teams-error">
+      <div className="app-panel__head">
+        <h2 className="app-panel__title">Couldn&apos;t load Teams</h2>
+        <AppStatusBadge tone="red" dot>
+          Error
+        </AppStatusBadge>
+      </div>
+      <div className="app-panel__body">
+        <p style={{ color: "#475569", margin: "0 0 8px", fontSize: 13.5 }}>
+          {message}
         </p>
-      ) : null}
-      <Button variant="secondary" size="sm" onClick={onRetry}>
-        Try again
-      </Button>
-    </Card>
+        {requestId ? (
+          <p
+            style={{
+              color: "var(--app-ink-secondary)",
+              fontSize: 12,
+              fontFamily: "monospace",
+              margin: "0 0 12px",
+            }}
+            data-testid="error-request-id"
+          >
+            Request id: {requestId}
+          </p>
+        ) : null}
+        <button type="button" className="app-secondary-action" onClick={onRetry}>
+          Try again
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -695,188 +999,131 @@ function CreateTeamModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <form
-        onSubmit={onSubmit}
-        style={{
-          background: "var(--surface-card, #ffffff)",
-          borderRadius: "var(--radius-card, 14px)",
-          padding: "1.5rem",
-          maxWidth: 560,
-          width: "100%",
-          boxShadow: "0 24px 64px rgba(15,23,42,0.30)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "1rem",
-        }}
-      >
-        <header>
-          <h2
-            id="create-team-title"
-            style={{
-              margin: 0,
-              fontSize: "1.2rem",
-              color: "var(--ink-primary, #0f172a)",
-            }}
-          >
+      <form onSubmit={onSubmit} className="app-dialog">
+        <header className="app-dialog__head">
+          <h2 id="create-team-title" className="app-dialog__title">
             Create a collaboration Team
           </h2>
-          <p
-            style={{
-              color: "var(--ink-secondary, #475569)",
-              margin: "0.25rem 0 0",
-            }}
-          >
-            Teams help you coordinate on evidence, cases, and review work.
-            This is a collaboration space, not a workspace or organization.
+          <p className="app-dialog__subtitle">
+            Teams help you coordinate on evidence, cases, and review work. This
+            is a collaboration space, not a workspace or organization.
           </p>
         </header>
 
-        <label style={{ display: "block" }}>
-          <span style={labelStyle}>Name</span>
-          <input
-            type="text"
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={120}
-            required
-            data-testid="create-team-name-input"
-            style={inputStyle}
-            placeholder="e.g. Claim Investigations"
-          />
-        </label>
+        <div className="app-dialog__body">
+          <label style={{ display: "block" }}>
+            <span className="app-field-label">Name</span>
+            <input
+              type="text"
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={120}
+              required
+              data-testid="create-team-name-input"
+              className="app-form-input"
+              placeholder="e.g. Claim Investigations"
+            />
+          </label>
 
-        <label style={{ display: "block" }}>
-          <span style={labelStyle}>Description (optional)</span>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            maxLength={600}
-            rows={3}
-            data-testid="create-team-description-input"
-            style={{ ...inputStyle, resize: "vertical" }}
-            placeholder="What does this team work on?"
-          />
-        </label>
+          <label style={{ display: "block" }}>
+            <span className="app-field-label">Description (optional)</span>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              maxLength={600}
+              rows={3}
+              data-testid="create-team-description-input"
+              className="app-form-input"
+              placeholder="What does this team work on?"
+            />
+          </label>
 
-        <label style={{ display: "block" }}>
-          <span style={labelStyle}>Template</span>
-          <select
-            value={teamType}
-            onChange={(e) =>
-              setTeamType(e.target.value as CollaborationTeamType)
-            }
-            data-testid="create-team-type-select"
-            style={inputStyle}
-          >
-            {COLLABORATION_TEAM_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {teamTypeLabel(t)}
-              </option>
-            ))}
-          </select>
-          <span
-            style={{
-              color: "var(--ink-muted, #94a3b8)",
-              fontSize: "0.8rem",
-              marginTop: 4,
-              display: "block",
-            }}
-          >
-            Templates set default ordering and emphasis. They never change
-            permissions.
-          </span>
-        </label>
+          <label style={{ display: "block" }}>
+            <span className="app-field-label">Template</span>
+            <input
+              type="hidden"
+              value={teamType}
+              data-testid="create-team-type-select"
+              readOnly
+            />
+            <AppListbox<CollaborationTeamType>
+              value={teamType}
+              options={COLLABORATION_TEAM_TYPES.map((t) => ({
+                value: t,
+                label: TEAM_TYPE_LABELS[t],
+                description: teamTypeHint(t),
+              }))}
+              onChange={setTeamType}
+              ariaLabel="Team template"
+            />
+            <span className="app-field-help">
+              Templates set default ordering and emphasis. They never change
+              permissions.
+            </span>
+          </label>
 
-        {error ? (
-          <div
-            data-testid="create-team-error"
-            style={{
-              background: "var(--status-risk-bg, #fef2f2)",
-              border: "1px solid var(--status-risk-border, #fecaca)",
-              borderRadius: 10,
-              padding: "0.75rem",
-              color: "var(--status-risk-fg, #991b1b)",
-              fontSize: "0.9rem",
-            }}
-          >
-            {error.message}
-            {error.requestId ? (
-              <div
-                style={{
-                  marginTop: 4,
-                  color: "var(--ink-muted, #94a3b8)",
-                  fontSize: "0.75rem",
-                  fontFamily: "monospace",
-                }}
-              >
-                Request id: {error.requestId}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+          {error ? (
+            <div
+              data-testid="create-team-error"
+              style={{
+                background: "#FFF1F2",
+                border: "1px solid rgba(178, 52, 66, 0.18)",
+                borderRadius: 10,
+                padding: "0.75rem",
+                color: "#B23442",
+                fontSize: "0.9rem",
+              }}
+            >
+              {error.message}
+              {error.requestId ? (
+                <div
+                  style={{
+                    marginTop: 4,
+                    color: "var(--app-ink-secondary)",
+                    fontSize: "0.75rem",
+                    fontFamily: "monospace",
+                  }}
+                >
+                  Request id: {error.requestId}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
 
-        <footer
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: "0.5rem",
-            marginTop: "0.5rem",
-          }}
-        >
-          <Button
-            variant="secondary"
-            onClick={onClose}
-            disabled={submitting}
-          >
+        <footer className="app-dialog__footer">
+          <Button variant="secondary" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
-          <Button
-            variant="primary"
+          <button
             type="submit"
-            loading={submitting}
+            className="app-primary-action"
             disabled={!canSubmit}
             data-testid="create-team-submit"
           >
-            {submitting ? "Creating…" : "Create team"}
-          </Button>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <span>{submitting ? "Creating…" : "Create team"}</span>
+          </button>
         </footer>
       </form>
     </div>
   );
 }
 
-function teamTypeLabel(t: CollaborationTeamType): string {
+function teamTypeHint(t: CollaborationTeamType): string {
   switch (t) {
     case "GENERAL":
-      return "General — flexible team for any work";
+      return "Flexible team for any work";
     case "INVESTIGATION":
-      return "Investigation — reconstruction & timeline work";
+      return "Reconstruction & timeline work";
     case "LEGAL":
-      return "Legal — matter & disclosure";
+      return "Matter & disclosure";
     case "REVIEW":
-      return "Review — reviewer ops & QC";
+      return "Reviewer ops & QC";
     case "COMPLIANCE":
-      return "Compliance — governance & audit";
+      return "Governance & audit";
   }
 }
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontWeight: 600,
-  color: "var(--ink-primary, #0f172a)",
-  fontSize: "0.92rem",
-  marginBottom: 6,
-};
-
-const inputStyle: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  padding: "10px 12px",
-  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-  borderRadius: 10,
-  background: "var(--surface-card, #fff)",
-  color: "var(--ink-primary, #0f172a)",
-  fontSize: "0.95rem",
-  outline: "none",
-};

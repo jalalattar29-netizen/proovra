@@ -1,8 +1,8 @@
 "use client";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { Button, Card, useToast } from "../../components/ui";
+import { useEffect, useMemo, useState } from "react";
+import { useToast } from "../../components/ui";
 import { apiFetch } from "../../lib/api";
 import { captureException } from "../../lib/sentry";
 import {
@@ -302,55 +302,44 @@ export function CheckoutPanel({
   };
 
   return (
-    <Card
-      className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-      style={{
-        border: "1px solid rgba(79,112,107,0.16)",
-        boxShadow:
-          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
-      }}
-    >
+    <div className="cases-panel" style={{ overflow: "hidden" }}>
       <div className="relative z-10 p-6 md:p-7">
-        <div className="mb-2 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+        <div className="mb-2 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#172033]">
           Checkout Console
         </div>
 
-        <div className="text-[0.92rem] leading-[1.7] text-[#5d6d71]">
+        <div className="text-[0.92rem] leading-[1.7] text-[#475569]">
           Choose workspace target, plan, then payment method. The same billing
           rules are enforced here and on the backend.
         </div>
 
-        <div className="mt-2 text-[0.84rem] text-[#7a878a]">
+        <div className="mt-2 text-[0.84rem] text-[#5F6878]">
           Preferred currency: <strong>{checkoutCurrency}</strong>
         </div>
 
         <div className="mt-5 grid gap-5">
           <div>
-            <div className="mb-2 text-[0.82rem] font-semibold uppercase tracking-[0.16em] text-[#9b826b]">
+            <div className="mb-2 text-[0.82rem] font-semibold uppercase tracking-[0.14em] text-[#5F6878]">
               1. Workspace target
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <Button
-                className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                style={
-                  targetType === "PERSONAL"
-                    ? activePillStyle
-                    : inactivePillStyle
-                }
+              <button
+                type="button"
+                className={chipClass(targetType === "PERSONAL")}
                 onClick={() => handleTargetTypeChange("PERSONAL")}
               >
                 Personal workspace
-              </Button>
+              </button>
 
-              <Button
-                className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                style={targetType === "TEAM" ? activePillStyle : inactivePillStyle}
+              <button
+                type="button"
+                className={chipClass(targetType === "TEAM")}
                 onClick={() => handleTargetTypeChange("TEAM")}
                 disabled={teams.length === 0}
               >
                 Workspace
-              </Button>
+              </button>
             </div>
 
             {targetType === "TEAM" ? (
@@ -358,15 +347,8 @@ export function CheckoutPanel({
                 <select
                   value={selectedTeamId}
                   onChange={(e) => setSelectedTeamId(e.target.value)}
-                  style={{
-                    width: "100%",
-                    borderRadius: 14,
-                    border: "1px solid rgba(79,112,107,0.16)",
-                    padding: "12px 14px",
-                    background: "rgba(255,255,255,0.86)",
-                    color: "#21353a",
-                    fontSize: 14,
-                  }}
+                  className="cases-form-input"
+                  style={{ padding: "12px 14px", fontSize: 14 }}
                 >
                   <option value="">Select workspace...</option>
                   {teams.map((team) => {
@@ -382,7 +364,7 @@ export function CheckoutPanel({
                 </select>
 
                 {selectedTeam ? (
-                  <div className="mt-3 rounded-[18px] border px-4 py-4 text-[0.86rem] leading-[1.75] text-[#5d6d71]">
+                  <div className="cases-inner mt-3 px-4 py-4 text-[0.86rem] leading-[1.75] text-[#475569]">
                     Selected team: <strong>{selectedTeam.name}</strong>
                     <br />
                     Workspace plan: <strong>{selectedTeamPlanLabel}</strong>
@@ -397,62 +379,53 @@ export function CheckoutPanel({
           </div>
 
           <div>
-            <div className="mb-2 text-[0.82rem] font-semibold uppercase tracking-[0.16em] text-[#9b826b]">
+            <div className="mb-2 text-[0.82rem] font-semibold uppercase tracking-[0.14em] text-[#5F6878]">
               2. Plan
             </div>
 
             <div className="flex flex-wrap gap-3">
               {availablePlans.map((plan) => (
-                <Button
+                <button
                   key={plan}
-                  className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                  style={selectedPlan === plan ? activePillStyle : inactivePillStyle}
+                  type="button"
+                  className={chipClass(selectedPlan === plan)}
                   onClick={() => handlePlanChange(plan)}
                 >
                   {plan}
-                </Button>
+                </button>
               ))}
             </div>
 
-            <div className="mt-3 text-[0.88rem] leading-[1.75] text-[#5d6d71]">
+            <div className="mt-3 text-[0.88rem] leading-[1.75] text-[#475569]">
               {planDescription}
             </div>
           </div>
 
           <div>
-            <div className="mb-2 text-[0.82rem] font-semibold uppercase tracking-[0.16em] text-[#9b826b]">
+            <div className="mb-2 text-[0.82rem] font-semibold uppercase tracking-[0.14em] text-[#5F6878]">
               3. Payment method
             </div>
 
             <div className="flex flex-wrap gap-3">
               {availableProviders.map((provider) => (
-                <Button
+                <button
                   key={provider}
-                  className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                  style={
-                    selectedProvider === provider ? activePillStyle : inactivePillStyle
-                  }
+                  type="button"
+                  className={chipClass(selectedProvider === provider)}
                   onClick={() => handleProviderChange(provider)}
                 >
                   {provider === "STRIPE" ? "Card / Stripe" : "PayPal"}
-                </Button>
+                </button>
               ))}
             </div>
           </div>
 
-          <div
-            className="rounded-[20px] border px-4 py-4"
-            style={{
-              border: "1px solid rgba(79,112,107,0.10)",
-              background:
-                "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-            }}
-          >
-            <div className="text-[0.9rem] font-semibold text-[#21353a]">
+          <div className="cases-inner px-4 py-4">
+            <div className="text-[0.9rem] font-semibold text-[#172033]">
               Checkout summary
             </div>
 
-            <div className="mt-2 text-[0.9rem] leading-[1.75] text-[#5d6d71]">
+            <div className="mt-2 text-[0.9rem] leading-[1.75] text-[#475569]">
               Target: {targetType === "TEAM" ? "Workspace" : "Personal workspace"}
               <br />
               Plan: {selectedPlan}
@@ -462,7 +435,7 @@ export function CheckoutPanel({
               Preferred currency: {checkoutCurrency}
             </div>
 
-            <div className="mt-3 text-[0.86rem] leading-[1.75] text-[#5d6d71]">
+            <div className="mt-3 text-[0.86rem] leading-[1.75] text-[#475569]">
               {targetDescription}
             </div>
 
@@ -470,7 +443,7 @@ export function CheckoutPanel({
               {rulesSummary.map((item, index) => (
                 <div
                   key={index}
-                  className="text-[0.84rem] leading-[1.7] text-[#5d6d71]"
+                  className="text-[0.84rem] leading-[1.7] text-[#475569]"
                 >
                   • {item}
                 </div>
@@ -479,36 +452,26 @@ export function CheckoutPanel({
           </div>
 
           <div>
-            <Button
+            <button
+              type="button"
               onClick={handleContinue}
               disabled={!canContinue}
-              className="w-full rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
-              style={{
-                borderColor: "rgba(79,112,107,0.18)",
-                color: "#eef3f1",
-                background:
-                  "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
-              }}
+              className="app-header-primary-action"
+              style={{ width: "100%" }}
             >
-              {busy ? "Creating checkout..." : "Continue to checkout"}
-            </Button>
+              <span>{busy ? "Creating checkout..." : "Continue to checkout"}</span>
+            </button>
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
-const activePillStyle: CSSProperties = {
-  borderColor: "rgba(79,112,107,0.18)",
-  color: "#eef3f1",
-  background:
-    "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
-};
-
-const inactivePillStyle: CSSProperties = {
-  borderColor: "rgba(79,112,107,0.14)",
-  color: "#23373b",
-  background:
-    "linear-gradient(180deg, rgba(255,255,255,0.80) 0%, rgba(243,245,242,0.95) 100%)",
-};
+// Shared pill/segment style — the canonical `.cases-filter-chip`
+// active-state language (indigo #4F46E5 active, neutral idle).
+function chipClass(active: boolean): string {
+  return ["cases-filter-chip", active ? "is-active" : ""]
+    .filter(Boolean)
+    .join(" ");
+}

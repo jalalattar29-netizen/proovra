@@ -296,6 +296,14 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   // -------------------------------------------------------------------
   "app/(app)/collaboration-teams/page.tsx",
   "app/(app)/collaboration-teams/[teamId]/page.tsx",
+  // The team-detail page was decomposed into per-tab modules (app-* redesign);
+  // each tab inherits the same legitimate Collaboration-Teams product wording.
+  "app/(app)/collaboration-teams/[teamId]/_tabs/OverviewTab.tsx",
+  "app/(app)/collaboration-teams/[teamId]/_tabs/MembersTab.tsx",
+  "app/(app)/collaboration-teams/[teamId]/_tabs/InvitesTab.tsx",
+  "app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx",
+  "app/(app)/collaboration-teams/[teamId]/_tabs/ActivityTab.tsx",
+  "app/(app)/collaboration-teams/[teamId]/_tabs/SettingsTab.tsx",
   "app/(app)/collaboration-teams/[teamId]/collaboration/page.tsx",
   "app/(app)/collaboration-teams/invites/[token]/accept/page.tsx",
   // -------------------------------------------------------------------

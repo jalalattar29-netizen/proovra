@@ -21,6 +21,8 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
+import { AppStatusBadge, type AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import { useToast } from "../../../../../components/ui";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
@@ -90,8 +92,12 @@ function CollaborationHub() {
   if (error) {
     return (
       <main className="cc-page" style={{ maxWidth: 720, margin: "0 auto" }}>
-        <p style={{ color: "#7c2d2d" }}>{error}</p>
-        <Link href={`/collaboration-teams/${teamId}`} className="cases-filter-chip">
+        <p style={{ color: "#C9363E" }}>{error}</p>
+        <Link
+          href={`/collaboration-teams/${teamId}`}
+          className="app-secondary-action"
+          style={{ marginTop: 12 }}
+        >
           Back to team
         </Link>
       </main>
@@ -100,7 +106,7 @@ function CollaborationHub() {
   if (!team) {
     return (
       <main className="cc-page" style={{ maxWidth: 720, margin: "0 auto" }}>
-        <p style={{ color: "#5d6d71" }}>Loading collaboration hub…</p>
+        <p style={{ color: "#5F6878" }}>Loading collaboration hub…</p>
       </main>
     );
   }
@@ -113,39 +119,73 @@ function CollaborationHub() {
     <main
       className="cc-page"
       data-testid="collaboration-hub"
-      style={{ maxWidth: 1100, margin: "0 auto" }}
+      style={{ maxWidth: 1180, margin: "0 auto" }}
     >
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">
-            <Link
-              href={`/collaboration-teams/${team.id}`}
-              style={{ color: "inherit" }}
+      <header className="app-page-header">
+        <div className="app-page-header__lead">
+          <div className="app-page-header__icon" aria-hidden>
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              {team.name}
-            </Link>
-            {" / Collaboration"}
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
           </div>
-          <h1 className="cc-title">Collaboration hub</h1>
-          <p className="cc-subtitle">
-            Comments, notification preferences, guest collaborators, and
-            access review for this team. Built for personal and organization
-            workspaces — no Organization required.
-          </p>
+          <div className="app-page-header__text">
+            <div
+              style={{
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: "#5F6878",
+                marginBottom: 4,
+              }}
+            >
+              <Link
+                href={`/collaboration-teams/${team.id}`}
+                style={{ color: "inherit", textDecoration: "none" }}
+              >
+                {team.name}
+              </Link>
+              {" / Collaboration"}
+            </div>
+            <h1 className="app-page-header__title">Collaboration hub</h1>
+            <p className="app-page-header__subtitle">
+              Comments, notification preferences, guest collaborators, and
+              access review for this team. Built for personal and organization
+              workspaces — no Organization required.
+            </p>
+          </div>
         </div>
       </header>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)",
-          gap: "1.5rem",
-          marginTop: "1.5rem",
-        }}
-      >
+      <div className="collab-hub-grid">
         <CommentsPanel team={team} onError={onError} />
         <SidePanel team={team} onError={onError} />
       </div>
+
+      <style jsx>{`
+        .collab-hub-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+          gap: 1.5rem;
+          margin-top: 1.5rem;
+          align-items: start;
+        }
+        @media (max-width: 900px) {
+          .collab-hub-grid {
+            grid-template-columns: minmax(0, 1fr);
+          }
+        }
+      `}</style>
     </main>
   );
 }
@@ -202,80 +242,130 @@ function CommentsPanel({
   };
 
   return (
-    <section data-testid="comments-panel">
-      <h2 style={{ margin: 0, fontSize: "1.05rem", color: "#182b30" }}>
-        Team discussion
-      </h2>
-      <p style={{ color: "#5d6d71", margin: "0.25rem 0 1rem" }}>
-        Comments are visible to active team members only. Use{" "}
-        <code style={inlineCode}>@team</code> to notify everyone,{" "}
-        <code style={inlineCode}>@lead</code> for leadership, or{" "}
-        <code style={inlineCode}>@handle</code> for a specific member.
-      </p>
-
-      <form
-        onSubmit={onSubmit}
-        data-testid="comment-create-form"
-        style={{
-          background: "rgba(255,255,255,0.7)",
-          border: "1px solid rgba(79,112,107,0.14)",
-          borderRadius: 14,
-          padding: "1rem",
-          marginBottom: "1rem",
-        }}
-      >
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          maxLength={4000}
-          rows={3}
-          placeholder="Write a comment for the team…"
-          data-testid="comment-body-input"
+    <section className="app-panel" data-testid="comments-panel">
+      <div className="app-panel__head">
+        <h2 className="app-panel__title">Team discussion</h2>
+      </div>
+      <div className="app-panel__body">
+        <p
           style={{
-            ...inputStyle,
-            resize: "vertical",
-            fontFamily: "inherit",
-          }}
-        />
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            marginTop: "0.5rem",
+            color: "#5F6878",
+            margin: "0 0 1rem",
+            fontSize: 13,
+            lineHeight: 1.5,
           }}
         >
-          <button
-            type="submit"
-            disabled={!body.trim() || busy}
-            className="cc-quick-action"
-            data-testid="comment-submit"
-          >
-            {busy ? "Posting…" : "Post comment"}
-          </button>
-        </div>
-      </form>
-
-      {loading ? (
-        <p style={{ color: "#5d6d71" }}>Loading comments…</p>
-      ) : items.length === 0 ? (
-        <p style={{ color: "#5d6d71" }} data-testid="comments-empty">
-          No comments yet. Start the conversation.
+          Comments are visible to active team members only. Use{" "}
+          <code style={inlineCode}>@team</code> to notify everyone,{" "}
+          <code style={inlineCode}>@lead</code> for leadership, or{" "}
+          <code style={inlineCode}>@handle</code> for a specific member.
         </p>
-      ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {items.map((c) => (
-            <CommentRow
-              key={c.id}
-              comment={c}
-              directory={directory}
-              teamId={team.id}
-              viewerRole={team.viewerRole}
-              onRefresh={refresh}
-              onError={onError}
-            />
-          ))}
-        </ul>
-      )}
+
+        <form
+          onSubmit={onSubmit}
+          data-testid="comment-create-form"
+          className="app-inner-surface"
+          style={{ padding: "1rem", marginBottom: "1.25rem" }}
+        >
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <span className="app-avatar" aria-hidden>
+              You
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                maxLength={4000}
+                rows={3}
+                placeholder="Write a comment for the team…"
+                data-testid="comment-body-input"
+                className="app-form-input"
+              />
+              <p className="app-field-help" data-testid="comment-mention-hint">
+                Mention teammates with{" "}
+                <code style={inlineCode}>@handle</code> to notify them directly.
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 8,
+                  marginTop: "0.75rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <button
+                  type="button"
+                  className="app-ghost-action"
+                  data-testid="comment-attach"
+                  aria-label="Attach a file"
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                  Attach
+                </button>
+                <button
+                  type="submit"
+                  disabled={!body.trim() || busy}
+                  className="app-primary-action"
+                  data-testid="comment-submit"
+                >
+                  {busy ? "Posting…" : "Post comment"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+
+        {loading ? (
+          <p style={{ color: "#5F6878" }}>Loading comments…</p>
+        ) : items.length === 0 ? (
+          <div className="app-empty" data-testid="comments-empty">
+            <div className="app-empty__icon" aria-hidden>
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+            <strong>No comments yet</strong>
+            <p>Start the conversation with your team.</p>
+          </div>
+        ) : (
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {items.map((c) => (
+              <CommentRow
+                key={c.id}
+                comment={c}
+                directory={directory}
+                teamId={team.id}
+                viewerRole={team.viewerRole}
+                onRefresh={refresh}
+                onError={onError}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }
@@ -341,22 +431,17 @@ function CommentRow({
   return (
     <li
       data-testid={`comment-row-${comment.id}`}
-      style={{
-        padding: "0.9rem 1rem",
-        background: "rgba(255,255,255,0.65)",
-        border: "1px solid rgba(79,112,107,0.10)",
-        borderRadius: 12,
-        marginBottom: "0.5rem",
-      }}
+      className="app-inner-surface"
+      style={{ padding: "0.9rem 1rem", marginBottom: "0.6rem" }}
     >
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
         <Avatar entry={author} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
-            <span style={{ fontWeight: 600, color: "#182b30" }}>
+            <span style={{ fontWeight: 650, color: "#172033" }}>
               {author?.displayName ?? "Team member"}
             </span>
-            <span style={{ color: "#9b826b", fontSize: "0.78rem" }}>
+            <span style={{ color: "#5F6878", fontSize: "0.78rem" }}>
               {formatUserDateTime(comment.createdAt)}
               {comment.status === "EDITED" ? " · edited" : ""}
             </span>
@@ -368,19 +453,15 @@ function CommentRow({
                 onChange={(e) => setDraft(e.target.value)}
                 maxLength={4000}
                 rows={3}
-                style={{
-                  ...inputStyle,
-                  resize: "vertical",
-                  fontFamily: "inherit",
-                  marginTop: 6,
-                }}
+                className="app-form-input"
+                style={{ marginTop: 6 }}
               />
-              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <button
                   type="button"
                   onClick={() => void onSaveEdit()}
                   disabled={busy}
-                  className="cc-quick-action"
+                  className="app-primary-action"
                   data-testid={`comment-save-${comment.id}`}
                 >
                   Save
@@ -392,7 +473,7 @@ function CommentRow({
                     setDraft(comment.body);
                   }}
                   disabled={busy}
-                  className="cases-filter-chip"
+                  className="app-ghost-action"
                 >
                   Cancel
                 </button>
@@ -402,7 +483,7 @@ function CommentRow({
             <p
               style={{
                 margin: "0.4rem 0",
-                color: "#3e6063",
+                color: "#475569",
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
               }}
@@ -411,11 +492,11 @@ function CommentRow({
             </p>
           )}
           {!editing ? (
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 4, marginLeft: -6 }}>
               <button
                 type="button"
                 onClick={() => setEditing(true)}
-                className="cases-filter-chip"
+                className="app-ghost-action"
                 data-testid={`comment-edit-${comment.id}`}
               >
                 Edit
@@ -425,9 +506,8 @@ function CommentRow({
                   type="button"
                   onClick={() => void onDelete()}
                   disabled={busy}
-                  className="cases-filter-chip"
+                  className="app-danger-link"
                   data-testid={`comment-delete-${comment.id}`}
-                  style={{ color: "#7c2d2d" }}
                 >
                   Delete
                 </button>
@@ -447,8 +527,14 @@ function renderBodyWithMentions(body: string): React.ReactNode {
     p.startsWith("@") ? (
       <strong
         key={i}
-        style={{ color: "#3e6063" }}
         data-testid="mention-token"
+        style={{
+          color: "#5949e4",
+          background: "rgba(89, 73, 228, 0.09)",
+          borderRadius: 5,
+          padding: "0 4px",
+          fontWeight: 650,
+        }}
       >
         {p}
       </strong>
@@ -460,24 +546,9 @@ function renderBodyWithMentions(body: string): React.ReactNode {
 
 function Avatar({ entry }: { entry?: CollaborationTeamUserDirectoryEntry }) {
   return (
-    <div
-      aria-hidden
-      style={{
-        width: 36,
-        height: 36,
-        borderRadius: "50%",
-        background:
-          "linear-gradient(135deg, rgba(62,96,99,0.85) 0%, rgba(24,43,48,0.95) 100%)",
-        color: "#fff",
-        fontWeight: 600,
-        display: "grid",
-        placeItems: "center",
-        fontSize: 13,
-        flexShrink: 0,
-      }}
-    >
+    <span className="app-avatar" aria-hidden>
       {entry?.initials ?? "??"}
-    </div>
+    </span>
   );
 }
 
@@ -494,10 +565,11 @@ function SidePanel({
 }) {
   return (
     <aside
+      className="app-section-stack"
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: "1rem",
+        gap: "1.25rem",
       }}
     >
       <NotificationsCard onError={onError} />
@@ -557,18 +629,18 @@ function NotificationsCard({ onError }: { onError: (err: unknown) => void }) {
     <section
       data-testid="notifications-card"
       data-unread-count={unreadCount}
-      style={cardStyle}
+      className="app-panel"
     >
-      <header style={cardHeader}>
-        <h3 style={cardTitle}>
-          Notifications{" "}
+      <div className="app-panel__head">
+        <h3
+          className="app-panel__title"
+          style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+        >
+          Notifications
           {unreadCount > 0 ? (
-            <span
-              data-testid="notifications-unread-badge"
-              style={badge("#3e6063")}
-            >
-              {unreadCount}
-            </span>
+            <AppStatusBadge tone="indigo">
+              <span data-testid="notifications-unread-badge">{unreadCount}</span>
+            </AppStatusBadge>
           ) : null}
         </h3>
         {unreadCount > 0 ? (
@@ -576,81 +648,77 @@ function NotificationsCard({ onError }: { onError: (err: unknown) => void }) {
             type="button"
             onClick={() => void onMarkAll()}
             disabled={busy}
-            className="cases-filter-chip"
+            className="app-ghost-action"
             data-testid="notifications-mark-all"
           >
             Mark all read
           </button>
         ) : null}
-      </header>
-      {items.length === 0 ? (
-        <p style={{ color: "#5d6d71", margin: 0 }}>You're all caught up.</p>
-      ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {items.map((n) => (
-            <li
-              key={n.id}
-              data-testid={`notification-row-${n.id}`}
-              data-read={n.readAt !== null}
-              style={{
-                padding: "0.65rem 0",
-                borderBottom: "1px solid rgba(79,112,107,0.10)",
-              }}
-            >
-              <div
+      </div>
+      <div className="app-panel__body">
+        {items.length === 0 ? (
+          <p style={{ color: "#5F6878", margin: 0 }}>You're all caught up.</p>
+        ) : (
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {items.map((n) => (
+              <li
+                key={n.id}
+                data-testid={`notification-row-${n.id}`}
+                data-read={n.readAt !== null}
                 style={{
-                  fontWeight: n.readAt ? 400 : 600,
-                  color: "#182b30",
-                  fontSize: "0.92rem",
+                  padding: "0.65rem 0",
+                  borderBottom: "1px solid rgba(15,23,42,0.05)",
                 }}
               >
-                {n.title}
-              </div>
-              {n.body ? (
                 <div
                   style={{
-                    color: "#5d6d71",
-                    fontSize: "0.82rem",
-                    marginTop: 2,
+                    fontWeight: n.readAt ? 400 : 650,
+                    color: "#172033",
+                    fontSize: "0.92rem",
                   }}
                 >
-                  {n.body.slice(0, 120)}
+                  {n.title}
                 </div>
-              ) : null}
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                  marginTop: 4,
-                }}
-              >
-                <span style={{ color: "#9b826b", fontSize: "0.72rem" }}>
-                  {formatUserDateTime(n.createdAt)}
-                </span>
-                {n.readAt === null ? (
-                  <button
-                    type="button"
-                    onClick={() => void onMarkRead(n.id)}
-                    disabled={busy}
+                {n.body ? (
+                  <div
                     style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "#3e6063",
-                      cursor: "pointer",
-                      fontSize: "0.78rem",
-                      padding: 0,
+                      color: "#5F6878",
+                      fontSize: "0.82rem",
+                      marginTop: 2,
                     }}
-                    data-testid={`notification-read-${n.id}`}
                   >
-                    Mark read
-                  </button>
+                    {n.body.slice(0, 120)}
+                  </div>
                 ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    marginTop: 4,
+                  }}
+                >
+                  <span style={{ color: "#5F6878", fontSize: "0.72rem" }}>
+                    {formatUserDateTime(n.createdAt)}
+                  </span>
+                  {n.readAt === null ? (
+                    <button
+                      type="button"
+                      onClick={() => void onMarkRead(n.id)}
+                      disabled={busy}
+                      className="app-ghost-action"
+                      style={{ padding: "2px 6px", fontSize: "0.78rem" }}
+                      data-testid={`notification-read-${n.id}`}
+                    >
+                      Mark read
+                    </button>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }
@@ -693,70 +761,73 @@ function PreferencesCard({
 
   if (!pref) {
     return (
-      <section style={cardStyle} data-testid="preferences-card">
-        <h3 style={cardTitle}>Notification preferences</h3>
-        <p style={{ color: "#5d6d71" }}>Loading…</p>
+      <section className="app-panel" data-testid="preferences-card">
+        <div className="app-panel__head">
+          <h3 className="app-panel__title">Notification preferences</h3>
+        </div>
+        <div className="app-panel__body">
+          <p style={{ color: "#5F6878" }}>Loading…</p>
+        </div>
       </section>
     );
   }
 
   return (
-    <section style={cardStyle} data-testid="preferences-card">
-      <h3 style={cardTitle}>Notification preferences</h3>
-      <p style={{ color: "#5d6d71", fontSize: "0.82rem", margin: "0 0 8px" }}>
-        Per-team. Only affects your own notifications.
-      </p>
-      <Toggle
-        label="Notify me on mentions"
-        checked={pref.mentions}
-        onChange={(v) => void save({ mentions: v })}
-        disabled={busy}
-        testid="preference-mentions"
-      />
-      <Toggle
-        label="Notify me on assignments"
-        checked={pref.assignments}
-        onChange={(v) => void save({ assignments: v })}
-        disabled={busy}
-        testid="preference-assignments"
-      />
-      <Toggle
-        label="Notify me when invites are accepted"
-        checked={pref.inviteAccepted}
-        onChange={(v) => void save({ inviteAccepted: v })}
-        disabled={busy}
-        testid="preference-invite-accepted"
-      />
-      <label
-        style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          marginTop: 6,
-        }}
-      >
-        <span style={{ color: "#182b30", fontSize: "0.9rem" }}>Digest</span>
-        <select
-          value={pref.digest}
-          onChange={(e) =>
-            void save({
-              digest: e.target.value as CollaborationTeamDigestMode,
-            })
-          }
+    <section className="app-panel" data-testid="preferences-card">
+      <div className="app-panel__head">
+        <h3 className="app-panel__title">Notification preferences</h3>
+      </div>
+      <div className="app-panel__body">
+        <p style={{ color: "#5F6878", fontSize: "0.82rem", margin: "0 0 12px" }}>
+          Per-team. Only affects your own notifications.
+        </p>
+        <Toggle
+          label="Notify me on mentions"
+          checked={pref.mentions}
+          onChange={(v) => void save({ mentions: v })}
           disabled={busy}
-          data-testid="preference-digest"
-          style={{
-            ...inputStyle,
-            width: "auto",
-            padding: "4px 8px",
-            marginTop: 0,
-          }}
-        >
-          <option value="INSTANT">Instant</option>
-          <option value="DAILY">Daily</option>
-          <option value="MUTED">Muted</option>
-        </select>
-      </label>
+          testid="preference-mentions"
+        />
+        <Toggle
+          label="Notify me on assignments"
+          checked={pref.assignments}
+          onChange={(v) => void save({ assignments: v })}
+          disabled={busy}
+          testid="preference-assignments"
+        />
+        <Toggle
+          label="Notify me when invites are accepted"
+          checked={pref.inviteAccepted}
+          onChange={(v) => void save({ inviteAccepted: v })}
+          disabled={busy}
+          testid="preference-invite-accepted"
+        />
+        <div style={{ marginTop: 14 }}>
+          <label
+            className="app-field-label"
+            htmlFor="preference-digest"
+            id="preference-digest-label"
+          >
+            Digest
+          </label>
+          <AppListbox<CollaborationTeamDigestMode>
+            id="preference-digest"
+            value={pref.digest}
+            ariaLabelledby="preference-digest-label"
+            disabled={busy}
+            onChange={(v) => void save({ digest: v })}
+            options={[
+              { value: "INSTANT", label: "Instant" },
+              { value: "DAILY", label: "Daily" },
+              { value: "MUTED", label: "Muted" },
+            ]}
+            className="preference-digest-listbox"
+          />
+          <span data-testid="preference-digest" hidden>
+            {pref.digest}
+          </span>
+        </div>
+      </div>
     </section>
   );
 }
@@ -778,19 +849,21 @@ function Toggle({
     <label
       style={{
         display: "flex",
-        gap: 8,
+        gap: 10,
         alignItems: "center",
-        padding: "4px 0",
+        padding: "6px 0",
+        cursor: disabled ? "not-allowed" : "pointer",
       }}
     >
       <input
         type="checkbox"
+        className="app-checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
         disabled={disabled}
         data-testid={testid}
       />
-      <span style={{ color: "#182b30", fontSize: "0.9rem" }}>{label}</span>
+      <span style={{ color: "#172033", fontSize: "0.9rem" }}>{label}</span>
     </label>
   );
 }
@@ -871,144 +944,197 @@ function GuestsCard({
 
   return (
     <section
-      style={cardStyle}
+      className="app-panel"
       data-testid="guests-card"
       data-guests-allowed={guestsAllowed}
     >
-      <header
-        style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 4,
-          flexWrap: "wrap",
-        }}
-      >
-        <h3 style={cardTitle}>Guests</h3>
+      <div className="app-panel__head">
+        <h3 className="app-panel__title">Guests</h3>
         {!guestsAllowed ? (
           <PlanGateBadge
             requiredTier="TEAM"
             testid="guests-plan-gate-badge"
           />
         ) : null}
-      </header>
-      <p style={{ color: "#5d6d71", fontSize: "0.82rem", margin: "0 0 8px" }}>
-        {guestsAllowed
-          ? "Time-bounded external collaborators. They never become workspace members. Audit + revocation are required."
-          : guestsGateCopy}
-      </p>
-      {canManage ? (
-        <form onSubmit={onInvite} data-testid="guest-invite-form">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="external@firm.com"
-            data-testid="guest-email"
-            disabled={!guestsAllowed}
-            aria-disabled={!guestsAllowed}
-            aria-label={!guestsAllowed ? guestsGateCopy : undefined}
-            title={!guestsAllowed ? guestsGateCopy : undefined}
-            style={inputStyle}
-          />
-          <div
+      </div>
+      <div className="app-panel__body">
+        {guestsAllowed ? (
+          <p style={{ color: "#5F6878", fontSize: "0.82rem", margin: "0 0 12px" }}>
+            Time-bounded external collaborators. They never become workspace
+            members. Audit + revocation are required.
+          </p>
+        ) : (
+          <p
+            className="app-inner-surface"
             style={{
-              display: "flex",
-              gap: 8,
-              marginTop: 6,
-              alignItems: "center",
-              flexWrap: "wrap",
+              color: "#667085",
+              fontSize: "0.82rem",
+              margin: "0 0 12px",
+              padding: "10px 12px",
+              lineHeight: 1.5,
             }}
           >
-            <select
-              value={days}
-              onChange={(e) => setDays(parseInt(e.target.value, 10))}
-              data-testid="guest-expires"
+            {guestsGateCopy}
+          </p>
+        )}
+        {canManage ? (
+          <form onSubmit={onInvite} data-testid="guest-invite-form">
+            <label className="app-field-label" htmlFor="guest-email">
+              Guest email
+            </label>
+            <input
+              id="guest-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="external@firm.com"
+              data-testid="guest-email"
               disabled={!guestsAllowed}
               aria-disabled={!guestsAllowed}
-              style={{ ...inputStyle, width: "auto", marginTop: 0 }}
-            >
-              <option value={7}>7 days</option>
-              <option value={14}>14 days</option>
-              <option value={30}>30 days</option>
-              <option value={60}>60 days</option>
-              <option value={90}>90 days</option>
-            </select>
-            <button
-              type="submit"
-              disabled={!email || busy || !guestsAllowed}
-              aria-disabled={!guestsAllowed || busy}
-              aria-label={!guestsAllowed ? guestsGateCopy : "Invite guest"}
+              aria-label={!guestsAllowed ? guestsGateCopy : undefined}
               title={!guestsAllowed ? guestsGateCopy : undefined}
-              className="cc-quick-action"
-              data-testid="guest-invite-submit"
-            >
-              Invite guest
-            </button>
-            <GuestStatusChip guestsAllowed={guestsAllowed} />
-            {!guestsAllowed ? (
-              <UpgradeCTA testid="guests-upgrade-cta" />
-            ) : null}
-          </div>
-        </form>
-      ) : null}
-      <ul style={{ listStyle: "none", padding: 0, margin: "0.75rem 0 0" }}>
-        {guests.length === 0 ? (
-          <li style={{ color: "#5d6d71" }}>No guests yet.</li>
-        ) : (
-          guests.map((g) => (
-            <li
-              key={g.id}
-              data-testid={`guest-row-${g.id}`}
+              className="app-form-input"
+            />
+            <div style={{ marginTop: 10 }}>
+              <label
+                className="app-field-label"
+                id="guest-expires-label"
+                htmlFor="guest-expires"
+              >
+                Access expires after
+              </label>
+              <AppListbox<string>
+                id="guest-expires"
+                value={String(days)}
+                ariaLabelledby="guest-expires-label"
+                disabled={!guestsAllowed}
+                onChange={(v) => setDays(parseInt(v, 10))}
+                options={[
+                  { value: "7", label: "7 days" },
+                  { value: "14", label: "14 days" },
+                  { value: "30", label: "30 days" },
+                  { value: "60", label: "60 days" },
+                  { value: "90", label: "90 days" },
+                ]}
+              />
+              <span data-testid="guest-expires" hidden>
+                {days}
+              </span>
+            </div>
+            <div
               style={{
-                padding: "0.5rem 0",
-                borderBottom: "1px solid rgba(79,112,107,0.10)",
                 display: "flex",
                 gap: 8,
+                marginTop: 12,
                 alignItems: "center",
-                justifyContent: "space-between",
+                flexWrap: "wrap",
               }}
             >
-              <div>
-                <div
-                  style={{
-                    color: "#182b30",
-                    fontSize: "0.9rem",
-                    fontWeight: 500,
-                  }}
-                >
-                  {g.email}{" "}
-                  <span
-                    style={badge("#9b826b")}
-                    data-testid={`guest-badge-${g.id}`}
-                  >
-                    External
-                  </span>
-                </div>
-                <div style={{ color: "#9b826b", fontSize: "0.74rem" }}>
-                  {g.status} · expires{" "}
-                  {formatUserDate(g.expiresAtUtc)}
-                </div>
-              </div>
-              {canManage && (g.status === "PENDING" || g.status === "ACCEPTED") ? (
-                <button
-                  type="button"
-                  onClick={() => void onRevoke(g.id)}
-                  disabled={busy}
-                  className="cases-filter-chip"
-                  data-testid={`guest-revoke-${g.id}`}
-                  style={{ color: "#7c2d2d" }}
-                >
-                  Revoke
-                </button>
+              <button
+                type="submit"
+                disabled={!email || busy || !guestsAllowed}
+                aria-disabled={!guestsAllowed || busy}
+                aria-label={!guestsAllowed ? guestsGateCopy : "Invite guest"}
+                title={!guestsAllowed ? guestsGateCopy : undefined}
+                className="app-primary-action"
+                data-testid="guest-invite-submit"
+              >
+                Invite guest
+              </button>
+              <GuestStatusChip guestsAllowed={guestsAllowed} />
+              {!guestsAllowed ? (
+                <UpgradeCTA testid="guests-upgrade-cta" />
               ) : null}
+            </div>
+          </form>
+        ) : null}
+        <ul style={{ listStyle: "none", padding: 0, margin: "1rem 0 0" }}>
+          {guests.length === 0 ? (
+            <li style={{ color: "#5F6878", fontSize: "0.88rem" }}>
+              No guests yet.
             </li>
-          ))
-        )}
-      </ul>
+          ) : (
+            guests.map((g) => (
+              <li
+                key={g.id}
+                data-testid={`guest-row-${g.id}`}
+                style={{
+                  padding: "0.6rem 0",
+                  borderBottom: "1px solid rgba(15,23,42,0.05)",
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      color: "#172033",
+                      fontSize: "0.9rem",
+                      fontWeight: 550,
+                      display: "flex",
+                      gap: 6,
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {g.email}
+                    <span data-testid={`guest-badge-${g.id}`}>
+                      <AppStatusBadge tone="slate">External</AppStatusBadge>
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      color: "#5F6878",
+                      fontSize: "0.74rem",
+                      marginTop: 4,
+                      display: "flex",
+                      gap: 6,
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <AppStatusBadge tone={guestStatusTone(g.status)}>
+                      {g.status}
+                    </AppStatusBadge>
+                    <span>expires {formatUserDate(g.expiresAtUtc)}</span>
+                  </div>
+                </div>
+                {canManage &&
+                (g.status === "PENDING" || g.status === "ACCEPTED") ? (
+                  <button
+                    type="button"
+                    onClick={() => void onRevoke(g.id)}
+                    disabled={busy}
+                    className="app-danger-link"
+                    data-testid={`guest-revoke-${g.id}`}
+                  >
+                    Revoke
+                  </button>
+                ) : null}
+              </li>
+            ))
+          )}
+        </ul>
+      </div>
     </section>
   );
+}
+
+/** Map a guest status string to a semantic AppStatusBadge tone. */
+function guestStatusTone(status: string): AppTone {
+  switch (status) {
+    case "ACCEPTED":
+      return "green";
+    case "PENDING":
+      return "amber";
+    case "REVOKED":
+    case "EXPIRED":
+      return "red";
+    default:
+      return "slate";
+  }
 }
 
 /**
@@ -1056,19 +1182,9 @@ function PlanGateBadge({
       data-testid={testid ?? "plan-gate-badge"}
       role="note"
       aria-label={label}
-      style={{
-        background: "rgba(155,130,107,0.14)",
-        color: "#9b826b",
-        padding: "2px 8px",
-        borderRadius: 999,
-        fontSize: "0.7rem",
-        fontWeight: 600,
-        letterSpacing: "0.04em",
-        textTransform: "uppercase",
-        whiteSpace: "nowrap",
-      }}
+      style={{ whiteSpace: "nowrap" }}
     >
-      {label}
+      <AppStatusBadge tone="amber">{label}</AppStatusBadge>
     </span>
   );
 }
@@ -1089,8 +1205,7 @@ function UpgradeCTA({
     <Link
       href="/billing"
       data-testid={testid ?? "upgrade-cta"}
-      className="cases-filter-chip"
-      style={{ color: "#3e6063", fontWeight: 600 }}
+      className="app-secondary-action"
     >
       {label}
     </Link>
@@ -1185,211 +1300,220 @@ function AccessReviewCard({
 
   return (
     <section
-      style={cardStyle}
+      className="app-panel"
       data-testid="access-review-card"
       data-access-review-enabled={accessReviewEnabled}
     >
-      <header
-        style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 4,
-          flexWrap: "wrap",
-        }}
-      >
-        <h3 style={cardTitle}>Access review</h3>
+      <div className="app-panel__head">
+        <h3 className="app-panel__title">Access review</h3>
         {!accessReviewEnabled ? (
           <PlanGateBadge
             requiredTier="PRO"
             testid="access-review-plan-gate-badge"
           />
         ) : null}
-      </header>
-      <p style={{ color: "#5d6d71", fontSize: "0.82rem", margin: "0 0 8px" }}>
-        Team-level membership hygiene. Mark members as keep, remove, or
-        role change.
-      </p>
-      {open ? (
-        <div>
-          <p style={{ color: "#182b30", fontSize: "0.92rem", margin: 0 }}>
-            Open review · {open.itemCount} members
-          </p>
-          <ul
-            style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}
-            data-testid="access-review-items"
-          >
-            {open.items.slice(0, 8).map((i) => {
-              const member = team.members.find((m) => m.id === i.memberId);
-              const memberName =
-                member?.user.displayName ||
-                member?.user.email ||
-                i.memberId.slice(0, 8);
-              return (
-                <li
-                  key={i.id}
-                  data-testid={`access-review-item-${i.id}`}
-                  style={{
-                    padding: "0.4rem 0",
-                    borderBottom: "1px solid rgba(79,112,107,0.10)",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 6,
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <span
-                      style={{ color: "#182b30", fontSize: "0.88rem", flex: 1 }}
-                    >
-                      {memberName}
-                    </span>
-                    <span style={badge("#3e6063")}>{i.decision}</span>
-                  </div>
-                  {canManage && i.decision === "PENDING" ? (
-                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void onDecide(i.id, "KEEP")}
-                        className="cases-filter-chip"
-                        data-testid={`access-review-keep-${i.id}`}
-                      >
-                        Keep
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void onDecide(i.id, "REMOVE")}
-                        className="cases-filter-chip"
-                        data-testid={`access-review-remove-${i.id}`}
-                        style={{ color: "#7c2d2d" }}
-                      >
-                        Remove
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void onDecide(i.id, "CHANGE_ROLE")}
-                        className="cases-filter-chip"
-                        data-testid={`access-review-change-role-${i.id}`}
-                      >
-                        Change role
-                      </button>
-                    </div>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-          {canManage ? (
-            <button
-              type="button"
-              onClick={() => void onComplete()}
-              disabled={busy}
-              className="cc-quick-action"
-              data-testid="access-review-complete"
-              style={{ marginTop: 8 }}
-            >
-              Complete review
-            </button>
-          ) : null}
-        </div>
-      ) : (
-        <div>
-          <p style={{ color: "#5d6d71", margin: 0 }}>
-            {accessReviewEnabled ? "No open review." : gateCopy}
-          </p>
-          {canManage ? (
-            <div
+      </div>
+      <div className="app-panel__body">
+        <p style={{ color: "#5F6878", fontSize: "0.82rem", margin: "0 0 12px" }}>
+          Team-level membership hygiene. Mark members as keep, remove, or
+          role change.
+        </p>
+        {open ? (
+          <div>
+            <p
               style={{
-                display: "flex",
+                color: "#172033",
+                fontSize: "0.92rem",
+                margin: "0 0 6px",
+                display: "inline-flex",
                 gap: 8,
                 alignItems: "center",
-                flexWrap: "wrap",
-                marginTop: 8,
               }}
             >
+              <AppStatusBadge tone="indigo" dot>
+                Open review
+              </AppStatusBadge>
+              <span style={{ color: "#5F6878" }}>{open.itemCount} members</span>
+            </p>
+            <ul
+              style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}
+              data-testid="access-review-items"
+            >
+              {open.items.slice(0, 8).map((i) => {
+                const member = team.members.find((m) => m.id === i.memberId);
+                const memberName =
+                  member?.user.displayName ||
+                  member?.user.email ||
+                  i.memberId.slice(0, 8);
+                return (
+                  <li
+                    key={i.id}
+                    data-testid={`access-review-item-${i.id}`}
+                    style={{
+                      padding: "0.5rem 0",
+                      borderBottom: "1px solid rgba(15,23,42,0.05)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 6,
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "#172033",
+                          fontSize: "0.88rem",
+                          flex: 1,
+                        }}
+                      >
+                        {memberName}
+                      </span>
+                      <AppStatusBadge tone={decisionTone(i.decision)}>
+                        {i.decision}
+                      </AppStatusBadge>
+                    </div>
+                    {canManage && i.decision === "PENDING" ? (
+                      <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void onDecide(i.id, "KEEP")}
+                          className="app-ghost-action"
+                          data-testid={`access-review-keep-${i.id}`}
+                        >
+                          Keep
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void onDecide(i.id, "REMOVE")}
+                          className="app-danger-link"
+                          data-testid={`access-review-remove-${i.id}`}
+                        >
+                          Remove
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void onDecide(i.id, "CHANGE_ROLE")}
+                          className="app-ghost-action"
+                          data-testid={`access-review-change-role-${i.id}`}
+                        >
+                          Change role
+                        </button>
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+            {canManage ? (
               <button
                 type="button"
-                onClick={() => void onOpenReview()}
-                disabled={busy || !accessReviewEnabled}
-                aria-disabled={!accessReviewEnabled || busy}
-                aria-label={
-                  !accessReviewEnabled ? gateCopy : "Open access review"
-                }
-                title={!accessReviewEnabled ? gateCopy : undefined}
-                className="cc-quick-action"
-                data-testid="access-review-open"
+                onClick={() => void onComplete()}
+                disabled={busy}
+                className="app-primary-action"
+                data-testid="access-review-complete"
+                style={{ marginTop: 12 }}
               >
-                Open access review
+                Complete review
               </button>
-              {!accessReviewEnabled ? (
-                <UpgradeCTA testid="access-review-upgrade-cta" />
-              ) : null}
-            </div>
-          ) : null}
-          {reviews.length > 0 ? (
-            <div
-              style={{
-                color: "#9b826b",
-                fontSize: "0.78rem",
-                marginTop: 8,
-              }}
-            >
-              Last completed:{" "}
-              {reviews[0]?.completedAtUtc
-                ? formatUserDate(reviews[0].completedAtUtc)
-                : "—"}
-            </div>
-          ) : null}
-        </div>
-      )}
+            ) : null}
+          </div>
+        ) : (
+          <div>
+            {accessReviewEnabled ? (
+              <p style={{ color: "#5F6878", margin: 0 }}>No open review.</p>
+            ) : (
+              <p
+                className="app-inner-surface"
+                style={{
+                  color: "#667085",
+                  margin: 0,
+                  padding: "10px 12px",
+                  fontSize: "0.85rem",
+                  lineHeight: 1.5,
+                }}
+              >
+                {gateCopy}
+              </p>
+            )}
+            {canManage ? (
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  marginTop: 12,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => void onOpenReview()}
+                  disabled={busy || !accessReviewEnabled}
+                  aria-disabled={!accessReviewEnabled || busy}
+                  aria-label={
+                    !accessReviewEnabled ? gateCopy : "Open access review"
+                  }
+                  title={!accessReviewEnabled ? gateCopy : undefined}
+                  className="app-primary-action"
+                  data-testid="access-review-open"
+                >
+                  Open access review
+                </button>
+                {!accessReviewEnabled ? (
+                  <UpgradeCTA testid="access-review-upgrade-cta" />
+                ) : null}
+              </div>
+            ) : null}
+            {reviews.length > 0 ? (
+              <div
+                style={{
+                  color: "#5F6878",
+                  fontSize: "0.78rem",
+                  marginTop: 12,
+                }}
+              >
+                Last completed:{" "}
+                {reviews[0]?.completedAtUtc
+                  ? formatUserDate(reviews[0].completedAtUtc)
+                  : "—"}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
     </section>
   );
+}
+
+/** Map an access-review decision to a semantic AppStatusBadge tone. */
+function decisionTone(decision: string): AppTone {
+  switch (decision) {
+    case "KEEP":
+      return "green";
+    case "REMOVE":
+      return "red";
+    case "CHANGE_ROLE":
+      return "indigo";
+    case "PENDING":
+      return "amber";
+    default:
+      return "slate";
+  }
 }
 
 // =============================================================================
 // Styles
 // =============================================================================
 
-const cardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.7)",
-  border: "1px solid rgba(79,112,107,0.14)",
-  borderRadius: 14,
-  padding: "1rem",
-};
-const cardHeader: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: 8,
-};
-const cardTitle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "0.98rem",
-  fontWeight: 600,
-  color: "#182b30",
-};
-const inputStyle: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  padding: "8px 12px",
-  border: "1px solid rgba(79,112,107,0.18)",
-  borderRadius: 10,
-  background: "#fff",
-  color: "#182b30",
-  fontSize: "0.95rem",
-  outline: "none",
-  marginTop: 4,
-};
 const inlineCode: React.CSSProperties = {
-  background: "rgba(79,112,107,0.10)",
-  color: "#3e6063",
+  background: "rgba(15,23,42,0.05)",
+  color: "#475569",
   padding: "1px 6px",
   borderRadius: 6,
   fontFamily: "monospace",
@@ -1417,39 +1541,11 @@ function GuestStatusChip({
       data-included={guestsAllowed ? "true" : "false"}
       title={label}
       aria-label={label}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "3px 10px",
-        borderRadius: 999,
-        fontSize: "0.72rem",
-        fontWeight: 600,
-        letterSpacing: "0.02em",
-        background: guestsAllowed
-          ? "rgba(56,142,60,0.12)"
-          : "rgba(155,130,107,0.14)",
-        color: guestsAllowed ? "#2e7d32" : "#9b826b",
-        border: `1px solid ${
-          guestsAllowed ? "rgba(56,142,60,0.30)" : "rgba(155,130,107,0.30)"
-        }`,
-        whiteSpace: "nowrap",
-      }}
+      style={{ whiteSpace: "nowrap" }}
     >
-      {label}
+      <AppStatusBadge tone={guestsAllowed ? "green" : "slate"} dot>
+        {label}
+      </AppStatusBadge>
     </span>
   );
-}
-
-function badge(color: string): React.CSSProperties {
-  return {
-    background: "rgba(155,130,107,0.14)",
-    color,
-    padding: "1px 8px",
-    borderRadius: 999,
-    fontSize: "0.7rem",
-    fontWeight: 600,
-    letterSpacing: "0.04em",
-    textTransform: "uppercase" as const,
-  };
 }

@@ -162,12 +162,10 @@ function TrustCardView({ card }: { card: TrustCard }) {
       data-trust-card
       data-trust-card-href={card.href}
       data-trust-card-requires={card.requires ?? "none"}
+      className="cases-panel cases-inner"
       style={{
         display: "block",
         padding: "20px 22px",
-        borderRadius: 14,
-        background: "rgba(15, 23, 42, 0.04)",
-        border: "1px solid rgba(15, 23, 42, 0.08)",
         textDecoration: "none",
         color: "inherit",
         transition: "background 120ms ease, border-color 120ms ease",
@@ -212,7 +210,46 @@ export default function TrustPage() {
         data-hub-page-id="trust"
         style={{ padding: "28px 32px", maxWidth: 1200, margin: "0 auto" }}
       >
-        <header style={{ marginBottom: 24 }}>
+        <header
+          style={{
+            marginBottom: 24,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 14,
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 44,
+              height: 44,
+              flexShrink: 0,
+              borderRadius: 12,
+              background: "#f3f0ff",
+              color: "#4f46e5",
+              border: "1px solid #d8ccff",
+            }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M9 12l2 2 4-4"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+          <div>
           <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
             Trust Center
           </h1>
@@ -231,6 +268,7 @@ export default function TrustPage() {
             air-gapped, without PROOVRA online. Every surface linked from here
             is a real route with bounded, honest product behavior.
           </p>
+          </div>
         </header>
 
         <section

@@ -6,6 +6,7 @@
    shell + primitives can consume them. */
 @import "../lib/design-tokens/tokens.css";
 @import "../components/app-shell-v2/app-shell-v2.css";
+@import "../components/app-primitives/app-primitives.css";
 @import "../components/capture-v2/capture-v2.css";
 @import "../components/command-center/command-center.css";
 @import "../components/cases-experience/cases-experience.css";
@@ -490,7 +491,11 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #9ed8cf;
+  /* Canonical PROOVRA focus ring — the app-primary indigo/lavender used by
+     the accepted Home/Cases fields (replaces the legacy teal #9ed8cf focus
+     app-wide). Removing the green focus is the single highest-leverage step
+     of the internal visual-system unification (§8/§20). */
+  outline: 2px solid #8b7cf6;
   outline-offset: 2px;
 }
 

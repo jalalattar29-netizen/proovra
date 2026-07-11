@@ -89,14 +89,14 @@
   margin: 20px 0 18px;
   padding: 16px 18px;
   border-radius: 18px;
-  border-color: rgba(183, 157, 132, 0.24);
-  background: linear-gradient(180deg, rgba(255,252,247,0.94), rgba(250,246,240,0.96));
+  border-color: rgba(15, 23, 42, 0.1);
+  background: #f8fafc;
 }
 
 .evidence-library-callout strong {
   display: block;
   margin-bottom: 6px;
-  color: #4e4032;
+  color: #0f172a;
 }
 
 .evidence-library-toolbar {
@@ -111,17 +111,17 @@
   min-height: 44px;
   padding: 0 16px;
   border-radius: 14px;
-  border: 1px solid rgba(58, 93, 97, 0.14);
-  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(244,247,245,0.98));
-  color: #22363a;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  color: #0f172a;
   font-weight: 700;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .evidence-library-link-button--primary {
-  background: linear-gradient(180deg, rgba(58,92,95,0.98), rgba(20,38,42,0.98));
-  color: #eef5f3;
-  border-color: rgba(158, 216, 207, 0.18);
+  background: var(--btn-primary-bg, linear-gradient(180deg, #4f46e5, #4338ca));
+  color: var(--btn-primary-color, #ffffff);
+  border-color: var(--btn-primary-border, #4338ca);
 }
 
 .evidence-library-metrics {
@@ -203,10 +203,18 @@
   width: 100%;
   min-height: 46px;
   border-radius: 14px;
-  border: 1px solid rgba(58, 93, 97, 0.14);
-  background: rgba(248, 250, 249, 0.98);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
   padding: 0 14px;
-  color: #22363a;
+  color: #0f172a;
+}
+
+.evidence-library-filter-group input:focus,
+.evidence-library-filter-group select:focus,
+.evidence-library-case-toolbar select:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
 }
 
 .evidence-library-placeholder-strip {
@@ -360,32 +368,32 @@
 }
 
 .evidence-library-badge--neutral {
-  background: rgba(58, 93, 97, 0.1);
-  color: #35545b;
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .evidence-library-badge--success {
-  background: rgba(125, 193, 173, 0.14);
-  color: #20564c;
+  background: #eaf7f1;
+  color: #167a5b;
 }
 
 .evidence-library-badge--warning,
 .evidence-library-badge--priority-operational {
-  background: rgba(183, 157, 132, 0.15);
-  color: #7e5a35;
+  background: #fff6e5;
+  color: #a86612;
 }
 
 .evidence-library-badge--danger,
 .evidence-library-badge--priority-critical {
-  background: rgba(204, 120, 120, 0.14);
-  color: #a64545;
+  background: #fff1f2;
+  color: #b23442;
 }
 
 .evidence-library-badge--processing,
 .evidence-library-badge--priority-informational,
 .evidence-library-badge--priority-stable {
-  background: rgba(35, 55, 59, 0.08);
-  color: #4f676d;
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .evidence-library-key-card,
@@ -410,17 +418,17 @@
 }
 
 .evidence-library-alert--critical {
-  border-color: rgba(204, 120, 120, 0.22);
+  border-color: rgba(178, 52, 66, 0.28);
 }
 
 .evidence-library-alert--operational {
-  border-color: rgba(183, 157, 132, 0.24);
+  border-color: rgba(168, 102, 18, 0.28);
 }
 
 .evidence-library-panel--caution,
 .evidence-library-panel--caution .evidence-library-note-card {
-  border-color: rgba(183, 157, 132, 0.24);
-  background: rgba(252, 248, 242, 0.94);
+  border-color: rgba(168, 102, 18, 0.28);
+  background: #fff6e5;
 }
 
 .evidence-library-alert--informational,
@@ -510,7 +518,7 @@
 .evidence-library-expand-summary {
   cursor: pointer;
   font-weight: 700;
-  color: #22363a;
+  color: #0f172a;
 }
 
 .evidence-library-textarea {
@@ -518,11 +526,17 @@
   min-height: 110px;
   resize: vertical;
   border-radius: 14px;
-  border: 1px solid rgba(58, 93, 97, 0.14);
-  background: rgba(248, 250, 249, 0.98);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
   padding: 12px 14px;
-  color: #22363a;
+  color: #0f172a;
   font: inherit;
+}
+
+.evidence-library-textarea:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
 }
 
 .evidence-library-bulk-toolbar {
@@ -533,10 +547,10 @@
 .evidence-library-bulk-toolbar select {
   min-height: 40px;
   border-radius: 12px;
-  border: 1px solid rgba(58, 93, 97, 0.14);
-  background: rgba(248, 250, 249, 0.98);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
   padding: 0 12px;
-  color: #22363a;
+  color: #0f172a;
 }
 
 .evidence-library-result-list {

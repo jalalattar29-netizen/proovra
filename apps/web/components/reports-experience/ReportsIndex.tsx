@@ -33,7 +33,6 @@ import {
 } from "../ui";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
-import { Badge, type BadgeTone } from "../ui/Badge";
 import { EmptyState } from "../ui/EmptyState";
 import { apiFetch } from "../../lib/api";
 import {
@@ -151,6 +150,14 @@ async function tryUserScopedReports(): Promise<ReportsArtifactsEnvelope | null> 
     return null;
   }
 }
+
+// Shared red tint for the one "failed" status that the neutral
+// `.case-status-badge` data-status system doesn't cover (brief red).
+const FAILED_BADGE_STYLE: React.CSSProperties = {
+  background: "#FFF1F2",
+  color: "#B23442",
+  borderColor: "rgba(178, 52, 66, 0.18)",
+};
 
 export function ReportsIndex() {
   // Phase EMERGENCY-RECOVERY — Reports works for ANY active workspace
@@ -429,7 +436,6 @@ export function ReportsIndex() {
             className="cases-filter-chips"
             role="tablist"
             aria-label="Artifact lifecycle filters"
-            style={{ display: "flex", flexWrap: "wrap", gap: 8 }}
           >
             {lifecycleFilters.map(([key, label]) => {
               const active = filter === key;
@@ -441,23 +447,7 @@ export function ReportsIndex() {
                   aria-selected={active}
                   onClick={() => setFilter(key)}
                   data-reports-filter={key}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: 999,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    background: active
-                      ? "var(--status-info-bg, #eff6ff)"
-                      : "var(--surface-card, #ffffff)",
-                    color: active
-                      ? "var(--status-info-fg, #1e40af)"
-                      : "var(--ink-secondary, #475569)",
-                    border: active
-                      ? "1px solid var(--status-info-border, #bfdbfe)"
-                      : "1px solid var(--border-default, rgba(15,23,42,0.09))",
-                    transition: "background 160ms ease, border-color 160ms ease",
-                  }}
+                  className={`cases-filter-chip${active ? " is-active" : ""}`}
                 >
                   {label}
                 </button>
@@ -485,26 +475,20 @@ export function ReportsIndex() {
         ) : sections.artifacts.items.length === 0 ? (
           <ReportsEmptyState filter={filter} />
         ) : (
-          <ul
-            className="cases-list"
-            data-reports-list-items
-            style={{
-              listStyle: "none",
-              margin: 0,
-              padding: 0,
-              display: "flex",
-              flexDirection: "column",
-              gap: 12,
-            }}
-          >
-            {sections.artifacts.items.map((row) => (
-              <ArtifactRowView
-                key={row.evidenceId}
-                row={row}
-                teamId={workspaceId}
-              />
-            ))}
-          </ul>
+          <div className="cases-panel" style={{ overflow: "hidden" }}>
+            <ul
+              className="cases-list"
+              data-reports-list-items
+            >
+              {sections.artifacts.items.map((row) => (
+                <ArtifactRowView
+                  key={row.evidenceId}
+                  row={row}
+                  teamId={workspaceId}
+                />
+              ))}
+            </ul>
+          </div>
         )}
         {sections.artifacts.nextCursor ? (
           <div
@@ -598,10 +582,9 @@ function ArtifactRowView({
       data-reports-row-id={row.evidenceId}
       style={{ listStyle: "none" }}
     >
-      <Card padding="comfortable">
+      <div style={{ padding: "14px 18px" }}>
         <Link
           href={`/evidence/${row.evidenceId}`}
-          className="cases-row-link"
           style={{ textDecoration: "none", color: "inherit", display: "block" }}
         >
           <div
@@ -613,53 +596,39 @@ function ArtifactRowView({
               flexWrap: "wrap",
             }}
           >
-            <span
-              className="cases-row-title"
-              style={{
-                fontSize: 15,
-                fontWeight: 650,
-                color: "var(--ink-primary, #0f172a)",
-              }}
-            >
+            <span className="cases-row-title" style={{ whiteSpace: "normal" }}>
               {row.title}
             </span>
-            <span
-              className="cases-row-scope"
-              style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)" }}
-            >
+            <span className="cases-row-scope">
               {humanize(row.type)}
             </span>
           </div>
           <div
             className="cases-row-meta"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flexWrap: "wrap",
-              marginTop: 10,
-            }}
+            style={{ marginTop: 10 }}
           >
-            <Badge
-              tone={reportTone(row.report.state)}
-              subtle
+            <span
+              className="case-status-badge"
+              data-status={reportStatusAttr(row.report.state)}
               data-reports-report-state={row.report.state}
+              style={row.report.state === "failed" ? FAILED_BADGE_STYLE : undefined}
             >
               Report: {reportLabel(row.report.state)}
               {row.report.version ? ` · v${row.report.version}` : ""}
-            </Badge>
-            <Badge
-              tone={packageTone(row.package.state)}
-              subtle
+            </span>
+            <span
+              className="case-status-badge"
+              data-status={packageStatusAttr(row.package.state)}
               data-reports-package-state={row.package.state}
+              style={row.package.state === "failed" ? FAILED_BADGE_STYLE : undefined}
             >
               Package: {packageLabel(row.package.state)}
               {row.package.version ? ` · v${row.package.version}` : ""}
-            </Badge>
+            </span>
             {row.verificationStatus ? (
               <span
                 data-reports-verification={row.verificationStatus}
-                style={{ fontSize: 12.5, color: "var(--ink-secondary, #475569)" }}
+                style={{ fontSize: 12, color: "#5F6B7D" }}
               >
                 Integrity {humanize(row.verificationStatus)}
               </span>
@@ -669,25 +638,25 @@ function ArtifactRowView({
                 href={`/cases/${row.caseId}`}
                 onClick={(e) => e.stopPropagation()}
                 data-reports-case-link={row.caseId}
-                style={{ fontSize: 12.5, color: "var(--status-info-fg, #1e40af)" }}
+                style={{ fontSize: 12, color: "#4F46E5", fontWeight: 600 }}
               >
                 Case #{row.caseId.slice(0, 6)}
               </Link>
             ) : null}
             <time
               dateTime={row.createdAt}
-              style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)" }}
+              style={{ fontSize: 12, color: "#8793A6" }}
             >
               Captured {formatRelativeTime(row.createdAt)}
             </time>
             {row.package.blockedReason ? (
-              <Badge
-                tone="governance"
-                subtle
+              <span
+                className="case-status-badge"
+                data-status="ON_HOLD"
                 data-reports-package-blocked-reason={row.package.blockedReason}
               >
                 Export blocked by governance: {row.package.blockedReason}
-              </Badge>
+              </span>
             ) : null}
           </div>
         </Link>
@@ -700,7 +669,7 @@ function ArtifactRowView({
           workspace policy + retention; this UI never simulates
           permission. */}
         <ArtifactRowActions row={row} teamId={teamId} />
-      </Card>
+      </div>
     </li>
   );
 }
@@ -989,7 +958,7 @@ function ArtifactRowActions({
           role="alert"
           data-reports-row-error={row.evidenceId}
           style={{
-            color: "#f6c8c8",
+            color: "#B23442",
             fontSize: 12,
             width: "100%",
             marginTop: 4,
@@ -1003,7 +972,7 @@ function ArtifactRowActions({
           role="status"
           data-reports-row-regen-notice={row.evidenceId}
           style={{
-            color: "#bcd0bc",
+            color: "#167A5B",
             fontSize: 12,
             width: "100%",
             marginTop: 4,
@@ -1016,31 +985,31 @@ function ArtifactRowActions({
   );
 }
 
-function reportTone(state: ReportLifecycle): BadgeTone {
+// Map artifact lifecycle → the shared `.case-status-badge[data-status]`
+// semantic tint system (green ready · amber pending · indigo active ·
+// slate neutral). "failed" has no data-status tint in the shared CSS, so
+// callers apply an inline red (#B23442/#FFF1F2) for that one state.
+function reportStatusAttr(state: ReportLifecycle): string {
   switch (state) {
     case "ready":
-      return "verified";
+      return "OPEN";
     case "pending":
-      return "pending";
-    case "failed":
-      return "risk";
+      return "ON_HOLD";
     default:
-      return "neutral";
+      return "CLOSED";
   }
 }
 
-function packageTone(state: PackageLifecycle): BadgeTone {
+function packageStatusAttr(state: PackageLifecycle): string {
   switch (state) {
     case "ready":
-      return "verified";
+      return "OPEN";
     case "pending":
-      return "pending";
+      return "ON_HOLD";
     case "blocked":
-      return "governance";
-    case "failed":
-      return "risk";
+      return "INVESTIGATING";
     default:
-      return "neutral";
+      return "CLOSED";
   }
 }
 

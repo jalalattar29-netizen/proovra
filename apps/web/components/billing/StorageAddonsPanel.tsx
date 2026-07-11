@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, useToast } from "../ui";
+import { useToast } from "../ui";
+import { Badge, type BadgeTone } from "../ui/Badge";
 import { apiFetch } from "../../lib/api";
 import { captureException } from "../../lib/sentry";
 import { detectCurrency, type SupportedCurrency } from "../../lib/currency";
@@ -24,42 +25,27 @@ function formatAddonStatus(status?: string | null) {
   return "Status pending";
 }
 
-function toneForAddonStatus(status?: string | null) {
+// Semantic add-on status → canonical Badge tone. green=active,
+// amber=pending/past-due, red=failed/canceled/expired, slate=neutral.
+function toneForAddonStatus(status?: string | null): BadgeTone {
   const normalized = String(status ?? "").trim().toUpperCase();
-
-  if (normalized === "ACTIVE") {
-    return {
-      color: "#2b6a55",
-      background: "rgba(127,189,180,0.16)",
-      border: "1px solid rgba(127,189,180,0.20)",
-    } as const;
-  }
-
-  if (normalized === "PENDING" || normalized === "PAST_DUE") {
-    return {
-      color: "#8a6a2b",
-      background: "rgba(201,169,139,0.18)",
-      border: "1px solid rgba(201,169,139,0.22)",
-    } as const;
-  }
-
+  if (normalized === "ACTIVE") return "verified";
+  if (normalized === "PENDING" || normalized === "PAST_DUE") return "pending";
   if (
     normalized === "FAILED" ||
     normalized === "CANCELED" ||
     normalized === "EXPIRED"
   ) {
-    return {
-      color: "#8b3e3e",
-      background: "rgba(194,78,78,0.10)",
-      border: "1px solid rgba(194,78,78,0.16)",
-    } as const;
+    return "risk";
   }
+  return "neutral";
+}
 
-  return {
-    color: "#415257",
-    background: "rgba(79,112,107,0.08)",
-    border: "1px solid rgba(79,112,107,0.12)",
-  } as const;
+// Shared pill/segment style — canonical `.cases-filter-chip` active state.
+function chipClass(active: boolean): string {
+  return ["cases-filter-chip", active ? "is-active" : ""]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function parseMaybeNumber(value: string | number | null | undefined): number | null {
@@ -333,121 +319,66 @@ export function StorageAddonsPanel({
   }
 
   return (
-    <Card
-      className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-      style={{
-        border: "1px solid rgba(79,112,107,0.16)",
-        boxShadow:
-          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
-      }}
-    >
+    <div className="cases-panel" style={{ overflow: "hidden" }}>
       <div className="relative z-10 p-6 md:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="mb-2 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+            <div className="mb-2 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#172033]">
               Storage Add-ons
             </div>
 
-            <div className="text-[0.9rem] leading-[1.7] text-[#5d6d71]">
+            <div className="text-[0.9rem] leading-[1.7] text-[#475569]">
               Buy extra storage as a <strong>one-time top-up</strong>. Your base
               <strong> PRO</strong> or <strong>TEAM</strong> subscription stays
               unchanged. Legacy recurring entries, if any, are still shown below.
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {onBuyMore ? (
-              <Button
+              <button
+                type="button"
                 onClick={() => onBuyMore()}
-                className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                style={{
-                  borderColor: "rgba(79,112,107,0.18)",
-                  color: "#23373b",
-                  background:
-                    "linear-gradient(180deg, rgba(255,255,255,0.80) 0%, rgba(243,245,242,0.95) 100%)",
-                }}
+                className="cases-filter-chip"
               >
                 Jump to plan checkout
-              </Button>
+              </button>
             ) : null}
 
-            <div
-              className="rounded-[999px] border px-4 py-3 text-[0.84rem] font-semibold"
-              style={{
-                border: "1px solid rgba(79,112,107,0.12)",
-                background:
-                  "linear-gradient(180deg, rgba(255,255,255,0.70) 0%, rgba(243,245,242,0.94) 100%)",
-                color: "#415257",
-              }}
-            >
-              Preferred currency: <strong>{preferredCurrency}</strong>
-            </div>
+            <Badge tone="neutral" data-storage-preferred-currency>
+              Preferred currency: {preferredCurrency}
+            </Badge>
           </div>
         </div>
 
-        <div
-          className="mt-5 rounded-[22px] border px-4 py-4"
-          style={{
-            border: "1px solid rgba(79,112,107,0.10)",
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-          }}
-        >
-          <div className="mb-3 text-[0.84rem] font-semibold uppercase tracking-[0.16em] text-[#9b826b]">
+        <div className="cases-inner mt-5 px-4 py-4">
+          <div className="mb-3 text-[0.84rem] font-semibold uppercase tracking-[0.14em] text-[#5F6878]">
             Buy extra storage now
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={
-                targetType === "PERSONAL"
-                  ? {
-                      borderColor: "rgba(79,112,107,0.18)",
-                      color: "#eef3f1",
-                      background:
-                        "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
-                    }
-                  : {
-                      borderColor: "rgba(79,112,107,0.14)",
-                      color: "#23373b",
-                      background:
-                        "linear-gradient(180deg, rgba(255,255,255,0.80) 0%, rgba(243,245,242,0.95) 100%)",
-                    }
-              }
+            <button
+              type="button"
+              className={chipClass(targetType === "PERSONAL")}
               onClick={() => setTargetType("PERSONAL")}
             >
               Personal workspace
-            </Button>
+            </button>
 
-            <Button
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={
-                targetType === "TEAM"
-                  ? {
-                      borderColor: "rgba(79,112,107,0.18)",
-                      color: "#eef3f1",
-                      background:
-                        "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
-                    }
-                  : {
-                      borderColor: "rgba(79,112,107,0.14)",
-                      color: "#23373b",
-                      background:
-                        "linear-gradient(180deg, rgba(255,255,255,0.80) 0%, rgba(243,245,242,0.95) 100%)",
-                    }
-              }
+            <button
+              type="button"
+              className={chipClass(targetType === "TEAM")}
               onClick={() => setTargetType("TEAM")}
               disabled={teamOptions.length === 0}
             >
               Workspace
-            </Button>
+            </button>
           </div>
 
           {targetType === "TEAM" ? (
             <div className="mt-3">
               {teamOptions.length === 0 ? (
-                <div className="text-[0.88rem] leading-[1.7] text-[#8b3e3e]">
+                <div className="text-[0.88rem] leading-[1.7] text-[#B23442]">
                   No owned workspace found yet. Create a workspace first, then
                   come back to purchase TEAM storage or start a TEAM subscription.
                 </div>
@@ -455,15 +386,8 @@ export function StorageAddonsPanel({
                 <select
                   value={selectedTeamId}
                   onChange={(e) => setSelectedTeamId(e.target.value)}
-                  style={{
-                    width: "100%",
-                    borderRadius: 14,
-                    border: "1px solid rgba(79,112,107,0.16)",
-                    padding: "12px 14px",
-                    background: "rgba(255,255,255,0.86)",
-                    color: "#21353a",
-                    fontSize: 14,
-                  }}
+                  className="cases-form-input"
+                  style={{ padding: "12px 14px", fontSize: 14 }}
                 >
                   <option value="">Select workspace...</option>
                   {teamOptions.map((team) => (
@@ -477,80 +401,49 @@ export function StorageAddonsPanel({
           ) : null}
 
           <div className="mt-4">
-            <div className="mb-2 text-[0.82rem] font-semibold uppercase tracking-[0.16em] text-[#9b826b]">
+            <div className="mb-2 text-[0.82rem] font-semibold uppercase tracking-[0.14em] text-[#5F6878]">
               Payment method
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <Button
-                className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                style={
-                  selectedProvider === "STRIPE"
-                    ? {
-                        borderColor: "rgba(79,112,107,0.18)",
-                        color: "#eef3f1",
-                        background:
-                          "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
-                      }
-                    : {
-                        borderColor: "rgba(79,112,107,0.14)",
-                        color: "#23373b",
-                        background:
-                          "linear-gradient(180deg, rgba(255,255,255,0.80) 0%, rgba(243,245,242,0.95) 100%)",
-                      }
-                }
+              <button
+                type="button"
+                className={chipClass(selectedProvider === "STRIPE")}
                 onClick={() => setSelectedProvider("STRIPE")}
               >
                 Card / Stripe
-              </Button>
+              </button>
 
-              <Button
-                className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                style={
-                  selectedProvider === "PAYPAL"
-                    ? {
-                        borderColor: "rgba(79,112,107,0.18)",
-                        color: "#eef3f1",
-                        background:
-                          "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
-                      }
-                    : {
-                        borderColor: "rgba(79,112,107,0.14)",
-                        color: "#23373b",
-                        background:
-                          "linear-gradient(180deg, rgba(255,255,255,0.80) 0%, rgba(243,245,242,0.95) 100%)",
-                      }
-                }
+              <button
+                type="button"
+                className={chipClass(selectedProvider === "PAYPAL")}
                 onClick={() => setSelectedProvider("PAYPAL")}
               >
                 PayPal
-              </Button>
+              </button>
             </div>
           </div>
 
-          <div className="mt-4 text-[0.86rem] leading-[1.75] text-[#5d6d71]">
+          <div className="mt-4 text-[0.86rem] leading-[1.75] text-[#475569]">
             Storage add-ons are processed as <strong>one-time purchases</strong>.
             They do <strong>not</strong> create a second monthly subscription for
             storage.
           </div>
 
           {catalogLoading ? (
-            <div className="mt-4 text-[0.9rem] leading-[1.7] text-[#5d6d71]">
+            <div className="mt-4 text-[0.9rem] leading-[1.7] text-[#475569]">
               Loading available storage offers...
             </div>
           ) : catalogError ? (
             <div
-              className="mt-4 rounded-[18px] border px-4 py-4 text-[0.9rem] leading-[1.7]"
-              style={{
-                border: "1px solid rgba(194,78,78,0.18)",
-                background: "rgba(164,84,84,0.10)",
-                color: "#9f3535",
-              }}
+              className="cases-inner mt-4 px-4 py-4 text-[0.9rem] leading-[1.7]"
+              role="alert"
+              style={{ color: "#991b1b" }}
             >
               {catalogError}
             </div>
           ) : visibleCatalog.length === 0 ? (
-            <div className="mt-4 text-[0.9rem] leading-[1.7] text-[#5d6d71]">
+            <div className="mt-4 text-[0.9rem] leading-[1.7] text-[#475569]">
               No one-time storage offers are currently available for this workspace
               type.
             </div>
@@ -564,45 +457,38 @@ export function StorageAddonsPanel({
                 return (
                   <div
                     key={`${targetType}-${item.key}`}
-                    className="rounded-[18px] border px-4 py-4"
-                    style={{
-                      border: "1px solid rgba(79,112,107,0.10)",
-                      background:
-                        "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-                    }}
+                    className="cases-inner px-4 py-4"
                   >
-                    <div className="text-[0.96rem] font-semibold text-[#21353a]">
+                    <div className="text-[0.96rem] font-semibold text-[#172033]">
                       {item.label}
                     </div>
 
-                    <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
+                    <div className="mt-1 text-[0.86rem] text-[#475569]">
                       {formatBytesCompact(item.storageBytes)} extra storage
                     </div>
 
-                    <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
+                    <div className="mt-1 text-[0.86rem] text-[#475569]">
                       {formatMoney(item.priceCents, item.currency)}
                     </div>
 
-                    <div className="mt-1 text-[0.80rem] text-[#7a878a]">
+                    <div className="mt-1 text-[0.80rem] text-[#5F6878]">
                       One-time purchase · {item.workspaceType.toLowerCase()} workspace
                     </div>
 
                     <div className="mt-4">
-                      <Button
+                      <button
+                        type="button"
                         onClick={() => void startCheckout(item)}
                         disabled={!canCheckoutForTarget || busy}
-                        className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={{
-                          borderColor: "rgba(79,112,107,0.18)",
-                          color: "#eef3f1",
-                          background:
-                            "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
-                        }}
+                        className="app-header-primary-action"
+                        style={{ width: "100%" }}
                       >
-                        {busy
-                          ? "Creating checkout..."
-                          : `Buy with ${selectedProvider === "STRIPE" ? "Stripe" : "PayPal"}`}
-                      </Button>
+                        <span>
+                          {busy
+                            ? "Creating checkout..."
+                            : `Buy with ${selectedProvider === "STRIPE" ? "Stripe" : "PayPal"}`}
+                        </span>
+                      </button>
                     </div>
                   </div>
                 );
@@ -612,19 +498,20 @@ export function StorageAddonsPanel({
         </div>
 
         <div className="mt-6">
-          <div className="mb-2 text-[1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+          <div className="mb-2 text-[1rem] font-semibold tracking-[-0.02em] text-[#172033]">
             Recorded storage add-ons
           </div>
 
-          <div className="text-[0.88rem] leading-[1.7] text-[#5d6d71]">
+          <div className="text-[0.88rem] leading-[1.7] text-[#475569]">
             This list includes active, pending, canceled, expired, failed, and any
             legacy recurring entries already stored in billing history.
           </div>
         </div>
 
         {items.length === 0 ? (
-          <div className="mt-5 text-[0.94rem] leading-[1.7] text-[#5d6d71]">
-            No storage add-ons recorded yet.
+          <div className="cases-empty mt-5" data-storage-addons-empty>
+            <strong>No storage add-ons yet</strong>
+            <p>One-time storage top-ups you purchase will be listed here.</p>
           </div>
         ) : (
           <div className="mt-5 grid gap-3">
@@ -640,59 +527,30 @@ export function StorageAddonsPanel({
               const busy = cancelBusyId === item.id;
 
               return (
-                <div
-                  key={item.id}
-                  className="rounded-[18px] border px-4 py-4"
-                  style={{
-                    border: "1px solid rgba(79,112,107,0.10)",
-                    background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-                  }}
-                >
+                <div key={item.id} className="cases-inner px-4 py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-[0.96rem] font-semibold text-[#21353a]">
+                        <div className="text-[0.96rem] font-semibold text-[#172033]">
                           {item.addonKey}
                         </div>
 
-                        <div
-                          className="rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-                          style={{
-                            color: tone.color,
-                            background: tone.background,
-                            border: tone.border,
-                          }}
-                        >
+                        <Badge tone={tone} data-addon-status>
                           {formatAddonStatus(item.status)}
-                        </div>
+                        </Badge>
 
                         {isRecurring ? (
-                          <div
-                            className="rounded-full px-3 py-1.5 text-[0.72rem] font-semibold"
-                            style={{
-                              color: "#8a6a2b",
-                              background: "rgba(201,169,139,0.18)",
-                              border: "1px solid rgba(201,169,139,0.22)",
-                            }}
-                          >
+                          <Badge tone="pending" subtle data-addon-cycle="recurring">
                             Legacy recurring
-                          </div>
+                          </Badge>
                         ) : (
-                          <div
-                            className="rounded-full px-3 py-1.5 text-[0.72rem] font-semibold"
-                            style={{
-                              color: "#415257",
-                              background: "rgba(79,112,107,0.08)",
-                              border: "1px solid rgba(79,112,107,0.12)",
-                            }}
-                          >
+                          <Badge tone="neutral" subtle data-addon-cycle="one-time">
                             One-time
-                          </div>
+                          </Badge>
                         )}
                       </div>
 
-                      <div className="mt-2 text-[0.85rem] leading-[1.7] text-[#5d6d71]">
+                      <div className="mt-2 text-[0.85rem] leading-[1.7] text-[#475569]">
                         {item.teamId
                           ? `Workspace add-on${item.teamName ? ` · ${item.teamName}` : ""}`
                           : "Personal workspace add-on"}
@@ -700,35 +558,29 @@ export function StorageAddonsPanel({
                         {item.paymentProvider ?? "Unknown provider"}
                       </div>
 
-                      <div className="mt-1 text-[0.82rem] text-[#7a878a]">
+                      <div className="mt-1 text-[0.82rem] text-[#5F6878]">
                         Extra storage: {formatBytesCompact(item.extraStorageBytes)}
                       </div>
 
-                      <div className="mt-1 text-[0.82rem] text-[#7a878a]">
+                      <div className="mt-1 text-[0.82rem] text-[#5F6878]">
                         Current period end: {formatDateLabel(item.currentPeriodEnd)}
                       </div>
 
-                      <div className="mt-1 text-[0.82rem] text-[#7a878a]">
+                      <div className="mt-1 text-[0.82rem] text-[#5F6878]">
                         Activated: {formatDateLabel(item.activatedAtUtc)}
                       </div>
                     </div>
 
                     {canCancelRecurring && onCancelRecurring ? (
                       <div className="flex shrink-0 items-start">
-                        <Button
-                          variant="secondary"
+                        <button
+                          type="button"
                           onClick={() => onCancelRecurring(item.id)}
                           disabled={busy}
-                          className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                          style={{
-                            borderColor: "rgba(194,78,78,0.20)",
-                            color: "#fff3f3",
-                            background:
-                              "linear-gradient(180deg, rgba(164,84,84,0.94) 0%, rgba(130,62,62,0.98) 100%)",
-                          }}
+                          className="cases-remove-action"
                         >
                           {busy ? "Cancelling..." : "Cancel recurring add-on"}
-                        </Button>
+                        </button>
                       </div>
                     ) : null}
                   </div>
@@ -738,6 +590,6 @@ export function StorageAddonsPanel({
           </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 }

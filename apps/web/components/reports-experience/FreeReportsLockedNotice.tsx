@@ -99,20 +99,7 @@ export function FreeReportsLockedNotice() {
           <Link
             href="/billing"
             data-free-reports-cta="upgrade_pro"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              minHeight: 42,
-              padding: "0 18px",
-              borderRadius: 12,
-              textDecoration: "none",
-              fontSize: 14,
-              fontWeight: 650,
-              background: "var(--btn-primary-bg)",
-              color: "var(--btn-primary-color)",
-              border: "1px solid var(--btn-primary-border)",
-              boxShadow: "var(--btn-primary-shadow)",
-            }}
+            className="app-header-primary-action"
           >
             Upgrade to Pro
           </Link>

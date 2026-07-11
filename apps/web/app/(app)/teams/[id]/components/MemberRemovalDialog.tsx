@@ -346,13 +346,11 @@ export function MemberRemovalDialog({
                     value={transferToUserId}
                     onChange={(e) => setTransferToUserId(e.target.value)}
                     disabled={submitting}
+                    className="cases-form-input"
                     style={{
                       width: "100%",
                       padding: "10px 12px",
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.12)",
                       borderRadius: 8,
-                      color: "inherit",
                       fontSize: 13,
                     }}
                   >
@@ -392,8 +390,9 @@ export function MemberRemovalDialog({
                   data-member-removal-no-targets
                   style={{
                     padding: "10px 12px",
-                    background: "rgba(214,184,157,0.08)",
-                    border: "1px solid rgba(214,184,157,0.25)",
+                    background: "#FFF6E5",
+                    border: "1px solid rgba(168,102,18,0.17)",
+                    color: "#A86612",
                     borderRadius: 8,
                     fontSize: 13,
                   }}
@@ -456,12 +455,12 @@ function ImpactStat({
   const palette =
     tone === "warn"
       ? {
-          border: "1px solid rgba(214,184,157,0.30)",
-          background: "rgba(214,184,157,0.10)",
+          border: "1px solid rgba(168,102,18,0.17)",
+          background: "#FFF6E5",
         }
       : {
-          border: "1px solid rgba(255,255,255,0.08)",
-          background: "rgba(255,255,255,0.02)",
+          border: "1px solid rgba(15,23,42,0.06)",
+          background: "rgba(255,255,255,0.70)",
         };
   return (
     <div

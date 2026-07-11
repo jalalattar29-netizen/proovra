@@ -244,7 +244,7 @@ function renderStateContent({
           tone="warn"
           requestId={requestId}
           actions={
-            <Link href="/collaboration-teams" className="cc-quick-action">
+            <Link href="/collaboration-teams" className="app-secondary-action">
               Back to Teams
             </Link>
           }
@@ -280,7 +280,7 @@ function renderStateContent({
           actions={
             <button
               type="button"
-              className="cc-quick-action"
+              className="app-primary-action"
               onClick={onSignIn}
               data-testid="accept-invite-signin"
             >
@@ -298,7 +298,7 @@ function renderStateContent({
           tone="warn"
           requestId={requestId}
           actions={
-            <Link href="/workspaces" className="cc-quick-action">
+            <Link href="/workspaces" className="app-secondary-action">
               Open Workspaces
             </Link>
           }
@@ -344,7 +344,7 @@ function renderStateContent({
             <>
               <Link
                 href={COLLABORATION_TEAM_BILLING_UPGRADE_CTA}
-                className="cc-quick-action"
+                className="app-primary-action"
                 data-testid="accept-invite-billing-cta"
                 aria-label="View billing and upgrade options"
                 title="Owner can upgrade to add more seats"
@@ -353,7 +353,7 @@ function renderStateContent({
               </Link>
               <Link
                 href="/collaboration-teams"
-                className="cases-filter-chip"
+                className="app-secondary-action"
               >
                 Back to Teams
               </Link>
@@ -372,7 +372,7 @@ function renderStateContent({
           tone="error"
           requestId={requestId}
           actions={
-            <Link href="/collaboration-teams" className="cases-filter-chip">
+            <Link href="/collaboration-teams" className="app-secondary-action">
               Back to Teams
             </Link>
           }
@@ -380,6 +380,40 @@ function renderStateContent({
       );
   }
 }
+
+const TONE_META: Record<
+  "neutral" | "success" | "warn" | "error",
+  { ink: string; bg: string; border: string; icon: React.ReactNode }
+> = {
+  neutral: {
+    ink: "#4F46E5",
+    bg: "#F3F0FF",
+    border: "#D8CCFF",
+    icon: (
+      <path d="M12 16v-4M12 8h.01M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" />
+    ),
+  },
+  success: {
+    ink: "#167A5B",
+    bg: "#EAF7F1",
+    border: "rgba(22,122,91,0.22)",
+    icon: <path d="M20 6 9 17l-5-5" />,
+  },
+  warn: {
+    ink: "#A86612",
+    bg: "#FFF6E5",
+    border: "rgba(168,102,18,0.24)",
+    icon: (
+      <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+    ),
+  },
+  error: {
+    ink: "#B23442",
+    bg: "#FFF1F2",
+    border: "rgba(178,52,66,0.24)",
+    icon: <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20ZM15 9l-6 6m0-6 6 6" />,
+  },
+};
 
 function Panel({
   kicker,
@@ -396,39 +430,81 @@ function Panel({
   requestId?: string;
   actions?: React.ReactNode;
 }) {
-  const accent =
-    tone === "success"
-      ? "rgba(56,142,60,0.30)"
-      : tone === "warn"
-        ? "rgba(155,130,107,0.36)"
-        : tone === "error"
-          ? "rgba(186,80,80,0.30)"
-          : "rgba(79,112,107,0.18)";
+  const meta = TONE_META[tone];
   return (
     <section
-      className="cc-section"
-      style={{
-        padding: "2rem",
-        border: `1px solid ${accent}`,
-        borderRadius: 18,
-        background: "rgba(255,255,255,0.78)",
-        textAlign: "left",
-        marginTop: "1rem",
-      }}
+      className="app-panel"
+      style={{ padding: "28px 26px", marginTop: "1rem" }}
     >
-      <div className="cc-kicker">{kicker}</div>
-      <h1 className="cc-title" data-testid="accept-invite-title">
+      <span
+        aria-hidden
+        style={{
+          width: 46,
+          height: 46,
+          borderRadius: 13,
+          display: "grid",
+          placeItems: "center",
+          color: meta.ink,
+          background: meta.bg,
+          border: `1px solid ${meta.border}`,
+          marginBottom: 14,
+        }}
+      >
+        <svg
+          width="23"
+          height="23"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {meta.icon}
+        </svg>
+      </span>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          color: meta.ink,
+        }}
+      >
+        {kicker}
+      </div>
+      <h1
+        data-testid="accept-invite-title"
+        style={{
+          fontSize: 22,
+          fontWeight: 720,
+          letterSpacing: "-0.02em",
+          color: "#172033",
+          margin: "6px 0 0",
+        }}
+      >
         {title}
       </h1>
-      <p className="cc-subtitle" data-testid="accept-invite-body">
+      <p
+        data-testid="accept-invite-body"
+        style={{
+          fontSize: 14,
+          lineHeight: 1.55,
+          color: "#475569",
+          margin: "8px 0 0",
+          maxWidth: "52ch",
+        }}
+      >
         {body}
       </p>
       {requestId ? (
         <p
           style={{
-            color: "#9b826b",
+            color: "var(--app-ink-secondary)",
             fontSize: "0.78rem",
             fontFamily: "monospace",
+            margin: "12px 0 0",
           }}
           data-testid="accept-invite-request-id"
         >
@@ -436,7 +512,14 @@ function Panel({
         </p>
       ) : null}
       {actions ? (
-        <div style={{ marginTop: "1rem", display: "flex", gap: 8 }}>
+        <div
+          style={{
+            marginTop: "18px",
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
           {actions}
         </div>
       ) : null}

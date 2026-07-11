@@ -320,15 +320,20 @@ const LIFECYCLE_CHIP: Record<
   ConsoleLifecycle | "ARCHIVED",
   { bg: string; fg: string; border: string }
 > = {
-  CREATED: { bg: "#f3f4f6", fg: "#374151", border: "#d1d5db" },
-  SENT: { bg: "#dbeafe", fg: "#1e3a8a", border: "#93c5fd" },
-  DELIVERY_FAILED: { bg: "#fef2f2", fg: "#991b1b", border: "#fca5a5" },
-  OPENED: { bg: "#fef3c7", fg: "#92400e", border: "#fcd34d" },
-  STARTED: { bg: "#e0e7ff", fg: "#3730a3", border: "#a5b4fc" },
-  SUBMITTED: { bg: "#dcfce7", fg: "#166534", border: "#86efac" },
-  EXPIRED: { bg: "#f3f4f6", fg: "#6b7280", border: "#d1d5db" },
-  REVOKED: { bg: "#fee2e2", fg: "#7f1d1d", border: "#fca5a5" },
-  ARCHIVED: { bg: "#f5f3ff", fg: "#5b21b6", border: "#c4b5fd" },
+  // Canonical semantic status colours — the SAME mapping as Home
+  // Operations / Cases status badges: green (delivered/success), amber
+  // (in-progress / needs attention), red (failed), indigo (active
+  // engagement), slate (neutral / terminal). Aligned to the design
+  // system so intake lifecycle chips match every other status surface.
+  CREATED: { bg: "#F1F5F9", fg: "#475569", border: "rgba(15,23,42,0.08)" },
+  SENT: { bg: "#F3F0FF", fg: "#4F46E5", border: "#D8CCFF" },
+  DELIVERY_FAILED: { bg: "#FFF1F2", fg: "#B23442", border: "rgba(178,52,66,0.18)" },
+  OPENED: { bg: "#FFF6E5", fg: "#A86612", border: "rgba(168,102,18,0.17)" },
+  STARTED: { bg: "#F3F0FF", fg: "#4F46E5", border: "#D8CCFF" },
+  SUBMITTED: { bg: "#EAF7F1", fg: "#167A5B", border: "rgba(22,122,91,0.16)" },
+  EXPIRED: { bg: "#F1F5F9", fg: "#475569", border: "rgba(15,23,42,0.08)" },
+  REVOKED: { bg: "#FFF1F2", fg: "#B23442", border: "rgba(178,52,66,0.18)" },
+  ARCHIVED: { bg: "#E9EEF5", fg: "#334155", border: "rgba(51,65,85,0.14)" },
 };
 
 // =============================================================================
