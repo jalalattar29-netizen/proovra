@@ -675,6 +675,58 @@ a.cases-row-title:hover {
   border: 1px solid #E2DCF7;
 }
 
+/* §6 — canonical shared form input focus system (used by the Create case
+   dialog + any Cases form field). `outline: none` overrides the global
+   teal `input:focus-visible` outline; focus is the PROOVRA lavender ring,
+   never green. */
+.cases-form-input {
+  width: 100%;
+  border: 1px solid rgba(100, 116, 139, 0.22);
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 10px;
+  color: #172033;
+  transition: border-color 160ms ease, box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+.cases-form-input::placeholder {
+  color: #98a2b3;
+}
+.cases-form-input:focus,
+.cases-form-input:focus-visible {
+  outline: none;
+  border-color: #8b7cf6;
+  box-shadow: 0 0 0 3px rgba(139, 124, 246, 0.14);
+}
+.cases-form-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* §8 — stronger /cases page title (internal app page, not a hero). Scoped
+   to the cases heading block so the shared `.cc-title` is untouched
+   elsewhere. */
+.cases-page-heading .cc-title {
+  font-size: 30px;
+  line-height: 1.15;
+  font-weight: 720;
+  letter-spacing: -0.025em;
+  color: #172033;
+  margin: 0;
+}
+
+/* §7 — Create case primary button hover (enabled only). */
+.cases-create-submit:not(:disabled):hover {
+  background: #4f46d7 !important;
+}
+
+/* §4 — case-header primary action (light enterprise button on the dark
+   image header). Restrained hover lift, no purple glow. */
+.cases-header-add-evidence:hover:not(:disabled) {
+  background: #ffffff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16) !important;
+}
+
 /* §1 — shared semantic DANGER action for evidence removal (Evidence tab
    "Remove from case" + Add-evidence dialog "Remove"). Restrained: it reads
    as a secondary text action until hovered, matching the Delete-note /

@@ -120,7 +120,7 @@ function focusFirstIn(dialog: HTMLElement | null) {
 function toneAccent(tone: ConfirmActionTone): { color: string; bg: string; border: string } {
   switch (tone) {
     case "danger":
-      return { color: "#fff", bg: "#B23442", border: "#96242F" };
+      return { color: "#fff", bg: "#C9363E", border: "#C9363E" };
     case "warning":
       return { color: "#fff", bg: "#A86612", border: "#8A520E" };
     case "neutral":
@@ -299,15 +299,42 @@ function ConfirmActionModal({
           {tone === "danger" || tone === "warning" ? (
             <span
               aria-hidden="true"
-              data-confirm-action-tone-dot={tone}
+              data-confirm-action-tone-icon={tone}
               style={{
-                width: 10,
-                height: 10,
-                borderRadius: "50%",
-                background: accent.bg,
-                boxShadow: `0 0 0 3px ${accent.border}`,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                flexShrink: 0,
+                background:
+                  tone === "danger"
+                    ? "rgba(201,54,62,0.09)"
+                    : "rgba(168,102,18,0.10)",
+                border:
+                  tone === "danger"
+                    ? "1px solid rgba(201,54,62,0.18)"
+                    : "1px solid rgba(168,102,18,0.20)",
+                color: tone === "danger" ? "#C9363E" : "#A86612",
               }}
-            />
+            >
+              {tone === "danger" ? (
+                // Trash / remove semantic (destructive)
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+                  <path d="M6 6v14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6" />
+                  <path d="M10 11v6M14 11v6" />
+                </svg>
+              ) : (
+                // Alert triangle (caution)
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M10.29 3.86 1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.71 3.86a1 1 0 0 0-1.72 0Z" />
+                  <path d="M12 9v4M12 17h.01" />
+                </svg>
+              )}
+            </span>
           ) : null}
           <h2
             id={titleId}

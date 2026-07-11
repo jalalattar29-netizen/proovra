@@ -474,28 +474,30 @@ function SimpleCaseHeader({
     <header
       data-simple-case-header
       style={{
-        // §3 — grid: full-width breadcrumb row, then [content | action].
+        // §1 — real two-zone grid: [content | decorative artwork]. The
+        // breadcrumb spans both zones on its own row; the Add-evidence
+        // action is absolutely anchored top-right (below), so it belongs to
+        // the header controls and never floats over the illustration.
+        position: "relative",
         display: "grid",
-        gridTemplateColumns: "minmax(0,1fr) auto",
-        alignItems: "center",
-        gap: 32,
-        // §3 — slightly taller context header (still not a hero) with room
-        // for the in-header breadcrumb.
-        padding: "22px 26px",
-        minHeight: 148,
-        // reserve the right side for the artwork so text never overlaps it.
-        paddingRight: 300,
+        gridTemplateColumns: "minmax(0, 1fr) minmax(320px, 42%)",
+        alignItems: "stretch",
+        gap: 24,
+        // §3 — enterprise context header dimensions (not a marketing hero).
+        padding: "24px 28px",
+        minHeight: 190,
         borderRadius: 18,
-        // §1/§5 — dark neutral base with icon-card.png as a clearly-visible
-        // RIGHT-side visual at dashboard-card scale (auto 150% — not tiny,
-        // not full-cover). A horizontal dark overlay keeps the left content
-        // readable while the artwork carries the identity on the right.
+        overflow: "hidden",
+        // §2 — dark base with icon-card.png blended in from the right via a
+        // multi-stop overlay: solid on the left (calm, readable) fading to
+        // transparent on the right so the artwork EMERGES from the surface
+        // instead of sitting as a pasted-on panel with a hard split.
         backgroundColor: "#111827",
         backgroundImage:
-          "linear-gradient(90deg, rgba(17,24,39,0.97) 0%, rgba(17,24,39,0.90) 46%, rgba(17,24,39,0.50) 100%), url('/assets/cards/icon-card.png')",
-        backgroundSize: "auto 150%",
+          "linear-gradient(90deg, #111827 0%, #111827 48%, rgba(17,24,39,0.96) 57%, rgba(17,24,39,0.58) 72%, rgba(17,24,39,0.12) 100%), url('/assets/cards/icon-card.png')",
+        backgroundSize: "auto 118%",
         backgroundRepeat: "no-repeat",
-        backgroundPosition: "right 18px center",
+        backgroundPosition: "right center",
         border: "1px solid rgba(255,255,255,0.08)",
         color: "#ffffff",
       }}
@@ -513,9 +515,11 @@ function SimpleCaseHeader({
           gap: 6,
           flexWrap: "wrap",
           marginBottom: 12,
+          // keep clear of the absolutely-positioned Add-evidence button.
+          paddingRight: 160,
           fontSize: 12,
           fontWeight: 500,
-          color: "rgba(255,255,255,0.62)",
+          color: "rgba(255,255,255,0.58)",
         }}
       >
         <span>Personal Space</span>
@@ -533,8 +537,9 @@ function SimpleCaseHeader({
         </span>
       </nav>
       {/* §4A — no internal "Back to cases" link: the breadcrumb above the
-          header owns navigation (its "Cases" segment links to /cases). */}
-      <div style={{ minWidth: 0, flex: "1 1 320px" }}>
+          header owns navigation (its "Cases" segment links to /cases). This
+          is the LEFT content zone of the two-zone grid. */}
+      <div style={{ gridColumn: 1, minWidth: 0, alignSelf: "center" }}>
         <div
           style={{
             display: "flex",
@@ -572,10 +577,10 @@ function SimpleCaseHeader({
             data-simple-case-title
             style={{
               margin: 0,
-              fontSize: 20,
+              fontSize: 24,
               fontWeight: 700,
-              lineHeight: 1.2,
-              letterSpacing: "-0.01em",
+              lineHeight: 1.15,
+              letterSpacing: "-0.015em",
               color: "#ffffff",
               minWidth: 0,
               overflowWrap: "anywhere",
@@ -603,9 +608,9 @@ function SimpleCaseHeader({
             gap: 12,
             flexWrap: "wrap",
             alignItems: "center",
-            marginTop: 9,
-            fontSize: 12,
-            color: "rgba(255,255,255,0.84)",
+            marginTop: 10,
+            fontSize: 13,
+            color: "rgba(255,255,255,0.68)",
           }}
         >
           {caseDetail.referenceNumber ? (
@@ -646,11 +651,11 @@ function SimpleCaseHeader({
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 9 }}>
           <span
             style={{
-              fontSize: 10,
+              fontSize: 10.5,
               fontWeight: 700,
-              letterSpacing: "0.06em",
+              letterSpacing: "0.08em",
               textTransform: "uppercase",
-              color: "rgba(255,255,255,0.5)",
+              color: "rgba(255,255,255,0.46)",
             }}
           >
             Case ID
@@ -668,12 +673,12 @@ function SimpleCaseHeader({
               alignItems: "center",
               gap: 6,
               fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-              fontSize: 11.5,
+              fontSize: 12,
               color: "rgba(255,255,255,0.78)",
               background: "rgba(255,255,255,0.08)",
               border: "1px solid rgba(255,255,255,0.14)",
               borderRadius: 7,
-              padding: "3px 8px",
+              padding: "3px 9px",
               cursor: "pointer",
             }}
           >
@@ -701,34 +706,31 @@ function SimpleCaseHeader({
         ) : null}
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          flexShrink: 0,
-        }}
-      >
-        {/* Phase CASES-PERSONAL-UX-CLEANUP (Final) — the header
-            now exposes ONLY the primary action ("Add evidence").
-            The previous "Case settings" button duplicated the
-            Settings tab and was removed per spec — clicking it
-            already routed to the tab so there was no second
-            destination. */}
-        {/* §2 — on the dark header the primary action becomes a light/
-            white enterprise button that stays readable over the image. */}
+      {/* §4 — the primary action lives in a top-right control slot,
+          absolutely anchored to the header so it reads as a header control
+          and never floats vertically-centred over the artwork. */}
+      <div style={{ position: "absolute", top: 24, right: 28, zIndex: 1 }}>
         <CaseButton
           onClick={onAddEvidence}
           disabled={!canLinkEvidence}
           title={linkEvidenceDisabledReason ?? undefined}
           data-simple-case-action="add-evidence"
+          className="cases-header-add-evidence"
           style={{
-            background: "#ffffff",
-            color: "#1F2450",
-            border: "1px solid rgba(255,255,255,0.85)",
-            boxShadow: "0 6px 16px rgba(15,23,42,0.24)",
+            gap: 8,
+            height: 42,
+            padding: "0 18px",
+            borderRadius: 11,
+            fontWeight: 650,
+            background: "rgba(255,255,255,0.94)",
+            color: "#1A2030",
+            border: "1px solid rgba(255,255,255,0.55)",
+            boxShadow: "none",
           }}
         >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
           Add evidence
         </CaseButton>
       </div>
@@ -1237,7 +1239,10 @@ function EvidenceTab({
         description:
           "This removes the evidence from this case only. The evidence record itself will remain preserved.",
         confirmLabel: "Remove from case",
-        tone: "warning",
+        // §5 — removal is destructive at the case-link level: use the same
+        // restrained danger system as Delete note / Delete case (red), not
+        // the amber warning tone.
+        tone: "danger",
         testId: "simple-case-evidence-remove",
       });
       if (!ok) return;

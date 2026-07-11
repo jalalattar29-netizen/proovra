@@ -344,9 +344,50 @@ export function CasesIndex() {
                  plain-language title + a one-line description of the
                  concept. The pinned cc-title / cc-subtitle nodes are
                  retained inside the premium PageHeader hero. */
-              <h1 className="cc-title" data-cases-title>
-                Cases
-              </h1>
+              <div
+                className="cases-page-heading"
+                style={{ display: "flex", alignItems: "center", gap: 12 }}
+              >
+                {/* §9 — premium enterprise case/workspace icon surface (no
+                    emoji, no cartoon fill, no neon blob). FolderKanban glyph
+                    drawn inline (no new icon library). */}
+                <span
+                  aria-hidden
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 12,
+                    display: "grid",
+                    placeItems: "center",
+                    flexShrink: 0,
+                    background:
+                      "linear-gradient(145deg, rgba(91,79,233,0.10), rgba(73,184,255,0.08))",
+                    border: "1px solid rgba(91,79,233,0.16)",
+                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8)",
+                  }}
+                >
+                  <svg
+                    width="21"
+                    height="21"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#5B4FE9"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+                    <path d="M8 10v4M12 10v2M16 10v6" />
+                  </svg>
+                </span>
+                {/* §8 — stronger internal page-title hierarchy (still not a
+                    marketing hero). Sizing lives in CSS
+                    (`.cases-page-heading .cc-title`) so the pinned h1 tag
+                    shape stays clean. */}
+                <h1 className="cc-title" data-cases-title>
+                  Cases
+                </h1>
+              </div>
             }
             subtitle={
               <p className="cc-subtitle" data-cases-subtitle>

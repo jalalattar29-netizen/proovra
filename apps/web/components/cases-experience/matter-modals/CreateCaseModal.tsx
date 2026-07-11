@@ -145,17 +145,25 @@ export function CreateCaseModal({
             form="create-case-form"
             disabled={submitting || name.trim().length === 0}
             data-create-case-submit
+            className="cases-create-submit"
             style={{
-              padding: "8px 14px",
+              // §7 — distinct disabled (soft lavender, no dimming shadow)
+              // vs enabled (#5B4FE9) states; hover handled by the class.
+              padding: "0 16px",
+              height: 40,
               borderRadius: 10,
               fontSize: 13,
-              fontWeight: 600,
-              background: "#5B4FE8",
+              fontWeight: 650,
+              background:
+                submitting || name.trim().length === 0 ? "#C9C5F4" : "#5B4FE9",
               border: "1px solid transparent",
-              color: "#ffffff",
+              color:
+                submitting || name.trim().length === 0
+                  ? "rgba(255,255,255,0.9)"
+                  : "#ffffff",
               cursor:
                 submitting || name.trim().length === 0 ? "default" : "pointer",
-              opacity: submitting || name.trim().length === 0 ? 0.6 : 1,
+              boxShadow: "none",
             }}
           >
             {submitting ? "Creating…" : "Create case"}
@@ -186,13 +194,13 @@ export function CreateCaseModal({
           required
           disabled={submitting}
           data-create-case-name
+          className="cases-form-input"
           style={{
-            width: "100%",
-            padding: "10px 12px",
-            background: "rgba(255,255,255,0.7)",
-            border: "1px solid rgba(15,23,42,0.12)",
-            borderRadius: 8,
-            color: "#172033",
+            // §7 — 46px field height; the shared class owns the border,
+            // background, radius, placeholder and the lavender focus ring
+            // (no green/teal focus, matching the Case details field).
+            height: 46,
+            padding: "0 12px",
             fontSize: 14,
           }}
         />
