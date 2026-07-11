@@ -25,6 +25,7 @@ import type {
   ExecutiveSummary,
   HeroAction,
   HomeKpi,
+  HomeViewModel,
   RichRecentEvidenceRow,
   WorkspacePriority,
 } from "./home-view-model";
@@ -466,13 +467,36 @@ const PRIORITY_SEVERITY: Record<
 
 export function WorkspacePrioritiesCard({
   priorities,
+  operationalQueue,
 }: {
   priorities: WorkspacePriority[];
+  /**
+   * Phase HOME-OVERVIEW-MERGE — the former standalone "Action needed"
+   * card was removed; its "Verification packages to complete / N reports
+   * missing a package" item now merges in here as the last attention
+   * row. Real operational-queue items only; the packages item is found
+   * by its `complete_package` type. Absent/empty → nothing extra renders.
+   */
+  operationalQueue?: HomeViewModel["operationalQueue"];
 }) {
   // Phase HOME-INTELLIGENCE — ranked executive summary: top 3 with
   // severity chip, plain-language reason, and a direct action.
   const top = priorities.slice(0, 3);
   const more = priorities.length - top.length;
+
+  // Phase HOME-OVERVIEW-MERGE — the real "packages missing a package"
+  // operational-queue item (type "complete_package"), rendered as the
+  // last attention row. Its title carries the real count ("N reports
+  // missing a package"); we surface that count exactly, never invented.
+  const packagesItem = operationalQueue?.find(
+    (q) => q.type === "complete_package",
+  );
+  const packagesCount = packagesItem
+    ? Number.parseInt(packagesItem.title, 10)
+    : 0;
+  const showPackages =
+    !!packagesItem && Number.isFinite(packagesCount) && packagesCount > 0;
+  const packagesTone = toneColor("warn");
   return (
     <section className="home-card" style={homeCardStyle} data-self-serve-section="workspace-priorities">
       <header style={homeCardHeaderStyle}>
@@ -482,7 +506,7 @@ export function WorkspacePrioritiesCard({
             clearer title for individuals and journalists alike. */}
         <h2 style={homeCardTitleStyle}>What needs attention</h2>
       </header>
-      {top.length === 0 ? (
+      {top.length === 0 && !showPackages ? (
         <div style={allClearStyle} data-priorities-clear>
           <span style={iconBlockStyle(HOME_TINTS.ok, 34)}>
             <Icon d={ICONS.shield} color={HOME_COLORS.ok} size={17} />
@@ -532,6 +556,43 @@ export function WorkspacePrioritiesCard({
                 </li>
               );
             })}
+            {/* Phase HOME-OVERVIEW-MERGE — the merged operational-queue
+                "packages missing a package" item, always rendered LAST
+                (after Critical / integrity / OTS pending), same row
+                structure/density as the priorities above: a restrained
+                amber "Needs attention" badge, plain title, real-count
+                detail, and an indigo action link. */}
+            {showPackages && packagesItem ? (
+              <li key="op:complete_package" style={{ margin: 0 }}>
+                <div
+                  style={priorityRowV2Style}
+                  data-priority="complete_package"
+                  data-priority-severity="warning"
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    <span
+                      data-priority-chip="warning"
+                      style={{ ...homeChipStyle, background: packagesTone.bg, color: packagesTone.fg, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}
+                    >
+                      Needs attention
+                    </span>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 650, color: HOME_COLORS.ink, minWidth: 0 }}>
+                      Verification packages to complete
+                    </span>
+                  </div>
+                  <p style={priorityReasonStyle} data-priority-why>
+                    {packagesCount} report{packagesCount === 1 ? "" : "s"} missing a package
+                  </p>
+                  <Link
+                    href={packagesItem.action.href}
+                    style={priorityActionStyle}
+                    data-priority-action="complete_package"
+                  >
+                    Complete packages →
+                  </Link>
+                </div>
+              </li>
+            ) : null}
           </ul>
           {more > 0 ? (
             <span data-priorities-more={more} style={{ display: "block", marginTop: 8, fontSize: 11.5, color: HOME_COLORS.muted }}>

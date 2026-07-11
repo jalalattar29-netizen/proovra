@@ -515,10 +515,12 @@ describe("Phase IA-home-v2 — cross-cut bug contracts still hold", () => {
 describe("Phase IA-home-v2 — success criteria coverage", () => {
   it("the dashboard mounts every operational widget that answers the work questions", () => {
     const DASH = readWeb("components/home-experience/SelfServeHomeDashboard.tsx");
-    // Operational command layout: queue · matters · intake pipeline ·
-    // report production · verification health · trust · workspace health ·
-    // activity · storage · getting started.
-    expect(DASH).toMatch(/<OperationalQueue/);
+    // Approved tabbed layout: the consolidated priorities surface
+    // (which absorbed the old standalone OperationalQueue) · matters ·
+    // intake pipeline · report production · verification health · trust ·
+    // workspace health · activity · records-by-type · getting started.
+    // (Storage moved to the sidebar and is intentionally NOT here.)
+    expect(DASH).toMatch(/<WorkspacePrioritiesCard/);
     expect(DASH).toMatch(/<ActiveMatters/);
     expect(DASH).toMatch(/<IntakePipelineCard/);
     expect(DASH).toMatch(/<ReportProductionCard/);
@@ -526,18 +528,23 @@ describe("Phase IA-home-v2 — success criteria coverage", () => {
     expect(DASH).toMatch(/<TrustStateCard/);
     expect(DASH).toMatch(/<WorkspaceHealthCard/);
     expect(DASH).toMatch(/<ActivityFeed/);
-    expect(DASH).toMatch(/<StorageUsageCard/);
+    expect(DASH).toMatch(/<EvidenceTypeDonutCard/);
     expect(DASH).toMatch(/<GettingStartedChecklist/);
+    // The standalone OperationalQueue was merged away.
+    expect(DASH).not.toMatch(/<OperationalQueue/);
   });
 
-  it("the Operational Queue is the FIRST major widget (before matters/intake/reports)", () => {
+  it("the consolidated priorities surface is the FIRST attention module (before matters/reports)", () => {
     const DASH = readWeb("components/home-experience/SelfServeHomeDashboard.tsx");
-    const queueIdx = DASH.indexOf("<OperationalQueue");
+    // WorkspacePrioritiesCard replaced OperationalQueue as the first
+    // attention widget on the Overview view, and still receives the
+    // operational-queue data (asserted elsewhere).
+    const priorityIdx = DASH.indexOf("<WorkspacePrioritiesCard");
     const mattersIdx = DASH.indexOf("<ActiveMatters");
     const reportsIdx = DASH.indexOf("<ReportProductionCard");
-    expect(queueIdx).toBeGreaterThan(-1);
-    expect(queueIdx).toBeLessThan(mattersIdx);
-    expect(queueIdx).toBeLessThan(reportsIdx);
+    expect(priorityIdx).toBeGreaterThan(-1);
+    expect(priorityIdx).toBeLessThan(mattersIdx);
+    expect(priorityIdx).toBeLessThan(reportsIdx);
   });
 
   it("header is title + subtitle only — no nav-duplicate button row", () => {

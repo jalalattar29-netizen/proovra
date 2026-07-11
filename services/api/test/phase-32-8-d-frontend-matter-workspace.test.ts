@@ -69,25 +69,35 @@ describe("Phase 32.8D-frontend — Matter Operations Queue", () => {
     expect(live).not.toMatch(/apiFetch\(\s*[`"]\/v1\/cases\/summary/);
   });
 
-  it("renders the required operational counters per row", () => {
+  it("renders the operational signals per row (enterprise counters + evidence + readiness)", () => {
+    // §1 enterprise table redesign: the linked-evidence and status live in
+    // dedicated columns now (data-matter-queue-row-evidence /
+    // -readiness), and the advanced operational counters render inside the
+    // canSeeAdvancedCaseOps signals group. active-workflows / assignments
+    // counters were dropped as noise; the remaining granular counters stay.
+    expect(INDEX).toContain("data-matter-queue-row-counter");
     for (const dataKey of [
-      "linked-evidence",
       "evidence-gap",
       "open-incidents",
-      "active-workflows",
       "overdue-workflows",
       "governance-blockers",
-      "assignments",
     ]) {
-      expect(INDEX).toContain(`data-matter-queue-row-counter`);
       expect(INDEX).toContain(`"${dataKey}"`);
     }
+    // Evidence count + honest readiness are their own columns.
+    expect(INDEX).toMatch(/data-matter-queue-row-evidence/);
+    expect(INDEX).toMatch(/data-matter-queue-row-readiness/);
   });
 
-  it("renders risk score / level / reason codes / recommended action per row", () => {
+  it("renders risk (score/level) + reason codes, with an honest readiness column replacing the recommendedAction line", () => {
     expect(INDEX).toMatch(/data-matter-queue-row-chip="risk"/);
-    expect(INDEX).toMatch(/data-matter-queue-row-reason-codes/);
-    expect(INDEX).toMatch(/data-matter-queue-row-recommendation/);
+    // Reason codes are per-chip now (data-matter-queue-row-reason).
+    expect(INDEX).toMatch(/data-matter-queue-row-reason=/);
+    // §1 — the backend recommendedAction line (which surfaced the invalid
+    // "operating within risk tolerance" copy) was removed in favour of the
+    // derived, honest readiness signal.
+    expect(INDEX).not.toMatch(/data-matter-queue-row-recommendation/);
+    expect(INDEX).toMatch(/data-matter-queue-row-readiness/);
   });
 
   it("renders legal hold chip when activeLegalHoldCount > 0", () => {

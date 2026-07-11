@@ -54,6 +54,11 @@ function src(rel: string): string {
 const SIMPLE_DETAIL = src(
   "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
 );
+// Phase CASES-STATUS-LISTBOX (§22) — the accessible custom listbox that
+// replaced the native <select> in the Settings tab.
+const CASE_STATUS_SELECT = src(
+  "apps/web/components/cases-experience/simple-case-detail/CaseStatusSelect.tsx",
+);
 // Loaded for potential future helper-tier pins; currently unused.
 // Prefixed with `_` so the unused-vars rule accepts it without
 // reintroducing the import error.
@@ -106,57 +111,90 @@ test("ALLOWED_STATUS_TRANSITIONS is any → any (every status can move to every 
 // Settings tab — single dropdown + canonical confirm + endpoint
 // ===========================================================================
 
-test("Settings tab renders ONE status <select> with all six options", () => {
+test("Settings tab renders the CaseStatusSelect listbox wired to the canonical option list", () => {
+  // Phase CASES-STATUS-LISTBOX (§22) — the native <select> is
+  // replaced by the accessible custom <CaseStatusSelect> listbox.
+  // The legacy `data-simple-case-settings-status-select` testid is
+  // preserved on the control wrapper so downstream contract tests
+  // keep passing; the listbox itself carries the new §22 testids.
   assert.match(SIMPLE_DETAIL, /data-simple-case-settings-status-select/);
-  // The <option> renderer maps over the canonical option list,
-  // tagging each row with a data-attribute carrying the value.
-  // We assert the renderer shape (one map over CASE_STATUS_OPTIONS
-  // that emits `<option value={opt.value} ...>{opt.label}</option>`).
+  // No native <select> for case status survives in this file.
+  assert.doesNotMatch(SIMPLE_DETAIL, /<select\b/);
+  // The listbox is fed CASE_STATUS_OPTIONS as its option source.
   assert.match(
     SIMPLE_DETAIL,
-    /\{CASE_STATUS_OPTIONS\.map\(\(opt\) => \(\s*\n?\s*<option\s*\n?\s*key=\{opt\.value\}\s*\n?\s*value=\{opt\.value\}\s*\n?\s*data-simple-case-settings-status-option=\{opt\.value\}\s*\n?\s*>\s*\n?\s*\{opt\.label\}\s*\n?\s*<\/option>/,
+    /<CaseStatusSelect[\s\S]{0,300}?options=\{CASE_STATUS_OPTIONS\}/,
   );
   // The label "Case status" is the visible field label.
   assert.match(SIMPLE_DETAIL, />\s*Case status\s*</);
 });
 
-test("Dropdown value is controlled by caseDetail.status (no local mirror that can drift)", () => {
+test("Listbox component renders one role=option per status via CASE_STATUS_OPTIONS with the §22 option testid", () => {
+  // Source-pin the option renderer inside the CaseStatusSelect
+  // component: it maps over the passed `options`, emitting a
+  // role="option" carrying `data-case-status-select-option` +
+  // `data-status={opt.value}` and rendering `opt.label`.
+  assert.match(
+    CASE_STATUS_SELECT,
+    /options\.map\(\(opt, idx\) =>/,
+  );
+  assert.match(CASE_STATUS_SELECT, /role="option"/);
+  assert.match(CASE_STATUS_SELECT, /data-case-status-select-option/);
+  assert.match(CASE_STATUS_SELECT, /data-status=\{opt\.value\}/);
+  assert.match(CASE_STATUS_SELECT, /\{opt\.label\}/);
+  // The trigger + listbox carry the spec-locked §22 testids.
+  assert.match(CASE_STATUS_SELECT, /data-case-status-select-trigger/);
+  assert.match(CASE_STATUS_SELECT, /data-case-status-select-listbox/);
+  // ARIA listbox contract.
+  assert.match(CASE_STATUS_SELECT, /aria-haspopup="listbox"/);
+  assert.match(CASE_STATUS_SELECT, /role="listbox"/);
+  assert.match(CASE_STATUS_SELECT, /aria-activedescendant=/);
+});
+
+test("Listbox value is controlled by caseDetail.status (no local mirror that can drift)", () => {
+  // The custom listbox holds no committed value of its own — the
+  // trigger is always fed `value={caseDetail.status}`. A cancel or
+  // server error therefore cannot leave the control stuck on a
+  // rejected target.
   assert.match(
     SIMPLE_DETAIL,
-    /<select[\s\S]{0,400}?data-simple-case-settings-status-select[\s\S]{0,400}?value=\{caseDetail\.status\}/,
+    /<CaseStatusSelect[\s\S]{0,200}?value=\{caseDetail\.status\}/,
   );
 });
 
 test("Helper text disclaims workflow side effects", () => {
+  // §5 — copy now enumerates custody alongside integrity/reports/
+  // packages/retention as unchanged by a status change.
   assert.match(
     SIMPLE_DETAIL,
-    /Use status to organize your case\. This does not change\s*\n?\s*evidence integrity, reports, packages, or retention\./,
+    /Use status to organize this case\. Evidence integrity, reports,\s*\n?\s*packages, custody, and retention are unchanged\./,
   );
 });
 
-test("Dropdown disable predicate is the same canChangeStatus capability + busy flag", () => {
+test("Listbox disable predicate is the same canChangeStatus capability + busy flag", () => {
   assert.match(
     SIMPLE_DETAIL,
-    /<select[\s\S]{0,800}?data-simple-case-settings-status-select[\s\S]{0,600}?disabled=\{!canChangeStatus \|\| busy\}/,
+    /<CaseStatusSelect[\s\S]{0,400}?disabled=\{!canChangeStatus \|\| busy\}/,
   );
 });
 
-test("Dropdown surfaces the canonical disabledReasons.changeStatus as the title tooltip", () => {
+test("Listbox surfaces the canonical disabledReasons.changeStatus as the title tooltip", () => {
   assert.match(
     SIMPLE_DETAIL,
     /title=\{viewer\.disabledReasons\.changeStatus \?\? undefined\}/,
   );
 });
 
-test("Dropdown onChange snaps the visible value back to the current status before calling handleStatusChange", () => {
-  // The select is controlled; resetting `e.target.value` before
-  // dispatching the handler means the visible option does NOT
-  // change to the rejected target if the user cancels or the
-  // request fails. The next render re-binds `value` to whatever
-  // the new envelope says.
+test("Selecting a status routes through the parent handleStatusChange (parent owns the confirm + POST flow)", () => {
+  // The listbox performs no mutation of its own — on select it just
+  // calls onSelect(status), which dispatches the parent's
+  // handleStatusChange (the confirm-modal + POST owner). Because the
+  // trigger is re-bound to `caseDetail.status` every render, a
+  // cancel/error leaves the visible status unchanged with no local
+  // state to reset.
   assert.match(
     SIMPLE_DETAIL,
-    /onChange=\{\(e\) => \{\s*\n?\s*const next = e\.target\.value;[\s\S]{0,400}?e\.target\.value = caseDetail\.status;\s*\n?\s*void handleStatusChange\(next\);/,
+    /onSelect=\{\(next\) => \{[\s\S]{0,400}?void handleStatusChange\(next\);/,
   );
 });
 

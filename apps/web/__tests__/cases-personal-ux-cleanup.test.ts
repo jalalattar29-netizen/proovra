@@ -85,7 +85,14 @@ test("Cases list still wires the canonical search + status + create + cards path
   // Anti-regression: removing the chips must not collapse the
   // shipped controls.
   assert.match(CASES_INDEX, /data-matter-queue-search-input/);
-  assert.match(CASES_INDEX, /data-matter-queue-status-select/);
+  // §3 — the duplicate native "Any status" <select>
+  // (data-matter-queue-status-select) was removed. The status SEGMENT
+  // tabs are now the ONLY status filter, and they drive the same
+  // `filters.status` value the select used to write.
+  assert.doesNotMatch(CASES_INDEX, /data-matter-queue-status-select/);
+  assert.match(CASES_INDEX, /data-cases-status-segments/);
+  assert.match(CASES_INDEX, /data-cases-status-segment=/);
+  assert.match(CASES_INDEX, /set\("status", seg\.value/);
   assert.match(CASES_INDEX, /data-create-case-trigger/);
 });
 

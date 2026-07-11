@@ -76,18 +76,19 @@ function CaseDetailPageInner() {
 
   return (
     <>
-      {/* Phase B — operational breadcrumb on the canonical Matter
-          Workspace. Preserves the workspace + Phase B group context as
-          operators drill into a matter. */}
-      <OperationalBreadcrumb
-        routeId="workspace.cases"
-        items={[
-          { label: "Cases", href: "/cases" },
-          { label: caseId },
-        ]}
-      />
       {canSeeAdvancedCaseOps ? (
         <>
+          {/* Phase B — operational breadcrumb on the enterprise Matter
+              Workspace only. The personal SimpleCaseDetail renders its own
+              breadcrumb INSIDE the dark case header (§2/§10), so we do NOT
+              also emit this external one for that surface. */}
+          <OperationalBreadcrumb
+            routeId="workspace.cases"
+            items={[
+              { label: "Cases", href: "/cases" },
+              { label: caseId },
+            ]}
+          />
           {/* Phase 14 — deep link from the canonical case detail
               surface into the canonical /search surface, scoped to
               this case. Enterprise-only — Personal users don't need

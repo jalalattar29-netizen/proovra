@@ -1,10 +1,46 @@
 /**
- * Phase 32.8D — Cases experience styles.
- *
- * Reuses the Phase 32.8C `.cc-*` layout primitives; only the
- * cases-specific affordances (tabs, list rows, filter chips,
- * timeline) live here.
+ * Cases experience — NEW enterprise design system (replaces the legacy
+ * Phase 32.8D light-theme styles). Same class names as before so no
+ * component markup / data-testid changes are needed — only the visual
+ * system is upgraded to match the redesigned Home dashboard:
+ *   • translucent outer module surfaces (glass over the app background)
+ *   • enterprise row-based lists (soft dividers, no card-in-card)
+ *   • the shared #F3F0FF / #D8CCFF / #4F46E5 active-state (Home tab language)
+ *   • one shared semantic status colour system
+ *   • new field styling (44px, 12px radius, clear focus ring)
+ * Tokens are consumed from lib/design-tokens/tokens.css; no !important,
+ * no legacy globals extended.
  */
+
+/* ---------------------------------------------------------------------------
+ * Shared surfaces
+ * ------------------------------------------------------------------------- */
+
+/* Large OUTER module — translucent glass so the page background shows through
+   (never a solid white card, never card-in-card). */
+/* §14 — PRIMARY MODULE surface (level 2 of 3). Translucent glass over
+   the page background; never a solid white card, never card-in-card. */
+.cases-panel {
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 18px;
+}
+
+/* §14 — INNER CONTENT surface (level 3). Sits INSIDE a .cases-panel and
+   is deliberately more opaque + a hairline slate border so nested
+   content reads as a distinct layer, not the same wash. */
+.cases-inner {
+  background: rgba(255, 255, 255, 0.70);
+  border: 1px solid rgba(15, 23, 42, 0.05);
+  border-radius: 12px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Filter / toolbar
+ * ------------------------------------------------------------------------- */
 
 .cases-filter-row {
   display: flex;
@@ -13,15 +49,45 @@
   flex-wrap: wrap;
 }
 
+/* §4 — search field wrapper (icon + input). */
+.cases-search-field {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 1 1 260px;
+  min-width: 220px;
+  max-width: 440px;
+}
+.cases-search-icon {
+  position: absolute;
+  left: 14px;
+  display: inline-flex;
+  color: #8793A6;
+  pointer-events: none;
+}
+
 .cases-filter-search {
   flex: 1;
+  width: 100%;
   min-width: 200px;
-  padding: 8px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #ffffff;
+  height: 42px;
+  /* room for the leading search icon */
+  padding: 0 14px 0 38px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
   font-size: 14px;
-  color: #0f172a;
+  color: #172033;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.cases-filter-search::placeholder {
+  color: #8793A6;
+}
+.cases-filter-search:focus,
+.cases-filter-search:focus-visible {
+  outline: none;
+  border-color: #BEB4FF;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
 
 .cases-filter-chips {
@@ -30,26 +96,143 @@
   flex-wrap: wrap;
 }
 
+/* ---------------------------------------------------------------------------
+ * Enterprise toolbar — one compact row: status segments (left) + search
+ * and the (contract-pinned) native selects (right).
+ * ------------------------------------------------------------------------- */
+
+/* §4 — one compact row: status segments (left) + search (right),
+   16px gap, no awkward wrapping until narrow widths force it. */
+.cases-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  /* §2 — one row: segments (left, shrink+scroll) · search (right). On
+     narrow widths the toolbar stacks (see media query below). */
+  flex-wrap: nowrap;
+}
+@media (max-width: 720px) {
+  .cases-toolbar {
+    flex-wrap: wrap;
+  }
+  .cases-toolbar-right .cases-search-field {
+    width: 100%;
+  }
+}
+
+/* §5 — status segment group (the ONLY status filter). */
+.cases-segments {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: rgba(255, 255, 255, 0.42);
+  /* §2 — the strip shares the toolbar row with the search field: it
+     shrinks and scrolls internally (min-width:0) instead of forcing the
+     search to wrap onto a second line. */
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: max-content;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.cases-segments .cases-filter-chip {
+  flex: none;
+}
+.cases-segments::-webkit-scrollbar { display: none; }
+
+/* §5 — segment tab. Overrides the shared .cases-filter-chip metrics so
+   the full 7-item strip fits: height 36, padding 0 14, radius 10,
+   13px/600. Do NOT give each status a different saturated colour —
+   active is the shared indigo, inactive is neutral slate. */
+.cases-segments .cases-filter-chip {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5F6878;
+}
+.cases-segments .cases-filter-chip:hover {
+  background: rgba(15, 23, 42, 0.045);
+  color: #172033;
+}
+/* §3 — an inactive hovered tab must NOT read as active; keep the purple
+   active language exclusively for the pressed segment. */
+.cases-segments .cases-filter-chip.is-active:hover {
+  background: #F3F0FF;
+  color: #4F46E5;
+}
+.cases-segments .cases-filter-chip.is-active {
+  background: #F3F0FF;
+  border-color: #D8CCFF;
+  color: #4F46E5;
+  box-shadow: 0 3px 10px rgba(79, 70, 229, 0.08);
+}
+
+.cases-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+/* §2 — search aligns to the right edge of the table, 320–380px, not a
+   full-width centered field below the tabs. */
+.cases-toolbar-right .cases-search-field {
+  flex: 0 0 auto;
+  width: 340px;
+  min-width: 240px;
+  max-width: 100%;
+}
+
+/* §3 — the duplicate native "Any status" <select> was removed; the status
+   SEGMENT strip is now the ONLY status filter, at every width. The risk
+   <select> (a different, non-status criterion) still uses the pill chrome
+   below. */
+
+/* Status/segment filter pill + the field-style selects — new enterprise
+   language shared with the Home tabs. */
 .cases-filter-chip {
-  padding: 6px 12px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
-  color: #334155;
+  color: #5F6878;
+  transition: background-color 160ms ease, border-color 160ms ease,
+    color 160ms ease, box-shadow 160ms ease;
 }
-
 .cases-filter-chip:hover {
-  border-color: #94a3b8;
+  background: rgba(15, 23, 42, 0.045);
+  color: #172033;
+}
+.cases-filter-chip.is-active {
+  background: #F3F0FF;
+  border-color: #D8CCFF;
+  color: #4F46E5;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.10);
+}
+.cases-filter-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
 }
 
-.cases-filter-chip.is-active {
-  background: #0f172a;
-  color: #ffffff;
-  border-color: #0f172a;
-}
+/* ---------------------------------------------------------------------------
+ * Case list — enterprise rows inside one translucent container
+ * ------------------------------------------------------------------------- */
 
 .cases-list {
   list-style: none;
@@ -57,135 +240,577 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
 }
 
+/* §1 — the shared 7-column grid track. The header row and every data
+   row use this SAME template so the columns line up:
+   Case · Status · Owner · Evidence · Readiness · Last updated · Actions. */
+.cases-table-head,
+.cases-row-link {
+  display: grid;
+  grid-template-columns:
+    minmax(200px, 2.3fr) 128px minmax(148px, 1.3fr) 104px
+    minmax(120px, 1fr) 128px 44px;
+  align-items: center;
+  gap: 16px;
+}
+
+/* §1 — visible column header. Slate, uppercase, quiet — NOT purple. */
+.cases-table-head {
+  padding: 12px 18px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+.cases-th {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #5F6B7D;
+  white-space: nowrap;
+}
+
+/* §14/§7 — a data row: transparent surface (the panel is the surface),
+   soft separators, a NEUTRAL slate hover (not lavender). ~68–76px. */
 .cases-row {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #ffffff;
+  border: none;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  border-radius: 0;
+  background: transparent;
+  transition: background-color 140ms ease;
+}
+.cases-row:last-child {
+  border-bottom: none;
+}
+.cases-row:hover {
+  background: rgba(248, 250, 252, 0.60);
 }
 
 .cases-row-link {
-  display: block;
-  padding: 12px 14px;
+  padding: 13px 18px;
+  min-height: 68px;
   color: inherit;
   text-decoration: none;
+  cursor: pointer;
+}
+.cases-row-link:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(79, 70, 229, 0.35);
+  border-radius: 12px;
 }
 
-.cases-row:hover {
-  border-color: #94a3b8;
-}
-
-.cases-row-main {
+/* Generic cell — vertically centered, clips overflow. */
+.cases-cell {
+  min-width: 0;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+}
+.cases-cell-status,
+.cases-cell-readiness {
+  flex-wrap: wrap;
+}
+.cases-cell-evidence {
+  font-size: 13px;
+  color: #5F6B7D;
+}
+.cases-cell-count .cases-cell-strong,
+.cases-cell-strong {
+  font-weight: 700;
+  color: #172033;
+}
+.cases-cell-muted {
+  font-size: 12px;
+  color: #8793A6;
+}
+.cases-cell-updated {
+  font-size: 12px;
+  color: #5F6B7D;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cases-cell-actions {
+  justify-content: flex-end;
+}
+
+/* §1 — readiness pill: honest, semantic (green ready · amber attention ·
+   slate not-started). Never purple. */
+.cases-readiness {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 650;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.cases-readiness::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  flex: none;
+  opacity: 0.85;
+}
+.cases-readiness--ready {
+  background: #EAF7F1; color: #167A5B; border-color: rgba(22, 122, 91, 0.18);
+}
+.cases-readiness--warning {
+  background: #FFF6E5; color: #A86612; border-color: rgba(168, 102, 18, 0.20);
+}
+.cases-readiness--muted {
+  background: #F1F5F9; color: #5F6B7D; border-color: rgba(15, 23, 42, 0.08);
+}
+.cases-readiness-signals {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* §1 — on tablet/mobile the fixed table track can't fit; collapse each
+   row to a stacked card and hide the column header. */
+@media (max-width: 860px) {
+  .cases-table-head { display: none; }
+  .cases-row-link {
+    grid-template-columns: 1fr auto;
+    grid-auto-rows: min-content;
+    gap: 8px 12px;
+    padding: 14px 16px;
+  }
+  .cases-cell-case { grid-column: 1; }
+  .cases-cell-actions { grid-column: 2; grid-row: 1; }
+  .cases-cell-status { grid-column: 1 / -1; }
+  .cases-cell-owner,
+  .cases-cell-evidence,
+  .cases-cell-readiness,
+  .cases-cell-updated { grid-column: auto; }
+}
+
+/* Case identity column — name + short reference stacked. */
+.cases-row-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  align-items: flex-start;
 }
 
 .cases-row-title {
-  font-size: 15px;
-  font-weight: 500;
-  color: #0f172a;
+  display: block;
+  max-width: 100%;
+  font-size: 14.5px;
+  font-weight: 650;
+  color: #172033;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.cases-row-title:hover {
+  color: #4F46E5;
 }
 
 .cases-row-scope {
-  font-size: 10px;
+  align-self: flex-start;
+  font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 3px 7px;
+  letter-spacing: 0.01em;
+  color: #5F6B7D;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* §7 — owner column (initials avatar + neutral owner reference). */
+.cases-row-owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.cases-row-owner-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border-radius: 999px;
-  background: #f1f5f9;
-  color: #334155;
+  /* §3 — owner initials are metadata, not a primary/active accent:
+     neutral slate, never purple. */
+  background: #EEF1F6;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  color: #5F6B7D;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex: none;
+}
+.cases-row-owner-avatar[data-owner-empty] {
+  background: rgba(241, 245, 249, 0.9);
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #8793A6;
+}
+.cases-row-owner-label {
+  font-size: 12px;
+  color: #5F6B7D;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+/* §7 — actions overflow menu (native <details>). */
+.cases-row-actions {
+  position: relative;
+  flex: none;
+}
+.cases-row-actions-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: #8793A6;
+  cursor: pointer;
+  list-style: none;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.cases-row-actions-trigger::-webkit-details-marker { display: none; }
+.cases-row-actions-trigger:hover {
+  background: rgba(92, 84, 255, 0.06);
+  color: #4F46E5;
+}
+.cases-row-actions[open] .cases-row-actions-trigger {
+  background: #F3F0FF;
+  color: #4F46E5;
+}
+.cases-row-actions-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+}
+/* §3 — menu items are real <button>s now (working actions). Reset the
+   native button chrome to a clean full-width list row. */
+.cases-row-actions-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #172033;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.cases-row-actions-item:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.05);
+}
+.cases-row-actions-item:disabled {
+  color: #A6AEBC;
+  cursor: not-allowed;
+}
+.cases-row-actions-item--danger {
+  color: #B23442;
+}
+.cases-row-actions-item--danger:hover:not(:disabled) {
+  background: rgba(178, 52, 66, 0.08);
+  color: #96242F;
+}
+.cases-row-actions-sep {
+  height: 1px;
+  margin: 5px 6px;
+  background: rgba(15, 23, 42, 0.08);
 }
 
 .cases-row-meta {
   display: flex;
-  gap: 12px;
-  margin-top: 6px;
+  gap: 10px;
+  margin-top: 8px;
   font-size: 12px;
-  color: #64748b;
+  color: #5F6B7D;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .cases-row-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
-  padding: 2px 8px;
+  font-weight: 600;
+  padding: 3px 9px;
   border-radius: 999px;
-  background: #f1f5f9;
-  color: #334155;
+  background: rgba(241, 245, 249, 0.9);
+  color: #475569;
+  border: 1px solid rgba(15, 23, 42, 0.05);
 }
 
+/* ---- One shared SEMANTIC status colour system (badges + row chips) ---- */
+.cases-row-chip[data-status="OPEN"],
+.case-status-badge[data-status="OPEN"] {
+  background: #EAF7F1; color: #167A5B; border-color: rgba(22, 122, 91, 0.16);
+}
+.cases-row-chip[data-status="INVESTIGATING"],
+.case-status-badge[data-status="INVESTIGATING"] {
+  background: #F3F0FF; color: #4F46E5; border-color: #D8CCFF;
+}
+.cases-row-chip[data-status="ON_HOLD"],
+.case-status-badge[data-status="ON_HOLD"] {
+  background: #FFF6E5; color: #A86612; border-color: rgba(168, 102, 18, 0.17);
+}
+.cases-row-chip[data-status="RESOLVED"],
+.case-status-badge[data-status="RESOLVED"] {
+  background: #EAF7F1; color: #167A5B; border-color: rgba(22, 122, 91, 0.16);
+}
+.cases-row-chip[data-status="CLOSED"],
+.case-status-badge[data-status="CLOSED"] {
+  background: #F1F5F9; color: #475569; border-color: rgba(15, 23, 42, 0.08);
+}
+.cases-row-chip[data-status="ARCHIVED"],
+.case-status-badge[data-status="ARCHIVED"] {
+  background: #E9EEF5; color: #334155; border-color: rgba(51, 65, 85, 0.14);
+}
+
+/* §6 — empty-case readiness chip (neutral, never a green "healthy"
+   claim). Used when the case has no linked evidence. */
+.cases-row-chip[data-matter-queue-row-empty] {
+  background: rgba(241, 245, 249, 0.9);
+  color: #5F6B7D;
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+/* Operational row-chip tones (unchanged semantics, refined tints). */
 .cases-row-chip[data-cases-row-chip="hold"] {
-  background: #fef2f2;
-  color: #991b1b;
+  background: #FDEEEF; color: #B9383E; border-color: rgba(185, 56, 62, 0.16);
+}
+.cases-row-chip[data-cases-row-chip="review"] {
+  background: #FFF6E5; color: #A86612; border-color: rgba(168, 102, 18, 0.17);
 }
 
-.cases-row-chip[data-cases-row-chip="review"] {
-  background: #fffbeb;
-  color: #92400e;
+/* §4 — truthful vertical lifecycle timeline (real history only). Check
+   icons + subtle connectors, NO coloured bullets. */
+.cases-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
+.cases-timeline-step {
+  display: flex;
+  gap: 12px;
+  min-height: 44px;
+}
+.cases-timeline-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+}
+.cases-timeline-connector {
+  width: 2px;
+  flex: 1;
+  min-height: 14px;
+  margin: 2px 0;
+  background: rgba(15, 23, 42, 0.12);
+  border-radius: 2px;
+}
+.cases-timeline-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 12px;
+}
+.cases-timeline-name {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.cases-timeline-when {
+  font-size: 11.5px;
+  color: #8793A6;
+  font-variant-numeric: tabular-nums;
+}
+.cases-lifecycle-empty {
+  display: flex;
+  flex-direction: column;
+}
+.cases-lifecycle-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #8793A6;
+}
+.cases-lifecycle-transitions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.cases-lifecycle-transition {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3F3A8A;
+  background: #F5F3FF;
+  border: 1px solid #E2DCF7;
+}
+
+/* §1 — shared semantic DANGER action for evidence removal (Evidence tab
+   "Remove from case" + Add-evidence dialog "Remove"). Restrained: it reads
+   as a secondary text action until hovered, matching the Delete-note /
+   Delete-case danger language. Same tokens everywhere. */
+.cases-remove-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: #C9363E;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+.cases-remove-action:hover:not(:disabled) {
+  background: rgba(201, 54, 62, 0.07);
+  color: #A9222B;
+}
+.cases-remove-action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(201, 54, 62, 0.12);
+}
+.cases-remove-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Shared status badge primitive (detail header / settings). */
+.case-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: #F1F5F9;
+  color: #475569;
+}
+
+/* ---------------------------------------------------------------------------
+ * Empty state
+ * ------------------------------------------------------------------------- */
 
 .cases-empty {
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
-  border-radius: 10px;
-  padding: 24px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 14px;
+  padding: 32px 24px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  align-items: flex-start;
-  color: #334155;
+  align-items: center;
+  text-align: center;
+  color: #475569;
 }
-
 .cases-empty strong {
-  color: #0f172a;
+  color: #172033;
   font-size: 15px;
+  font-weight: 700;
 }
-
 .cases-empty p {
   margin: 0;
   font-size: 13px;
+  max-width: 42ch;
 }
 
-/* ===========================================================================
-   Tabs
-   =========================================================================== */
+/* ---------------------------------------------------------------------------
+ * Tabs — new enterprise pill system (matches Home tabs)
+ * ------------------------------------------------------------------------- */
 
 .case-tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 4px;
   margin-bottom: 4px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: rgba(255, 255, 255, 0.38);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.025);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.case-tabs::-webkit-scrollbar { display: none; }
 
 .case-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-bottom: 1px solid transparent; /* neutralise the old underline */
+  border-radius: 12px;
   background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 10px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #475569;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  color: #5F6878;
   cursor: pointer;
-  margin-bottom: -1px;
+  margin-bottom: 0;
+  transition: background-color 160ms ease, border-color 160ms ease,
+    color 160ms ease, box-shadow 160ms ease;
 }
-
 .case-tab:hover {
-  color: #0f172a;
+  background: rgba(92, 84, 255, 0.06);
+  color: #4F46E5;
 }
-
 .case-tab.is-active {
-  color: #0f172a;
-  border-bottom-color: #0f172a;
+  background: #F3F0FF;
+  border-color: #D8CCFF;
+  color: #4F46E5;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.10);
+}
+.case-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
 }
 
-/* ===========================================================================
-   Timeline
-   =========================================================================== */
+/* ---------------------------------------------------------------------------
+ * Timeline — shared success/indigo/neutral state colours
+ * ------------------------------------------------------------------------- */
 
 .cases-timeline-list {
   list-style: none;
@@ -193,7 +818,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .cases-timeline-row {
@@ -201,92 +826,50 @@
   grid-template-columns: 12px 1fr auto;
   gap: 12px;
   align-items: center;
-  padding: 8px 4px;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 10px 4px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.045);
 }
-
-.cases-timeline-row:last-child {
-  border-bottom: none;
-}
+.cases-timeline-row:last-child { border-bottom: none; }
 
 .cases-timeline-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
   background: #94a3b8;
 }
+.cases-timeline-dot[data-case-timeline-kind-dot="case_created"] { background: #167A5B; }
+.cases-timeline-dot[data-case-timeline-kind-dot="evidence_linked"] { background: #167A5B; }
+.cases-timeline-dot[data-case-timeline-kind-dot="legal_hold_placed"] { background: #B9383E; }
+.cases-timeline-dot[data-case-timeline-kind-dot="legal_hold_released"] { background: #64748b; }
 
-.cases-timeline-dot[data-case-timeline-kind-dot="case_created"] {
-  background: #3b82f6;
-}
-
-.cases-timeline-dot[data-case-timeline-kind-dot="evidence_linked"] {
-  background: #10b981;
-}
-
-.cases-timeline-dot[data-case-timeline-kind-dot="legal_hold_placed"] {
-  background: #b91c1c;
-}
-
-.cases-timeline-dot[data-case-timeline-kind-dot="legal_hold_released"] {
-  background: #6b7280;
-}
-
-.cases-timeline-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
+.cases-timeline-body { display: flex; flex-direction: column; gap: 2px; }
 .cases-timeline-label {
-  font-size: 13px;
-  color: #0f172a;
-  text-decoration: none;
-  font-weight: 500;
+  font-size: 13px; color: #172033; text-decoration: none; font-weight: 600;
 }
+.cases-timeline-label:hover { color: #4F46E5; text-decoration: underline; }
+.cases-timeline-subtitle { font-size: 11px; color: #64748b; }
+.cases-timeline-time { font-size: 11px; color: #64748b; font-variant-numeric: tabular-nums; }
 
-.cases-timeline-label:hover {
-  text-decoration: underline;
-}
-
-.cases-timeline-subtitle {
-  font-size: 11px;
-  color: #64748b;
-}
-
-.cases-timeline-time {
-  font-size: 11px;
-  color: #64748b;
-}
-
-/* ===========================================================================
-   Preservation
-   =========================================================================== */
+/* ---------------------------------------------------------------------------
+ * Preservation / activity
+ * ------------------------------------------------------------------------- */
 
 .cases-preservation-grid {
   display: grid;
   gap: 16px;
   grid-template-columns: 1fr;
 }
-
 @media (min-width: 1024px) {
-  .cases-preservation-grid {
-    grid-template-columns: 1fr 1fr;
-  }
+  .cases-preservation-grid { grid-template-columns: 1fr 1fr; }
 }
-
 .cases-preservation-heading {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #475569;
+  color: #64748b;
   margin: 0 0 8px;
 }
-
-/* ===========================================================================
-   Activity
-   =========================================================================== */
 
 .cases-activity-list {
   list-style: none;
@@ -296,31 +879,21 @@
   flex-direction: column;
   gap: 4px;
 }
-
 .cases-activity-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  background: #ffffff;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.045);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.64);
   font-size: 13px;
 }
-
-.cases-activity-event {
-  font-weight: 500;
-  color: #0f172a;
-}
-
+.cases-activity-event { font-weight: 600; color: #172033; }
 .cases-activity-actor {
   margin-left: 8px;
   font-size: 11px;
   color: #64748b;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
-
-.cases-activity-time {
-  font-size: 11px;
-  color: #64748b;
-}
+.cases-activity-time { font-size: 11px; color: #64748b; font-variant-numeric: tabular-nums; }

@@ -115,15 +115,17 @@ function focusFirstIn(dialog: HTMLElement | null) {
 // Internal modal component (rendered by the provider)
 // -----------------------------------------------------------------------------
 
+// §9/§10 — light-theme accents. The confirm button on a neutral dialog is
+// the app primary indigo; danger is the app rose; warning is the app amber.
 function toneAccent(tone: ConfirmActionTone): { color: string; bg: string; border: string } {
   switch (tone) {
     case "danger":
-      return { color: "#fff", bg: "#b3261e", border: "#7a1d18" };
+      return { color: "#fff", bg: "#B23442", border: "#96242F" };
     case "warning":
-      return { color: "#1f1300", bg: "#f1a23a", border: "#a36b14" };
+      return { color: "#fff", bg: "#A86612", border: "#8A520E" };
     case "neutral":
     default:
-      return { color: "#dce1de", bg: "rgba(255,255,255,0.10)", border: "rgba(255,255,255,0.15)" };
+      return { color: "#fff", bg: "#5B4FE8", border: "#4F46E5" };
   }
 }
 
@@ -252,7 +254,7 @@ function ConfirmActionModal({
         alignItems: "center",
         justifyContent: "center",
         padding: 16,
-        background: "rgba(8,18,22,0.72)",
+        background: "rgba(15,23,42,0.45)",
         backdropFilter: "blur(6px)",
       }}
       onClick={(e) => {
@@ -269,23 +271,26 @@ function ConfirmActionModal({
         ref={dialogRef}
         tabIndex={-1}
         style={{
-          maxWidth: 520,
+          maxWidth: 480,
           width: "100%",
-          background:
-            "linear-gradient(180deg, rgba(20,30,34,0.98) 0%, rgba(12,20,24,0.98) 100%)",
-          border: "1px solid rgba(255,255,255,0.10)",
+          // §5/§9/§10 — Home glass language: light translucent surface,
+          // blur, hairline slate border, soft elevation.
+          background: "rgba(255,255,255,0.96)",
+          backdropFilter: "blur(18px)",
+          WebkitBackdropFilter: "blur(18px)",
+          border: "1px solid rgba(15,23,42,0.08)",
           borderRadius: 16,
-          boxShadow: "0 20px 50px rgba(0,0,0,0.4)",
+          boxShadow: "0 24px 60px rgba(15,23,42,0.22)",
           display: "flex",
           flexDirection: "column",
-          color: "#dce1de",
+          color: "#172033",
           outline: "none",
         }}
       >
         <header
           style={{
             padding: "14px 18px",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            borderBottom: "1px solid rgba(15,23,42,0.07)",
             display: "flex",
             alignItems: "center",
             gap: 8,
@@ -330,7 +335,7 @@ function ConfirmActionModal({
                 display: "block",
                 marginTop: 14,
                 fontSize: 12,
-                color: "rgba(220,225,222,0.75)",
+                color: "#5F6B7D",
               }}
             >
               Type{" "}
@@ -338,8 +343,8 @@ function ConfirmActionModal({
                 style={{
                   padding: "1px 5px",
                   borderRadius: 4,
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.10)",
+                  background: "rgba(15,23,42,0.05)",
+                  border: "1px solid rgba(15,23,42,0.10)",
                   fontSize: 12,
                 }}
               >
@@ -360,9 +365,9 @@ function ConfirmActionModal({
                   width: "100%",
                   padding: "8px 10px",
                   borderRadius: 8,
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(0,0,0,0.25)",
-                  color: "#dce1de",
+                  border: "1px solid rgba(15,23,42,0.14)",
+                  background: "rgba(255,255,255,0.9)",
+                  color: "#172033",
                   fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                   fontSize: 13,
                 }}
@@ -375,7 +380,7 @@ function ConfirmActionModal({
           data-confirm-action-footer
           style={{
             padding: "12px 18px",
-            borderTop: "1px solid rgba(255,255,255,0.06)",
+            borderTop: "1px solid rgba(15,23,42,0.07)",
             display: "flex",
             justifyContent: "flex-end",
             gap: 8,
@@ -389,9 +394,9 @@ function ConfirmActionModal({
             style={{
               padding: "8px 14px",
               borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.15)",
-              background: "rgba(255,255,255,0.06)",
-              color: "#dce1de",
+              border: "1px solid rgba(15,23,42,0.14)",
+              background: "#FFFFFF",
+              color: "#172033",
               cursor: busy ? "not-allowed" : "pointer",
               fontSize: 13,
               fontWeight: 600,

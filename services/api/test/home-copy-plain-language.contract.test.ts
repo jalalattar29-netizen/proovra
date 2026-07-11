@@ -40,9 +40,20 @@ const HOME_DASH = src(
 const VM = src("apps/web/components/home-experience/home-view-model.ts");
 
 describe("Phase HOME-COPY — Operational queue → Action needed", () => {
-  it("the Operational Queue card title reads 'Action needed' (plain-English)", () => {
-    expect(HOME_SECTIONS).toMatch(/Action needed · \$\{items\.length\}/);
-    expect(HOME_SECTIONS).toMatch(/: "Action needed"/);
+  it("the action surface title is the plain-English 'Action needed'", () => {
+    // The heading reads "Action needed" (the count now lives in a separate
+    // chip beside it, so we no longer pin the exact `· ${items.length}`
+    // inline format — that was a brittle formatting assertion). The
+    // contract that matters: plain-English "Action needed", never the
+    // enterprise "Operational queue" wording as a rendered title.
+    expect(HOME_SECTIONS).toMatch(/Action needed/);
+    // "Operational queue" survives only in explanatory comments; it must
+    // not appear as executable/rendered copy.
+    const stripped = HOME_SECTIONS.replace(/\/\*[\s\S]*?\*\//g, "").replace(
+      /\/\/.*$/gm,
+      "",
+    );
+    expect(stripped).not.toMatch(/Operational queue/i);
   });
 
   it("the legacy 'Operational queue · N' header text is gone from the title", () => {

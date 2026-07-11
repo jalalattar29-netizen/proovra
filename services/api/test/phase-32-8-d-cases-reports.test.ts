@@ -356,16 +356,24 @@ describe("Phase 32.8D — /cases list page (CasesIndex)", () => {
   // in phase-32-8-d-frontend-matter-workspace.test.ts.
   it.skip("gates the 'Create case' button by canonical CASES_MANAGE capability", () => {});
 
-  it("create / rename / delete actions only fire on explicit user click (no mutation on page mount)", () => {
-    // The only mutation in the index file is onCreateCase, which is
-    // bound to a button click. No `apiFetch(...)` with method !== GET
-    // appears in the file outside of explicit click handlers.
+  it("create / archive / delete actions only fire on explicit user click (no mutation on page mount)", () => {
+    // §3 overflow menu — the Matter Queue now surfaces per-row actions:
+    // create case (POST /v1/cases via the modal), archive (POST
+    // /v1/cases/:id/status {ARCHIVED}) and delete (DELETE /v1/cases/:id).
+    // All are bound to explicit click handlers (the row overflow menu /
+    // create button), never fired on mount. The invariants we still
+    // enforce: only POST + DELETE (no PUT/PATCH), and every mutation is
+    // reached through a handler, not module/effect scope.
     const mutations = CASES_INDEX.match(/apiFetch\([^)]*method:\s*"(POST|PUT|PATCH|DELETE)"/g) ?? [];
-    // Only the explicit create case POST is allowed.
     for (const m of mutations) {
-      expect(m).toMatch(/POST/);
+      expect(m).toMatch(/POST|DELETE/);
+      expect(m).not.toMatch(/PUT|PATCH/);
     }
-    expect(mutations.length).toBeLessThanOrEqual(1);
+    // Guard against a mutation escaping into a top-level effect: no
+    // apiFetch mutation appears inside a bare useEffect body.
+    expect(CASES_INDEX).not.toMatch(
+      /useEffect\([^)]*apiFetch\([^)]*method:\s*"(POST|DELETE)"/,
+    );
   });
 
   // OBSOLETE — Phase 32.8D-frontend replaced the all/with_evidence/

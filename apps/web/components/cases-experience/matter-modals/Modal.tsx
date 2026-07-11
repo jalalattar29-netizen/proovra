@@ -150,8 +150,9 @@ export function Modal({
         alignItems: "center",
         justifyContent: "center",
         padding: 16,
-        background: "rgba(8,18,22,0.72)",
-        backdropFilter: "blur(6px)",
+        background: "rgba(15,23,42,0.38)",
+        backdropFilter: "blur(5px)",
+        WebkitBackdropFilter: "blur(5px)",
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget && !dismissDisabled) onClose();
@@ -166,24 +167,23 @@ export function Modal({
         ref={dialogRef}
         tabIndex={-1}
         style={{
-          maxWidth: 640,
+          maxWidth: 520,
           width: "100%",
           maxHeight: "85vh",
-          background:
-            "linear-gradient(180deg, rgba(20,30,34,0.98) 0%, rgba(12,20,24,0.98) 100%)",
-          border: "1px solid rgba(255,255,255,0.10)",
-          borderRadius: 16,
-          boxShadow: "0 20px 50px rgba(0,0,0,0.4)",
+          background: "rgba(255,255,255,0.96)",
+          border: "1px solid rgba(15,23,42,0.08)",
+          borderRadius: 18,
+          boxShadow: "0 24px 70px rgba(15,23,42,0.18)",
           display: "flex",
           flexDirection: "column",
-          color: "#dce1de",
+          color: "#475569",
           outline: "none",
         }}
       >
         <header
           style={{
             padding: "14px 18px",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            borderBottom: "1px solid rgba(15,23,42,0.08)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -192,7 +192,7 @@ export function Modal({
           <h2
             id={titleId}
             data-matter-modal-title
-            style={{ margin: 0, fontSize: 16, fontWeight: 700 }}
+            style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#172033" }}
           >
             {title}
           </h2>
@@ -202,8 +202,16 @@ export function Modal({
               data-matter-modal-close
               onClick={onClose}
               aria-label="Close"
-              className="cases-filter-chip"
-              style={{ padding: "2px 8px" }}
+              style={{
+                padding: "2px 8px",
+                background: "transparent",
+                border: "1px solid rgba(15,23,42,0.12)",
+                borderRadius: 8,
+                color: "#475569",
+                fontSize: 16,
+                lineHeight: 1,
+                cursor: "pointer",
+              }}
             >
               ×
             </button>
@@ -243,7 +251,7 @@ export function Modal({
             data-matter-modal-footer
             style={{
               padding: "12px 18px",
-              borderTop: "1px solid rgba(255,255,255,0.06)",
+              borderTop: "1px solid rgba(15,23,42,0.08)",
               display: "flex",
               justifyContent: "flex-end",
               gap: 8,

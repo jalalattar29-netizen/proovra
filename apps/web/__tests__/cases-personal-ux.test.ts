@@ -90,9 +90,11 @@ test("Search is debounced into `appliedSearch` (single 300ms timer) before trigg
     CASES_PAGE,
     /const \[appliedSearch, setAppliedSearch\] = useState\(""\);/,
   );
+  // §8 — the debounced value is ALSO normalised (a single leading `#`
+  // stripped) so the row's `#f2b14622` short id is searchable.
   assert.match(
     CASES_PAGE,
-    /setTimeout\(\(\) => \{\s*\n?\s*setAppliedSearch\(filters\.search\.trim\(\)\);\s*\n?\s*\}, 300\)/,
+    /setTimeout\(\(\) => \{[\s\S]*?setAppliedSearch\(\s*\n?\s*filters\.search\.trim\(\)\.replace\(\/\^#\/, ""\)\.trim\(\),?\s*\n?\s*\);[\s\S]*?\}, 300\)/,
   );
   assert.match(
     CASES_PAGE,
@@ -163,12 +165,22 @@ test("Main container carries `data-cases-advanced-mode` so E2E can assert per-mo
 // Filter / chip gating
 // ===========================================================================
 
-test("Status select stays visible for everyone and uses human-readable labels", () => {
+test("Status filter stays visible for everyone via the segment tabs with human-readable labels", () => {
+  // §3 — the duplicate native "Any status" <select> was removed; the
+  // status SEGMENT strip is the ONLY status filter now. STATUS_LABEL is
+  // still the canonical enum→label map (used by the row status pill),
+  // and the segment tabs carry the same human-readable labels via
+  // STATUS_SEGMENTS ("All cases" + the six bounded statuses).
   assert.match(
     CASES_PAGE,
-    /const STATUS_LABEL: Record<\(typeof CASE_STATUSES\)\[number\], string> = \{\s*\n?\s*OPEN: "Open",\s*\n?\s*INVESTIGATING: "Investigating",\s*\n?\s*ON_HOLD: "On hold",\s*\n?\s*RESOLVED: "Resolved",\s*\n?\s*CLOSED: "Closed",\s*\n?\s*ARCHIVED: "Archived",\s*\n?\s*\};/,
+    /const STATUS_LABEL: Record<CaseStatus, string> = \{\s*\n?\s*OPEN: "Open",\s*\n?\s*INVESTIGATING: "Investigating",\s*\n?\s*ON_HOLD: "On hold",\s*\n?\s*RESOLVED: "Resolved",\s*\n?\s*CLOSED: "Closed",\s*\n?\s*ARCHIVED: "Archived",\s*\n?\s*\};/,
   );
-  assert.match(CASES_PAGE, /\{STATUS_LABEL\[s\]\}/);
+  // The status tabs are the ONLY status control and drive filters.status.
+  assert.match(CASES_PAGE, /data-cases-status-segments/);
+  assert.match(CASES_PAGE, /\{ value: "", label: "All cases" \}/);
+  assert.match(CASES_PAGE, /onClick=\{\(\) => set\("status", seg\.value/);
+  // The native "Any status" <select> must be gone.
+  assert.doesNotMatch(CASES_PAGE, /data-matter-queue-status-select/);
 });
 
 test("Risk select is gated on canSeeAdvancedCaseOps (hidden on personal workspaces)", () => {
@@ -254,68 +266,83 @@ test("Filter state shape is unchanged — backend selectors are preserved (visib
 // Card simplification for personal users
 // ===========================================================================
 
-test("Risk badge on the row is gated on canSeeAdvancedCaseOps", () => {
+// §1 — the row is now a real enterprise TABLE (Case · Status · Owner ·
+// Evidence · Readiness · Last updated · Actions). The old personal-card
+// row (risk chip inline, "needs report or package" chip, "evidence
+// record" counter, backend recommendation line) was replaced by aligned
+// columns + an honest derived Readiness cell. The tests below pin the new
+// structure. Advanced (enterprise) operational signals still exist but are
+// grouped, gated on canSeeAdvancedCaseOps, under the Readiness cell.
+
+test("Advanced-only operational signals (risk + counters) are grouped and gated on canSeeAdvancedCaseOps", () => {
+  // The signals group only renders for advanced workspaces.
   assert.match(
     CASES_PAGE,
-    /\{canSeeAdvancedCaseOps \? \(\s*\n?\s*<RiskBadge level=\{row\.riskLevel\} score=\{row\.riskScore\} \/>/,
+    /canSeeAdvancedCaseOps \? \(\s*\n?\s*<span className="cases-readiness-signals"[\s\S]{0,120}?<RiskBadge level=\{row\.riskLevel\} score=\{row\.riskScore\} \/>/,
   );
-});
-
-test("All granular counters (incidents, workflows, overdue, governance, hold, assignments, gap) are gated on canSeeAdvancedCaseOps", () => {
+  // The granular counters live inside that gated group.
   for (const dataKey of [
+    "evidence-gap",
     "open-incidents",
-    "active-workflows",
     "overdue-workflows",
     "governance-blockers",
-    "assignments",
-    "evidence-gap",
   ]) {
     assert.match(
       CASES_PAGE,
-      new RegExp(
-        `canSeeAdvancedCaseOps && row\\.[a-zA-Z]+(?:Count|Score) > 0 \\? \\(\\s*\\n?\\s*<Counter\\s*\\n?\\s*dataKey="${dataKey}"`,
-      ),
-      `Counter ${dataKey} must be gated on canSeeAdvancedCaseOps`,
+      new RegExp(`<Counter dataKey="${dataKey}"`),
+      `Counter ${dataKey} must still render inside the gated signals group`,
     );
   }
-  // Legal-preservation chip is a span, not a Counter.
-  assert.match(
-    CASES_PAGE,
-    /canSeeAdvancedCaseOps && row\.activeLegalHoldCount > 0 \? \(\s*\n?\s*<span[\s\S]{0,300}?Legal preservation/,
-  );
+  // Legal-preservation chip is a span inside the same gated group.
+  assert.match(CASES_PAGE, /Legal preservation/);
 });
 
-test("Personal card surfaces a single plain-language 'needs report or package' chip when gaps exist", () => {
+test("Readiness column is derived honestly (Not started / Needs attention / Ready), never risk language", () => {
   assert.match(CASES_PAGE, /const hasMissingArtifact = row\.evidenceGapCount > 0;/);
-  assert.match(
-    CASES_PAGE,
-    /!canSeeAdvancedCaseOps && hasMissingArtifact \? \(\s*\n?\s*<span[\s\S]{0,400}?data-matter-queue-row-chip="needs-artifact"[\s\S]{0,400}?records? need[s]? report or package/,
+  assert.match(CASES_PAGE, /const readiness = isEmptyCase/);
+  assert.match(CASES_PAGE, /label: "Not started"/);
+  assert.match(CASES_PAGE, /label: "Needs attention"/);
+  assert.match(CASES_PAGE, /label: "Ready"/);
+  assert.match(CASES_PAGE, /data-matter-queue-row-readiness=\{readiness\.key\}/);
+  // The invalid "operating within risk tolerance" recommendation line is
+  // gone from the rendered output.
+  assert.ok(
+    !/Recommended: \{row\.recommendedAction\}/.test(CASES_PAGE),
+    "recommendedAction line must be removed",
   );
 });
 
-test("Linked-evidence counter on the row uses plain language ('evidence record / evidence records')", () => {
+test("Evidence column shows a plain record count ('record' / 'records')", () => {
+  assert.match(CASES_PAGE, /data-matter-queue-row-evidence=\{row\.linkedEvidenceCount\}/);
   assert.match(
     CASES_PAGE,
-    /label=\{row\.linkedEvidenceCount === 1 \? "evidence record" : "evidence records"\}/,
+    /row\.linkedEvidenceCount === 1 \? "record" : "records"/,
   );
 });
 
-test("Personal fallback recommendation surfaces when no backend recommendedAction is set but there is a gap", () => {
-  // Three independent anchors; the gaps between them include the
-  // JSX comment so the previous narrow window missed.
-  assert.match(CASES_PAGE, /:\s*!canSeeAdvancedCaseOps && hasMissingArtifact \?/);
-  assert.match(CASES_PAGE, /data-recommendation-source="personal-fallback"/);
+test("The table has a visible column header including 'Last updated'", () => {
+  assert.match(CASES_PAGE, /<div className="cases-table-head"/);
+  assert.match(CASES_PAGE, /<span className="cases-th">Last updated<\/span>/);
   assert.match(
     CASES_PAGE,
-    /Generate the missing report or package from the evidence detail page\./,
+    /\{formatRelativeTime\(row\.latestActivityAtUtc\)\}/,
   );
 });
 
-test("Last-updated time uses the spec phrasing 'Last updated …'", () => {
-  assert.match(
-    CASES_PAGE,
-    /Last updated \{formatRelativeTime\(row\.latestActivityAtUtc\)\}/,
-  );
+test("The row exposes a working overflow menu (Open / Rename / Change status / Archive / Delete)", () => {
+  assert.match(CASES_PAGE, /role="menuitem"/);
+  // Real actions, not dead links: archive POSTs an ARCHIVED status and
+  // delete DELETEs the case (both confirmed), open/rename/change-status
+  // navigate.
+  assert.match(CASES_PAGE, /toStatus: "ARCHIVED"/);
+  assert.match(CASES_PAGE, /apiFetch\(`\/v1\/cases\/\$\{caseId\}`, \{ method: "DELETE" \}\)/);
+  for (const label of ["Open", "Rename", "Change status", "Archive", "Delete"]) {
+    assert.match(
+      CASES_PAGE,
+      new RegExp(`>\\s*\\n?\\s*${label}\\s*\\n?\\s*<\\/button>`),
+      `overflow menu must include a working '${label}' action`,
+    );
+  }
 });
 
 // ===========================================================================

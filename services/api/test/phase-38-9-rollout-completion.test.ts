@@ -75,7 +75,18 @@ describe("Phase 38.9 — sidebar consumes only canonical registry + resolvers", 
   });
 
   it("never calls apiFetch", () => {
-    expect(SIDEBAR).not.toMatch(/apiFetch\s*\(/);
+    // Inspect EXECUTABLE source only — strip comments first (consistent
+    // with the `envelope.navigation.groups` check above). The sidebar's
+    // docstring legitimately references the "no-apiFetch" contract by name
+    // to explain the architecture; that documentation must not trip a
+    // regex looking for a real call. The real contract: no apiFetch import
+    // and no apiFetch invocation in executable code.
+    const stripped = SIDEBAR.replace(/\/\*[\s\S]*?\*\//g, "").replace(
+      /\/\/.*$/gm,
+      "",
+    );
+    expect(stripped).not.toMatch(/apiFetch\s*\(/);
+    expect(stripped).not.toMatch(/import[\s\S]*?\bapiFetch\b/);
   });
 
   it("does NOT derive role / platform-admin / capability locally — reads envelope only", () => {

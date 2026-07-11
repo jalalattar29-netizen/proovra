@@ -855,36 +855,70 @@
  *   • strict equal 5-column KPI grid (no orphan card), responsive collapse
  * =====================================================================*/
 
-/* Minimal enterprise segmented control (Linear / Stripe language). */
+/* Primary workspace navigation — a stronger enterprise segmented control
+   that STICKS just below the app header while the Home page scrolls. Not a
+   second header bar: a translucent pill that stays integrated with the page
+   background (subtle backdrop blur, soft border, no thick separator/heavy
+   shadow). */
 .home-tabs {
+  position: sticky;
+  top: var(--header-h, 72px);
+  z-index: 40;
   display: inline-flex;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
   padding: 4px;
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.045);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.38);
   border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.025);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   align-self: flex-start;
 }
 .home-tab {
   appearance: none;
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 12px;
+  border: 1px solid transparent;
   background: transparent;
-  padding: 7px 16px;
-  border-radius: 9px;
-  font-size: 13px;
+  color: #5F6878;
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: -0.005em;
-  color: var(--ink-secondary, #475569);
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
-  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
 }
 .home-tab:hover {
-  color: var(--ink-primary, #0f172a);
+  background: rgba(92, 84, 255, 0.06);
+  color: #4F46E5;
+  border-color: transparent;
 }
 .home-tab[aria-selected="true"] {
-  background: #ffffff;
-  color: var(--ink-primary, #0f172a);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  background: #F3F0FF;
+  border: 1px solid #D8CCFF;
+  color: #4F46E5;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.10);
+}
+/* Keyboard focus ring — combined with the active shadow when the selected
+   tab also has focus (never permanently replacing it). */
+.home-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
+}
+.home-tab[aria-selected="true"]:focus-visible {
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.10),
+    0 0 0 3px rgba(79, 70, 229, 0.16);
 }
 .home-tabpanel {
   display: flex;

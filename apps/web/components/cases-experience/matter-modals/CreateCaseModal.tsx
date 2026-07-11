@@ -123,19 +123,40 @@ export function CreateCaseModal({
         <>
           <button
             type="button"
-            className="btn-secondary"
             onClick={handleClose}
             disabled={submitting}
             data-create-case-cancel
+            style={{
+              padding: "8px 14px",
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 600,
+              background: "rgba(255,255,255,0.78)",
+              border: "1px solid rgba(79,70,229,0.18)",
+              color: "#4F46E5",
+              cursor: submitting ? "default" : "pointer",
+              opacity: submitting ? 0.6 : 1,
+            }}
           >
             Cancel
           </button>
           <button
             type="submit"
             form="create-case-form"
-            className="btn-primary"
             disabled={submitting || name.trim().length === 0}
             data-create-case-submit
+            style={{
+              padding: "8px 14px",
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 600,
+              background: "#5B4FE8",
+              border: "1px solid transparent",
+              color: "#ffffff",
+              cursor:
+                submitting || name.trim().length === 0 ? "default" : "pointer",
+              opacity: submitting || name.trim().length === 0 ? 0.6 : 1,
+            }}
           >
             {submitting ? "Creating…" : "Create case"}
           </button>
@@ -149,7 +170,7 @@ export function CreateCaseModal({
             display: "block",
             fontSize: 13,
             fontWeight: 600,
-            opacity: 0.85,
+            color: "#172033",
             marginBottom: 6,
           }}
         >
@@ -168,10 +189,10 @@ export function CreateCaseModal({
           style={{
             width: "100%",
             padding: "10px 12px",
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.7)",
+            border: "1px solid rgba(15,23,42,0.12)",
             borderRadius: 8,
-            color: "inherit",
+            color: "#172033",
             fontSize: 14,
           }}
         />
@@ -179,7 +200,7 @@ export function CreateCaseModal({
           style={{
             margin: "6px 0 0",
             fontSize: 12,
-            opacity: 0.6,
+            color: "#64748B",
           }}
         >
           You can rename the case from its workspace at any time. Evidence,
@@ -203,10 +224,10 @@ export function CreateCaseModal({
             style={{
               marginTop: 14,
               padding: "10px 12px",
-              background: "rgba(220, 80, 80, 0.10)",
-              border: "1px solid rgba(220, 80, 80, 0.35)",
+              background: "rgba(185, 56, 62, 0.08)",
+              border: "1px solid rgba(185, 56, 62, 0.30)",
               borderRadius: 8,
-              color: "#f6c8c8",
+              color: "#B9383E",
               fontSize: 13,
             }}
           >

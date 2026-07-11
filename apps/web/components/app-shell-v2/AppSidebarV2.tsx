@@ -542,11 +542,14 @@ export function AppSidebarV2() {
   const capabilities = envelope?.capabilities ?? {};
   const accountPlan = envelope?.account?.accountPlan ?? null;
 
-const teamId =
-  envelope?.workspace?.status === "active" && envelope.workspace.scope === "TEAM"
-    ? envelope.workspace.id
-    : null;
-      const runtime = useGlobalRuntimeState(teamId);
+  const teamId =
+    envelope?.workspace?.status === "active" &&
+    envelope.workspace.scope === "TEAM"
+      ? envelope.workspace.id
+      : null;
+  // Canonical runtime integration point — the sidebar loads all
+  // navigation/runtime state through this hook, never via a direct fetch.
+  const runtime = useGlobalRuntimeState(teamId);
   const runtimeTone = severityToTone(runtime.severity);
   const governanceIncidents = runtime.incidents.filter(
     (i) => i.category && i.category.toLowerCase().includes("governance"),

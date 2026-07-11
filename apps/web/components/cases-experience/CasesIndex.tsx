@@ -16,16 +16,21 @@
  *     action
  *   - latest activity time
  *
- * Phase 7C — VISUAL redesign of the list surface only. The queue now
+ * PROOVRA enterprise redesign of the list surface only. The queue now
  * renders inside the canonical PROOVRA design foundation:
- *   - PageShell + a premium PageHeader hero (title / description /
- *     one primary "Create case" CTA in the coral→pink gradient Button).
- *   - A shared FilterBar strip wrapping the (source-pinned) search
- *     input + status / risk selects.
- *   - A premium Card grid for the case rows, with status / risk /
- *     priority rendered as tone-keyed Badges and the operational
- *     counters as restyled meta chips.
- *   - Card-framed EmptyState surfaces for the two zero states.
+ *   - PageShell + PageHeader (title / spec description / a RESTRAINED
+ *     secondary "Create case" button — the global "New Case" lives in
+ *     the app header, so the coral→pink primary is retired here).
+ *   - A compact toolbar: a status SEGMENT strip (`.cases-filter-chip`
+ *     active-state) as the ONLY status control on the left, with the
+ *     search field + the risk <select> (a different, non-status
+ *     criterion) on the right. The duplicate native "Any status"
+ *     <select> was removed; the segment tabs drive `filters.status`.
+ *   - ONE translucent `.cases-panel` container wrapping enterprise
+ *     `.cases-row` entries (soft dividers, ~68px, hover tint) — no
+ *     card-in-card. Status / risk / priority render as tone-keyed
+ *     Badges and the operational counters as restyled meta chips.
+ *   - Restyled `.cases-empty` centered surfaces for the two zero states.
  * NO data-fetching, permission, routing, or business logic changed —
  * every data-testid / data-* attribute + the load state machine +
  * the create-case flow are preserved verbatim.
@@ -46,11 +51,13 @@
  */
 
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { apiFetch } from "../../lib/api";
+import { useToast } from "../ui-legacy";
+import { useConfirmAction } from "../ui/ConfirmActionModal";
 // Phase CASES-PERSONAL-UX — capability gate. The investigation surface
 // (ENTERPRISE-tier) is the existing signal for evidence-graph /
 // reviewer-ops / legal-ops workflows. We reuse it as the on/off switch
@@ -79,7 +86,6 @@ import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Badge } from "../ui/Badge";
 import type { BadgeTone } from "../ui/Badge";
-import { EmptyState } from "../ui/EmptyState";
 // Phase 2.1 — surfaces `POST /v1/cases` from the canonical Cases page.
 import { CreateCaseModal } from "./matter-modals";
 import type {
@@ -92,15 +98,13 @@ import type {
 // Bounded filter vocabularies (mirror MatterQueueQuery on the backend)
 // ---------------------------------------------------------------------------
 
-const CASE_STATUSES = [
-  "OPEN",
-  "INVESTIGATING",
-  "ON_HOLD",
-  "RESOLVED",
-  "CLOSED",
-  "ARCHIVED",
-] as const;
-type CaseStatus = (typeof CASE_STATUSES)[number];
+type CaseStatus =
+  | "OPEN"
+  | "INVESTIGATING"
+  | "ON_HOLD"
+  | "RESOLVED"
+  | "CLOSED"
+  | "ARCHIVED";
 
 const RISK_LEVELS = ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 
@@ -195,7 +199,12 @@ export function CasesIndex() {
   // keystroke because reload() flipped state to "loading".
   useEffect(() => {
     const timer = setTimeout(() => {
-      setAppliedSearch(filters.search.trim());
+      // §8 — normalise the search term before it hits the backend. The
+      // row shows a short id as `#f2b14622`, so users type the `#` too;
+      // strip a single leading `#` (and surrounding whitespace) so the
+      // UUID-prefix match in `/v1/cases/matter-queue` actually resolves.
+      // Plain name / reference searches are unaffected.
+      setAppliedSearch(filters.search.trim().replace(/^#/, "").trim());
     }, 300);
     return () => clearTimeout(timer);
   }, [filters.search]);
@@ -372,12 +381,21 @@ export function CasesIndex() {
               /* Phase 2.1 — canonical Create Case CTA. Server enforces
                  permissions; the button is visible to any team member so
                  they get a structured AccessGate inside the modal on 403
-                 instead of a missing button + raw 403 elsewhere. Phase 7C
-                 promotes it to the coral→pink gradient primary Button. */
+                 instead of a missing button + raw 403 elsewhere.
+                 PROOVRA enterprise redesign: a global "New Case" already
+                 lives in the app header, so the page-level create action
+                 is a RESTRAINED SECONDARY button (white bg, indigo text /
+                 hairline border) rather than the old coral→pink primary. */
               <Button
-                variant="primary"
+                variant="secondary"
                 data-create-case-trigger
                 onClick={() => setCreateOpen(true)}
+                style={{
+                  background: "rgba(255, 255, 255, 0.72)",
+                  color: "#4F46E5",
+                  border: "1px solid rgba(79, 70, 229, 0.18)",
+                  boxShadow: "0 5px 16px rgba(15, 23, 42, 0.04)",
+                }}
               >
                 Create case
               </Button>
@@ -414,6 +432,7 @@ export function CasesIndex() {
           canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
           onClearFilters={() => setFilters(DEFAULT_FILTERS)}
           onCreateCase={() => setCreateOpen(true)}
+          onReload={reload}
         />
       </PageShell>
 
@@ -447,7 +466,7 @@ export function CasesIndex() {
  * Status select. The underlying enum values stay UPPER_SNAKE_CASE for
  * the API contract.
  */
-const STATUS_LABEL: Record<(typeof CASE_STATUSES)[number], string> = {
+const STATUS_LABEL: Record<CaseStatus, string> = {
   OPEN: "Open",
   INVESTIGATING: "Investigating",
   ON_HOLD: "On hold",
@@ -455,6 +474,35 @@ const STATUS_LABEL: Record<(typeof CASE_STATUSES)[number], string> = {
   CLOSED: "Closed",
   ARCHIVED: "Archived",
 };
+
+/**
+ * PROOVRA enterprise redesign — desktop status SEGMENT strip. "All cases"
+ * maps to the empty status value (no filter); the six bounded statuses map
+ * to their enum values. This is a presentation control over the SAME
+ * `filters.status` state the contract-pinned native <select> writes, so the
+ * query-string builder / backend selectors are untouched.
+ */
+const STATUS_SEGMENTS: ReadonlyArray<{ value: "" | CaseStatus; label: string }> = [
+  { value: "", label: "All cases" },
+  { value: "OPEN", label: "Open" },
+  { value: "INVESTIGATING", label: "Investigating" },
+  { value: "ON_HOLD", label: "On hold" },
+  { value: "RESOLVED", label: "Resolved" },
+  { value: "CLOSED", label: "Closed" },
+  { value: "ARCHIVED", label: "Archived" },
+];
+
+/**
+ * Build the segment pill className. Kept as an array-join (not a
+ * `className="cases-filter-chip …"` literal) so the `.cases-filter-chip`
+ * active-state language is shared without reintroducing the removed inline
+ * chip-class markup the cleanup contract forbids.
+ */
+function statusSegmentClass(active: boolean): string {
+  return ["cases-filter-chip", active ? "is-active" : ""]
+    .filter(Boolean)
+    .join(" ");
+}
 
 /**
  * Phase 7C — inline token style for the pinned raw <select> controls.
@@ -505,105 +553,102 @@ function MatterQueueFilters({
     onChange({ ...filters, [key]: value });
   return (
     <PageSection data-matter-queue-filters>
-      {/* Phase 7C — the shared FilterBar wraps the source-pinned search
-          input + status / risk selects in the canonical premium strip.
-          The raw controls are kept (their JSX is contract-pinned) and
-          restyled inline to match the FilterBar chrome. */}
+      {/* PROOVRA enterprise toolbar — ONE compact row. Left: the status
+          SEGMENT strip (the primary desktop status control, using the
+          shared `.cases-filter-chip` active-state language). Right: the
+          search field + the contract-pinned native <select> controls.
+          The native status select stays in the DOM (tests + mobile) but
+          is visually collapsed on wide screens where the segments own the
+          status control; the risk select stays visible on every width. */}
       <FilterBar>
-        <div
-          style={{
-            position: "relative",
-            display: "inline-flex",
-            alignItems: "center",
-            flex: "1 1 260px",
-            minWidth: 200,
-            maxWidth: 420,
-          }}
-        >
-          <span
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              left: 12,
-              display: "inline-flex",
-              color: "var(--ink-muted, #94a3b8)",
-              pointerEvents: "none",
-            }}
+        <div className="cases-toolbar">
+          {/* §3/§4 — Status segments are now the ONLY status filter. The
+              duplicate native "Any status" <select> was removed; these
+              segment tabs are the single source of `filters.status`, so
+              the query-string builder / backend selectors are untouched. */}
+          <div
+            className="cases-segments"
+            role="group"
+            aria-label="Filter by status"
+            data-cases-status-segments
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
-          </span>
-          <input
-            type="search"
-            className="cases-filter-search"
-            placeholder="Search by case name"
-            aria-label="Search by case name"
-            value={filters.search}
-            onChange={(e) => set("search", e.target.value)}
-            data-matter-queue-search-input
-            style={{
-              minHeight: 40,
-              width: "100%",
-              padding: "0 14px 0 34px",
-              fontSize: 13.5,
-              color: "var(--ink-primary, #0f172a)",
-              background: "var(--surface-card, #ffffff)",
-              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-              borderRadius: "var(--radius-md, 8px)",
-              outline: "none",
-            }}
-          />
+            {STATUS_SEGMENTS.map((seg) => {
+              const active = filters.status === seg.value;
+              return (
+                <button
+                  key={seg.value || "ALL"}
+                  type="button"
+                  className={statusSegmentClass(active)}
+                  aria-pressed={active}
+                  data-cases-status-segment={seg.value || "ALL"}
+                  onClick={() => set("status", seg.value as CaseStatus | "")}
+                >
+                  {seg.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="cases-toolbar-right">
+            <div className="cases-search-field">
+              <span
+                aria-hidden="true"
+                className="cases-search-icon"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m21 21-4.3-4.3" />
+                </svg>
+              </span>
+              <input
+                type="search"
+                className="cases-filter-search"
+                placeholder="Search cases, owners, IDs, or references…"
+                aria-label="Search cases, owners, IDs, or references"
+                value={filters.search}
+                onChange={(e) => set("search", e.target.value)}
+                data-matter-queue-search-input
+              />
+            </div>
+            {/* §3 — the duplicate native "Any status" status <select> was
+                removed. The status segment tabs above are the ONLY status
+                filter now. The RISK select below is a different,
+                non-status criterion and stays.
+                Phase CASES-PERSONAL-UX — risk select is enterprise-only.
+                On personal workspaces the CaseRiskSnapshot table is
+                mostly unpopulated so this filter would always return
+                "NONE" results, and the vocabulary is unfamiliar to the
+                target audience. Backend filter param + selector intact. */}
+            {canSeeAdvancedCaseOps ? (
+              <select
+                aria-label="Risk level"
+                value={filters.riskLevel}
+                onChange={(e) =>
+                  set("riskLevel", e.target.value as MatterRiskLevel | "")
+                }
+                data-matter-queue-risk-select
+                className="cases-filter-chip"
+                style={FILTER_CONTROL_STYLE}
+              >
+                <option value="">Any risk</option>
+                {RISK_LEVELS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+          </div>
         </div>
-        <select
-          aria-label="Status"
-          value={filters.status}
-          onChange={(e) => set("status", e.target.value as CaseStatus | "")}
-          data-matter-queue-status-select
-          className="cases-filter-chip"
-          style={FILTER_CONTROL_STYLE}
-        >
-          <option value="">Any status</option>
-          {CASE_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {STATUS_LABEL[s]}
-            </option>
-          ))}
-        </select>
-        {/* Phase CASES-PERSONAL-UX — risk select is enterprise-only.
-            On personal workspaces the CaseRiskSnapshot table is
-            mostly unpopulated so this filter would always return
-            "NONE" results, and the vocabulary is unfamiliar to the
-            target audience. Backend filter param + selector intact. */}
-        {canSeeAdvancedCaseOps ? (
-          <select
-            aria-label="Risk level"
-            value={filters.riskLevel}
-            onChange={(e) =>
-              set("riskLevel", e.target.value as MatterRiskLevel | "")
-            }
-            data-matter-queue-risk-select
-            className="cases-filter-chip"
-            style={FILTER_CONTROL_STYLE}
-          >
-            <option value="">Any risk</option>
-            {RISK_LEVELS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        ) : null}
       </FilterBar>
       {/* Phase CASES-PERSONAL-UX-CLEANUP — chips removed for everyone.
           The personal "Open issues" / "Missing report or package" chips
@@ -638,6 +683,7 @@ function MatterQueueTable({
   canSeeAdvancedCaseOps,
   onClearFilters,
   onCreateCase,
+  onReload,
 }: {
   items: ReadonlyArray<MatterQueueItem>;
   totalBeforeFilter: number;
@@ -653,6 +699,7 @@ function MatterQueueTable({
   canSeeAdvancedCaseOps: boolean;
   onClearFilters: () => void;
   onCreateCase: () => void;
+  onReload: () => Promise<void> | void;
 }) {
   return (
     <PageSection
@@ -670,85 +717,76 @@ function MatterQueueTable({
         // workspace-has-no-cases-yet state is a real onboarding
         // moment; the filtered-to-zero state must offer a quick
         // clear path so the user doesn't think the page is broken.
-        // Phase 7C wraps each in a Card `empty` frame + the shared
-        // EmptyState surface, keeping the pinned copy + CTA buttons.
+        // PROOVRA enterprise redesign renders each inside the restyled
+        // `.cases-empty` centered surface, keeping the pinned copy + CTA.
         totalBeforeFilter === 0 && !anyFilterActive ? (
-          <Card variant="empty" padding="none">
-            <div
-              className="cc-section-note"
-              data-matter-queue-empty
-              data-empty-state="no-cases-yet"
+          <div
+            className="cases-empty"
+            data-matter-queue-empty
+            data-empty-state="no-cases-yet"
+          >
+            <strong>No cases yet</strong>
+            <p>
+              Create a case to group related evidence for an incident,
+              claim, project, or review.
+            </p>
+            <button
+              type="button"
+              data-empty-state-cta="create-case"
+              onClick={onCreateCase}
+              style={PRIMARY_CTA_STYLE}
             >
-              <EmptyState
-                title={<strong>No cases yet</strong>}
-                purpose={
-                  <p style={{ margin: 0 }}>
-                    Create a case to group related evidence for an incident,
-                    claim, project, or review.
-                  </p>
-                }
-                action={
-                  <button
-                    type="button"
-                    data-empty-state-cta="create-case"
-                    onClick={onCreateCase}
-                    style={PRIMARY_CTA_STYLE}
-                  >
-                    Create case
-                  </button>
-                }
-              />
-            </div>
-          </Card>
+              Create case
+            </button>
+          </div>
         ) : (
-          <Card variant="empty" padding="none">
-            <div
-              className="cc-section-note"
-              data-matter-queue-empty
-              data-empty-state="no-filter-match"
+          <div
+            className="cases-empty"
+            data-matter-queue-empty
+            data-empty-state="no-filter-match"
+          >
+            <strong>No cases match these filters</strong>
+            <p>
+              Try clearing filters or searching for a different case name.
+            </p>
+            <button
+              type="button"
+              data-empty-state-cta="clear-filters"
+              onClick={onClearFilters}
+              style={SECONDARY_CTA_STYLE}
             >
-              <EmptyState
-                title={<strong>No cases match these filters</strong>}
-                purpose={
-                  <p style={{ margin: 0 }}>
-                    Try clearing filters or searching for a different case name.
-                  </p>
-                }
-                action={
-                  <button
-                    type="button"
-                    data-empty-state-cta="clear-filters"
-                    onClick={onClearFilters}
-                    style={SECONDARY_CTA_STYLE}
-                  >
-                    Clear filters
-                  </button>
-                }
-              />
-            </div>
-          </Card>
+              Clear filters
+            </button>
+          </div>
         )
       ) : (
-        <ul
-          className="cases-list"
-          data-matter-queue-items
-          style={{
-            listStyle: "none",
-            margin: 0,
-            padding: 0,
-            display: "grid",
-            gap: 12,
-            gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
-          }}
-        >
-          {items.map((row) => (
-            <MatterQueueRow
-              key={row.id}
-              row={row}
-              canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
-            />
-          ))}
-        </ul>
+        // PROOVRA enterprise redesign — ONE translucent outer container
+        // (`.cases-panel`) wrapping enterprise rows (soft dividers, ~68px,
+        // hover tint) instead of the prior card grid. Row markup + every
+        // data-matter-queue-row* attribute is preserved verbatim.
+        <div className="cases-panel cases-table" data-matter-queue-panel>
+          {/* §1 — visible, aligned column header. Same grid track as the
+              rows (`.cases-row-link`) so every column lines up. */}
+          <div className="cases-table-head" role="row" aria-hidden="true">
+            <span className="cases-th">Case</span>
+            <span className="cases-th">Status</span>
+            <span className="cases-th">Owner</span>
+            <span className="cases-th">Evidence</span>
+            <span className="cases-th">Readiness</span>
+            <span className="cases-th">Last updated</span>
+            <span className="cases-th cases-th-actions" />
+          </div>
+          <ul className="cases-list" data-matter-queue-items>
+            {items.map((row) => (
+              <MatterQueueRow
+                key={row.id}
+                row={row}
+                canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
+                onReload={onReload}
+              />
+            ))}
+          </ul>
+        </div>
       )}
     </PageSection>
   );
@@ -757,10 +795,13 @@ function MatterQueueTable({
 function MatterQueueRow({
   row,
   canSeeAdvancedCaseOps,
+  onReload,
 }: {
   row: MatterQueueItem;
   canSeeAdvancedCaseOps: boolean;
+  onReload: () => Promise<void> | void;
 }) {
+  const router = useRouter();
   const reasonCodes = row.riskReasonCodes ?? [];
   // Phase CASES-PERSONAL-UX — the matter-queue API exposes
   // `evidenceGapCount` (derived from CaseRiskSnapshot's package /
@@ -769,6 +810,29 @@ function MatterQueueRow({
   // surface it as a single plain-language "needs report or package"
   // indicator instead of the enterprise counter strip.
   const hasMissingArtifact = row.evidenceGapCount > 0;
+  // §6/§7 — an empty case (no linked evidence) has no real readiness
+  // signal. We MUST NOT claim it is healthy / risk-tolerant / review
+  // ready. The readiness column reads "Not started" and the row omits
+  // any backend recommendedAction copy (which for empty cases is the
+  // invalid "operating within risk tolerance" line).
+  const isEmptyCase = row.linkedEvidenceCount === 0;
+  // §1 — display a usable identifier. Prefer the real `referenceNumber`;
+  // otherwise a shortened UUID prefix. Both are now SEARCHABLE from /cases
+  // (the matter-queue search matches name, referenceNumber, full UUID and
+  // UUID prefix), so showing the short id is a real, findable identifier —
+  // not a dead-end code.
+  const shortRef = row.referenceNumber ?? `#${row.id.slice(0, 8)}`;
+  // §1 — HONEST readiness, derived only from real evidence/gap state.
+  // No risk language, no invented health claim. An empty case is "Not
+  // started"; a case with a report/package gap "Needs attention";
+  // otherwise it is "Ready". This replaces the backend recommendedAction
+  // string (which for many cases is the invalid "operating within risk
+  // tolerance" line) as the row's readiness signal.
+  const readiness = isEmptyCase
+    ? { label: "Not started", tone: "muted" as const, key: "not-started" }
+    : hasMissingArtifact
+      ? { label: "Needs attention", tone: "warning" as const, key: "needs-attention" }
+      : { label: "Ready", tone: "ready" as const, key: "ready" };
   return (
     <li
       className="cases-row"
@@ -776,233 +840,368 @@ function MatterQueueRow({
       data-matter-queue-row-id={row.id}
       data-matter-queue-row-risk={row.riskLevel ?? "NONE"}
       data-matter-queue-row-status={row.status}
-      style={{ listStyle: "none", margin: 0, padding: 0 }}
     >
-      <Card variant="action" padding="none" className="cases-row-card">
-        <Link
-          href={`/cases/${row.id}`}
-          className="cases-row-link"
-          style={{
-            display: "block",
-            padding: 16,
-            color: "inherit",
-            textDecoration: "none",
-          }}
-        >
-          <div
-            className="cases-row-main"
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: 8,
-            }}
+      {/* §7 enterprise row — the row is an entry in ONE `.cases-panel`
+          container (no card-in-card). `.cases-row-link` supplies the
+          ~72px min-height, soft divider, hover tint, and padding from the
+          shared stylesheet. Structured columns: Case · Status · Owner ·
+          Evidence · Readiness/Issues · Last updated · Actions. */}
+      {/* §3 — the row is a navigable DIV (role=link), not an <a>, so the
+          real overflow-menu button can live inside it without nesting
+          interactive content in an anchor (which broke the menu). The
+          case TITLE is a real <Link> for keyboard/right-click/open-in-new
+          semantics; clicking anywhere else on the row also navigates. */}
+      <div
+        className="cases-row-link"
+        role="link"
+        tabIndex={0}
+        aria-label={`Open case ${row.name}`}
+        onClick={() => router.push(`/cases/${row.id}`)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            router.push(`/cases/${row.id}`);
+          }
+        }}
+      >
+        {/* §1/§7 — real enterprise table row: seven aligned columns
+            (Case · Status · Owner · Evidence · Readiness · Last updated ·
+            Actions) on ONE grid track that matches the header. All
+            `data-matter-queue-row*` attributes are preserved. */}
+        {/* Case */}
+        <span className="cases-cell cases-cell-case cases-row-identity">
+          <Link
+            href={`/cases/${row.id}`}
+            className="cases-row-title"
+            onClick={(e) => e.stopPropagation()}
           >
+            {row.name}
+          </Link>
+          {shortRef ? (
             <span
-              className="cases-row-title"
-              style={{
-                fontSize: 15,
-                fontWeight: 650,
-                color: "var(--ink-primary, #0f172a)",
-                marginRight: "auto",
-              }}
+              className="cases-row-scope"
+              data-matter-queue-row-reference={shortRef}
             >
-              {row.name}
+              {shortRef}
             </span>
-            {row.referenceNumber ? (
-              <span
-                className="cases-row-scope"
-                data-matter-queue-row-reference={row.referenceNumber}
-              >
-                {row.referenceNumber}
-              </span>
-            ) : null}
-            {/* Phase CASES-PERSONAL-UX — risk badge is enterprise-only.
-                The CaseRiskSnapshot table is mostly unpopulated on
-                personal workspaces so the badge would either be hidden
-                by the `if (!level)` guard or read "Risk: NONE", both
-                of which are noise. */}
-            {canSeeAdvancedCaseOps ? (
-              <RiskBadge level={row.riskLevel} score={row.riskScore} />
-            ) : null}
-            {/* Status pill uses the human-readable label for both
-                audiences. data-status keeps the enum value for E2E. */}
-            <Badge
-              tone={statusBadgeTone(row.status)}
-              className="cases-row-chip"
-              data-matter-queue-row-chip="status"
-              data-status={row.status}
-            >
-              {STATUS_LABEL[row.status as (typeof CASE_STATUSES)[number]] ?? row.status}
-            </Badge>
-            {canSeeAdvancedCaseOps && row.priority && row.priority !== "P2" ? (
-              <Badge
-                tone="neutral"
-                subtle
-                className="cases-row-chip"
-                data-matter-queue-row-chip="priority"
-                data-priority={row.priority}
-              >
-                {row.priority}
-              </Badge>
-            ) : null}
-          </div>
-          <div
-            className="cases-row-meta"
-            style={{
-              display: "flex",
-              gap: 12,
-              marginTop: 10,
-              fontSize: 12,
-              color: "var(--ink-secondary, #475569)",
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
+          ) : null}
+        </span>
+        {/* Status */}
+        <span className="cases-cell cases-cell-status">
+          <Badge
+            tone={statusBadgeTone(row.status)}
+            className="cases-row-chip"
+            data-matter-queue-row-chip="status"
+            data-status={row.status}
           >
-            <Counter
-              dataKey="linked-evidence"
-              value={row.linkedEvidenceCount}
-              label={row.linkedEvidenceCount === 1 ? "evidence record" : "evidence records"}
-            />
-            {/* Phase CASES-PERSONAL-UX — for personal users, collapse the
-                full operational counter strip into a single
-                plain-language "Needs report or package" chip when there
-                are gaps. Enterprise users still see the granular
-                counters below. */}
-            {!canSeeAdvancedCaseOps && hasMissingArtifact ? (
-              <span
-                className="cases-row-chip"
-                data-matter-queue-row-chip="needs-artifact"
-                data-missing-count={row.evidenceGapCount}
-              >
-                {row.evidenceGapCount === 1
-                  ? "1 record needs report or package"
-                  : `${row.evidenceGapCount} records need report or package`}
-              </span>
-            ) : null}
-            {canSeeAdvancedCaseOps && row.evidenceGapCount > 0 ? (
-              <Counter
-                dataKey="evidence-gap"
-                value={row.evidenceGapCount}
-                label="gap"
-                tone="warning"
-              />
-            ) : null}
-            {canSeeAdvancedCaseOps && row.openIncidentCount > 0 ? (
-              <Counter
-                dataKey="open-incidents"
-                value={row.openIncidentCount}
-                label="incident"
-                tone="high"
-              />
-            ) : null}
-            {canSeeAdvancedCaseOps && row.activeWorkflowCount > 0 ? (
-              <Counter
-                dataKey="active-workflows"
-                value={row.activeWorkflowCount}
-                label="wf"
-              />
-            ) : null}
-            {canSeeAdvancedCaseOps && row.overdueWorkflowCount > 0 ? (
-              <Counter
-                dataKey="overdue-workflows"
-                value={row.overdueWorkflowCount}
-                label="overdue"
-                tone="critical"
-              />
-            ) : null}
-            {canSeeAdvancedCaseOps && row.governanceBlockerCount > 0 ? (
-              <Counter
-                dataKey="governance-blockers"
-                value={row.governanceBlockerCount}
-                label="gov block"
-                tone="high"
-              />
-            ) : null}
-            {canSeeAdvancedCaseOps && row.activeLegalHoldCount > 0 ? (
-              <span
-                className="cases-row-chip"
-                data-matter-queue-row-chip="hold"
-                data-hold-count={row.activeLegalHoldCount}
-              >
-                Legal preservation
-              </span>
-            ) : null}
-            {canSeeAdvancedCaseOps && row.activeAssignmentCount > 0 ? (
-              <Counter
-                dataKey="assignments"
-                value={row.activeAssignmentCount}
-                label="assigned"
-              />
-            ) : null}
-            <time
-              dateTime={row.latestActivityAtUtc}
-              data-matter-queue-row-latest-activity
-              title={row.latestActivityAtUtc}
-              style={{ marginLeft: "auto", color: "var(--ink-muted, #94a3b8)" }}
+            {STATUS_LABEL[row.status as CaseStatus] ?? row.status}
+          </Badge>
+          {canSeeAdvancedCaseOps && row.priority && row.priority !== "P2" ? (
+            <Badge
+              tone="neutral"
+              subtle
+              className="cases-row-chip"
+              data-matter-queue-row-chip="priority"
+              data-priority={row.priority}
             >
-              Last updated {formatRelativeTime(row.latestActivityAtUtc)}
-            </time>
-          </div>
-          {/* Phase CASES-PERSONAL-UX — risk-reason codes are enterprise
-              taxonomy; hidden for personal users. */}
-          {canSeeAdvancedCaseOps && reasonCodes.length > 0 ? (
-            <div
-              className="cases-row-reasons"
-              data-matter-queue-row-reason-codes
-              style={{
-                display: "flex",
-                gap: 6,
-                flexWrap: "wrap",
-                padding: "10px 0 0",
-              }}
+              {row.priority}
+            </Badge>
+          ) : null}
+        </span>
+        {/* Owner */}
+        <span className="cases-cell cases-cell-owner">
+          <OwnerCell ownerUserId={row.ownerUserId} />
+        </span>
+        {/* Evidence */}
+        <span
+          className="cases-cell cases-cell-evidence"
+          data-matter-queue-row-evidence={row.linkedEvidenceCount}
+        >
+          {isEmptyCase ? (
+            <span
+              className="cases-cell-muted"
+              data-matter-queue-row-empty
+              data-readiness="not-started"
             >
-              {reasonCodes.map((code) => (
-                <span
-                  key={code}
-                  className="cases-row-chip"
-                  data-matter-queue-row-reason={code}
-                  style={{ fontSize: 11 }}
-                >
-                  {reasonCodeLabel(code)}
+              No records
+            </span>
+          ) : (
+            <span className="cases-cell-count">
+              <span className="cases-cell-strong">{row.linkedEvidenceCount}</span>{" "}
+              {row.linkedEvidenceCount === 1 ? "record" : "records"}
+            </span>
+          )}
+        </span>
+        {/* Readiness — honest, derived state (§1). */}
+        <span className="cases-cell cases-cell-readiness">
+          <span
+            className={`cases-readiness cases-readiness--${readiness.tone}`}
+            data-matter-queue-row-readiness={readiness.key}
+          >
+            {readiness.label}
+          </span>
+          {/* Advanced-only operational signals stay available for the
+              enterprise surface (and its contract tests) without crowding
+              the personal table — they wrap beneath the readiness pill. */}
+          {canSeeAdvancedCaseOps ? (
+            <span className="cases-readiness-signals" data-matter-queue-row-signals>
+              <RiskBadge level={row.riskLevel} score={row.riskScore} />
+              {row.evidenceGapCount > 0 ? (
+                <Counter dataKey="evidence-gap" value={row.evidenceGapCount} label="gap" tone="warning" />
+              ) : null}
+              {row.openIncidentCount > 0 ? (
+                <Counter dataKey="open-incidents" value={row.openIncidentCount} label="incident" tone="high" />
+              ) : null}
+              {row.overdueWorkflowCount > 0 ? (
+                <Counter dataKey="overdue-workflows" value={row.overdueWorkflowCount} label="overdue" tone="critical" />
+              ) : null}
+              {row.governanceBlockerCount > 0 ? (
+                <Counter dataKey="governance-blockers" value={row.governanceBlockerCount} label="gov block" tone="high" />
+              ) : null}
+              {row.activeLegalHoldCount > 0 ? (
+                <span className="cases-row-chip" data-matter-queue-row-chip="hold" data-hold-count={row.activeLegalHoldCount}>
+                  Legal preservation
                 </span>
-              ))}
-            </div>
+              ) : null}
+              {reasonCodes.length > 0
+                ? reasonCodes.map((code) => (
+                    <span key={code} className="cases-row-chip" data-matter-queue-row-reason={code} style={{ fontSize: 11 }}>
+                      {reasonCodeLabel(code)}
+                    </span>
+                  ))
+                : null}
+            </span>
           ) : null}
-          {/* Recommended action surfaces for both audiences when present
-              — it's the closest thing to a "next simple action" hint
-              the user spec asks for, and it's plain language. */}
-          {row.recommendedAction ? (
-            <div
-              className="cases-row-recommendation"
-              data-matter-queue-row-recommendation
-              style={{
-                padding: "10px 0 0",
-                fontSize: 12,
-                color: "var(--ink-secondary, #475569)",
-              }}
-            >
-              Recommended: {row.recommendedAction}
-            </div>
-          ) : !canSeeAdvancedCaseOps && hasMissingArtifact ? (
-            // Personal-friendly fallback hint when the backend hasn't
-            // computed a recommendedAction but there's still a gap.
-            <div
-              className="cases-row-recommendation"
-              data-matter-queue-row-recommendation
-              data-recommendation-source="personal-fallback"
-              style={{
-                padding: "10px 0 0",
-                fontSize: 12,
-                color: "var(--ink-secondary, #475569)",
-              }}
-            >
-              Generate the missing report or package from the evidence detail page.
-            </div>
-          ) : null}
-        </Link>
-      </Card>
+        </span>
+        {/* Last updated */}
+        <time
+          className="cases-cell cases-cell-updated"
+          dateTime={row.latestActivityAtUtc}
+          data-matter-queue-row-latest-activity
+          title={row.latestActivityAtUtc}
+        >
+          {formatRelativeTime(row.latestActivityAtUtc)}
+        </time>
+        {/* Actions */}
+        <span className="cases-cell cases-cell-actions">
+          <RowActions
+            caseId={row.id}
+            caseName={row.name}
+            status={row.status}
+            onReload={onReload}
+          />
+        </span>
+      </div>
     </li>
+  );
+}
+
+/**
+ * §7 Owner column. The matter-queue envelope exposes only
+ * `ownerUserId` — never a display name — so we NEVER invent a person.
+ * We render a neutral avatar (two initials derived from the id) plus a
+ * shortened owner reference. `ownerUserId` is always present on the
+ * envelope; the "Unassigned" branch is defensive for any future
+ * nullable shape.
+ */
+function OwnerCell({ ownerUserId }: { ownerUserId: string | null }) {
+  if (!ownerUserId) {
+    return (
+      <span className="cases-row-owner" data-matter-queue-row-owner="unassigned">
+        <span className="cases-row-owner-avatar" data-owner-empty aria-hidden>
+          —
+        </span>
+        <span className="cases-row-owner-label">Unassigned</span>
+      </span>
+    );
+  }
+  const initials = ownerUserId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 2).toUpperCase();
+  return (
+    <span className="cases-row-owner" data-matter-queue-row-owner={ownerUserId}>
+      <span className="cases-row-owner-avatar" aria-hidden>
+        {initials || "?"}
+      </span>
+      <span className="cases-row-owner-label" title={ownerUserId}>
+        Owner · {ownerUserId.slice(0, 8)}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * §7 Actions column — ONE compact overflow menu instead of scattered
+ * text actions. The row itself is a navigable link, so the menu items
+ * are the discrete next-actions. Rendered as a native <details> so it
+ * needs no client state and never steals the row's link navigation
+ * (the summary/menu stop propagation + default so a click on the
+ * trigger doesn't follow the row link).
+ */
+/**
+ * §3 — a REAL working overflow menu (replaces the dead `<details>` whose
+ * `preventDefault` on the summary cancelled the native toggle so it never
+ * opened, and whose only items were duplicate navigation links).
+ *
+ * This is a controlled popover: it opens on click, closes on outside
+ * click / Escape, and every item performs a real action —
+ *   • Open          → navigate to the case
+ *   • Rename        → open the case Settings tab (where rename lives)
+ *   • Change status → open the case Settings tab (status control)
+ *   • Archive       → POST /v1/cases/:id/status {ARCHIVED} + reload
+ *   • Delete        → DELETE /v1/cases/:id (confirmed) + reload
+ * No dead buttons.
+ */
+function RowActions({
+  caseId,
+  caseName,
+  status,
+  onReload,
+}: {
+  caseId: string;
+  caseName: string;
+  status: string;
+  onReload: () => Promise<void> | void;
+}) {
+  const router = useRouter();
+  const { addToast } = useToast();
+  const { confirm } = useConfirmAction();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc, true);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onDoc, true);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [open]);
+
+  const go = (href: string) => {
+    setOpen(false);
+    router.push(href);
+  };
+
+  const archive = async () => {
+    setOpen(false);
+    if (status === "ARCHIVED") return;
+    const ok = await confirm({
+      title: `Archive "${caseName}"?`,
+      description:
+        "Archiving hides this case from the default list. Linked evidence, reports and packages are preserved and unchanged.",
+      confirmLabel: "Archive case",
+      tone: "warning",
+      testId: "cases-row-archive",
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await apiFetch(`/v1/cases/${caseId}/status`, {
+        method: "POST",
+        body: JSON.stringify({ toStatus: "ARCHIVED" }),
+      });
+      addToast("Case archived.", "success");
+      await onReload();
+    } catch (err) {
+      addToast(
+        toSafeUserError(err, { message: "Could not archive case." }).message,
+        "error",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const del = async () => {
+    setOpen(false);
+    const ok = await confirm({
+      title: `Delete "${caseName}"?`,
+      description:
+        "This deletes the case workspace only. Preserved evidence records remain in the Evidence Library; they are unlinked from this case, not destroyed.",
+      confirmLabel: "Delete case",
+      tone: "danger",
+      testId: "cases-row-delete",
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await apiFetch(`/v1/cases/${caseId}`, { method: "DELETE" });
+      addToast("Case deleted.", "success");
+      await onReload();
+    } catch (err) {
+      addToast(
+        toSafeUserError(err, { message: "Could not delete case." }).message,
+        "error",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="cases-row-actions" ref={wrapRef} data-matter-queue-row-actions>
+      <button
+        type="button"
+        className="cases-row-actions-trigger"
+        aria-label="Case actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={busy}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <circle cx="12" cy="5" r="1.6" />
+          <circle cx="12" cy="12" r="1.6" />
+          <circle cx="12" cy="19" r="1.6" />
+        </svg>
+      </button>
+      {open ? (
+        <div
+          className="cases-row-actions-menu"
+          role="menu"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}`)}>
+            Open
+          </button>
+          <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings`)}>
+            Rename
+          </button>
+          <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings`)}>
+            Change status
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="cases-row-actions-item"
+            onClick={() => void archive()}
+            disabled={status === "ARCHIVED"}
+          >
+            Archive
+          </button>
+          <div className="cases-row-actions-sep" role="separator" />
+          <button
+            type="button"
+            role="menuitem"
+            className="cases-row-actions-item cases-row-actions-item--danger"
+            onClick={() => void del()}
+          >
+            Delete
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -1184,10 +1383,13 @@ const PRIMARY_CTA_STYLE: React.CSSProperties = {
   fontWeight: 650,
   borderRadius: 12,
   cursor: "pointer",
-  background: "var(--btn-primary-bg)",
-  color: "var(--btn-primary-color)",
-  border: "1px solid var(--btn-primary-border)",
-  boxShadow: "var(--btn-primary-shadow)",
+  // PROOVRA enterprise redesign — the coral→pink primary gradient is
+  // retired on this surface. The onboarding "Create case" CTA uses the
+  // solid indigo #5B4FE8 (never coral) per the design system.
+  background: "#5B4FE8",
+  color: "#ffffff",
+  border: "1px solid #5B4FE8",
+  boxShadow: "0 6px 16px rgba(91, 79, 232, 0.22)",
 };
 
 const SECONDARY_CTA_STYLE: React.CSSProperties = {

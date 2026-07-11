@@ -44,7 +44,6 @@ import {
   GettingStartedChecklist,
   HomeSkeleton,
   IntakePipelineCard,
-  OperationalQueue,
   ReportProductionCard,
   TeamWorkCard,
   TrustStateCard,
@@ -141,18 +140,19 @@ export function SelfServeHomeDashboard() {
               (KpiRow renders the .home-kpi-grid internally). */}
           <KpiRow kpis={vm.kpis} />
 
-          {/* Action queue + workspace priorities (or onboarding checklist). */}
+          {/* Balanced two-column row — Workspace Health (moved here from the
+              Analytics tab, in the old Action-Needed slot) beside What Needs
+              Attention. The former standalone "Action Needed" queue is gone;
+              its missing-package action is merged into What Needs Attention. */}
           <PageSection
             title="What needs you now"
-            description="Open actions and the workspace priorities ranked by severity."
+            description="Workspace health and the priorities ranked by severity."
             style={sectionStyle}
           >
             <div style={rowQueueChartStyle}>
-              <OperationalQueue
-                items={vm.operationalQueue}
-                hero={vm.heroAction}
-                workspaceId={vm.workspaceId}
-                onChanged={state.reload}
+              <WorkspaceHealthCard
+                metrics={vm.workspaceHealth}
+                overall={vm.workspaceHealthOverall}
               />
               {vm.showGettingStarted ? (
                 <GettingStartedChecklist
@@ -160,7 +160,10 @@ export function SelfServeHomeDashboard() {
                   complete={vm.checklistComplete}
                 />
               ) : (
-                <WorkspacePrioritiesCard priorities={vm.workspacePriorities} />
+                <WorkspacePrioritiesCard
+                  priorities={vm.workspacePriorities}
+                  operationalQueue={vm.operationalQueue}
+                />
               )}
             </div>
           </PageSection>
@@ -210,24 +213,23 @@ export function SelfServeHomeDashboard() {
 
       {tab === "analytics" ? (
         <div className="home-tabpanel" role="tabpanel" data-home-tabpanel="analytics">
-          {/* Row 1 — workspace health, records by type, evidence activity.
-              Row 2 — the full-width Recent Activity module (moved here from
-              the retired Activity tab). Storage now lives in the sidebar. */}
+          {/* Row 1 — Records by Type + Evidence Activity (balanced two-col;
+              Workspace Health moved to Overview). Row 2 — the full-width
+              Recent Activity module. Storage lives in the sidebar. */}
           <PageSection
             title="Workspace analytics"
-            description="Workspace health, records by type, evidence activity, and recent activity."
+            description="Records by type, evidence activity, and recent activity."
             style={sectionStyle}
           >
-            <div className="home-analytics-grid">
-              <WorkspaceHealthCard metrics={vm.workspaceHealth} overall={vm.workspaceHealthOverall} />
+            <div className="home-ops-row">
               <EvidenceTypeDonutCard
                 distribution={vm.typeDistribution}
                 preservedFiles={vm.preservedFilesByType}
               />
               <EvidenceActivityChart series={vm.activitySeries} />
-              <div className="home-analytics-full">
-                <ActivityFeed groups={vm.activity} />
-              </div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <ActivityFeed groups={vm.activity} />
             </div>
           </PageSection>
 

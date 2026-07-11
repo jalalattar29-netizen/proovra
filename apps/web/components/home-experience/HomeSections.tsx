@@ -763,7 +763,7 @@ export function IntakePipelineCard({
 }) {
   if (locked) {
     return (
-      <SectionCard title="Intake pipeline" testId="intake-pipeline" fill>
+      <SectionCard title="Intake status" testId="intake-pipeline" fill>
         <div data-intake-locked>
           <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
             Request evidence securely from a client, witness, source, or contributor — with delivery
@@ -782,7 +782,7 @@ export function IntakePipelineCard({
   }
   if (pipeline.empty) {
     return (
-      <SectionCard title="Intake pipeline" testId="intake-pipeline" fill>
+      <SectionCard title="Intake status" testId="intake-pipeline" fill>
         <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
           Request evidence securely from a client, witness, source, or contributor — then track
           delivery and review what comes back.
@@ -798,7 +798,7 @@ export function IntakePipelineCard({
     );
   }
   return (
-    <SectionCard title="Intake pipeline" testId="intake-pipeline" fill>
+    <SectionCard title="Intake status" testId="intake-pipeline" fill>
       {/* Lifecycle visual — every count a real number. A 3-column × 2-row
           tile grid so every stage label stays FULLY readable (no clipping);
           colour is driven by count only (see StageTile). */}
@@ -878,7 +878,7 @@ export function IntakePipelineCard({
                 extraProps={{ "data-collection-view-all": pipeline.links.length }}
                 style={{ display: "inline-block", marginTop: 4 }}
               >
-                View pipeline →
+                View intake →
               </OpsActionLink>
             </li>
           ) : null}
@@ -938,8 +938,12 @@ export function ReportProductionCard({
   const hasAny =
     production.reportsReady + production.packagesReady + production.reportsPending + production.packagesPending + production.reportsFailed + production.packagesFailed > 0 ||
     production.recent.length > 0;
+  // Phase IA-home-findings — the generic "Open reports" header CTA was
+  // removed: it only navigated to the bare /reports route, duplicating the
+  // sidebar. Report actions remain available contextually (row/stat level)
+  // and via the sidebar.
   return (
-    <SectionCard title="Report production" testId="report-production" cta={{ label: "Open reports", href: "/reports" }} fill>
+    <SectionCard title="Report production" testId="report-production" fill>
       <div data-report-production-stats style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         <ProductionStat label="Reports ready" value={production.reportsReady} tone="ok" />
         <ProductionStat label="Packages ready" value={production.packagesReady} tone="ok" />
@@ -1254,25 +1258,6 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
         <VerifyStat label="Not published" value={health.unpublished} />
         <VerifyStat label="Suspended" value={health.suspended} />
       </div>
-      {/* Phase HOME-INTELLIGENCE — cross-signal verification issues
-          (package↔publish and report↔package gaps), real counts only. */}
-      {health.issues.length > 0 ? (
-        <ul data-verify-issues style={{ ...listStyle, marginTop: 10, gap: 5 }}>
-          {health.issues.map((i) => {
-            const c = toneColor(i.tone === "action" ? "neutral" : i.tone);
-            return (
-              <li key={i.key} data-verify-issue={i.key} style={{ ...listItemStyle, display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 8, background: c.bg }}>
-                <span style={{ flex: 1, fontSize: 12.5, color: c.fg, fontWeight: 600 }}>
-                  {i.count} · {i.label}
-                </span>
-                <Link href={i.href} style={{ fontSize: 12, fontWeight: 650, color: HOME_COLORS.indigo, textDecoration: "none" }}>
-                  {i.actionLabel} →
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
       {health.unpublished > 0 ? (
         <Link
           href="/evidence"

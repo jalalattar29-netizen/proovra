@@ -1,22 +1,23 @@
 /**
- * Phase 7C — Home information-architecture lock (supersedes the old
- * 3-layer HomeLayerHeader IA).
+ * Home information-architecture lock (updated for the APPROVED tabbed IA
+ * that supersedes both the old 3-layer HomeLayerHeader and the interim
+ * "landing + data-home-diagnostics disclosure" layout).
  *
- * Home is now a clean Evidence Operations LANDING page, not a flat
- * scroll-wall of diagnostic cards. The default (above-the-fold) region
- * leads with the operational overview + "what needs you now" + recent
- * work; the deep diagnostic cards are RELEGATED into a collapsed
- * `<details data-home-diagnostics>` disclosure ("one click away, off the
- * default view"). This test pins that contract:
+ * Home is now a segmented workspace with three views — Overview,
+ * Operations, Analytics — rendered as tab panels:
  *
- *   • the overview leads (ExecutiveSummary + KPI + OperationalQueue +
- *     RecentEvidence appear in the default region);
- *   • the `data-home-diagnostics` disclosure exists and OWNS the deep
- *     diagnostic cards;
- *   • those diagnostic cards do NOT render as default content above it.
+ *   • OVERVIEW leads with the operational summary + KPIs + the
+ *     consolidated "what needs you now" priorities surface
+ *     (`WorkspacePrioritiesCard`, which absorbed the old standalone
+ *     OperationalQueue) + recent work. It is the default, above-the-fold
+ *     view and must NOT carry the dense diagnostic cards.
+ *   • OPERATIONS owns verification/trust/report-production/intake.
+ *   • ANALYTICS owns the records-by-type donut, the activity chart and
+ *     the activity feed.
  *
- * If a future pass dumps the diagnostics back into the default view (the
- * exact regression Phase 7C fixed), this test fails.
+ * This test pins that contract. If a future pass dumps the heavy
+ * diagnostic cards back into the Overview panel (the regression the tabbed
+ * IA fixed), or reintroduces the standalone `<OperationalQueue`, it fails.
  */
 
 import { readFileSync } from "node:fs";
@@ -42,45 +43,65 @@ function indexOfOrThrow(needle: string): number {
   return idx;
 }
 
-// The disclosure marker is the boundary between the clean landing region
-// (before) and the relegated diagnostics region (after).
-const DIAGNOSTICS_MARKER = "data-home-diagnostics";
+// The Overview panel is the default landing region; the Operations panel
+// marker is the boundary between it and the deeper diagnostic views.
+const OVERVIEW_PANEL = 'data-home-tabpanel="overview"';
+const OPERATIONS_PANEL = 'data-home-tabpanel="operations"';
+const ANALYTICS_PANEL = 'data-home-tabpanel="analytics"';
 
-describe("Phase 7C Home — diagnostics are relegated behind a disclosure", () => {
-  it("renders a `data-home-diagnostics` disclosure (deep diagnostics are not default content)", () => {
-    expect(DASH).toMatch(/data-home-diagnostics/);
+describe("Home tabbed IA — Overview leads, diagnostics live in Operations/Analytics", () => {
+  it("renders the three approved workspace views (Overview / Operations / Analytics)", () => {
+    expect(DASH).toMatch(/data-home-tabpanel="overview"/);
+    expect(DASH).toMatch(/data-home-tabpanel="operations"/);
+    expect(DASH).toMatch(/data-home-tabpanel="analytics"/);
   });
 
-  it("the overview LEADS: ExecutiveSummary + KPI + OperationalQueue + RecentEvidence render before the diagnostics disclosure", () => {
-    const boundary = indexOfOrThrow(DIAGNOSTICS_MARKER);
-    const landing = DASH.slice(0, boundary);
-    expect(landing).toMatch(/<ExecutiveSummaryBand/);
-    expect(landing).toMatch(/<KpiRow/);
-    expect(landing).toMatch(/<OperationalQueue/);
-    expect(landing).toMatch(/<RecentEvidenceCard/);
+  it("the Overview panel LEADS: ExecutiveSummary + KPI + consolidated priorities + RecentEvidence", () => {
+    const start = indexOfOrThrow(OVERVIEW_PANEL);
+    const end = indexOfOrThrow(OPERATIONS_PANEL);
+    const overview = DASH.slice(start, end);
+    expect(overview).toMatch(/<ExecutiveSummaryBand/);
+    expect(overview).toMatch(/<KpiRow/);
+    // The consolidated priorities surface replaced the standalone
+    // OperationalQueue and is the first attention module in Overview.
+    expect(overview).toMatch(/<WorkspacePrioritiesCard/);
+    expect(overview).toMatch(/<RecentEvidenceCard/);
   });
 
-  it("the deep diagnostic cards do NOT appear in the default (pre-disclosure) region", () => {
-    const boundary = indexOfOrThrow(DIAGNOSTICS_MARKER);
-    const landing = DASH.slice(0, boundary);
-    // These are the dense signals Phase 7C moved OFF the default view.
-    expect(landing).not.toMatch(/<TrustStateCard/);
-    expect(landing).not.toMatch(/<EvidenceTypeDonutCard/);
-    expect(landing).not.toMatch(/<EvidenceActivityChart/);
-    expect(landing).not.toMatch(/<StorageUsageCard/);
-    expect(landing).not.toMatch(/<WorkspaceHealthCard/);
-    expect(landing).not.toMatch(/<ActivityFeed/);
+  it("the heavy diagnostic cards do NOT appear in the default Overview panel", () => {
+    const start = indexOfOrThrow(OVERVIEW_PANEL);
+    const end = indexOfOrThrow(OPERATIONS_PANEL);
+    const overview = DASH.slice(start, end);
+    // These dense signals live in Operations / Analytics, never on the
+    // default Overview view.
+    expect(overview).not.toMatch(/<TrustStateCard/);
+    expect(overview).not.toMatch(/<EvidenceTypeDonutCard/);
+    expect(overview).not.toMatch(/<EvidenceActivityChart/);
+    expect(overview).not.toMatch(/<ActivityFeed/);
   });
 
-  it("the diagnostics disclosure OWNS the deep diagnostic cards (relegated, not deleted)", () => {
-    const boundary = indexOfOrThrow(DIAGNOSTICS_MARKER);
-    const diagnostics = DASH.slice(boundary);
-    expect(diagnostics).toMatch(/<TrustStateCard/);
-    expect(diagnostics).toMatch(/<VerificationHealthCard/);
-    expect(diagnostics).toMatch(/<WorkspaceHealthCard/);
-    expect(diagnostics).toMatch(/<EvidenceTypeDonutCard/);
-    expect(diagnostics).toMatch(/<EvidenceActivityChart/);
-    expect(diagnostics).toMatch(/<ActivityFeed/);
-    expect(diagnostics).toMatch(/<StorageUsageCard/);
+  it("Operations + Analytics OWN the deep diagnostic cards (relegated, not deleted)", () => {
+    const boundary = indexOfOrThrow(OPERATIONS_PANEL);
+    const belowOverview = DASH.slice(boundary);
+    expect(belowOverview).toMatch(/<VerificationHealthCard/);
+    expect(belowOverview).toMatch(/<TrustStateCard/);
+    expect(belowOverview).toMatch(/<ReportProductionCard/);
+    expect(belowOverview).toMatch(/<EvidenceTypeDonutCard/);
+    expect(belowOverview).toMatch(/<EvidenceActivityChart/);
+    expect(belowOverview).toMatch(/<ActivityFeed/);
+    // Sanity: the analytics panel really is below the operations boundary.
+    expect(belowOverview).toMatch(/data-home-tabpanel="analytics"/);
+    // Anchor the analytics marker so the constant is exercised.
+    expect(DASH.indexOf(ANALYTICS_PANEL)).toBeGreaterThan(boundary);
+  });
+
+  it("the standalone OperationalQueue is gone and its data is wired into WorkspacePrioritiesCard", () => {
+    // The merge the approved redesign performed: no standalone widget…
+    expect(DASH).not.toMatch(/<OperationalQueue/);
+    // …but the operational-queue data is NOT discarded — it flows into the
+    // consolidated priorities surface.
+    expect(DASH).toMatch(
+      /<WorkspacePrioritiesCard[\s\S]{0,200}?operationalQueue=\{vm\.operationalQueue\}/,
+    );
   });
 });
