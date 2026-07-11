@@ -848,6 +848,50 @@
   background: rgba(255, 255, 255, 0.24);
   border-color: rgba(255, 255, 255, 0.4);
 }
+.home-exec-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.home-exec-action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35),
+    0 8px 20px rgba(0, 0, 0, 0.14);
+}
+
+/* =====================================================================
+ * SHARED dark operational-banner shell — the accepted Home critical
+ * "command center" surface (ExecutiveSummaryBand) and the Case detail
+ * header both use THIS, so their geometry can never drift again. It owns
+ * the dimensions, the dark navy base + icon-card artwork, the shadow and
+ * the [content | action] flex row. The per-usage accent (the coloured
+ * left rail) stays inline so each surface carries its own severity /
+ * neutral accent. Content slots differ; the shell is one source of truth.
+ * ===================================================================== */
+.ops-banner-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin: 0;
+  color: #f8fafc;
+  background:
+    linear-gradient(
+      90deg,
+      #0b1024 0%,
+      #0b1024 42%,
+      rgba(13, 18, 42, 0.55) 74%,
+      rgba(16, 20, 46, 0.15) 100%
+    ),
+    url("/assets/cards/icon-card.png") right center / auto 260% no-repeat,
+    #0b1024;
+  box-shadow: 0 1px 2px rgba(8, 11, 26, 0.2),
+    0 14px 34px rgba(8, 11, 26, 0.28);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
 
 /* =====================================================================
  * HOME DASHBOARD — enterprise information architecture
@@ -1025,9 +1069,18 @@
   transition: filter 120ms ease, box-shadow 120ms ease;
 }
 
-.app-header-primary-action:hover {
+.app-header-primary-action:hover:not(:disabled) {
   filter: brightness(1.05);
   box-shadow: 0 2px 8px rgba(89, 73, 228, 0.32);
+}
+/* Disabled state — used when this canonical primary is a <button> (e.g. the
+   Create case modal submit). The header "New Case" <Link> never receives
+   :disabled, so this is additive and does not affect it. */
+.app-header-primary-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: none;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
 }
 
 .app-header-primary-action svg {

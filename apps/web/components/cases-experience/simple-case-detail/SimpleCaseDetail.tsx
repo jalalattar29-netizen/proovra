@@ -473,79 +473,63 @@ function SimpleCaseHeader({
   return (
     <header
       data-simple-case-header
-      style={{
-        // §1 — real two-zone grid: [content | decorative artwork]. The
-        // breadcrumb spans both zones on its own row; the Add-evidence
-        // action is absolutely anchored top-right (below), so it belongs to
-        // the header controls and never floats over the illustration.
-        position: "relative",
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) minmax(320px, 42%)",
-        alignItems: "stretch",
-        gap: 24,
-        // §3 — enterprise context header dimensions (not a marketing hero).
-        padding: "24px 28px",
-        minHeight: 190,
-        borderRadius: 18,
-        overflow: "hidden",
-        // §2 — dark base with icon-card.png blended in from the right via a
-        // multi-stop overlay: solid on the left (calm, readable) fading to
-        // transparent on the right so the artwork EMERGES from the surface
-        // instead of sitting as a pasted-on panel with a hard split.
-        backgroundColor: "#111827",
-        backgroundImage:
-          "linear-gradient(90deg, #111827 0%, #111827 48%, rgba(17,24,39,0.96) 57%, rgba(17,24,39,0.58) 72%, rgba(17,24,39,0.12) 100%), url('/assets/cards/icon-card.png')",
-        backgroundSize: "auto 118%",
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "right center",
-        border: "1px solid rgba(255,255,255,0.08)",
-        color: "#ffffff",
-      }}
+      // §1/§2/§7 — the Case header renders on the SHARED `.ops-banner-card`
+      // shell (the exact accepted Home critical-card surface: same height,
+      // radius, padding, dark navy base, icon-card artwork at `right center
+      // / auto 260%`, shadow and [content | action] flex row). Only the
+      // accent differs — a restrained neutral/purple left rail instead of
+      // the critical red (severity does not belong on a context header).
+      className="ops-banner-card"
+      // Spacing refinement: slightly taller than the shared shell's default
+      // (16px 20px) — ~22px 24px — for clearer vertical rhythm between the
+      // breadcrumb / title / metadata / Case ID levels. Still the compact
+      // enterprise banner, not a hero. Only this instance is overridden;
+      // the Home critical card keeps the shell default.
+      style={{ borderLeft: "4px solid rgba(139,124,246,0.55)", padding: "22px 24px" }}
     >
-      {/* §2/§10 — breadcrumb lives INSIDE the dark header (the external
-          OperationalBreadcrumb is removed for the personal surface). It is
-          the ONLY navigation: no internal "Back to cases" link. */}
-      <nav
-        data-simple-case-breadcrumb
-        aria-label="Breadcrumb"
-        style={{
-          gridColumn: "1 / -1",
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          flexWrap: "wrap",
-          marginBottom: 12,
-          // keep clear of the absolutely-positioned Add-evidence button.
-          paddingRight: 160,
-          fontSize: 12,
-          fontWeight: 500,
-          color: "rgba(255,255,255,0.58)",
-        }}
-      >
-        <span>Personal Space</span>
-        <span aria-hidden style={{ color: "rgba(255,255,255,0.34)" }}>›</span>
-        <Link
-          href="/cases"
-          className="cases-breadcrumb-link"
-          style={{ color: "rgba(255,255,255,0.62)", textDecoration: "none" }}
+      {/* LEFT content zone — a dedicated vertical stack; per-level spacing is
+          controlled by each row's margin so the rhythm stays even. */}
+      <div style={{ flex: 1, minWidth: 240, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        {/* §6 — breadcrumb is the top line (the external OperationalBreadcrumb
+            is removed for this surface). Cases links to /cases; the case name
+            is the current, non-clickable segment. No "Back to cases" link. */}
+        <nav
+          data-simple-case-breadcrumb
+          aria-label="Breadcrumb"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            flexWrap: "wrap",
+            marginBottom: 10,
+            fontSize: 12,
+            lineHeight: 1.35,
+            fontWeight: 500,
+            color: "rgba(255,255,255,0.58)",
+          }}
         >
-          Cases
-        </Link>
-        <span aria-hidden style={{ color: "rgba(255,255,255,0.34)" }}>›</span>
-        <span aria-current="page" style={{ color: "rgba(255,255,255,0.9)" }}>
-          {caseDetail.name}
-        </span>
-      </nav>
-      {/* §4A — no internal "Back to cases" link: the breadcrumb above the
-          header owns navigation (its "Cases" segment links to /cases). This
-          is the LEFT content zone of the two-zone grid. */}
-      <div style={{ gridColumn: 1, minWidth: 0, alignSelf: "center" }}>
+          <span>Personal Space</span>
+          <span aria-hidden style={{ color: "rgba(255,255,255,0.34)" }}>›</span>
+          <Link
+            href="/cases"
+            className="cases-breadcrumb-link"
+            style={{ color: "rgba(255,255,255,0.62)", textDecoration: "none" }}
+          >
+            Cases
+          </Link>
+          <span aria-hidden style={{ color: "rgba(255,255,255,0.34)" }}>›</span>
+          <span aria-current="page" style={{ color: "rgba(255,255,255,0.9)" }}>
+            {caseDetail.name}
+          </span>
+        </nav>
+
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: 10,
             flexWrap: "wrap",
+            marginBottom: 8,
           }}
         >
           <span
@@ -554,17 +538,17 @@ function SimpleCaseHeader({
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              width: 32,
-              height: 32,
-              borderRadius: 9,
-              background: "rgba(255,255,255,0.14)",
-              border: "1px solid rgba(255,255,255,0.24)",
-              color: "#ffffff",
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              background: "rgba(255,255,255,0.10)",
+              border: "1px solid rgba(255,255,255,0.14)",
+              color: "#E7E3FF",
               flexShrink: 0,
             }}
           >
             {/* Simple case/folder glyph. */}
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path
                 d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"
                 stroke="currentColor"
@@ -577,9 +561,9 @@ function SimpleCaseHeader({
             data-simple-case-title
             style={{
               margin: 0,
-              fontSize: 24,
+              fontSize: 21,
               fontWeight: 700,
-              lineHeight: 1.15,
+              lineHeight: 1.2,
               letterSpacing: "-0.015em",
               color: "#ffffff",
               minWidth: 0,
@@ -597,19 +581,18 @@ function SimpleCaseHeader({
           </span>
         </div>
 
-        {/* §4B/§6 — primary metadata: the real reference number (only when
-            present), evidence count, created + last-updated. The raw UUID
-            is NOT shown here; it moves to a clearly-labelled, copyable
-            "Case ID" technical line below. */}
+        {/* §6 — compact metadata line. */}
         <div
           data-simple-case-subtitle
           style={{
             display: "flex",
-            gap: 12,
+            columnGap: 10,
+            rowGap: 5,
             flexWrap: "wrap",
             alignItems: "center",
-            marginTop: 10,
-            fontSize: 13,
+            marginBottom: 10,
+            fontSize: 12.5,
+            lineHeight: 1.4,
             color: "rgba(255,255,255,0.68)",
           }}
         >
@@ -618,7 +601,7 @@ function SimpleCaseHeader({
               <span data-simple-case-reference style={{ fontWeight: 600 }}>
                 Ref {caseDetail.referenceNumber}
               </span>
-              <span aria-hidden style={{ color: "rgba(255,255,255,0.4)" }}>·</span>
+              <span aria-hidden style={{ color: "rgba(255,255,255,0.36)" }}>·</span>
             </>
           ) : null}
           <span data-simple-case-evidence-count>
@@ -626,12 +609,12 @@ function SimpleCaseHeader({
               ? "1 evidence record"
               : `${evidenceCount} evidence records`}
           </span>
-          <span aria-hidden style={{ color: "rgba(255,255,255,0.4)" }}>·</span>
-          <span style={{ color: "rgba(255,255,255,0.62)" }}>
+          <span aria-hidden style={{ color: "rgba(255,255,255,0.36)" }}>·</span>
+          <span style={{ color: "rgba(255,255,255,0.56)" }}>
             Created {formatRelative(caseDetail.createdAt)}
           </span>
-          <span aria-hidden style={{ color: "rgba(255,255,255,0.4)" }}>·</span>
-          <span data-simple-case-updated style={{ color: "rgba(255,255,255,0.62)" }}>
+          <span aria-hidden style={{ color: "rgba(255,255,255,0.36)" }}>·</span>
+          <span data-simple-case-updated style={{ color: "rgba(255,255,255,0.56)" }}>
             Last updated {formatRelative(caseDetail.updatedAt)}
           </span>
           {isReloading ? (
@@ -645,17 +628,18 @@ function SimpleCaseHeader({
           ) : null}
         </div>
 
-        {/* §6 — labelled, copyable Case ID (the UUID is the DB primary key
-            + the /cases/[id] route param; it doubles as the searchable
-            case reference). Monospace, secondary, click-to-copy. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 9 }}>
+        {/* §6 — compact, labelled, copyable Case ID (the UUID is the DB
+            primary key + the /cases/[id] route param + the searchable
+            reference). Monospace, secondary, click-to-copy. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span
             style={{
-              fontSize: 10.5,
+              fontSize: 11,
+              lineHeight: 1.35,
               fontWeight: 700,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
-              color: "rgba(255,255,255,0.46)",
+              color: "rgba(255,255,255,0.44)",
             }}
           >
             Case ID
@@ -672,13 +656,15 @@ function SimpleCaseHeader({
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
+              height: 26,
               fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-              fontSize: 12,
-              color: "rgba(255,255,255,0.78)",
+              fontSize: 11.5,
+              lineHeight: 1.35,
+              color: "rgba(255,255,255,0.76)",
               background: "rgba(255,255,255,0.08)",
               border: "1px solid rgba(255,255,255,0.14)",
               borderRadius: 7,
-              padding: "3px 9px",
+              padding: "0 9px",
               cursor: "pointer",
             }}
           >
@@ -689,51 +675,45 @@ function SimpleCaseHeader({
             </svg>
           </button>
         </div>
-
-        {caseDetail.description ? (
-          <p
-            data-simple-case-description
-            style={{
-              margin: "10px 0 0",
-              fontSize: 13,
-              lineHeight: 1.55,
-              color: "rgba(255,255,255,0.78)",
-              maxWidth: 720,
-            }}
-          >
-            {caseDetail.description}
-          </p>
-        ) : null}
       </div>
 
-      {/* §4 — the primary action lives in a top-right control slot,
-          absolutely anchored to the header so it reads as a header control
-          and never floats vertically-centred over the artwork. */}
-      <div style={{ position: "absolute", top: 24, right: 28, zIndex: 1 }}>
-        <CaseButton
-          onClick={onAddEvidence}
-          disabled={!canLinkEvidence}
-          title={linkEvidenceDisabledReason ?? undefined}
-          data-simple-case-action="add-evidence"
-          className="cases-header-add-evidence"
-          style={{
-            gap: 8,
-            height: 42,
-            padding: "0 18px",
-            borderRadius: 11,
-            fontWeight: 650,
-            background: "rgba(255,255,255,0.94)",
-            color: "#1A2030",
-            border: "1px solid rgba(255,255,255,0.55)",
-            boxShadow: "none",
-          }}
+      {/* §4/§5 — the primary action reuses the SAME button as the Home
+          card's "Open affected records" (`.home-exec-action` glass button +
+          ArrowRight), sitting as the right-side flex item exactly like the
+          Home card — before the artwork glow, never floating over it. */}
+      <button
+        type="button"
+        className="home-exec-action"
+        onClick={onAddEvidence}
+        disabled={!canLinkEvidence}
+        title={linkEvidenceDisabledReason ?? undefined}
+        data-simple-case-action="add-evidence"
+        style={{
+          cursor: canLinkEvidence ? "pointer" : "not-allowed",
+          // Sit around the centre-right (~65–75% across), NOT flush to the
+          // edge: this right reserve clears the decorative hexagon artwork
+          // so the row reads [case info] → [Add evidence] → [artwork].
+          marginRight: "clamp(180px, 22%, 320px)",
+        }}
+      >
+        <span>Add evidence</span>
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden
+          style={{ opacity: 0.9, flexShrink: 0 }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-          Add evidence
-        </CaseButton>
-      </div>
+          <path
+            d="M5 12h14M13 6l6 6-6 6"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
     </header>
   );
 }

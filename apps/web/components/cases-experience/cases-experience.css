@@ -714,11 +714,6 @@ a.cases-row-title:hover {
   margin: 0;
 }
 
-/* §7 — Create case primary button hover (enabled only). */
-.cases-create-submit:not(:disabled):hover {
-  background: #4f46d7 !important;
-}
-
 /* §4 — case-header primary action (light enterprise button on the dark
    image header). Restrained hover lift, no purple glow. */
 .cases-header-add-evidence:hover:not(:disabled) {

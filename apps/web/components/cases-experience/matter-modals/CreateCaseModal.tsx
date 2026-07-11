@@ -140,31 +140,16 @@ export function CreateCaseModal({
           >
             Cancel
           </button>
+          {/* Canonical primary button — the SAME `.app-header-primary-action`
+              tokens/component the global "New Case" header button uses (one
+              primary style app-wide): identical gradient, border, shadow,
+              radius, height, text colour, hover + transition. */}
           <button
             type="submit"
             form="create-case-form"
             disabled={submitting || name.trim().length === 0}
             data-create-case-submit
-            className="cases-create-submit"
-            style={{
-              // §7 — distinct disabled (soft lavender, no dimming shadow)
-              // vs enabled (#5B4FE9) states; hover handled by the class.
-              padding: "0 16px",
-              height: 40,
-              borderRadius: 10,
-              fontSize: 13,
-              fontWeight: 650,
-              background:
-                submitting || name.trim().length === 0 ? "#C9C5F4" : "#5B4FE9",
-              border: "1px solid transparent",
-              color:
-                submitting || name.trim().length === 0
-                  ? "rgba(255,255,255,0.9)"
-                  : "#ffffff",
-              cursor:
-                submitting || name.trim().length === 0 ? "default" : "pointer",
-              boxShadow: "none",
-            }}
+            className="app-header-primary-action"
           >
             {submitting ? "Creating…" : "Create case"}
           </button>

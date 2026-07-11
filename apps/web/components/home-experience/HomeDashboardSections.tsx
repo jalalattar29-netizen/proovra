@@ -224,40 +224,15 @@ export function ExecutiveSummaryBand({ summary }: { summary: ExecutiveSummary })
   const s = EXEC_STATE[summary.overallStatus];
   return (
     <section
-      className="home-card"
+      className="home-card ops-banner-card"
       data-self-serve-section="executive-summary"
       data-exec-status={summary.overallStatus}
-      style={{
-        // Phase HOME-ENTERPRISE — the "command center" bar. A premium
-        // dark-navy surface backed by the PROOVRA icon-card asset (the
-        // 3D hexagon glows on the right; text sits in the dark space on
-        // the left). A status-colored left rail + chip + action carry
-        // the severity signal; the surface itself stays enterprise-dark
-        // in every state. White ink over a strong navy overlay keeps
-        // contrast well above AA.
-        position: "relative",
-        overflow: "hidden",
-        border: "1px solid rgba(255, 255, 255, 0.06)",
-        borderLeft: `4px solid ${s.accent}`,
-        borderRadius: 16,
-        padding: "16px 20px",
-        margin: 0,
-        color: "#f8fafc",
-        background:
-          // Dark navy base; the icon-card artwork is scaled DOWN to a
-          // decorative hexagon anchored on the right (no longer a
-          // dominant full-bleed cover). The gradient keeps the left ~⅔
-          // solid for text contrast and lets the mark glow on the right.
-          "linear-gradient(90deg, #0b1024 0%, #0b1024 42%, rgba(13, 18, 42, 0.55) 74%, rgba(16, 20, 46, 0.15) 100%)," +
-          'url("/assets/cards/icon-card.png") right center / auto 260% no-repeat,' +
-          "#0b1024",
-        boxShadow:
-          "0 1px 2px rgba(8, 11, 26, 0.20), 0 14px 34px rgba(8, 11, 26, 0.28)",
-        display: "flex",
-        alignItems: "center",
-        gap: 16,
-        flexWrap: "wrap",
-      }}
+      // Phase HOME-ENTERPRISE — the "command center" bar now renders on the
+      // SHARED `.ops-banner-card` shell (dark-navy surface + icon-card
+      // artwork + shadow + [content | action] row). Only the dynamic,
+      // status-coloured left rail stays inline so the shell can be reused
+      // by the Case detail header with a neutral accent instead.
+      style={{ borderLeft: `4px solid ${s.accent}` }}
     >
       <span
         data-exec-status-chip
