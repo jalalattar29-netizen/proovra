@@ -421,25 +421,23 @@ export function CasesIndex() {
             primaryAction={
               /* Phase 2.1 — canonical Create Case CTA. Server enforces
                  permissions; the button is visible to any team member so
-                 they get a structured AccessGate inside the modal on 403
-                 instead of a missing button + raw 403 elsewhere.
-                 PROOVRA enterprise redesign: a global "New Case" already
-                 lives in the app header, so the page-level create action
-                 is a RESTRAINED SECONDARY button (white bg, indigo text /
-                 hairline border) rather than the old coral→pink primary. */
-              <Button
-                variant="secondary"
+                 they get a structured AccessGate inside the modal on 403.
+                 The page-level create action now reuses the SAME
+                 `.app-header-primary-action` component/tokens as the global
+                 "New Case" header button — identical gradient, border,
+                 shadow, radius, height, text colour and hover. One primary
+                 style app-wide (no more white-bg / indigo-text variant). */
+              <button
+                type="button"
+                className="app-header-primary-action"
                 data-create-case-trigger
                 onClick={() => setCreateOpen(true)}
-                style={{
-                  background: "rgba(255, 255, 255, 0.72)",
-                  color: "#4F46E5",
-                  border: "1px solid rgba(79, 70, 229, 0.18)",
-                  boxShadow: "0 5px 16px rgba(15, 23, 42, 0.04)",
-                }}
               >
-                Create case
-              </Button>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <span>Create case</span>
+              </button>
             }
           />
         }

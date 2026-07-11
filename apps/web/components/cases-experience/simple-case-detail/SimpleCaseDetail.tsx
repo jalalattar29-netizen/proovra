@@ -485,7 +485,7 @@ function SimpleCaseHeader({
       // breadcrumb / title / metadata / Case ID levels. Still the compact
       // enterprise banner, not a hero. Only this instance is overridden;
       // the Home critical card keeps the shell default.
-      style={{ borderLeft: "4px solid rgba(139,124,246,0.55)", padding: "22px 24px" }}
+      style={{ borderLeft: "4px solid rgba(139,124,246,0.55)", padding: "26px 28px" }}
     >
       {/* LEFT content zone — a dedicated vertical stack; per-level spacing is
           controlled by each row's margin so the rhythm stays even. */}
@@ -501,7 +501,7 @@ function SimpleCaseHeader({
             alignItems: "center",
             gap: 6,
             flexWrap: "wrap",
-            marginBottom: 10,
+            marginBottom: 16,
             fontSize: 12,
             lineHeight: 1.35,
             fontWeight: 500,
@@ -529,7 +529,7 @@ function SimpleCaseHeader({
             alignItems: "center",
             gap: 10,
             flexWrap: "wrap",
-            marginBottom: 8,
+            marginBottom: 14,
           }}
         >
           <span
@@ -587,10 +587,10 @@ function SimpleCaseHeader({
           style={{
             display: "flex",
             columnGap: 10,
-            rowGap: 5,
+            rowGap: 6,
             flexWrap: "wrap",
             alignItems: "center",
-            marginBottom: 10,
+            marginBottom: 16,
             fontSize: 12.5,
             lineHeight: 1.4,
             color: "rgba(255,255,255,0.68)",
