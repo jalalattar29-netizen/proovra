@@ -85,13 +85,18 @@ describe("A1 remainder — embeddings + subprocessor status", () => {
 });
 
 describe("A1 remainder — disclosure never presents a stub as live", () => {
-  it("MI entity/summary = STUB, reviewer = PREVIEW, case = PLANNED, local = AVAILABLE", async () => {
+  it("MI entity/summary = STUB, copilots DERIVED (policy-off default), local = AVAILABLE", async () => {
     const caps = await resolveAiCapabilityDisclosure(null);
     const byName = (n: string) => caps.find((c) => c.capability.includes(n));
 
     expect(byName("entity-extraction")?.operationalStatus).toBe("STUB_NOT_OPERATIONAL");
-    expect(byName("Reviewer Copilot")?.operationalStatus).toBe("PREVIEW");
-    expect(byName("Case Copilot")?.operationalStatus).toBe("PLANNED");
+    // Phase P2 — Reviewer/Case Copilot are LIVE routes; their status is
+    // DERIVED from platform config + workspace policy, never hardcoded
+    // PREVIEW/PLANNED. With no workspace (null) the fail-closed safe
+    // defaults report DISABLED_BY_WORKSPACE_POLICY — honest, not "live".
+    expect(byName("Reviewer Copilot")?.operationalStatus).toBe("DISABLED_BY_WORKSPACE_POLICY");
+    expect(byName("Case Copilot")?.operationalStatus).toBe("DISABLED_BY_WORKSPACE_POLICY");
+    expect(byName("Reviewer Copilot")?.workspacePolicyState).toBe("DISABLED");
     expect(byName("Local EXIF")?.operationalStatus).toBe("AVAILABLE");
 
     // Every capability resolves to a bounded status.

@@ -170,6 +170,10 @@ describe("Phase 3B — shared contracts", () => {
       "AWS_REKOGNITION_TEXT",
       "AWS_REKOGNITION_LABELS",
       "DEEPGRAM_TRANSCRIPT",
+      // Phase F-8 — LOCAL_* are the honest labels written going forward;
+      // the OPENAI_* values stay in the union only for pre-migration rows.
+      "LOCAL_ENTITY_EXTRACTION",
+      "LOCAL_DOCUMENT_SUMMARY",
       "OPENAI_ENTITY_EXTRACTION",
       "OPENAI_DOCUMENT_SUMMARY",
       "MANUAL_OPERATOR",
@@ -729,8 +733,10 @@ describe("Phase 3B — runtime helpers", () => {
       "AWS_REKOGNITION_FACES",
       "AWS_REKOGNITION_TEXT",
       "AWS_REKOGNITION_LABELS",
-      "OPENAI_ENTITY_EXTRACTION",
-      "OPENAI_DOCUMENT_SUMMARY",
+      // Phase F-8 — the local-fallback adapters register under the honest
+      // LOCAL_* labels now.
+      "LOCAL_ENTITY_EXTRACTION",
+      "LOCAL_DOCUMENT_SUMMARY",
     ]) {
       expect(providers.has(expected as never)).toBe(true);
     }

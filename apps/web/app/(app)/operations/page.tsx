@@ -39,6 +39,7 @@ import { Card } from "../../../components/ui/Card";
 import { Badge, type BadgeTone } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { EmptyState } from "../../../components/ui/EmptyState";
+import { OperationsIntelligencePanel } from "../../../components/ai-copilot/OperationsIntelligencePanel";
 
 // Phase 32.6.4 — bounded per-panel state machine. Replaces the
 // previous `null | data` pattern where a single 503 from any of the
@@ -158,6 +159,8 @@ export default function OpsPage() {
       <div data-hub-page data-hub-page-id="operations">
         <HubQuickActionsBar hubId="operations" />
         <OpsPageInner />
+        {/* Phase P7 — bounded AI operational summaries (advisory only). */}
+        <OperationsIntelligencePanel />
       </div>
     </PageRouteGate>
   );

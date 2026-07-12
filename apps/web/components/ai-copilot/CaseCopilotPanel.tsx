@@ -161,7 +161,7 @@ export function CaseCopilotPanel({
           <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
             <li>{selected.size} record(s): {selectedList.map((e) => e.title).join(", ")}</li>
             <li>Data mode: Metadata only (no raw evidence content sent)</li>
-            <li>Provider: OpenAI (advisory)</li>
+            <li>Processing: external AI provider (advisory, no-training)</li>
             <li>Estimated: 1 AI operation</li>
             <li>Workspace policy governs availability; AI output is advisory and never a legal/forensic determination.</li>
             <li>Advisory results are retained as bounded metadata per workspace retention policy.</li>
@@ -171,10 +171,10 @@ export function CaseCopilotPanel({
 
       {/* Controls */}
       <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-        <button className="app-btn app-btn--primary" onClick={run} disabled={selected.size === 0 || state.kind === "loading"}>
+        <button className="app-btn app-btn--primary" onClick={run} disabled={selected.size === 0 || state.kind === "loading"} aria-busy={state.kind === "loading"}>
           {state.kind === "loading" ? "Analyzing…" : state.kind === "result" ? "Re-run" : "Run Case Copilot"}
         </button>
-        {state.kind === "loading" ? <span style={{ alignSelf: "center", opacity: 0.7 }}>Advisory only — this does not change any record.</span> : null}
+        {state.kind === "loading" ? <span style={{ alignSelf: "center", opacity: 0.7 }} aria-live="polite">Advisory only — this does not change any record.</span> : null}
       </div>
 
       {/* States */}

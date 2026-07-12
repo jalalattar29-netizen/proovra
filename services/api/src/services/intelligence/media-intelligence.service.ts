@@ -50,6 +50,7 @@ import { decideBudgetGate } from "./provider-budget.service.js";
 import { recordProviderUsage } from "./provider-usage.service.js";
 import { emitLifecycleEvent } from "./intelligence-activity.service.js";
 import { evaluateIntelligencePolicy } from "../governance/policy-evaluation.service.js";
+import { resolveWorkspaceAiPolicy } from "../ai/workspace-ai-policy.service.js";
 import {
   assertFeatureEntitlement,
   assertQuotaEntitlement,
@@ -202,6 +203,30 @@ export async function runProviderOperation(
       reason: `operation_${input.operation}_unsupported_by_${input.provider}`,
     };
   }
+  // Phase P3 — canonical Workspace AI policy gate. The Settings toggles
+  // (contentIntelligenceEnabled / ocrAllowed / transcriptionAllowed /
+  // rawContentProcessingAllowed) are enforced HERE, before any provider
+  // dispatch. On policy-table read failure (environment not yet migrated)
+  // enforcement is skipped (legacy behavior); once the table exists, a
+  // missing row means the safe defaults (content intelligence OFF).
+  const wsPolicy = await resolveWorkspaceAiPolicy(input.teamId).catch(() => null);
+  if (wsPolicy) {
+    const isRawBytes = "byteSource" in input;
+    const op = input.operation;
+    const deny = (code: string): RunProviderOperationResult => ({
+      ok: false,
+      decision: "ALLOW",
+      reason: `workspace_ai_policy_block:${code}`,
+    });
+    if (!wsPolicy.aiEnabled) return deny("WORKSPACE_DISABLED");
+    if (!wsPolicy.contentIntelligenceEnabled) return deny("CONTENT_INTELLIGENCE_DISABLED");
+    if (isRawBytes && !wsPolicy.rawContentProcessingAllowed) return deny("RAW_CONTENT_NOT_ALLOWED");
+    if ((op === "OCR_IMAGE" || op === "OCR_DOCUMENT") && !wsPolicy.ocrAllowed) return deny("OCR_NOT_ALLOWED");
+    if ((op === "TRANSCRIBE_AUDIO" || op === "TRANSCRIBE_VIDEO_AUDIO_TRACK") && !wsPolicy.transcriptionAllowed) {
+      return deny("TRANSCRIPTION_NOT_ALLOWED");
+    }
+  }
+
   // Phase 4A Closure: evaluate intelligence policy before budget gate.
   const policyResult = await evaluateIntelligencePolicy({
     prisma,
@@ -613,6 +638,10 @@ function estimatePreCallCostUsdMicros(provider: MediaIntelligenceProvider): numb
     case "AWS_REKOGNITION_TEXT":
     case "AWS_REKOGNITION_LABELS":
       return 1000;
+    // Phase F-8 — LOCAL_* are the values written going forward; the legacy
+    // OPENAI_* labels stay readable until the value-rename migration runs.
+    case "LOCAL_ENTITY_EXTRACTION":
+    case "LOCAL_DOCUMENT_SUMMARY":
     case "OPENAI_ENTITY_EXTRACTION":
     case "OPENAI_DOCUMENT_SUMMARY":
       return 3000;

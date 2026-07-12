@@ -38,8 +38,12 @@ import {
   type ProviderAdapter,
 } from "./provider-adapter.js";
 
-const PROVIDER_ENTITY: MediaIntelligenceProvider = "OPENAI_ENTITY_EXTRACTION";
-const PROVIDER_SUMMARY: MediaIntelligenceProvider = "OPENAI_DOCUMENT_SUMMARY";
+// Phase F-8 — new records are labeled with the HONEST local-provider values
+// (these operations run a bounded LOCAL fallback, never an OpenAI call).
+// Legacy OPENAI_* rows stay read-compatible until the value-rename migration
+// (mi_provider_local_value_rename) executes against the real database.
+const PROVIDER_ENTITY: MediaIntelligenceProvider = "LOCAL_ENTITY_EXTRACTION";
+const PROVIDER_SUMMARY: MediaIntelligenceProvider = "LOCAL_DOCUMENT_SUMMARY";
 
 /** Bounded OpenAI pricing — `gpt-4o-mini` lists at ≈ $0.150 / 1M
  *  input tokens. Stored in USD micros per token (4 chars ≈ 1 token). */

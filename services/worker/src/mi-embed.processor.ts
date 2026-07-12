@@ -324,6 +324,30 @@ export async function processMiEmbedJob(
     );
     return;
   }
+  // Phase P3 — canonical Workspace AI policy enforcement IN THE WORKER.
+  // Env flags alone are not sufficient: the workspace must have semantic
+  // search + embeddings enabled in its AI policy. Read failure (table not
+  // migrated) skips enforcement; a missing row means the safe defaults
+  // (semantic OFF) and the job drains without embedding.
+  try {
+    const policyRow = await prisma.workspaceAiPolicy.findUnique({
+      where: { teamId },
+      select: { aiEnabled: true, semanticSearchEnabled: true, embeddingsAllowed: true },
+    });
+    const allowed = policyRow
+      ? policyRow.aiEnabled && policyRow.semanticSearchEnabled && policyRow.embeddingsAllowed
+      : false; // table exists, no row → safe defaults (semantic off)
+    if (!allowed) {
+      logger.info(
+        { jobId: job.id ?? null, teamId, chunkCount: chunkIds.length },
+        "mi_embed.workspace_policy_disabled_completed",
+      );
+      return;
+    }
+  } catch {
+    /* policy table not migrated in this environment — env gates still apply */
+  }
+
   const provider = await resolveProvider();
   if (!provider) {
     // Provider not configured — chunks remain keyword-only. Drain

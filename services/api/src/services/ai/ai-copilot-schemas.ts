@@ -25,21 +25,21 @@ const CitationRef = z.object({
 const boundedStr = z.string().max(1000);
 const boundedList = z.array(z.string().max(600)).max(50);
 
-export const SupportChatSchema = z.object({
-  answer: boundedStr,
-  productLinks: z.array(z.object({ label: z.string().max(120), route: z.string().max(200) })).max(10),
-  limitations: boundedList,
-  followUpOptions: boundedList,
-  citations: z.array(CitationRef).max(50),
-  advisoryBoundary: AdvisoryBoundary,
-});
+// Phase P6 — the unused SupportChatSchema was REMOVED: the support chat's
+// canonical bounded contract is AiResultSchema (ai-types.ts), enforced end to
+// end. Do not reintroduce a parallel chat schema.
 
 export const EvidenceCopilotSchema = z.object({
   operationalSummary: boundedStr,
   missingContext: boundedList,
-  integritySignals: boundedList,
+  integritySignalExplanations: boundedList,
   custodyObservations: boundedList,
+  timestampingObservations: boundedList,
+  reportReadiness: boundedList,
+  packageReadiness: boundedList,
+  reviewerPreparation: boundedList,
   workflowGaps: boundedList,
+  suggestedNavigation: boundedList,
   suggestedActions: boundedList,
   citations: z.array(CitationRef).max(100),
   advisoryBoundary: AdvisoryBoundary,
@@ -84,7 +84,6 @@ export const OperationsCopilotSchema = z.object({
 });
 
 export const COPILOT_SCHEMAS = {
-  SUPPORT_CHAT: SupportChatSchema,
   EVIDENCE: EvidenceCopilotSchema,
   CASE: CaseCopilotSchema,
   REVIEWER: ReviewerCopilotSchema,

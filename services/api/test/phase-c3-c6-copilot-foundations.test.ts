@@ -146,13 +146,13 @@ describe("C6 — AI cannot execute; critical actions never suggestable", () => {
   });
   it("a suggestable action is a proposal requiring confirmation", () => {
     const s = buildSuggestedAction({
-      actionType: "ASSIGN_REVIEWER", displayLabel: "Assign reviewer", reason: "gap",
-      affectedObject: { type: "CASE", id: "c-1", version: 2 },
-      proposedChange: { reviewerId: "u-9" }, requiredPermission: "review.assign", citations: [], versionMeta: meta,
+      actionType: "GENERATE_REPORT", displayLabel: "Generate Report", reason: "no report yet",
+      affectedObject: { type: "EVIDENCE_RECORD", id: "ev-1", version: 2 },
+      proposedChange: { reportVersion: 1 }, requiredPermission: "evidence.report.generate", citations: [], versionMeta: meta,
     });
     expect(s.confirmationRequired).toBe(true);
     expect(s.suggestionId).toHaveLength(32);
-    expect(s.actionType).toBe("ASSIGN_REVIEWER");
+    expect(s.actionType).toBe("GENERATE_REPORT");
   });
   it("non-allowlisted action is rejected", () => {
     expect(() => buildSuggestedAction({

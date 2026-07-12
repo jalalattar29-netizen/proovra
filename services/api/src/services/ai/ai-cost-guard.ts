@@ -1,3 +1,17 @@
+/**
+ * Phase F-1 — ROLE DEMOTED TO BURST HEURISTIC.
+ *
+ * The CANONICAL budget control for every provider call is the durable AI
+ * usage ledger (ai-usage-ledger.service.ts): reserve → provider →
+ * reconcile / release, per workspace, persisted in ai_usage_events.
+ * Chat, Capture Assistance, and Evidence Categorization now go through
+ * that ledger in their routes, exactly like the Copilots.
+ *
+ * This class remains ONLY as an in-process, per-user daily burst heuristic
+ * (defense-in-depth against a single user hammering one instance). It is
+ * process-local by design: counts reset on restart and are NOT shared
+ * across instances — never rely on it as the budget of record.
+ */
 import { AiTask } from "./ai-types.js";
 
 const DAY_KEY_FORMAT = "YYYY-MM-DD";

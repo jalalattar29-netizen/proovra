@@ -1055,7 +1055,14 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // (104 → 112). Each is a PLATFORM_ADMIN-gated read-only aggregation surface
 // argued for in the control-center brief (overview, platform health, costs,
 // adoption, global search, timeline, alerts, executive). No mutation.
-const ROUTE_COUNT_PHASE_2_BASELINE = 112;
+// PROOVRA Enterprise AI Program added 7 route files (112 → 119), each argued
+// for in the AI program brief and each behind requireAuth + membership +
+// workspace AI policy + rate limiting + audit: workspace-ai-policy (owner/
+// admin governance), ai-case, ai-reviewer, ai-evidence (advisory copilots),
+// reviewer-criteria (human-authored catalog), ai-operations (operations
+// intelligence), ai-search (deterministic NL search). None touches the
+// forensic verification/custody/TSA/OTS core.
+const ROUTE_COUNT_PHASE_2_BASELINE = 119;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

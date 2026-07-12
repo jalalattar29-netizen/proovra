@@ -17,113 +17,8 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  requestAiAssistance,
-  setAiAssistanceProvider,
-} from "../src/services/intelligence/ai-assistance.service.js";
+// Phase P2 — ai-assistance wrapper tests removed with the retired stub.
 import { projectExtractedTextSummary } from "../src/services/intelligence/extraction.service.js";
-
-describe("AI assistance wrapper", () => {
-  let restore: (() => void) | null = null;
-  let prevEnabled: string | undefined;
-
-  beforeEach(() => {
-    prevEnabled = process.env.OPENAI_AI_ENABLED;
-  });
-
-  afterEach(() => {
-    if (restore) restore();
-    restore = null;
-    if (prevEnabled === undefined) delete process.env.OPENAI_AI_ENABLED;
-    else process.env.OPENAI_AI_ENABLED = prevEnabled;
-  });
-
-  it("safe-refuses when AI is not enabled", async () => {
-    delete process.env.OPENAI_AI_ENABLED;
-    const result = await requestAiAssistance({
-      kind: "summarize_ocr_text",
-      text: "any text",
-    });
-    expect(result.enabled).toBe(false);
-    expect(result.summary).toBeNull();
-    expect(result.disclaimer).toMatch(/advisory/i);
-    expect(result.cautions.some((c) => /advisory/i.test(c))).toBe(true);
-  });
-
-  it("safe-refuses when no provider is wired even with flag on", async () => {
-    process.env.OPENAI_AI_ENABLED = "true";
-    const result = await requestAiAssistance({
-      kind: "summarize_ocr_text",
-      text: "any text",
-    });
-    expect(result.enabled).toBe(false);
-  });
-
-  it("REJECTS provider output that contains forbidden authenticity phrases", async () => {
-    process.env.OPENAI_AI_ENABLED = "true";
-    restore = setAiAssistanceProvider(async () => ({
-      summary: "This evidence is authentic and court admissible.",
-      highlights: [],
-      cautions: [],
-    }));
-    const result = await requestAiAssistance({
-      kind: "summarize_ocr_text",
-      text: "any text",
-    });
-    expect(result.summary).toBeNull();
-    expect(
-      result.cautions.some((c) => /cannot present/i.test(c)),
-    ).toBe(true);
-    expect(result.disclaimer).toMatch(/advisory/i);
-  });
-
-  it("REJECTS forbidden phrases hidden in cautions / highlights too", async () => {
-    process.env.OPENAI_AI_ENABLED = "true";
-    restore = setAiAssistanceProvider(async () => ({
-      summary: "Safe summary.",
-      highlights: [],
-      cautions: ["manipulation detected on page 2"],
-    }));
-    const result = await requestAiAssistance({
-      kind: "summarize_ocr_text",
-      text: "any text",
-    });
-    expect(result.summary).toBeNull();
-  });
-
-  it("ALLOWS safe operator wording + always injects the advisory disclaimer", async () => {
-    process.env.OPENAI_AI_ENABLED = "true";
-    restore = setAiAssistanceProvider(async () => ({
-      summary: "Two witness statements and one timeline reference.",
-      highlights: ["Witness contact info appears in OCR text"],
-      cautions: ["Date references appear inconsistent."],
-    }));
-    const result = await requestAiAssistance({
-      kind: "summarize_ocr_text",
-      text: "ocr body",
-    });
-    expect(result.enabled).toBe(true);
-    expect(result.summary).toMatch(/witness/i);
-    // Disclaimer ALWAYS prepended to cautions, even when provider
-    // returns nothing.
-    expect(result.cautions[0]).toMatch(/advisory/i);
-  });
-
-  it("uses structured JSON shape regardless of provider output type", async () => {
-    process.env.OPENAI_AI_ENABLED = "true";
-    restore = setAiAssistanceProvider(async () => ({
-      summary: null,
-      highlights: null as unknown as string[],
-      cautions: null as unknown as string[],
-    }));
-    const result = await requestAiAssistance({
-      kind: "summarize_ocr_text",
-      text: "ocr body",
-    });
-    expect(Array.isArray(result.highlights)).toBe(true);
-    expect(Array.isArray(result.cautions)).toBe(true);
-  });
-});
 
 describe("extracted text projection — privacy", () => {
   it("summary projection does NOT include the raw text body", () => {
@@ -267,26 +162,7 @@ describe("similarity service — wording contract", () => {
   });
 });
 
-describe("semantic search foundation", () => {
-  it("returns enabled=false when SEMANTIC_SEARCH_ENABLED is unset", async () => {
-    const prev = process.env.SEMANTIC_SEARCH_ENABLED;
-    delete process.env.SEMANTIC_SEARCH_ENABLED;
-    try {
-      const { searchSemantic } = await import(
-        "../src/services/intelligence/semantic.service.js"
-      );
-      const result = await searchSemantic({
-        teamId: "33333333-3333-4333-8333-333333333333",
-        q: "test",
-      });
-      expect(result.enabled).toBe(false);
-      expect(result.hits).toEqual([]);
-    } finally {
-      if (prev === undefined) delete process.env.SEMANTIC_SEARCH_ENABLED;
-      else process.env.SEMANTIC_SEARCH_ENABLED = prev;
-    }
-  });
-});
+// Phase P7 — legacy searchSemantic tests removed with the seam.
 
 describe("extraction service — provider abstraction", () => {
   it("no-op providers are the default when env is unset", async () => {

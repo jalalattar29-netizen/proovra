@@ -72,10 +72,8 @@ import {
 // projection shape.
 import { executeSearch } from "../services/search/evidence-search.service.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
-import {
-  AI_ASSISTANCE_KINDS,
-  requestAiAssistance,
-} from "../services/intelligence/ai-assistance.service.js";
+// Phase P2 — ai-assistance.service import removed (stub retired; superseded
+// by the live Reviewer/Evidence Copilots).
 
 const ParamsEvidenceId = z.object({ id: z.string().uuid() });
 
@@ -363,38 +361,12 @@ export async function intelligenceRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
-  // POST /v1/intelligence/evidence/:id/ai-assist
+  // Phase P2 — the legacy `POST /v1/intelligence/evidence/:id/ai-assist`
+  // SAFE_REFUSAL stub route was REMOVED. It never had a production provider
+  // (activeProvider was test-injected only) and is fully superseded by the
+  // live Reviewer Copilot (`POST /v1/ai/reviewer/:reviewId/copilot`) and
+  // Evidence Copilot (`POST /v1/ai/evidence/:evidenceId/copilot`).
   // ---------------------------------------------------------------------------
-
-  app.post(
-    "/v1/intelligence/evidence/:id/ai-assist",
-    { preHandler: requireAuth },
-    async (req, reply) => {
-      const { id } = ParamsEvidenceId.parse(req.params);
-      const body = z
-        .object({
-          teamId: z.string().uuid(),
-          kind: z.enum(AI_ASSISTANCE_KINDS),
-          text: z.string().min(1).max(32 * 1024),
-        })
-        .parse(req.body ?? {});
-      const ok = await requireReviewerMember(req, reply, body.teamId);
-      if (!ok) return;
-      // Workspace scope guard — never run AI over another workspace's evidence.
-      const ev = await prisma.evidence.findUnique({
-        where: { id },
-        select: { id: true, teamId: true },
-      });
-      if (!ev || ev.teamId !== body.teamId) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
-      const result = await requestAiAssistance({
-        kind: body.kind,
-        text: body.text,
-      });
-      return reply.code(200).send({ result });
-    },
-  );
 
   // ---------------------------------------------------------------------------
   // Phase 13 — GET /v1/investigation/cross-evidence
@@ -461,7 +433,7 @@ export async function intelligenceRoutes(app: FastifyInstance) {
         extractedTextKinds: EXTRACTED_TEXT_KINDS,
         entityKinds: EVIDENCE_ENTITY_KINDS,
         similarityKinds: EVIDENCE_SIMILARITY_KINDS,
-        aiAssistanceKinds: AI_ASSISTANCE_KINDS,
+        // Phase P2 — aiAssistanceKinds removed with the retired ai-assist stub.
         disclaimer: AI_ADVISORY_DISCLAIMER,
       });
     },

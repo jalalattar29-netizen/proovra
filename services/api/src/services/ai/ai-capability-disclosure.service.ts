@@ -227,42 +227,42 @@ export async function resolveAiCapabilityDisclosure(
       lastVerifiedAtUtc: ts,
       note: "NOT wired to a live OpenAI call — runs a bounded LOCAL REGEX_PII / truncation fallback. Presented as a stub, never as operational OpenAI.",
     },
-    {
-      capability: "Reviewer Copilot",
-      provider: "OpenAI (planned)",
-      purpose: "Source-grounded reviewer assistance",
-      dataCategory: "METADATA_ONLY",
-      rawContent: false,
-      defaultState: "OFF",
-      workspaceOptInRequired: true,
-      globalConfigured: false,
-      workspacePolicyState: policy.reviewerCopilotEnabled ? "ENABLED" : "DISABLED",
-      operationalStatus: "PREVIEW",
-      region: "n/a",
-      transferMechanism: "n/a",
-      trainingMode: "n/a",
-      retentionMode: "n/a",
-      lastVerifiedAtUtc: ts,
-      note: "Preview / not operational — returns a safe refusal in production until the real Reviewer Copilot (D3) ships.",
-    },
-    {
-      capability: "Case Copilot",
-      provider: "OpenAI (planned)",
-      purpose: "Case-preparation assistance",
-      dataCategory: "METADATA_ONLY",
-      rawContent: false,
-      defaultState: "OFF",
-      workspaceOptInRequired: true,
-      globalConfigured: false,
-      workspacePolicyState: policy.caseCopilotEnabled ? "ENABLED" : "DISABLED",
-      operationalStatus: "PLANNED",
-      region: "n/a",
-      transferMechanism: "n/a",
-      trainingMode: "n/a",
-      retentionMode: "n/a",
-      lastVerifiedAtUtc: ts,
-      note: "Planned — not built (D1).",
-    },
+    // Phase P2 — Copilot statuses are DERIVED from live state (route is
+    // statically registered; provider + platform flag + workspace policy
+    // decide operability). Never hardcoded PLANNED/PREVIEW when live.
+    ...(["Reviewer Copilot", "Case Copilot", "Evidence Copilot"] as const).map(
+      (name): AiCapabilityDisclosure => {
+        const featureEnabled =
+          name === "Reviewer Copilot"
+            ? policy.reviewerCopilotEnabled
+            : name === "Case Copilot"
+              ? policy.caseCopilotEnabled
+              : policy.evidenceCategorizationEnabled; // Evidence Copilot rides the evidence-AI toggle
+        return {
+          capability: name,
+          provider: "OpenAI",
+          purpose:
+            name === "Reviewer Copilot"
+              ? "Source-grounded reviewer preparation (never the decision)"
+              : name === "Case Copilot"
+                ? "Case-preparation assistance with validated citations"
+                : "Evidence operational summary with validated citations",
+          dataCategory: "METADATA_ONLY",
+          rawContent: false,
+          defaultState: "OFF",
+          workspaceOptInRequired: true,
+          globalConfigured: openaiConfigured && globalAiEnabled,
+          workspacePolicyState: featureEnabled && policy.aiEnabled ? "ENABLED" : "DISABLED",
+          operationalStatus: computeAdvisoryCapabilityStatus(featureEnabled, inputs),
+          region: "OpenAI global (US) per subprocessor disclosure",
+          transferMechanism: "SCC / DPA (see Subprocessors)",
+          trainingMode: "No training on customer data (store:false + provider privacy config)",
+          retentionMode: "Bounded advisory run records; workspace retention policy applies",
+          lastVerifiedAtUtc: ts,
+          note: "Live capability: authorized metadata context only; every substantive observation requires a server-validated citation; final decisions remain human.",
+        };
+      },
+    ),
     {
       capability: "Local EXIF / perceptual-hash / technical metadata",
       provider: "Local (in-process)",

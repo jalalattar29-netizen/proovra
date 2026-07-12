@@ -43,8 +43,9 @@ describe("Phase A1 — OpenAI entity/summary probe is honestly NOT_CONFIGURED", 
 
   it("reports NOT_CONFIGURED (never READY) with a local-fallback reason", () => {
     const probes = listAdapterProbes();
-    const entity = probes.find((p) => p.provider === "OPENAI_ENTITY_EXTRACTION");
-    const summary = probes.find((p) => p.provider === "OPENAI_DOCUMENT_SUMMARY");
+    // Phase F-8 — the local-fallback adapters carry the honest LOCAL_* labels.
+    const entity = probes.find((p) => p.provider === "LOCAL_ENTITY_EXTRACTION");
+    const summary = probes.find((p) => p.provider === "LOCAL_DOCUMENT_SUMMARY");
 
     expect(entity, "entity adapter must be registered").toBeDefined();
     expect(summary, "summary adapter must be registered").toBeDefined();

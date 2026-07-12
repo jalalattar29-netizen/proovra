@@ -16,6 +16,12 @@ import { getPersonalWorkspaceScope } from "../services/workspace-billing.service
 import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
 import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
 import {
+  buildPrismaLedgerStore,
+  reconcileAiUsage,
+  releaseAiReservation,
+  tryReserveAiBudget,
+} from "../services/ai/ai-usage-ledger.service.js";
+import {
   assertWorkspaceAllowsAiOperation,
   recordWorkspaceAiOperation,
 } from "../services/billing-enforcement.service.js";
@@ -341,29 +347,59 @@ export async function aiRoutes(app: FastifyInstance) {
         });
       }
 
+      // Phase F-1 — deterministic short-circuits (burst guard / product
+      // knowledge / domain refusal) never reach the provider and therefore
+      // never reserve durable budget. Only the provider path goes through
+      // the canonical ledger: reserve → provider → reconcile (release on
+      // failure) — the exact flow the Copilots use.
       let result: Awaited<ReturnType<typeof aiChatService.analyzeChat>>;
-      try {
-        result = await withAiTimeout(
-          aiChatService.analyzeChat(userId, body),
-          AI_CHAT_LIMITS.REQUEST_TIMEOUT_MS,
-        );
-      } catch (err) {
-        const isTimeout =
-          err instanceof Error && err.message === "AI_REQUEST_TIMEOUT";
-        if (isTimeout) {
-          await bumpAiChatMetric("ai_chat_timeout_total");
-          emitAiChatAbuseSignal(req, userId, "timeout");
-          // AI failure NEVER cascades into the rest of the system.
-          // We return an advisory error and let the UI surface it as
-          // "AI temporarily unavailable" — capture / report / verify
-          // flows remain unaffected.
-          return reply.code(504).send({
-            code: "AI_CHAT_TIMEOUT",
-            message:
-              "AI assistant timed out. Try again in a moment. Evidence workflows are unaffected.",
+      const preflight = aiChatService.preflight(userId, body);
+      if (preflight) {
+        result = preflight;
+      } else {
+        const ledger = await tryReserveAiBudget({
+          teamId: aiScope.teamId,
+          userId,
+          feature: "SUPPORT_CHAT",
+          model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
+          requestId: `chat:${userId}:${Date.now()}`,
+          estimatedCostUsdMicros: 100_000n,
+        });
+        if (ledger.decision && !ledger.decision.allowed && ledger.decision.code !== "DUPLICATE_REQUEST") {
+          return reply.code(429).send({
+            code: `AI_BUDGET_${ledger.decision.code}`,
+            message: "The workspace AI budget or operation limit has been reached.",
           });
         }
-        throw err;
+        try {
+          result = await withAiTimeout(
+            aiChatService.runProviderChat(userId, body),
+            AI_CHAT_LIMITS.REQUEST_TIMEOUT_MS,
+          );
+        } catch (err) {
+          if (ledger.reservationId) {
+            await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+          }
+          const isTimeout =
+            err instanceof Error && err.message === "AI_REQUEST_TIMEOUT";
+          if (isTimeout) {
+            await bumpAiChatMetric("ai_chat_timeout_total");
+            emitAiChatAbuseSignal(req, userId, "timeout");
+            // AI failure NEVER cascades into the rest of the system.
+            // We return an advisory error and let the UI surface it as
+            // "AI temporarily unavailable" — capture / report / verify
+            // flows remain unaffected.
+            return reply.code(504).send({
+              code: "AI_CHAT_TIMEOUT",
+              message:
+                "AI assistant timed out. Try again in a moment. Evidence workflows are unaffected.",
+            });
+          }
+          throw err;
+        }
+        if (ledger.reservationId) {
+          await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
+        }
       }
 
       auditAiAction(req, {
@@ -464,7 +500,40 @@ export async function aiRoutes(app: FastifyInstance) {
         });
       }
 
-      const result = await aiCaptureService.analyzeSession(userId, body);
+      // Phase F-1 — canonical durable ledger around the provider call
+      // (reserve → provider → reconcile; release on failure/blocked).
+      const ledger = await tryReserveAiBudget({
+        teamId: aiScope.teamId,
+        userId,
+        feature: "CAPTURE_ASSISTANCE",
+        model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
+        requestId: `capture:${body.collectionPlan.id}:${Date.now()}`,
+        estimatedCostUsdMicros: 100_000n,
+      });
+      if (ledger.decision && !ledger.decision.allowed && ledger.decision.code !== "DUPLICATE_REQUEST") {
+        return reply.code(429).send({
+          code: `AI_BUDGET_${ledger.decision.code}`,
+          message: "The workspace AI budget or operation limit has been reached.",
+        });
+      }
+      let result: Awaited<ReturnType<typeof aiCaptureService.analyzeSession>>;
+      try {
+        result = await aiCaptureService.analyzeSession(userId, body);
+      } catch (err) {
+        if (ledger.reservationId) {
+          await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+        }
+        throw err;
+      }
+      if (ledger.reservationId) {
+        // A "blocked" result short-circuited before the provider — release
+        // the reservation instead of charging it.
+        if (result.status === "blocked") {
+          await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+        } else {
+          await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
+        }
+      }
       if (result.status === "ok") {
         try {
           await recordWorkspaceAiOperation(aiScope);

@@ -276,6 +276,12 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "workspace.notifications",
       "workspace.integrations",
       "workspace.tools",
+      // Enterprise AI Program — workspace AI governance + reviewer
+      // criteria catalog. Settings-tier management surfaces (personal
+      // OR org workspaces); enforcement lives in the API, so these sit
+      // in SYSTEM alongside the other /settings/* preference pages.
+      "workspace.ai_settings",
+      "workspace.reviewer_criteria",
     ],
     secondary: [
       "account.persona",

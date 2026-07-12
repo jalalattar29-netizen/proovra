@@ -137,6 +137,12 @@ import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { readBillingOverview } from "../services/billing-overview.service.js";
 import { createAiProvider } from "../services/ai/ai-provider.js";
 import { AiCostGuard } from "../services/ai/ai-cost-guard.js";
+import {
+  buildPrismaLedgerStore,
+  reconcileAiUsage,
+  releaseAiReservation,
+  tryReserveAiBudget,
+} from "../services/ai/ai-usage-ledger.service.js";
 import { AI_LEGAL_DISCLAIMER } from "../services/ai/ai-policy.js";
 import { AiTask } from "../services/ai/ai-types.js";
 import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
@@ -8021,10 +8027,42 @@ await appendCustodyEvent({
         checklistMetadataOnly: true,
       };
 
-      const aiResult = await evidenceAiProvider.run(
-        AiTask.EVIDENCE_METADATA_CATEGORIZATION,
-        metadataPayload
-      );
+      // Phase F-1 — canonical durable ledger around the provider call
+      // (reserve → provider → reconcile; release on failure). Same flow as
+      // the Copilots; the in-memory guard above remains a burst heuristic.
+      const catLedger = await tryReserveAiBudget({
+        teamId: evidence.teamId ?? null,
+        userId,
+        feature: "EVIDENCE_CATEGORIZATION",
+        model:
+          process.env.OPENAI_EVIDENCE_CATEGORIZATION_MODEL?.trim() ||
+          process.env.OPENAI_MODEL?.trim() ||
+          "gpt-4.1-mini",
+        requestId: `categorization:${id}:${Date.now()}`,
+        estimatedCostUsdMicros: 100_000n,
+      });
+      if (catLedger.decision && !catLedger.decision.allowed && catLedger.decision.code !== "DUPLICATE_REQUEST") {
+        return reply.code(429).send({
+          code: `AI_BUDGET_${catLedger.decision.code}`,
+          message: "The workspace AI budget or operation limit has been reached.",
+        });
+      }
+
+      let aiResult: Awaited<ReturnType<typeof evidenceAiProvider.run>>;
+      try {
+        aiResult = await evidenceAiProvider.run(
+          AiTask.EVIDENCE_METADATA_CATEGORIZATION,
+          metadataPayload
+        );
+      } catch (err) {
+        if (catLedger.reservationId) {
+          await releaseAiReservation(buildPrismaLedgerStore(), catLedger.reservationId).catch(() => undefined);
+        }
+        throw err;
+      }
+      if (catLedger.reservationId) {
+        await reconcileAiUsage(buildPrismaLedgerStore(), catLedger.reservationId, null).catch(() => undefined);
+      }
 
       const deterministicCategories = [
         evidence.type,

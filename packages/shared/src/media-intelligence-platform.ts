@@ -93,9 +93,15 @@ export const MEDIA_INTELLIGENCE_PROVIDERS = [
   "AWS_REKOGNITION_TEXT",
   "AWS_REKOGNITION_LABELS",
   "DEEPGRAM_TRANSCRIPT",
-  // Generic OpenAI bridge — used by the entity extraction +
-  // bounded summarisation paths. Bounded — every call is gated
-  // by workspace policy + cost controls.
+  // Phase F-8 — HONEST provider labels for the entity-extraction and
+  // bounded-summary paths: these operations run a LOCAL regex/deterministic
+  // fallback (no outbound OpenAI call), so new records are labeled LOCAL_*.
+  // The legacy OPENAI_* values remain in the union ONLY so rows written
+  // before the value-rename migration keep parsing; the prepared migration
+  // (mi_provider_local_value_rename) rewrites them, after which the legacy
+  // values can be dropped.
+  "LOCAL_ENTITY_EXTRACTION",
+  "LOCAL_DOCUMENT_SUMMARY",
   "OPENAI_ENTITY_EXTRACTION",
   "OPENAI_DOCUMENT_SUMMARY",
   // Reviewer / operator manual record (used when the operator

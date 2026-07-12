@@ -189,7 +189,7 @@ PROOVRA Assistant
             </div>
           </div>
 
-<div className="max-h-[42dvh] overflow-y-auto bg-[#f7faf8] px-4 py-3 sm:max-h-[360px]">
+<div className="max-h-[42dvh] overflow-y-auto bg-[#f7faf8] px-4 py-3 sm:max-h-[360px]" role="log" aria-live="polite" aria-label="Support chat conversation">
               {hasMessages ? (
               <div className="space-y-3">
                 {messages.map((message, index) => (

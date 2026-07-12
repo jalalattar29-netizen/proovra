@@ -85,7 +85,10 @@ import {
 } from "../src/lib/admin-audit-chain.js";
 
 function readSource(rel: string): string {
-  return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+  // Normalize CRLF → LF so source-contract substring assertions are
+  // independent of the checkout's line-ending configuration (Windows
+  // autocrlf checkouts otherwise break multi-line `toContain` pins).
+  return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8").replace(/\r\n/g, "\n");
 }
 
 // =============================================================================

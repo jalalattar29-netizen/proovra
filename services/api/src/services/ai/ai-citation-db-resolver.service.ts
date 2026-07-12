@@ -55,6 +55,30 @@ export type CitationPrisma = {
       select: Record<string, true>;
     }) => Promise<{ teamId: string | null; deletedAt?: Date | null } | null>;
   };
+  custodyEvent?: {
+    findUnique: (args: {
+      where: { id: string };
+      select: Record<string, true | { select: Record<string, true> }>;
+    }) => Promise<{ sequence: number; evidence: { teamId: string | null; deletedAt: Date | null } } | null>;
+  };
+  report?: {
+    findUnique: (args: {
+      where: { id: string };
+      select: Record<string, true | { select: Record<string, true> }>;
+    }) => Promise<{ version: number; evidence: { teamId: string | null; deletedAt: Date | null } } | null>;
+  };
+  verificationPackage?: {
+    findUnique: (args: {
+      where: { id: string };
+      select: Record<string, true | { select: Record<string, true> }>;
+    }) => Promise<{ version: number; evidence: { teamId: string | null; deletedAt: Date | null } } | null>;
+  };
+  evidenceReviewWorkflow?: {
+    findUnique: (args: {
+      where: { id: string };
+      select: Record<string, true>;
+    }) => Promise<{ teamId: string | null } | null>;
+  };
 };
 
 /**
@@ -84,6 +108,97 @@ export function buildWorkspaceCitationLookups(
       const row = await prisma.case.findUnique({
         where: { id },
         select: { teamId: true },
+      });
+      if (!row) return null;
+      return {
+        workspaceId: row.teamId ?? "",
+        currentVersion: null,
+        deleted: row.deletedAt != null,
+        authorized: row.teamId === teamId,
+      };
+    },
+    // Phase P5 — high-value citation types (tenant via the parent evidence).
+    CUSTODY_EVENT: async (id) => {
+      const row = await prisma.custodyEvent?.findUnique({
+        where: { id },
+        select: { sequence: true, evidence: { select: { teamId: true, deletedAt: true } } },
+      });
+      if (!row) return null;
+      return {
+        workspaceId: row.evidence.teamId ?? "",
+        currentVersion: row.sequence,
+        deleted: row.evidence.deletedAt != null,
+        authorized: row.evidence.teamId === teamId,
+        sequenceExists: true,
+      };
+    },
+    REPORT: async (id) => {
+      const row = await prisma.report?.findUnique({
+        where: { id },
+        select: { version: true, evidence: { select: { teamId: true, deletedAt: true } } },
+      });
+      if (!row) return null;
+      return {
+        workspaceId: row.evidence.teamId ?? "",
+        currentVersion: row.version,
+        deleted: row.evidence.deletedAt != null,
+        authorized: row.evidence.teamId === teamId,
+      };
+    },
+    VERIFICATION_PACKAGE: async (id) => {
+      const row = await prisma.verificationPackage?.findUnique({
+        where: { id },
+        select: { version: true, evidence: { select: { teamId: true, deletedAt: true } } },
+      });
+      if (!row) return null;
+      return {
+        workspaceId: row.evidence.teamId ?? "",
+        currentVersion: row.version,
+        deleted: row.evidence.deletedAt != null,
+        authorized: row.evidence.teamId === teamId,
+      };
+    },
+    // WORKFLOW_STATUS + REVIEW_ASSIGNMENT both resolve to the review
+    // workflow row (teamId-scoped); versions are advisory (null).
+    WORKFLOW_STATUS: async (id) => {
+      const row = await prisma.evidenceReviewWorkflow?.findUnique({
+        where: { id },
+        select: { teamId: true },
+      });
+      if (!row) return null;
+      return {
+        workspaceId: row.teamId ?? "",
+        currentVersion: null,
+        deleted: false,
+        authorized: row.teamId === teamId,
+      };
+    },
+    REVIEW_ASSIGNMENT: async (id) => {
+      const row = await prisma.evidenceReviewWorkflow?.findUnique({
+        where: { id },
+        select: { teamId: true },
+      });
+      if (!row) return null;
+      return {
+        workspaceId: row.teamId ?? "",
+        currentVersion: null,
+        deleted: false,
+        authorized: row.teamId === teamId,
+      };
+    },
+    // VERIFICATION_SIGNAL — server-constructed deterministic signal reference
+    // of the form `<evidenceId>:<signalKey>`. The signal state itself is never
+    // model-supplied; validity = the parent evidence is in-tenant and the key
+    // is an allowlisted deterministic signal.
+    VERIFICATION_SIGNAL: async (id) => {
+      const [evidenceId, signalKey] = id.split(":");
+      const ALLOWED_SIGNALS = new Set([
+        "integrity", "hash", "signature", "tsa", "ots", "custody", "report_ready", "package_ready",
+      ]);
+      if (!evidenceId || !signalKey || !ALLOWED_SIGNALS.has(signalKey)) return null;
+      const row = await prisma.evidence.findUnique({
+        where: { id: evidenceId },
+        select: { teamId: true, deletedAt: true, verificationPackageVersion: true },
       });
       if (!row) return null;
       return {

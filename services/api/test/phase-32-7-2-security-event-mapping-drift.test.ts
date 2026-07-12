@@ -793,7 +793,27 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // mapping; allowlisted so the guardrail keeps detecting UNattributed
       // migrations while permitting this deliberate provisioning work.
       "20270909000000_org_pending_enterprise_seats",
-      "20270910000000_phase_3_enterprise_identity_domains_and_sp_signing",    ]);
+      "20270910000000_phase_3_enterprise_identity_domains_and_sp_signing",
+      // PROOVRA Enterprise AI Program — four ADDITIVE-ONLY migrations
+      // (CREATE TABLE IF NOT EXISTS + guarded enum/index creation; zero
+      // DROP / RENAME / TRUNCATE / destructive UPDATE). They back the
+      // workspace AI governance policy, the Copilot defensibility run
+      // store, the durable AI usage ledger, and the human-authored
+      // Reviewer Criteria Catalog. Unrelated to Phase 32.7.2
+      // SecurityEvent mapping; allowlisted so the guardrail keeps
+      // detecting UNattributed migrations.
+      "20270911000000_workspace_ai_policy",
+      "20270912000000_ai_copilot_runs",
+      "20270913000000_ai_usage_ledger",
+      "20270914000000_reviewer_criteria_catalog",
+      // Phase F-8 — honest provider-label VALUE rename (varchar column, not
+      // an enum): scoped, idempotent UPDATEs rewriting the never-operational
+      // OPENAI_ENTITY_EXTRACTION / OPENAI_DOCUMENT_SUMMARY labels to LOCAL_*
+      // on media_intelligence_records + provider_usage_events, guarded by
+      // to_regclass. No DDL, no deletes. Unrelated to Phase 32.7.2
+      // SecurityEvent mapping.
+      "20270915000000_mi_provider_local_value_rename",
+    ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);
       if (!m) return false;

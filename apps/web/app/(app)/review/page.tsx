@@ -20,6 +20,7 @@ import { useRouter } from "next/navigation";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { ReviewerConsole } from "../../../components/reviewer-experience/ReviewerConsole";
 import { usePlatformContext } from "../../../lib/platform-context/PlatformContextProvider";
+import { QcSamplingPanel } from "../../../components/ai-copilot/QcSamplingPanel";
 
 export default function ReviewPage() {
   const router = useRouter();
@@ -64,6 +65,8 @@ export default function ReviewPage() {
           }
         }}
       />
+      {/* Phase QC — human quality control over sampled Copilot runs. */}
+      <QcSamplingPanel />
     </PageRouteGate>
   );
 }

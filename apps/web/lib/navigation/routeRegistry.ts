@@ -1809,6 +1809,46 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: false,
   },
+  // PROOVRA Enterprise AI Program — workspace AI governance (owner/admin
+  // policy toggles + capability disclosure). Works for personal AND
+  // organization workspaces: the AI policy row is per-team, and the API
+  // enforces owner/admin on write — the page is a management surface, not
+  // the enforcement point.
+  {
+    id: "workspace.ai_settings",
+    href: "/settings/ai",
+    label: "AI & Automation",
+    description:
+      "Workspace AI governance — enable/disable AI capabilities, data-class limits, and truthful capability disclosure.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  // PROOVRA Enterprise AI Program — human-authored Reviewer Criteria
+  // Catalog (versioned, immutable after publish). Members read; the API
+  // enforces owner/admin on authoring/publishing.
+  {
+    id: "workspace.reviewer_criteria",
+    href: "/settings/reviewer-criteria",
+    label: "Reviewer Criteria",
+    description:
+      "Human-authored, versioned reviewer criteria sets — draft, publish (immutable), duplicate, retire.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
   {
     id: "workspace.intelligence_quality",
     href: "/intelligence-quality",

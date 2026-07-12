@@ -58,6 +58,7 @@ import { EvidenceRelationshipsSection } from "../components/EvidenceRelationship
 import { ReviewerWorkflowCard } from "../components/ReviewerWorkflowCard";
 import { EvidenceReviewActionsPanel } from "../components/EvidenceReviewActionsPanel";
 import { ReviewerAuditTrailSection } from "../components/ReviewerAuditTrailSection";
+import { EvidenceCopilotPanel } from "../../../../../components/ai-copilot/EvidenceCopilotPanel";
 
 export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const {
@@ -98,6 +99,14 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
 
   return (
     <>
+      {/* Phase P4 — Evidence Copilot: advisory operational summary for THIS
+          record (missing context, integrity/custody/TSA/OTS explanations,
+          report/package readiness). Never a truth/authenticity verdict. */}
+      <EvidenceCopilotPanel
+        evidenceId={evidenceId}
+        evidenceVersion={(evidence as { verificationPackageVersion?: number | null })?.verificationPackageVersion ?? 0}
+      />
+
       {/* (1) Review Workflow — stable header always rendered. The
           body inside is the enterprise workflow card when reviewer
           ops are available, or a compact status row otherwise. */}

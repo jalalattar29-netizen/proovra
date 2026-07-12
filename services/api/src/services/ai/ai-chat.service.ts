@@ -81,10 +81,14 @@ export class AiChatService {
     private costGuard: AiCostGuard
   ) {}
 
-  async analyzeChat(
-    userId: string,
-    payload: SupportChatPayload
-  ): Promise<AiResult> {
+  /**
+   * Phase F-1 — deterministic pre-provider short-circuits: burst-guard
+   * block, product-knowledge answers, and the C2 domain refusal. Returns
+   * the finished AiResult when NO provider call (and therefore NO durable
+   * budget reservation) is needed, or null when the provider path is next.
+   * Single source of truth — analyzeChat and the route ledger both use it.
+   */
+  preflight(userId: string, payload: SupportChatPayload): AiResult | null {
     const guard = this.costGuard.canSendChatMessage(userId);
     if (!guard.allowed) {
       return {
@@ -100,35 +104,48 @@ export class AiChatService {
       };
     }
 
+    const productAnswer = answerProductKnowledge(payload.messages);
+    if (productAnswer) {
+      this.costGuard.recordChatMessage(userId);
+      return productAnswer;
+    }
+
+    // Phase C2 — deterministic scope gate BEFORE any provider call. Off-domain
+    // legal/general requests, forensic-truth determinations, and unsafe/jailbreak
+    // attempts are refused without spending provider budget.
+    const lastUserMessage =
+      [...payload.messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const scope = classifyChatScope(lastUserMessage);
+    if (scope.refuse) {
+      this.costGuard.recordChatMessage(userId);
+      return {
+        status: "ok",
+        summary: scope.refusalMessage ?? "That request is outside PROOVRA's scope.",
+        warnings: [],
+        suggestions: [],
+        flags: [],
+        legalDisclaimer: AI_LEGAL_DISCLAIMER,
+      };
+    }
+    return null;
+  }
+
+  async analyzeChat(
+    userId: string,
+    payload: SupportChatPayload
+  ): Promise<AiResult> {
+    return this.preflight(userId, payload) ?? this.runProviderChat(userId, payload);
+  }
+
+  /** Provider path only — callers must run preflight() first. */
+  async runProviderChat(
+    userId: string,
+    payload: SupportChatPayload
+  ): Promise<AiResult> {
 // Phase O1.5E — bounded ai.chat + ai.support.response spans. NEVER
 // the prompts, messages, or responses in attributes.
 await withProovraSpan(PROOVRA_SPAN_NAMES.AI_CHAT, { "proovra.operation": "ai_chat", "proovra.provider": "openai" }, () => undefined);
 await withProovraSpan(PROOVRA_SPAN_NAMES.AI_SUPPORT_RESPONSE, { "proovra.operation": "ai_support_response", "proovra.provider": "openai" }, () => undefined);
-
-const productAnswer = answerProductKnowledge(payload.messages);
-
-if (productAnswer) {
-  this.costGuard.recordChatMessage(userId);
-  return productAnswer;
-}
-
-// Phase C2 — deterministic scope gate BEFORE any provider call. Off-domain
-// legal/general requests, forensic-truth determinations, and unsafe/jailbreak
-// attempts are refused without spending provider budget.
-const lastUserMessage =
-  [...payload.messages].reverse().find((m) => m.role === "user")?.content ?? "";
-const scope = classifyChatScope(lastUserMessage);
-if (scope.refuse) {
-  this.costGuard.recordChatMessage(userId);
-  return {
-    status: "ok",
-    summary: scope.refusalMessage ?? "That request is outside PROOVRA's scope.",
-    warnings: [],
-    suggestions: [],
-    flags: [],
-    legalDisclaimer: AI_LEGAL_DISCLAIMER,
-  };
-}
 
 const result = await this.provider.run(
   AiTask.SUPPORT_CHAT,

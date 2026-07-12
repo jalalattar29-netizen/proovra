@@ -18,7 +18,7 @@ export const CONTEXT_SCHEMA_VERSION = "1.0.0";
 export async function persistCopilotRun(input: {
   workspaceId: string;
   userId: string;
-  feature: "CASE_COPILOT" | "REVIEWER_COPILOT";
+  feature: "CASE_COPILOT" | "REVIEWER_COPILOT" | "EVIDENCE_COPILOT" | "OPERATIONS_INTELLIGENCE";
   caseId?: string | null;
   reviewId?: string | null;
   requestId: string;

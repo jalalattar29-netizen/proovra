@@ -9,10 +9,18 @@
  * canonical human-authored flow — never pre-filled or auto-submitted here.
  * Renders only bounded schema-typed fields + server-validated citations.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { apiFetch, ApiError } from "../../lib/api";
+import { useActiveWorkspaceId } from "../../lib/platform-context";
 import { CopilotCitationList, type CopilotCitationData } from "./CopilotCitation";
+
+type CriteriaSetOption = {
+  id: string;
+  name: string;
+  status: string;
+  versions: Array<{ id: string; version: number; publishedAt: string | null; title: string }>;
+};
 
 export type ReviewerCopilotEvidence = {
   id: string;
@@ -87,6 +95,21 @@ export function ReviewerCopilotPanel({
   const [reviews, setReviews] = useState<Record<string, ObservationReview>>({});
   const [editing, setEditing] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  // Phase P6 — published human-authored criteria sets (server-resolved).
+  const teamId = useActiveWorkspaceId();
+  const [criteriaSets, setCriteriaSets] = useState<CriteriaSetOption[]>([]);
+  const [criteriaSetId, setCriteriaSetId] = useState<string>("");
+  useEffect(() => {
+    let cancelled = false;
+    if (!teamId) return;
+    (async () => {
+      try {
+        const res = (await apiFetch(`/v1/reviewer-criteria?teamId=${teamId}`)) as { sets?: CriteriaSetOption[] };
+        if (!cancelled) setCriteriaSets((res.sets ?? []).filter((s) => s.status === "PUBLISHED"));
+      } catch { /* catalog optional */ }
+    })();
+    return () => { cancelled = true; };
+  }, [teamId]);
 
   const selectable = evidence.filter((e) => !e.stale);
 
@@ -115,7 +138,8 @@ export function ReviewerCopilotPanel({
         body: JSON.stringify({
           selectedEvidenceIds: [...selected],
           criteriaVersion,
-          idempotencyKey: `${reviewId}:${criteriaVersion}:${[...selected].sort().join(",")}`,
+          ...(criteriaSetId ? { criteriaSetId } : {}),
+          idempotencyKey: `${reviewId}:${criteriaSetId || criteriaVersion}:${[...selected].sort().join(",")}`,
         }),
       })) as { data?: RunResult };
       setState({ kind: "result", result: res.data ?? (res as RunResult) });
@@ -167,12 +191,30 @@ export function ReviewerCopilotPanel({
         )}
       </div>
 
+      {/* Phase P6 — human-authored criteria selection (published sets only). */}
+      {criteriaSets.length > 0 ? (
+        <div style={{ marginTop: 12 }}>
+          <label style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center" }}>
+            <strong>Review criteria</strong>
+            <select value={criteriaSetId} onChange={(e) => setCriteriaSetId(e.target.value)} aria-label="Select review criteria set">
+              <option value="">Default ({criteriaVersion})</option>
+              {criteriaSets.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} (v{s.versions[0]?.version ?? 1})
+                </option>
+              ))}
+            </select>
+            <span style={{ opacity: 0.6, fontSize: 12 }}>Human-authored · immutable after publish</span>
+          </label>
+        </div>
+      ) : null}
+
       {/* Pre-run preview */}
       {selected.size > 0 ? (
         <div className="app-card app-card--muted" style={{ marginTop: 12 }}>
           <strong>Before you run</strong>
           <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
-            <li>{selected.size} record(s) · criteria {criteriaVersion} · metadata only · OpenAI (advisory) · 1 operation</li>
+            <li>{selected.size} record(s) · criteria {criteriaVersion} · metadata only · external AI provider (advisory) · 1 operation</li>
             <li>The Copilot prepares your review. It never makes or pre-fills the review decision.</li>
             <li>Advisory results are retained as bounded metadata per workspace retention policy.</li>
           </ul>
@@ -180,9 +222,12 @@ export function ReviewerCopilotPanel({
       ) : null}
 
       <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-        <button className="app-btn app-btn--primary" onClick={run} disabled={selected.size === 0 || state.kind === "loading"}>
+        <button className="app-btn app-btn--primary" onClick={run} disabled={selected.size === 0 || state.kind === "loading"} aria-busy={state.kind === "loading"}>
           {state.kind === "loading" ? "Preparing brief…" : state.kind === "result" ? "Re-run" : "Run Reviewer Copilot"}
         </button>
+        <span aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
+          {state.kind === "loading" ? "Preparing reviewer brief" : state.kind === "result" ? "Reviewer Copilot result ready" : ""}
+        </span>
       </div>
 
       {state.kind === "error" ? (
@@ -190,6 +235,23 @@ export function ReviewerCopilotPanel({
           {state.message} <span style={{ opacity: 0.6 }}>({state.code})</span>
         </div>
       ) : null}
+
+      {/* Phase P2-lifecycle — stale-criteria warning: never silently replace
+          criteria; the reviewer keeps the original version or explicitly reruns. */}
+      {state.kind === "result" && criteriaSetId ? (() => {
+        const set = criteriaSets.find((s) => s.id === criteriaSetId);
+        const latest = set?.versions[0]?.version;
+        const usedLabel = state.result.versionMeta?.criteriaVersion ?? "";
+        const stale = set && latest != null && !usedLabel.endsWith(`v${latest}`);
+        return stale ? (
+          <div className="app-alert app-alert--warn" style={{ marginTop: 12 }} role="status">
+            A newer version of “{set.name}” (v{latest}) has been published since this brief was
+            generated ({usedLabel}). The result below remains linked to its original criteria
+            version.{" "}
+            <button className="app-btn app-btn--ghost" onClick={run}>Re-run with v{latest}</button>
+          </div>
+        ) : null;
+      })() : null}
 
       {state.kind === "result" ? (
         <ResultView

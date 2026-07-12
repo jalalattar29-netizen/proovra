@@ -51,6 +51,7 @@ import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 // for their tier — they must not see the link.
 import { canAccessSurface } from "../../../lib/surface/access";
 import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContext";
+import { NlSearchBox } from "../../../components/ai-copilot/NlSearchBox";
 // -----------------------------------------------------------------------------
 // Wire-level types — kept loose so we don't drag the API SDK in here.
 // -----------------------------------------------------------------------------
@@ -314,6 +315,8 @@ const DEFAULT_LIMIT = 25;
 export default function SearchPage() {
   return (
     <PageRouteGate routeId="workspace.search">
+      {/* Phase F1 — deterministic natural-language Evidence-Operations search. */}
+      <NlSearchBox />
       <SearchInner />
     </PageRouteGate>
   );

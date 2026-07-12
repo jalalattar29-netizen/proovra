@@ -11,15 +11,24 @@ import { createHash } from "node:crypto";
 
 import type { AiCitation } from "./ai-citation.service.js";
 
-/** Actions AI may propose (all confirmationRequired, all via canonical endpoints). */
+/**
+ * Official executable actions (server-derived ONLY — the model never invents
+ * these; it may only explain why). All confirmationRequired, all executed via
+ * existing canonical endpoints or navigation.
+ *
+ * Phase F-3 — GENERATE_VERIFICATION_PACKAGE and RETRY_ELIGIBLE_PACKAGE were
+ * REMOVED from this registry: Verification Packages are produced by the
+ * worker pipeline and PROOVRA has NO on-demand package-regeneration endpoint
+ * (only GET /v1/evidence/:id/verification-package for retrieval). A declared
+ * action without a real executor is a fake action; the registry only lists
+ * actions with a proven backend path (report endpoints) or a real navigation
+ * target (metadata section, reviewer assignment surface).
+ */
 export const SUGGESTABLE_ACTIONS = [
+  "GENERATE_REPORT",
+  "RETRY_ELIGIBLE_REPORT",
   "OPEN_MISSING_METADATA",
-  "NAVIGATE_TO_RECORD",
-  "LINK_CASE",
-  "ASSIGN_REVIEWER",
-  "RETRY_FAILED_OPERATION",
-  "OPEN_POLICY_CONFIG",
-  "ADD_ADVISORY_NOTE",
+  "OPEN_REVIEWER_ASSIGNMENT",
 ] as const;
 export type SuggestableActionType = (typeof SUGGESTABLE_ACTIONS)[number];
 

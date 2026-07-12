@@ -18,9 +18,16 @@ import { buildReviewerCopilotProvider, ReviewerCopilotProviderUnavailable } from
 import { buildCitationResolver, buildWorkspaceCitationLookups, type CitationPrisma } from "../services/ai/ai-citation-db-resolver.service.js";
 import { persistCopilotRun, recordObservationInteraction } from "../services/ai/ai-copilot-run-store.service.js";
 import { buildPrismaLedgerStore, reconcileAiUsage, releaseAiReservation, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
+import { loadPublishedCriteria } from "./reviewer-criteria.routes.js";
+import { selectQcSample } from "../services/ai/ai-qc-sampling.service.js";
 
 const Body = z.object({
   selectedEvidenceIds: z.array(z.string().uuid()).max(50).optional(),
+  // Phase P6 — criteria are resolved SERVER-SIDE from the published catalog.
+  // The freeform string remains only as a fallback label for workspaces that
+  // have not authored a criteria set yet.
+  criteriaSetId: z.string().uuid().optional(),
+  criteriaVersionId: z.string().uuid().optional(),
   criteriaVersion: z.string().max(40).default("v1"),
   idempotencyKey: z.string().max(80).optional(),
 });
@@ -83,9 +90,27 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       return reply.code(429).send({ code: `AI_BUDGET_${ledger.decision.code}`, message: "The workspace AI budget or operation limit has been reached." });
     }
 
+    // Phase P6 — SERVER-side criteria resolution. Client-supplied version
+    // strings are never trusted when a catalog set is referenced: forged /
+    // unpublished / cross-tenant versions are rejected here.
+    let criteriaVersionLabel = body.criteriaVersion;
+    let criteriaList: Array<{ key: string; title: string; required: boolean; reviewGuidance: string | null }> = [];
+    if (body.criteriaSetId) {
+      const loaded = await loadPublishedCriteria({
+        teamId, criteriaSetId: body.criteriaSetId, criteriaVersionId: body.criteriaVersionId ?? null,
+      });
+      if (loaded && !loaded.ok) {
+        return reply.code(loaded.code === "CROSS_TENANT" ? 403 : 409).send({ error: { code: `criteria_${loaded.code.toLowerCase()}` } });
+      }
+      if (loaded?.ok) {
+        criteriaVersionLabel = loaded.versionLabel;
+        criteriaList = loaded.criteria;
+      }
+    }
+
     let result;
     try {
-      result = await runReviewerCopilot({ teamId, reviewerContext, selectedEvidence, criteriaVersion: body.criteriaVersion, policyDecision, provider: buildReviewerCopilotProvider(), resolveCitation });
+      result = await runReviewerCopilot({ teamId, reviewerContext: { ...reviewerContext, fields: { ...reviewerContext.fields, criteria: JSON.stringify(criteriaList).slice(0, 4000) } }, selectedEvidence, criteriaVersion: criteriaVersionLabel, policyDecision, provider: buildReviewerCopilotProvider(), resolveCitation });
     } catch (err) {
       if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
       if (err instanceof ReviewerCopilotProviderUnavailable) {
@@ -95,7 +120,7 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       throw err;
     }
     if (ledger.reservationId) await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
-    await audit(result.status === "ok" ? "success" : result.status === "blocked_prohibited_claim" ? "blocked" : "failure", { status: result.status, criteriaVersion: body.criteriaVersion, droppedCitations: result.droppedCitations ?? 0, policyDecision: policyDecision.decision });
+    await audit(result.status === "ok" ? "success" : result.status === "blocked_prohibited_claim" ? "blocked" : "failure", { status: result.status, criteriaVersion: criteriaVersionLabel, droppedCitations: result.droppedCitations ?? 0, policyDecision: policyDecision.decision });
 
     // Phase D4 — bounded defensibility record (never blocks the response).
     const run = await persistCopilotRun({
@@ -103,7 +128,7 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       requestId: body.idempotencyKey ?? `review:${reviewId}:${body.criteriaVersion}:${ids.sort().join(",")}`,
       model: process.env.OPENAI_REVIEWER_COPILOT_MODEL?.trim() || "gpt-4.1-mini",
       workspacePolicyVersion: policyDecision.policyVersion,
-      criteriaVersion: body.criteriaVersion,
+      criteriaVersion: criteriaVersionLabel,
       processingMode: "METADATA_ONLY",
       selectedObjectVersions: result.versionMeta.contextObjectVersions,
       status: result.status,
@@ -111,6 +136,98 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       validatedCitations: result.status === "ok" ? (result.data as { citations?: unknown })?.citations : undefined,
     });
     return reply.code(200).send({ data: result, runId: run?.id ?? null });
+  });
+
+  // Phase P3(QC) — QC sampling over persisted Copilot runs.
+  app.get("/v1/ai/qc/samples", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const q = z.object({
+      teamId: z.string().uuid(),
+      strategy: z.enum(["RANDOM", "RISK_BASED", "HIGH_EDIT_RATE", "LOW_CITATION", "DISAGREEMENT", "POLICY_BLOCK", "PROVIDER_FAILURE"]).default("RISK_BASED"),
+    }).parse(req.query ?? {});
+    const membership = await prisma.teamMember.findUnique({ where: { teamId_userId: { teamId: q.teamId, userId } } });
+    if (!membership) return reply.code(403).send({ error: { code: "not_a_member" } });
+    try {
+      const runs = await prisma.aiCopilotRun.findMany({
+        where: { workspaceId: q.teamId },
+        orderBy: { generatedAt: "desc" },
+        take: 200,
+        include: { observationReviews: { select: { state: true, observationId: true, actorId: true, updatedAt: true } } },
+      });
+      const rows = runs.map((r) => {
+        const obs = r.observationReviews.filter((o) => !o.observationId.startsWith("qc"));
+        // Phase F-5 — DETERMINISTIC QC state: the caller's own verdict wins;
+        // otherwise the most recent verdict across QC reviewers. Never an
+        // arbitrary first row.
+        const qcRows = r.observationReviews
+          .filter((o) => o.observationId === "qc")
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        const myQc = qcRows.find((o) => o.actorId === userId) ?? null;
+        return {
+          id: r.id, workspaceId: r.workspaceId, feature: r.feature, status: r.status,
+          generatedAt: r.generatedAt,
+          droppedCitations: 0,
+          observationCount: Math.max(obs.length, 1),
+          editedCount: obs.filter((o) => o.state === "EDITED").length,
+          rejectedCount: obs.filter((o) => o.state === "REJECTED").length,
+          qcState: myQc?.state ?? qcRows[0]?.state ?? null,
+          myQcState: myQc?.state ?? null,
+          latestQcState: qcRows[0]?.state ?? null,
+          qcReviewerCount: new Set(qcRows.map((o) => o.actorId)).size,
+          // Phase QC-UI — deep-link targets + versions for the QC panel.
+          caseId: r.caseId,
+          reviewId: r.reviewId,
+          criteriaVersion: r.criteriaVersion,
+          interactionCount: obs.length,
+        };
+      });
+      const sample = selectQcSample(rows, q.strategy, 10);
+      return reply.code(200).send({
+        strategy: q.strategy,
+        samples: sample.map((s) => {
+          const row = rows.find((r) => r.id === s.id);
+          return {
+            ...s,
+            qcState: row?.qcState ?? null,
+            myQcState: row?.myQcState ?? null,
+            latestQcState: row?.latestQcState ?? null,
+            qcReviewerCount: row?.qcReviewerCount ?? 0,
+          };
+        }),
+      });
+    } catch (err) {
+      // Phase F-5 — only MIGRATION-shaped failures (table/column not yet
+      // deployed: Prisma P2021/P2022) map to the friendly catalog-unavailable
+      // response. Every other error propagates to the central handler as a
+      // structured error instead of being silently swallowed.
+      const code = (err as { code?: string })?.code;
+      if (code === "P2021" || code === "P2022") {
+        return reply.code(200).send({ strategy: q.strategy, samples: [], catalogAvailable: false });
+      }
+      throw err;
+    }
+  });
+
+  // Phase P3(QC) — record a QC verdict on a sampled run (reuses the canonical
+  // observation-interaction model; observationId "qc").
+  app.post("/v1/ai/qc/samples/:runId/decision", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const runId = z.string().uuid().parse((req.params as { runId: string }).runId);
+    const body = z.object({ decision: z.enum(["QC_ACCEPTED", "QC_SKIPPED", "QC_REVIEWED"]) }).parse(req.body ?? {});
+    const run = await prisma.aiCopilotRun.findUnique({ where: { id: runId }, select: { workspaceId: true } });
+    if (!run) return reply.code(404).send({ error: { code: "run_not_found" } });
+    const membership = await prisma.teamMember.findUnique({ where: { teamId_userId: { teamId: run.workspaceId, userId } } });
+    if (!membership) return reply.code(403).send({ error: { code: "not_a_member" } });
+    const row = await recordObservationInteraction({
+      copilotRunId: runId, observationId: "qc",
+      state: body.decision === "QC_ACCEPTED" ? "ACCEPTED" : body.decision === "QC_SKIPPED" ? "REJECTED" : "EDITED",
+      originalText: `qc:${body.decision}`, editedText: body.decision, actorId: userId,
+    });
+    await appendPlatformAuditLog({
+      userId, action: "ai.qc_decision", category: "ai", source: "api_ai", outcome: "success",
+      resourceType: "ai_copilot_run", resourceId: runId, metadata: { decision: body.decision },
+    });
+    return reply.code(200).send({ id: row.id, decision: body.decision });
   });
 
   // Phase D4 — record a human Accept/Edit/Reject on a Copilot observation.

@@ -11708,6 +11708,63 @@ model AiCopilotObservationReview {
   @@map("ai_copilot_observation_reviews")
 }
 
+/// Phase P6 — Reviewer Criteria Catalog. Human-authored, versioned,
+/// immutable-after-publish criteria that describe what a reviewer should
+/// inspect. AI may explain criteria; it never creates/publishes them.
+model ReviewerCriteriaSet {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId      String   @map("workspace_id") @db.Uuid
+  caseId           String?  @map("case_id") @db.Uuid
+  name             String   @db.VarChar(160)
+  description      String?  @db.VarChar(600)
+  status           String   @default("DRAFT") @db.VarChar(12)
+  currentVersionId String?  @map("current_version_id") @db.Uuid
+  createdByUserId  String   @map("created_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  versions ReviewerCriteriaVersion[]
+
+  @@index([workspaceId, status])
+  @@map("reviewer_criteria_sets")
+}
+
+model ReviewerCriteriaVersion {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  criteriaSetId   String    @map("criteria_set_id") @db.Uuid
+  version         Int
+  title           String    @db.VarChar(160)
+  instructions    String?   @db.VarChar(2000)
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+  publishedByUserId String? @map("published_by_user_id") @db.Uuid
+  publishedAt     DateTime? @map("published_at") @db.Timestamptz(6)
+  retiredAt       DateTime? @map("retired_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  set      ReviewerCriteriaSet @relation(fields: [criteriaSetId], references: [id], onDelete: Cascade)
+  criteria ReviewerCriterion[]
+
+  @@unique([criteriaSetId, version])
+  @@map("reviewer_criteria_versions")
+}
+
+model ReviewerCriterion {
+  id                 String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  criteriaVersionId  String  @map("criteria_version_id") @db.Uuid
+  key                String  @db.VarChar(60)
+  title              String  @db.VarChar(200)
+  description        String? @db.VarChar(600)
+  required           Boolean @default(false)
+  order              Int     @default(0)
+  reviewGuidance     String? @map("review_guidance") @db.VarChar(600)
+  escalationGuidance String? @map("escalation_guidance") @db.VarChar(600)
+
+  version ReviewerCriteriaVersion @relation(fields: [criteriaVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([criteriaVersionId, key])
+  @@map("reviewer_criteria")
+}
+
 /// Phase A7 — Durable AI usage ledger (multi-replica-safe, restart-safe).
 /// Replaces the process-local AiCostGuard as budget AUTHORITY.
 model AiUsageEvent {

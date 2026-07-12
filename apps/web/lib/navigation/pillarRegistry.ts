@@ -322,6 +322,10 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   // Phase IA-collapse — Account security personal home at
   // /settings/security.
   ["account.security", "ADMIN"],
+  // Enterprise AI Program — workspace AI governance + reviewer criteria
+  // catalog. Settings-tier management surfaces under /settings/*.
+  ["workspace.ai_settings", "ADMIN"],
+  ["workspace.reviewer_criteria", "ADMIN"],
   ["account.persona", "ADMIN"],
   ["account.billing", "ADMIN"],
   ["platform.admin", "ADMIN"],

@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch, ApiError } from "../../../../lib/api";
 import { useActiveWorkspaceId } from "../../../../lib/platform-context";
 import { AiCapabilityStatusTable } from "../../../../components/ai-copilot/AiCapabilityStatusTable";
+import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
 type Policy = {
   aiEnabled: boolean;
@@ -52,6 +53,14 @@ const TOGGLES: Array<{ key: keyof Policy; label: string; hint: string }> = [
 ];
 
 export default function AiAutomationSettingsPage() {
+  return (
+    <PageRouteGate routeId="workspace.ai_settings">
+      <AiAutomationSettingsPageInner />
+    </PageRouteGate>
+  );
+}
+
+function AiAutomationSettingsPageInner() {
   const teamId = useActiveWorkspaceId();
   const [envelope, setEnvelope] = useState<PolicyEnvelope | null>(null);
   const [draft, setDraft] = useState<Policy | null>(null);
