@@ -33,19 +33,34 @@ function applySurfaceTierGate(
   if (!rule) return null;
   // CORE / allow → fall through.
   if (rule.directAccessPolicy === "allow") return null;
-  // INTERNAL surfaces (e.g. /tools) are flagged notFound here. The
-  // server returns a 404-equivalent rewrite so the HTML shell is the
-  // 404 page, not the internal surface.
+  // INTERNAL surfaces (e.g. /tools, /operations/*) are flagged notFound.
   //
-  // We DO NOT 404 here for ENTERPRISE notFound surfaces — the page-
-  // level gate runs with the full PlatformContext (plan/role/admin
-  // flags) and can correctly distinguish a tenant-admin who SHOULD see
-  // the surface from a personal user who should not. Doing it here
-  // would falsely 404 enterprise customers.
+  // Phase R2 — the gate now fires ONLY for UNAUTHENTICATED requests (no
+  // `proovra_session` cookie), matching this module's documented intent
+  // (see the function header: "ONLY when ... no auth cookie exists").
+  //
+  // Previously this rewrote to /not-found UNCONDITIONALLY, which also
+  // 404'd authenticated PLATFORM_ADMINs hitting the admin-nav links
+  // (`/operations/observability`, `/operations/readiness`, `/tools`) in
+  // production — a real functional bug. Authenticated requests now fall
+  // through to the page-level `PageRouteGate`, which runs with the full
+  // PlatformContext and correctly renders the surface for platform
+  // admins while showing the PLATFORM_ADMIN_ONLY denial panel to
+  // authenticated non-admins. The `/operations/*` pages were repointed
+  // to PLATFORM_ADMIN routeIds in the same phase, so a logged-in
+  // non-admin can NOT reach the real page by falling through here.
+  //
+  // We DO NOT 404 here for ENTERPRISE notFound surfaces — same reason: the
+  // page-level gate runs with the full PlatformContext and distinguishes a
+  // tenant-admin who SHOULD see the surface from a personal user who should
+  // not.
   if (rule.tier === "INTERNAL" && rule.directAccessPolicy === "notFound") {
-    const target = req.nextUrl.clone();
-    target.pathname = "/not-found";
-    return NextResponse.rewrite(target);
+    const hasSession = Boolean(req.cookies.get("proovra_session")?.value);
+    if (!hasSession) {
+      const target = req.nextUrl.clone();
+      target.pathname = "/not-found";
+      return NextResponse.rewrite(target);
+    }
   }
   return null;
 }

@@ -304,6 +304,10 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "platform.observability",
       // Phase 8 — Platform production-readiness posture surface.
       "operations.readiness",
+      // Phase R2 — signer/export/recovery ops surfaces (PLATFORM_ADMIN).
+      "operations.signers",
+      "operations.exports",
+      "operations.recovery",
       "platform.runbooks",
       "platform.reliability",
       "platform.media_graph",

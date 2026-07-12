@@ -120,7 +120,7 @@ type FailedJobItem = {
 
 export default function OperationsQueuesPage() {
   return (
-    <PageRouteGate routeId="workspace.security_center">
+    <PageRouteGate routeId="platform.queue_ops">
       <OperationsQueuesContent />
     </PageRouteGate>
   );

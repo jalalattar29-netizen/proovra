@@ -13,7 +13,7 @@
  *   - isPersonalWorkspaceAtPackageTime (boolean)
  *   - governanceMeaning (plain-language explanation)
  *
- * Legacy `mode` is preserved for offline-verifier compatibility. The
+ * Legacy `mode` is preserved for downstream consumer compatibility. The
  * new fields are sourced from the shared
  * `deriveCanonicalWorkspaceScope()` helper, which honours
  * `Team.isPersonal=true` instead of inferring governance from teamId.
@@ -48,7 +48,7 @@ describe("Phase 2 — canonical package-mode.json fields", () => {
     );
   });
 
-  it("preserves the legacy `mode` field for offline-verifier compatibility", () => {
+  it("preserves the legacy `mode` field for downstream consumer compatibility", () => {
     // The legacy field must remain emitted so existing offline
     // verifiers and historical consumers keep working.
     expect(verificationPackageSrc).toContain("mode: packageMode,");

@@ -3,7 +3,7 @@
  *
  * Produces five OPTIONAL advisory JSON files that the verification package
  * may carry. All manifests:
- *   * Are additive only — the offline verifier works without them.
+ *   * Are additive only — downstream tooling works without them.
  *   * Never include raw article bodies, PII, or storage keys.
  *   * Are workspace-anchored on teamId.
  *

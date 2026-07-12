@@ -154,7 +154,11 @@ describe("Workspace surface audit — LABEL_CLARIFICATION changes", () => {
 
   it("workspace.trust label is the canonical 'Trust Center' entry", () => {
     const entry = sliceRouteEntry("workspace.trust");
-    expect(entry).toMatch(/href:\s*"\/trust"/);
+    // Phase R7.3 (F17) — the AUTHENTICATED Trust nav must point at the
+    // in-app hub `/trust-hub`, NOT the public marketing `/trust`. The prior
+    // assertion pinned the bug (sidebar/cmd-K sent authed users to the
+    // public page).
+    expect(entry).toMatch(/href:\s*"\/trust-hub"/);
     expect(entry).toMatch(/label:\s*"Trust Center"/);
   });
 });

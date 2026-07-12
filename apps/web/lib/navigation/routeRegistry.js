@@ -781,7 +781,7 @@ export const ROUTE_REGISTRY = [
     // removed so cmd-K + "all tools" no longer surface it.
     {
         id: "dashboard.quotas",
-        href: "/dashboard/quotas",
+        href: "/operations/quotas",
         label: "Quotas & usage",
         description: "Account quotas, usage breakdown, and reset windows.",
         domain: "PERSONAL_WORKSPACE",
@@ -801,7 +801,7 @@ export const ROUTE_REGISTRY = [
     // entry removed from registry; next.config redirect → /home stays.
     {
         id: "dashboard.batch_analysis",
-        href: "/dashboard/batch-analysis",
+        href: "/operations/batch-analysis",
         label: "Batch analysis",
         description: "Batch processing jobs and queue status.",
         domain: "PERSONAL_WORKSPACE",
@@ -1420,14 +1420,14 @@ export const ROUTE_REGISTRY = [
     // ---------------------------------------------------------------------------
     // Phase 1A — Trust pillar surface. Canonical id `workspace.trust` points
     // at the real Trust hub page (apps/web/app/(app)/trust-hub/page.tsx) which
-    // composes verification methodology, public-verify, offline verifier,
+    // composes verification methodology, public-verify,
     // signers, subprocessors, privacy + retention surfaces.
     // The in-app hub URL is `/trust-hub` (relocated from `/trust` so the
     // top-level `/trust` URL can serve the public-facing Trust Center).
     // ---------------------------------------------------------------------------
     {
         id: "workspace.trust",
-        href: "/trust",
+        href: "/trust-hub",
         label: "Trust",
         description: "Trust center hub — methodology, verification, signers, subprocessors, privacy.",
         // Trust hub renders workspace-anchored content (trust articles + subprocessor

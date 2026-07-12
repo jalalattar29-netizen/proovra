@@ -45,7 +45,6 @@ const SENSITIVE_ROUTE_REPLACEMENTS: ReadonlyArray<{
   { prefix: "/share/", safe: "/share/[redacted]" },
   { prefix: "/intake/", safe: "/intake/[redacted]" },
   { prefix: "/portal/", safe: "/portal/[redacted]" },
-  { prefix: "/offline-verifier/", safe: "/offline-verifier/[redacted]" },
   { prefix: "/auth/callback", safe: "/auth/callback/[redacted]" },
 ];
 

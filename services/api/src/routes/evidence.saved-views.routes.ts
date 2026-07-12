@@ -52,6 +52,17 @@ const SavedViewFiltersSchema = z.object({
   exportReadiness: z.string().max(64).optional().default("all"),
   caseAssignment: z.string().max(64).optional().default("all"),
   retention: z.string().max(64).optional().default("all"),
+  // Phase R8 (F15) — trust-signal filters. The evidence LIST endpoint
+  // fully supports filtering by these (evidence.routes.ts:2224-2246 via
+  // inOrEq / parseEvidenceMultiEnumFilter), but this saved-view schema
+  // previously omitted them, so Zod silently STRIPPED them on save —
+  // a saved/deep-linked view then returned different results than the
+  // filters the user actually applied. Same string shape as the sibling
+  // multi-enum filters above (comma-joined values, default "all").
+  tsaStatus: z.string().max(160).optional().default("all"),
+  otsStatus: z.string().max(160).optional().default("all"),
+  publicVerifyState: z.string().max(160).optional().default("all"),
+  verificationStatus: z.string().max(160).optional().default("all"),
   sort: z.string().max(64).optional().default("newest"),
 });
 

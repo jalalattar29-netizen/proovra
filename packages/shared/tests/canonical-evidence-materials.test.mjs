@@ -275,7 +275,7 @@ test("legal boundary material is shared across outputs (no duplicate copy)", () 
   const b = buildCanonicalLegalBoundaryMaterial();
   assert.equal(b.reportBoundary, b.packageBoundary);
   assert.equal(b.reportBoundary, b.publicVerifyBoundary);
-  assert.ok(b.offlineVerifierBoundary.startsWith(b.reportBoundary));
+  assert.ok(b.offlinePackageReviewBoundary.startsWith(b.reportBoundary));
 });
 
 test("deriveCanonicalOutputContext encodes snapshot vs live correctly", () => {

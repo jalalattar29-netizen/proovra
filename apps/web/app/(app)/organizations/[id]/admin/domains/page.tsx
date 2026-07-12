@@ -39,6 +39,7 @@ import { useParams } from "next/navigation";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../../../lib/api";
+import { formatUserDate } from "../../../../../../lib/date";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { useTeamId } from "../../../../../../lib/platform-context";
 import {
@@ -426,7 +427,7 @@ function StatusPill({
       <Badge tone={verified ? "verified" : "pending"} subtle>
         {verified
           ? verifiedAt
-            ? `Verified ${new Date(verifiedAt).toLocaleDateString()}`
+            ? `Verified ${formatUserDate(verifiedAt)}`
             : "Verified"
           : "Unverified"}
       </Badge>

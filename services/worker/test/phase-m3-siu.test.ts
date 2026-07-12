@@ -275,7 +275,7 @@ describe("M3 — api SIU service source contract", () => {
     expect(src).toContain('"evidence-checklist.json"');
     expect(src).toContain('"review-indicators.json"');
     expect(src).toContain('"follow-ups.json"');
-    expect(src).toContain('"verification/offline-verification.md"');
+    expect(src).toContain('"verification/independent-verification.md"');
     assertNoForbiddenPhrases(src, "siu-export-bundle.service.ts");
   });
 

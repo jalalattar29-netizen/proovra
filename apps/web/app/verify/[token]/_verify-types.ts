@@ -431,7 +431,6 @@ export type VerificationPackageIntegrity = {
   signedManifestPresent: boolean;
   manifestDigestPresent: boolean;
   checksumIndexPresent: boolean;
-  offlineVerifierIncluded: boolean;
   auditExportIncluded: boolean;
   custodyExportIncluded: boolean;
   accessExportIncluded: boolean;

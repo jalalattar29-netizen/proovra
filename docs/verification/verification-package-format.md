@@ -1,6 +1,6 @@
 # Verification Package Format (post-P3.1.1, post-M1.1, post-M2)
 
-**Audience:** anyone unpacking a PROOVRA Verification Package and verifying its contents offline.
+**Audience:** anyone unpacking a PROOVRA Verification Package and verifying its contents independently with standard tooling.
 
 ---
 
@@ -119,7 +119,7 @@ Strict mode is opt-in. We do NOT recommend enabling it unless the workspace's pr
 
 ## 6. Compatibility with pre-P3.1.1 packages
 
-- An offline verifier that ignores unknown files keeps working unchanged.
+- Downstream tooling that ignores unknown files keeps working unchanged.
 - A verifier that wants to check the new files MAY look for them; absence is not a failure.
 - The canonical existing files (`package-manifest.json`, `package-manifest.sig`, `package-manifest-public-key.pem`, `evidence/`, `custody/`, `package-checksums.json`) are unchanged in name, content schema, and append order.
 

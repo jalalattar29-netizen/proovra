@@ -255,7 +255,7 @@ export type CanonicalLegalBoundaryMaterial = {
   reportBoundary: string;
   packageBoundary: string;
   publicVerifyBoundary: string;
-  offlineVerifierBoundary: string;
+  offlinePackageReviewBoundary: string;
 };
 
 // -----------------------------------------------------------------------------
@@ -742,9 +742,9 @@ export function buildCanonicalLegalBoundaryMaterial(): CanonicalLegalBoundaryMat
     reportBoundary: shared,
     packageBoundary: shared,
     publicVerifyBoundary: shared,
-    offlineVerifierBoundary:
+    offlinePackageReviewBoundary:
       shared +
-      " The offline verifier validates only the materials inside the package; current revocation status, live anchoring confirmations, and post-package custody events cannot be checked offline.",
+      " Independent verification checks only the materials inside the package; current revocation status, live anchoring confirmations, and post-package custody events cannot be checked offline.",
   };
 }
 
@@ -926,7 +926,7 @@ export function deriveCanonicalOutputContext(
       : outputType === "VERIFICATION_PACKAGE_SNAPSHOT"
         ? materials.legalBoundary.packageBoundary
         : outputType === "OFFLINE_PACKAGE_REVIEW"
-          ? materials.legalBoundary.offlineVerifierBoundary
+          ? materials.legalBoundary.offlinePackageReviewBoundary
           : materials.legalBoundary.publicVerifyBoundary;
 
   return {

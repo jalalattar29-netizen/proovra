@@ -208,13 +208,6 @@ function readPackageIntegrityRows(vm: ReportViewModel): KeyValueRow[] {
       ),
     },
     {
-      label: "Offline Verifier",
-      value: renderPackageComponentFlag(
-        integrity.offlineVerifierIncluded,
-        "Included"
-      ),
-    },
-    {
       label: "Audit Export",
       value: renderPackageComponentFlag(
         integrity.auditExportIncluded,
@@ -246,7 +239,7 @@ function renderVerificationPackageIntegrity(vm: ReportViewModel): string {
       ${renderCallout({
         title: "Package integrity layer",
 body:
-  "The verification package is the offline forensic bundle. It may include the preserved originals, package manifest, Ed25519 manifest signature, checksum index, offline verifier, custody export, and access audit export. Package access activity is a snapshot taken at generation time; current live access activity should be reviewed on the verification page.",
+  "The verification package is the downloadable forensic bundle. It may include the preserved originals, package manifest, Ed25519 manifest signature, checksum index, custody export, and access audit export. Package access activity is a snapshot taken at generation time; current live access activity should be reviewed on the verification page.",
           tone: "neutral",
       })}
     `,

@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import {
@@ -484,7 +485,7 @@ export default function AdminEvidenceOpsPage() {
             }}
           >
             Snapshot generated{" "}
-            {new Date(snapshot.generatedAtUtc).toLocaleString()} · read-only ·
+            {formatUserDateTime(snapshot.generatedAtUtc)} · read-only ·
             counts only, no evidence contents.
           </div>
         </>

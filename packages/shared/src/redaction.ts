@@ -782,7 +782,7 @@ export type PortalRedactionExposure = {
 
 /**
  * Verification-package manifest slot — bounded record describing
- * each published redaction version so offline verification can
+ * each published redaction version so independent verification can
  * inspect the lineage without re-hitting the platform.
  */
 export type RedactionVerificationManifestEntry = {

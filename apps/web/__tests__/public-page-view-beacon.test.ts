@@ -70,7 +70,6 @@ const BLOCKED_TOKEN_PATHS = [
   "/auth/callback",
   "/auth/verify-email",
   "/invite/sometoken",
-  "/offline-verifier/xyz",
 ];
 
 const BLOCKED_APP_PATHS = [

@@ -11,6 +11,7 @@ import { Button } from "../../../components/ui/Button";
 import { Badge, type BadgeTone } from "../../../components/ui/Badge";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { apiFetch } from "../../../lib/api";
+import { formatUserDateTime } from "../../../lib/date";
 import { ADMIN_NAV_ITEMS } from "../../../components/admin/admin-nav-config";
 
 // Platform Admin Control Center — Overview (item A).
@@ -156,7 +157,7 @@ export default function AdminPage() {
       {
         label: "Last telemetry sample",
         value: s?.lastTelemetrySampleAtUtc
-          ? new Date(s.lastTelemetrySampleAtUtc).toLocaleString()
+          ? formatUserDateTime(s.lastTelemetrySampleAtUtc)
           : "Not measured",
       },
     ];

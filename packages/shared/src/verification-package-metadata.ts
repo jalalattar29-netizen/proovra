@@ -2,7 +2,6 @@ export type VerificationPackageMetadata = {
   manifestPresent: boolean;
   signedManifestPresent: boolean;
   checksumIndexPresent: boolean;
-  offlineVerifierIncluded: boolean;
   auditExportIncluded?: boolean;
   custodyExportIncluded?: boolean;
   accessExportIncluded?: boolean;

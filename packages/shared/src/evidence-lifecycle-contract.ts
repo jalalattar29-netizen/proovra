@@ -641,7 +641,7 @@ const STEP_DEFS: Record<
     id: "VerificationPackageCreated",
     eventName: EVIDENCE_LIFECYCLE_EVENT_NAMES.VerificationPackageCreated,
     description:
-      "Offline evidence container (ZIP) is generated from the same canonical materials sealed by the report, plus the Report PDF, custody/access snapshots, and an offline verifier.",
+      "Offline evidence container (ZIP) is generated from the same canonical materials sealed by the report, plus the Report PDF, custody/access snapshots.",
     writerResponsibility:
       "services/worker/src/verification-package.ts:createVerificationPackage — invoked from services/worker/src/processor.ts after the report PDF is finalized.",
     timestampMeaning:

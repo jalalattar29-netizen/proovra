@@ -82,6 +82,8 @@ import { wrapJobHandlerWithOtelContext } from "./observability/queue-otel-contex
 import { PROOVRA_SPAN_NAMES } from "./otel.js";
 import { reapExpiredCaptureDrafts } from "./capture-reaper.js";
 import { runOrphanArtifactScan } from "./orphan-scan.js";
+import { runLifecycleRecovery } from "./lifecycle-recovery.js";
+import { withCronLock } from "./cron-lock.js";
 // Phase 27.5 — Governance operationalization workers.
 import { runRetentionReconciliation } from "./governance/retention-reconciliation.worker.js";
 import { runDestructionOrchestration } from "./governance/destruction-orchestrator.worker.js";
@@ -643,6 +645,63 @@ function stopOrphanScanScheduler() {
 }
 
 // -----------------------------------------------------------------------------
+// Phase R4 — SIGNED-without-report lifecycle recovery scheduler.
+//
+// Closes the commit-to-enqueue crash window (finding F4): evidence
+// completion commits (status → SIGNED) and enqueues the report job AFTER
+// the commit; a crash / Redis outage in that gap leaves evidence durably
+// SIGNED with no report job, stuck forever. This periodic reconciler
+// re-enqueues the report job for such rows. It is idempotent (dedup by
+// deterministic report job id) and churn-free (skips plan-ineligible
+// evidence), so a missed tick or multi-replica overlap is safe.
+//
+// Default interval: 5 minutes. Disable with LIFECYCLE_RECOVERY_ENABLED=false.
+// -----------------------------------------------------------------------------
+
+const lifecycleRecoveryEnabled = envBoolean("LIFECYCLE_RECOVERY_ENABLED", true);
+const lifecycleRecoveryIntervalMs = envNumber(
+  "LIFECYCLE_RECOVERY_INTERVAL_MS",
+  5 * 60 * 1000,
+);
+
+let lifecycleRecoveryTimer: ReturnType<typeof setInterval> | null = null;
+let lifecycleRecoveryRunning = false;
+
+async function runLifecycleRecoverySafe(trigger: string) {
+  if (lifecycleRecoveryRunning) return;
+  lifecycleRecoveryRunning = true;
+  try {
+    await runLifecycleRecovery({ trigger });
+  } catch (err) {
+    logger.error({ err, trigger }, "lifecycle.recovery.failed");
+    captureException(err, { trigger });
+  } finally {
+    lifecycleRecoveryRunning = false;
+  }
+}
+
+function startLifecycleRecoveryScheduler() {
+  if (!lifecycleRecoveryEnabled) {
+    logger.info({}, "lifecycle.recovery.scheduler.disabled");
+    return;
+  }
+  lifecycleRecoveryTimer = setInterval(() => {
+    void runLifecycleRecoverySafe("interval");
+  }, lifecycleRecoveryIntervalMs);
+  logger.info(
+    { intervalMs: lifecycleRecoveryIntervalMs },
+    "lifecycle.recovery.scheduler.started",
+  );
+}
+
+function stopLifecycleRecoveryScheduler() {
+  if (lifecycleRecoveryTimer) {
+    clearInterval(lifecycleRecoveryTimer);
+    lifecycleRecoveryTimer = null;
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Phase R8.1.4 — MFA pending challenge / recovery-request GC scheduler.
 //
 // Bounded scheduled cleanup for the durable replay-protection store
@@ -782,7 +841,12 @@ async function runRetentionRecon(trigger: string) {
   if (retentionReconciliationRunning) return;
   retentionReconciliationRunning = true;
   try {
-    await runRetentionReconciliation({ trigger });
+    const outcome = await withCronLock("retention-reconciliation", () =>
+      runRetentionReconciliation({ trigger }),
+    );
+    if (!outcome.ran) {
+      logger.debug({ trigger }, "governance.retention_reconciliation.skipped_locked");
+    }
   } catch (err) {
     logger.error({ err, trigger }, "governance.retention_reconciliation.failed");
     captureException(err, { trigger });
@@ -851,7 +915,12 @@ async function runDestructionOrch(trigger: string) {
   if (destructionOrchestratorRunning) return;
   destructionOrchestratorRunning = true;
   try {
-    await runDestructionOrchestration({ trigger });
+    const outcome = await withCronLock("destruction-orchestrator", () =>
+      runDestructionOrchestration({ trigger }),
+    );
+    if (!outcome.ran) {
+      logger.debug({ trigger }, "governance.destruction_orchestrator.skipped_locked");
+    }
   } catch (err) {
     logger.error({ err, trigger }, "governance.destruction_orchestrator.failed");
     captureException(err, { trigger });
@@ -896,7 +965,12 @@ async function runImmutableRecon(trigger: string) {
   if (immutableStorageReconciliationRunning) return;
   immutableStorageReconciliationRunning = true;
   try {
-    await runImmutableStorageReconciliation({ trigger });
+    const outcome = await withCronLock("immutable-storage-reconciliation", () =>
+      runImmutableStorageReconciliation({ trigger }),
+    );
+    if (!outcome.ran) {
+      logger.debug({ trigger }, "governance.immutable_storage_reconciliation.skipped_locked");
+    }
   } catch (err) {
     logger.error(
       { err, trigger },
@@ -958,7 +1032,12 @@ async function runArchiveAutoTransitionTick(trigger: string) {
   if (archiveAutoTransitionRunning) return;
   archiveAutoTransitionRunning = true;
   try {
-    await runArchiveTierAutoTransitions({ trigger });
+    const outcome = await withCronLock("archive-tier-auto-transition", () =>
+      runArchiveTierAutoTransitions({ trigger }),
+    );
+    if (!outcome.ran) {
+      logger.debug({ trigger }, "governance.archive_tier_auto_transition.skipped_locked");
+    }
   } catch (err) {
     logger.error({ err, trigger }, "archive.auto_transition.tick_failed");
     captureException(err, { trigger });
@@ -1113,11 +1192,16 @@ async function runReviewerRecon(trigger: string) {
   if (reviewerReconciliationRunning) return;
   reviewerReconciliationRunning = true;
   try {
-    await runReviewerReconciliation({
-      trigger,
-      batchSize: reviewerReconciliationBatchSize,
-      maxTeamsPerSweep: reviewerReconciliationMaxTeamsPerSweep,
-    });
+    const outcome = await withCronLock("reviewer-ops-reconciliation", () =>
+      runReviewerReconciliation({
+        trigger,
+        batchSize: reviewerReconciliationBatchSize,
+        maxTeamsPerSweep: reviewerReconciliationMaxTeamsPerSweep,
+      }),
+    );
+    if (!outcome.ran) {
+      logger.debug({ trigger }, "reviewer_ops.reconciliation.skipped_locked");
+    }
   } catch (err) {
     logger.error({ err, trigger }, "reviewer_ops.reconciliation.failed");
     captureException(err, { trigger });
@@ -1671,6 +1755,7 @@ async function shutdown(exitCode: number) {
   stopDemoFollowUpScheduler();
   stopCaptureDraftReaperScheduler();
   stopOrphanScanScheduler();
+  stopLifecycleRecoveryScheduler();
   stopMfaChallengeGcScheduler();
   stopMfaRecoveryDigestScheduler();
   // Phase 27.5 — Governance schedulers.
@@ -1906,6 +1991,7 @@ startHealthServer()
     startDemoFollowUpScheduler();
     startCaptureDraftReaperScheduler();
     startOrphanScanScheduler();
+    startLifecycleRecoveryScheduler();
     startMfaChallengeGcScheduler();
     startMfaRecoveryDigestScheduler();
     // Phase 27.5 — Governance schedulers.

@@ -12,7 +12,7 @@
  *   * Workspace-anchored.
  *   * NEVER region geometry, NEVER detection text. Counts + hashes
  *     + approval bookkeeping only.
- *   * Offline verification must remain possible — every entry
+ *   * Independent verification must remain possible — every entry
  *     carries the derivative's `fileSha256` so a reader can verify
  *     the derivative bytes match the manifest without re-hitting
  *     the platform.

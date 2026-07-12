@@ -81,6 +81,10 @@ export const UPLOAD_SESSION_DENIAL_CODES = [
   "hash_mismatch",
   "completion_blocked_pending_parts",
   "service_unavailable",
+  // Phase R1 — the target evidence does not exist within the session's
+  // team. Anti-enumeration: maps to 404 (never distinguishes "belongs to
+  // another team" from "does not exist").
+  "evidence_not_found",
 ] as const;
 
 /**
@@ -341,6 +345,24 @@ export async function createUploadSession(
     lifetime > MAX_SESSION_LIFETIME_MS
   ) {
     return { ok: false, reason: "invalid_expiry" };
+  }
+
+  // Phase R1 — object-level ownership guard (IDOR fix). The route/gate
+  // only proves the caller is a member of `input.teamId`; it does NOT
+  // prove the client-supplied `input.evidenceId` belongs to that team.
+  // Without this check a member of Team A could open a session (row
+  // written with A's team_id) targeting Team B's evidence id, and the
+  // Phase 30.12 multipart-complete bridge would then attach an
+  // `EvidencePart` to Team B's forensic Evidence (cross-tenant custody
+  // tampering). Enforce that the target evidence exists WITHIN the
+  // session's team before any row is written. Anti-enumeration: a
+  // missing or cross-team id both return `evidence_not_found` (404).
+  const owningEvidence = await client.evidence.findFirst({
+    where: { id: input.evidenceId, teamId: input.teamId },
+    select: { id: true },
+  });
+  if (!owningEvidence) {
+    return { ok: false, reason: "evidence_not_found" };
   }
 
   // Idempotency check — collapse to existing session if the key

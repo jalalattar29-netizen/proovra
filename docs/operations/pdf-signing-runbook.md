@@ -125,7 +125,7 @@ Open the PDF → Signature Panel (left rail) → expand the entry → "Signature
 ### What this proves and what it does NOT prove
 
 - It proves the PDF bytes were not altered since the worker signed them.
-- It does NOT prove the evidence is authentic, admissible, factually true, or that the underlying record was not tampered with **before** the worker received it. Those are separate questions handled by the recorded custody chain and the Verification Package's offline verifier — not by the PDF signature.
+- It does NOT prove the evidence is authentic, admissible, factually true, or that the underlying record was not tampered with **before** the worker received it. Those are separate questions handled by the recorded custody chain and the Verification Package's independent integrity materials (checksums + signed manifest) — not by the PDF signature.
 
 ---
 

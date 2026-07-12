@@ -181,6 +181,57 @@ function requireReviewerCapable(
   return true;
 }
 
+// Phase R5 — bulk reviewer operations require the GRANULAR `review.bulk`
+// capability (SUPERVISOR / REVIEW_ADMIN in the canonical reviewer-role
+// model), NOT merely the boolean `evidence_request.review` reviewer flag.
+//
+// Finding F38: `POST /v1/reviewer-ops/reviews/bulk` gated only on
+// `requireReviewerCapable` (the boolean), yet `executeBulkTriage` supports
+// an ASSIGN action. That let a plain reviewer (MEMBER → REVIEWER role, which
+// lacks `review.assign` / `review.bulk`) bulk-ASSIGN workflows they could
+// NOT single-assign — the single-assign routes here already require
+// `callerHasCapability(..., "review.assign")`. It also diverged from the
+// parallel reviewer-workspace bulk surface, which requires `review.bulk`.
+// This gate makes the authority identical across the single-assign route,
+// this bulk route, and the reviewer-workspace bulk route (R5 mandate: no
+// user gets different authority depending on which route/API is used). It
+// is strictly a TIGHTENING — it never grants an action the boolean gate
+// previously denied.
+async function requireReviewerBulkCapable(
+  ctx: LifecycleActorContext,
+  reply: FastifyReply,
+): Promise<boolean> {
+  const [userRow, memberRow] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: ctx.actorUserId },
+      select: { platformRole: true },
+    }),
+    prisma.teamMember.findUnique({
+      where: { teamId_userId: { teamId: ctx.teamId, userId: ctx.actorUserId } },
+      select: { role: true },
+    }),
+  ]);
+  const resolution = resolveReviewerRole({
+    workspaceRole: (memberRow?.role ?? null) as
+      | "OWNER"
+      | "ADMIN"
+      | "MEMBER"
+      | "VIEWER"
+      | null,
+    isPlatformAdmin: (userRow?.platformRole ?? null) !== null,
+  });
+  if (!callerHasCapability(resolution, "review.bulk")) {
+    reply.code(403).send({
+      error: {
+        code: "REVIEW_PERMISSION_DENIED",
+        reason: "review_bulk_required",
+      },
+    });
+    return false;
+  }
+  return true;
+}
+
 // -----------------------------------------------------------------------------
 // Phase 25.5 — Step-up gate driven by workspace governance flags.
 //
@@ -1357,6 +1408,11 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const ctx = await requireReviewerActor(req, reply, body.teamId);
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
+      // Phase R5 — bulk requires the granular `review.bulk` capability
+      // (see requireReviewerBulkCapable / finding F38). Closes the
+      // bulk-ASSIGN privilege-escalation bypass and aligns authority with
+      // the single-assign route + the reviewer-workspace bulk surface.
+      if (!(await requireReviewerBulkCapable(ctx, reply))) return;
       // Phase 26.75 — adaptive runtime gate.
       const gateBulk = await runtimeAdaptiveGate({
         req,

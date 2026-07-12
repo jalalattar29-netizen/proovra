@@ -111,7 +111,7 @@ type ReadinessOverview = {
 
 export default function OperationsRecoveryPage() {
   return (
-    <PageRouteGate routeId="workspace.security_center">
+    <PageRouteGate routeId="operations.recovery">
       <OperationsRecoveryContent />
     </PageRouteGate>
   );

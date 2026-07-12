@@ -63,7 +63,7 @@ export function buildReviewAlerts(
     alerts.push({
       severity: "operational",
       label: "Verification package unavailable",
-      detail: "Offline verification materials are not currently available from the detail endpoints.",
+      detail: "Verification package materials are not currently available from the detail endpoints.",
     });
   }
 

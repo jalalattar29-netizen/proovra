@@ -477,7 +477,7 @@ describe("Phase 32.8C — old /dashboard surface disposition", () => {
   });
 
   it("/dashboard/quotas remains accessible (real billing-aware functionality — Phase 32.8D will migrate)", () => {
-    const quotas = readWeb("app/(app)/dashboard/quotas/page.tsx");
+    const quotas = readWeb("app/(app)/operations/quotas/page.tsx");
     expect(quotas).not.toMatch(
       /^import\s*\{\s*redirect\s*\}\s*from\s*"next\/navigation"/m,
     );
@@ -491,7 +491,7 @@ describe("Phase 32.8C — old /dashboard surface disposition", () => {
   });
 
   it("/dashboard/batch-analysis remains accessible (real evidence batching — Phase 32.8D will fold into evidence flows)", () => {
-    const batch = readWeb("app/(app)/dashboard/batch-analysis/page.tsx");
+    const batch = readWeb("app/(app)/operations/batch-analysis/page.tsx");
     expect(batch).not.toMatch(
       /^import\s*\{\s*redirect\s*\}\s*from\s*"next\/navigation"/m,
     );
@@ -508,7 +508,7 @@ describe("Phase 32.8C — old /dashboard surface disposition", () => {
     // every discovery surface — never sidebar-eligible, command-palette,
     // or All Tools. Assert each entry declares all three visibility flags
     // false so it can never leak into navigation.
-    for (const href of ["/dashboard/quotas", "/dashboard/batch-analysis"]) {
+    for (const href of ["/operations/quotas", "/operations/batch-analysis"]) {
       const idx = NAV_CONFIG.indexOf(`href: "${href}"`);
       expect(idx, `routeRegistry missing entry for ${href}`).toBeGreaterThan(-1);
       // Slice from this entry's href to the end of its object literal.

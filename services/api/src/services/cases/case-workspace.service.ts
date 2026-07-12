@@ -441,9 +441,13 @@ export async function buildCaseWorkspace(input: {
       pendingReviewCount,
       openEscalationsCount,
     ] = await Promise.all([
-      prisma.evidence.count({ where: { caseId: input.caseId } }),
+      // Phase R9 (F22) — exclude soft-deleted evidence from case counts.
+      // A trashed evidence row keeps its legacy `caseId`, so without the
+      // `deletedAt: null` filter these counts (and the linked list below)
+      // reported deleted evidence as still linked to the case.
+      prisma.evidence.count({ where: { caseId: input.caseId, deletedAt: null } }),
       prisma.evidence.count({
-        where: { caseId: input.caseId, createdAt: { gte: since7d } },
+        where: { caseId: input.caseId, deletedAt: null, createdAt: { gte: since7d } },
       }),
       prisma.caseLegalHold.count({
         where: { caseId: input.caseId, status: "ACTIVE" },
@@ -489,7 +493,9 @@ export async function buildCaseWorkspace(input: {
   };
   try {
     const items = await prisma.evidence.findMany({
-      where: { caseId: input.caseId },
+      // Phase R9 (F22) — soft-deleted evidence must not appear in the case
+      // workspace linked-evidence list.
+      where: { caseId: input.caseId, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: CASE_EVIDENCE_LIMIT,
       select: {
@@ -710,7 +716,8 @@ export async function buildCaseWorkspace(input: {
     // evidence.createdAt is the closest real signal. The timeline label
     // is honest about this ("linked / created").
     const linked = await prisma.evidence.findMany({
-      where: { caseId: input.caseId },
+      // Phase R9 (F22) — exclude soft-deleted evidence from the case timeline.
+      where: { caseId: input.caseId, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: CASE_TIMELINE_LIMIT,
       select: { id: true, title: true, createdAt: true },

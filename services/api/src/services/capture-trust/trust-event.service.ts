@@ -183,7 +183,7 @@ function buildTrustEventHash(input: {
 }): string {
   // Bounded canonical line for the hash — every field deterministically
   // serialised. We keep this simple (sorted keys via JSON.stringify with
-  // a stable replacer) so the offline verifier can re-derive.
+  // a stable replacer) so downstream tooling can re-derive.
   const payloadKeys = Object.keys(input.payload).sort();
   const sortedPayload: Record<string, unknown> = {};
   for (const k of payloadKeys) sortedPayload[k] = input.payload[k];

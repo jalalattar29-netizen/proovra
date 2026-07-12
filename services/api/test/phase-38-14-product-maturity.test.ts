@@ -184,10 +184,10 @@ describe("Phase 38.14 — dashboard subroute migrations", () => {
   // registry entries removed). The next.config.js redirect from
   // /dashboard/insights → /home preserves back-compat.
   const NEW_ROUTES: Array<{ id: string; href: string }> = [
-    { id: "dashboard.quotas", href: "/dashboard/quotas" },
+    { id: "dashboard.quotas", href: "/operations/quotas" },
     {
       id: "dashboard.batch_analysis",
-      href: "/dashboard/batch-analysis",
+      href: "/operations/batch-analysis",
     },
   ];
 
@@ -224,11 +224,11 @@ describe("Phase 38.14 — dashboard subroute migrations", () => {
   // Phase 6 cleanup — dashboard.insights entry removed; page deleted.
   const MIGRATIONS: Array<{ page: string; routeId: string }> = [
     {
-      page: "app/(app)/dashboard/quotas/page.tsx",
+      page: "app/(app)/operations/quotas/page.tsx",
       routeId: "dashboard.quotas",
     },
     {
-      page: "app/(app)/dashboard/batch-analysis/page.tsx",
+      page: "app/(app)/operations/batch-analysis/page.tsx",
       routeId: "dashboard.batch_analysis",
     },
   ];
@@ -308,9 +308,9 @@ describe("Phase 38.14 — cumulative <PageRouteGate> adoption", () => {
       // Phase Final-A3-PT2 (route id removed, URL redirects to the
       // canonical `/integrations`). The remaining three dashboard
       // subroutes are still PageRouteGate-wrapped.
-      "app/(app)/dashboard/quotas/page.tsx",
+      "app/(app)/operations/quotas/page.tsx",
       // Phase 6 cleanup — `dashboard/insights/page.tsx` deleted.
-      "app/(app)/dashboard/batch-analysis/page.tsx",
+      "app/(app)/operations/batch-analysis/page.tsx",
       // Final Closure Remediation Part A — new PageRouteGate adoptions
       // added this session to compensate for the deleted `api-keys`
       // page so the cumulative tally still clears the ≥ 44 threshold
@@ -345,9 +345,9 @@ describe("Phase 38.14 — copy safety locks (positive overclaim ban)", () => {
     "app/(app)/capture/_lib/CaptureReadinessPanel.tsx",
     "components/reviewer-experience/ReviewerCommandConsole.tsx",
     "app/(app)/integrations/page.tsx",
-    "app/(app)/dashboard/quotas/page.tsx",
+    "app/(app)/operations/quotas/page.tsx",
     // Phase 6 cleanup — dashboard/insights/page.tsx deleted.
-    "app/(app)/dashboard/batch-analysis/page.tsx",
+    "app/(app)/operations/batch-analysis/page.tsx",
   ];
 
   // Positive-claim patterns (disclaimers excluded).

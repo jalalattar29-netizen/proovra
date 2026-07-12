@@ -29,7 +29,6 @@ const BLOCKED_PREFIXES: ReadonlyArray<string> = [
   "/portal",
   "/auth",
   "/invite",
-  "/offline-verifier",
   "/admin",
   "/home",
   "/capture",

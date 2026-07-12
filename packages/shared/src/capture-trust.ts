@@ -3,7 +3,7 @@
  *
  * The single source of truth for the Mobile Capture Trust Platform's
  * cross-runtime vocabulary. Shared between api, worker, web, mobile,
- * and the offline verifier so every surface mechanically interprets
+ * and downstream tooling so every surface mechanically interprets
  * capture trust state identically.
  *
  * What this is:

@@ -377,8 +377,8 @@ async function buildSiuExportBundleInner(
     totals: summary.totals,
   });
   appendText(
-    "verification/offline-verification.md",
-    buildOfflineVerificationGuidance(),
+    "verification/independent-verification.md",
+    buildIndependentVerificationGuidance(),
     "text/markdown",
   );
   appendText(
@@ -751,16 +751,16 @@ function buildBoundedExportNote(
   }
 }
 
-function buildOfflineVerificationGuidance(): string {
+function buildIndependentVerificationGuidance(): string {
   return [
-    "# Offline verification — SIU export bundle",
+    "# Verification — SIU export bundle",
     "",
     "This bundle contains a bounded summary of an insurance SIU investigation",
     "conducted inside PROOVRA. The Verification Package for each evidence",
     "record is bundled at `verification/<evidence-id>/verification-package.zip`",
-    "and can be independently verified with PROOVRA's offline verifier",
-    "(`npx @proovra/offline-verifier <package.zip>`) or the public browser mount",
-    "at `<deployment>/offline-verifier`.",
+    "and can be independently checked against its `package-checksums.json` and",
+    "`package-manifest.sig` with standard tooling. For live integrity and",
+    "current-trust status, open the PROOVRA Public Verify page for the record.",
     "",
     "## What this bundle is not",
     "",
@@ -814,7 +814,7 @@ function buildBundleReadme(
     "- `custody-audit-summary.json` — bounded aggregate counts",
     "- `reports/<evidence-id>/report.pdf` — Report PDF when available",
     "- `verification/<evidence-id>/verification-package.zip` — Verification Package when available",
-    "- `verification/offline-verification.md` — offline-verification guidance",
+    "- `verification/independent-verification.md` — independent-verification guidance",
     "- `manifest.json` + `manifest.sha256` — file inventory + canonical manifest hash",
     "",
     "## What this bundle is not",

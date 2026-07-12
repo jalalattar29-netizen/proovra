@@ -2,7 +2,7 @@
  * PROOVRA Phase 1B Closure — cross-runtime canonical-JSON serialiser.
  *
  * SINGLE source of truth for canonical-JSON. Mobile (React Native +
- * Expo), API (Node), Web (browser), and the offline verifier import
+ * Expo), API (Node), Web (browser), and downstream tooling import
  * THIS module so the bytes the device signs are exactly the bytes
  * the server verifies, regardless of platform JSON differences.
  *

@@ -207,7 +207,8 @@ describe("Phase 1A — server-side pillar projection", () => {
 describe("Phase 1A — Trust pillar surface", () => {
   it("workspace.trust is registered in the route registry", () => {
     expect(ROUTE_REGISTRY).toMatch(/id:\s*"workspace\.trust"/);
-    expect(ROUTE_REGISTRY).toMatch(/href:\s*"\/trust"/);
+    // Phase R7.3 (F17) — authenticated Trust nav points at /trust-hub.
+    expect(ROUTE_REGISTRY).toMatch(/href:\s*"\/trust-hub"/);
     expect(ROUTE_REGISTRY).toMatch(
       /workspace\.trust[\s\S]*?sidebarEligible:\s*true/,
     );

@@ -631,7 +631,7 @@ function envValue(name: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Offline-verification README
+// Package attestation README
 // ---------------------------------------------------------------------------
 
 function buildVerificationReadme(): string {

@@ -7,7 +7,7 @@
 
 ## 1. Why this file exists
 
-Before M1.1, the Verification Package referenced the signer's public material indirectly through `signers/signer-registry-snapshot.json` but did not bundle the actual public key bytes. That meant an offline reviewer could verify package integrity (hash chain, manifest signature) but could NOT independently verify the custody attestation signatures inside the package without contacting the live PROOVRA deployment.
+Before M1.1, the Verification Package referenced the signer's public material indirectly through `signers/signer-registry-snapshot.json` but did not bundle the actual public key bytes. That meant an independent reviewer could verify package integrity (hash chain, manifest signature) but could NOT independently verify the custody attestation signatures inside the package without contacting the live PROOVRA deployment.
 
 M1.1 closes that gap by embedding **bounded public verification material** at package generation time:
 
@@ -54,7 +54,7 @@ The file is **never** authoritative for current trust. It is a frozen snapshot �
   },
   "revocationAwareness": {
     "checkedAtGenerationTime": false,
-    "note": "Offline verifier consumers must treat current revocation status as unknown."
+    "note": "Consumers must treat current revocation status as unknown."
   }
 }
 ```
@@ -71,11 +71,11 @@ Every enum is bounded. Free-form strings appear only in the `statement` and `not
 4. **Appended before checksums.** The file is appended to the ZIP before `package-checksums.json` so its SHA-256 is recorded by the checksum step.
 5. **OpenTelemetry span.** Wrapped in `proovra.package.historical_material.generate` with bounded attributes; no key material is logged.
 
-## 4. Verifier contract
+## 4. Consumer contract
 
-`packages/offline-verifier/src/verifier-core.ts` reads the file via the `historicalMaterial` path entry. The verifier:
+Independent consumers read the file via the `historicalMaterial` path entry and:
 
-- Reports `historicalVerification.status` as one of:
+- Classify `historicalVerification.status` as one of:
   - `verified` — every bundled entry has type ≠ `unsupported`.
   - `partial` — some entries are `unsupported`; warning `HISTORICAL_VERIFICATION_PARTIAL_COVERAGE` raised.
   - `unsupported` — every entry is `unsupported`; warning `HISTORICAL_VERIFICATION_UNSUPPORTED_ALGORITHM` raised.
@@ -101,11 +101,9 @@ This file makes none of the following claims and consumers must not infer them:
 
 ## 6. Backward compatibility
 
-Packages generated before M1.1 do not contain this file. The offline verifier reports `historicalVerification.status = "missing"` and surfaces `HISTORICAL_VERIFICATION_MATERIAL_MISSING` as a warning — never as a failure. Old packages remain fully verifiable.
+Packages generated before M1.1 do not contain this file. Consumers observe `historicalVerification.status = "missing"` and surface `HISTORICAL_VERIFICATION_MATERIAL_MISSING` — never as a failure. Old packages remain fully verifiable.
 
 ## 7. Related documents
 
-- `docs/verification/offline-verifier.md` — overall verifier surface description.
-- `docs/verification/offline-verification-result-schema.md` — full bounded result schema (including the new fields).
 - `docs/security/signer-governance.md` — current-trust API and rotation/revocation operational guidance.
 - `docs/verification/phase-m1-1-convergence-closure.md` — closure report for Phase M1.1.

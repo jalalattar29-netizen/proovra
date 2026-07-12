@@ -15,7 +15,7 @@ follow-ups.json
 integrity-provenance-summary.json
 custody-audit-summary.json
 verification/
-  offline-verification.md
+  independent-verification.md
 manifest.json
 README.md
 ```
@@ -109,9 +109,9 @@ Bounded inventory of the evidence rows included in the bundle. The per-evidence 
 
 Aggregate bounded counts mirrored from the preflight totals. Per-evidence custody events are bundled inside each evidence's Verification Package.
 
-## 10. `verification/offline-verification.md`
+## 10. `verification/independent-verification.md`
 
-Operator-readable guidance pointing the recipient at the PROOVRA offline verifier (`npx @proovra/offline-verifier <package.zip>` or `<deployment>/offline-verifier`). Restates the standing limitations.
+Operator-readable guidance for independently checking each bundled Verification Package against its `package-checksums.json` (SHA-256) and `package-manifest.sig` with standard tooling, and reviewing live integrity/current-trust status on the PROOVRA Public Verify page. Restates the standing limitations.
 
 ## 11. `manifest.json`
 

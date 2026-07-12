@@ -45,9 +45,7 @@ const SENSITIVE_ROUTE_PREFIXES: ReadonlyArray<{ prefix: string; safe: string }> 
     { prefix: "/auth/callback", safe: "/auth/callback/[redacted]" },
   ];
 
-const FULLY_REDACTED_ROUTE_PREFIXES: ReadonlyArray<string> = [
-  "/offline-verifier",
-];
+const FULLY_REDACTED_ROUTE_PREFIXES: ReadonlyArray<string> = [];
 
 /**
  * Returns true if the path belongs to a route family that handles
@@ -232,8 +230,7 @@ export function classifyRouteClass(
     p.startsWith("/v/") ||
     p.startsWith("/share") ||
     p.startsWith("/intake") ||
-    p.startsWith("/portal") ||
-    p.startsWith("/offline-verifier")
+    p.startsWith("/portal")
   ) {
     return "public-sensitive";
   }

@@ -641,7 +641,10 @@ async function runEvidenceBoard(
   }
   try {
     const items = await prisma.evidence.findMany({
-      where: { id: { in: evidenceIds } },
+      // Phase R9 (F22) — a CaseEvidenceLink (or legacy caseId) can point at
+      // a soft-deleted evidence row; exclude it from the matter evidence
+      // board so deleted evidence never renders as linked.
+      where: { id: { in: evidenceIds }, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: SECTION_EVIDENCE_LIMIT,
       select: {

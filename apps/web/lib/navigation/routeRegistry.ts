@@ -890,7 +890,12 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // removed so cmd-K + "all tools" no longer surface it.
   {
     id: "dashboard.quotas",
-    href: "/dashboard/quotas",
+    // Phase R7.5 — canonical URL is /operations/quotas (the live page moved
+    // here from /dashboard/quotas, removing the re-export inversion). The
+    // legacy /dashboard/quotas URL now 308-redirects (next.config.js). Gate
+    // stays PERSONAL_WORKSPACE/DASHBOARD_VIEW: this is a self-service quota
+    // view, NOT a platform-admin tool.
+    href: "/operations/quotas",
     label: "Quotas & usage",
     description: "Account quotas, usage breakdown, and reset windows.",
     domain: "PERSONAL_WORKSPACE",
@@ -899,12 +904,11 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "DEGRADED",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
-    // Phase 1 (frontend consolidation) — the page DOES exist
-    // (app/(app)/dashboard/quotas/page.tsx, a live quota console). The
-    // prior "page does not exist" comment was stale. It is kept out of all
-    // nav surfaces pending the /dashboard ↔ /operations canonical-location
-    // decision (Constitution Phase 3); it is PROFESSIONAL-tier so FREE
-    // users never see it regardless. Do not flip visibility until the
+    // Phase R7.5 — canonical location RESOLVED: the live quota console now
+    // lives at app/(app)/operations/quotas/page.tsx (moved from /dashboard/
+    // quotas; the /dashboard URL 308-redirects). Kept out of all nav
+    // surfaces (self-service, reached contextually); PROFESSIONAL-tier so
+    // FREE users never see it regardless. Do not flip visibility until the
     // canonical URL is chosen, to avoid churn.
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -920,7 +924,10 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // phase-ia-route-authz-hardening test for the contract pin.
   {
     id: "dashboard.batch_analysis",
-    href: "/dashboard/batch-analysis",
+    // Phase R7.5 — canonical URL is /operations/batch-analysis (live page
+    // moved here from /dashboard/batch-analysis; inversion removed; legacy
+    // URL 308-redirects). Gate stays PERSONAL_WORKSPACE — self-service view.
+    href: "/operations/batch-analysis",
     label: "Batch analysis",
     description: "Batch processing jobs and queue status.",
     domain: "PERSONAL_WORKSPACE",
@@ -929,11 +936,10 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     fallbackBehavior: "DEGRADED",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,
-    // Phase 1 (frontend consolidation) — the page DOES exist
-    // (app/(app)/dashboard/batch-analysis/page.tsx, a live batch console).
-    // The prior "page does not exist" comment was stale. Kept out of nav
-    // pending the /dashboard ↔ /operations canonical-location decision
-    // (Constitution Phase 3); PROFESSIONAL-tier so FREE users never see it.
+    // Phase R7.5 — canonical location RESOLVED: the live batch console now
+    // lives at app/(app)/operations/batch-analysis/page.tsx (moved from
+    // /dashboard/batch-analysis; the /dashboard URL 308-redirects). Kept out
+    // of nav (self-service); PROFESSIONAL-tier so FREE users never see it.
     commandPaletteVisible: false,
     allToolsVisible: false,
     sidebarEligible: false,
@@ -1585,14 +1591,19 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // ---------------------------------------------------------------------------
   // Phase 1A — Trust pillar surface. Canonical id `workspace.trust` points
   // at the real Trust hub page (apps/web/app/(app)/trust-hub/page.tsx) which
-  // composes verification methodology, public-verify, offline verifier,
+  // composes verification methodology, public-verify,
   // signers, subprocessors, privacy + retention surfaces.
   // The in-app hub URL is `/trust-hub` (relocated from `/trust` so the
   // top-level `/trust` URL can serve the public-facing Trust Center).
   // ---------------------------------------------------------------------------
   {
     id: "workspace.trust",
-    href: "/trust",
+    // Phase R7.3 (F17) — corrected from "/trust" (the PUBLIC marketing Trust
+    // Center) to "/trust-hub" (the authenticated in-app hub this id has
+    // always described, per the comment above). The sidebar + command
+    // palette navigate to `route.href`, so the old value silently sent
+    // authenticated users OUT of the app to the public page.
+    href: "/trust-hub",
     label: "Trust Center",
     description:
       "Canonical trust center hub — methodology, verification, security, disclosures, signers, subprocessors, privacy.",
@@ -2185,6 +2196,66 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     commandPaletteVisible: true,
     allToolsVisible: true,
     sidebarEligible: true,
+  },
+  {
+    // Phase R2 — dedicated PLATFORM_ADMIN gate for the signer-operations
+    // surface. Previously `/operations/signers` used the WRONG routeId
+    // (`workspace.security_center` → OPS-tier PERSONAL_OR_ORG), which let
+    // any org member with SECURITY_CENTER_VIEW satisfy the client gate.
+    // These are platform-admin operator tools (rule 9). Discovery flags
+    // are OFF: the surface is reached from the Operations Center / Trust
+    // Hub, not primary nav — R2 corrects the gate without changing the
+    // nav surface.
+    id: "operations.signers",
+    href: "/operations/signers",
+    label: "Signer operations",
+    description:
+      "Evidence-signing key custody and signer health (platform-admin only).",
+    domain: "OPS",
+    requiredCapabilities: ["OPS_CENTER_VIEW"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+  {
+    // Phase R2 — dedicated PLATFORM_ADMIN gate for the exports surface.
+    // See `operations.signers` for the routeId-correction rationale.
+    id: "operations.exports",
+    href: "/operations/exports",
+    label: "Evidence exports",
+    description:
+      "Operator export jobs and delivery status (platform-admin only).",
+    domain: "OPS",
+    requiredCapabilities: ["OPS_CENTER_VIEW"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+  {
+    // Phase R2 — dedicated PLATFORM_ADMIN gate for the recovery surface.
+    // See `operations.signers` for the routeId-correction rationale.
+    id: "operations.recovery",
+    href: "/operations/recovery",
+    label: "Recovery operations",
+    description:
+      "Disaster-recovery validation and restore posture (platform-admin only).",
+    domain: "OPS",
+    requiredCapabilities: ["OPS_CENTER_VIEW"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
   },
   {
     id: "account.organization_admin_security",

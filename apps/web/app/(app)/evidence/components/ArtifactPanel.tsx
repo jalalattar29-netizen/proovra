@@ -87,7 +87,7 @@ export function ArtifactPanel({
           </p>
           {/* Phase A2 — package manifest signature badge. Distinct
               from PDF signature; the package is verified via the
-              Ed25519 manifest signature + offline_verifier.html in
+              Ed25519 manifest signature in
               the ZIP, independent of any PDF artifact signature. */}
           {detail.verificationPackage?.manifestSignature ? (
             detail.verificationPackage.manifestSignature.status === "SIGNED" ? (

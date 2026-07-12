@@ -131,7 +131,7 @@ describe("Phase P3.1.1 — Builder integration (additive)", () => {
 
   it("calls collectVerificationPackageAttestations BEFORE the append of package-checksums.json", () => {
     // The literal `"package-checksums.json"` appears in several places
-    // in this builder (offline verifier script content, README,
+    // in this builder (README,
     // governance documents). The actual `appendPackageEntry` call for
     // the checksums file is the LAST occurrence — use lastIndexOf.
     const collectIdx = builder.indexOf(

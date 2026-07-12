@@ -59,6 +59,7 @@ import { logger } from "../logger.js";
 import { prisma } from "../db.js";
 import { runGovernanceReconciliation } from "./reconciliation-run.js";
 import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
+import { hasActiveLifecycleLegalHold } from "./lifecycle-legal-hold.js";
 
 const DEFAULT_BATCH_SIZE = 50;
 const MAX_BATCH_SIZE = 200;
@@ -400,6 +401,7 @@ async function gatherDestructionFacts(
     where: { id: evidenceId },
     select: {
       lifecycleState: true,
+      teamId: true,
       caseId: true,
       retentionPolicyVersionId: true,
     },
@@ -410,6 +412,17 @@ async function gatherDestructionFacts(
   const directHold = await prisma.evidenceLegalHold.findFirst({
     where: { evidenceId, status: prismaPkg.LegalHoldStatus.ACTIVE },
     select: { id: true },
+  });
+
+  // Phase R6 (F39) — also honour a Phase-4B `LegalHold` (EVIDENCE/WORKSPACE/
+  // ORGANIZATION/CASE scope) placed via the live `/lifecycle/legal-holds` UI.
+  // That surface never writes an EvidenceLegalHold row, so without this the
+  // executor would tombstone evidence under an active 4B hold. Folded into
+  // `hasActiveDirectHold` so the existing gate blocks with reason "hold".
+  const has4BHold = await hasActiveLifecycleLegalHold(prisma, {
+    evidenceId,
+    teamId: ev?.teamId ?? null,
+    caseId: ev?.caseId ?? null,
   });
 
   let caseHold: { id: string } | null = null;
@@ -434,7 +447,7 @@ async function gatherDestructionFacts(
 
   return {
     lifecycleState,
-    hasActiveDirectHold: Boolean(directHold),
+    hasActiveDirectHold: Boolean(directHold) || has4BHold,
     hasActiveCaseHold: Boolean(caseHold),
     immutable,
   };

@@ -450,7 +450,6 @@ type PublicVerificationPackageIntegrity = {
   signedManifestPresent: boolean;
   manifestDigestPresent: boolean;
   checksumIndexPresent: boolean;
-  offlineVerifierIncluded: boolean;
   auditExportIncluded: boolean;
   custodyExportIncluded: boolean;
   accessExportIncluded: boolean;
@@ -461,7 +460,6 @@ type VerificationPackageArtifactPresence = {
   signedManifestPresent: boolean;
   manifestDigestPresent: boolean;
   checksumIndexPresent: boolean;
-  offlineVerifierIncluded: boolean;
   auditExportIncluded: boolean;
   custodyExportIncluded: boolean;
   accessExportIncluded: boolean;
@@ -471,7 +469,6 @@ const PACKAGE_ARTIFACT_FILE_NAMES = {
   packageManifest: "package-manifest.json",
   packageManifestSignature: "package-manifest.sig",
   checksumIndex: "package-checksums.json",
-  offlineVerifier: "verify-package.mjs",
   auditExport: "audit-access-report.json",
   custodyExport: "custody.json",
   accessExport: "access-activity.json",
@@ -567,7 +564,6 @@ async function inspectVerificationPackageArtifacts(
       signedManifestPresent: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.packageManifestSignature),
       manifestDigestPresent: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.packageManifestSignature),
       checksumIndexPresent: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.checksumIndex),
-      offlineVerifierIncluded: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.offlineVerifier),
       auditExportIncluded: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.auditExport),
       custodyExportIncluded: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.custodyExport),
       accessExportIncluded: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.accessExport),
@@ -593,8 +589,6 @@ function isVerificationPackageMetadata(
       candidate.signedManifestPresent === false) &&
     (candidate.checksumIndexPresent === true ||
       candidate.checksumIndexPresent === false) &&
-    (candidate.offlineVerifierIncluded === true ||
-      candidate.offlineVerifierIncluded === false) &&
     candidate.packageVersion === "v1" &&
     typeof candidate.generatedAtUtc === "string" &&
     (candidate.source === "GENERATION" ||
@@ -6520,6 +6514,19 @@ await appendCustodyEvent({
       }
     }
 
+    // Phase R1 — bulk destructive actions (TRASH / ARCHIVE) must run the
+    // SAME canonical destructive-action gate as the single-record routes
+    // (DELETE `/v1/evidence/:id`, POST `/v1/evidence/:id/archive`). The
+    // gate is the ONLY path that enforces the canonical `EvidenceLegalHold`
+    // (Phase 27 / 4A) legal-hold model; the pre-R1 bulk path only ran
+    // `assertEvidenceNotLocked` + `assertEvidenceDeletionAllowedByRetention`
+    // (object-lock retention), so team-scoped evidence under an active
+    // legal hold could be trashed/archived in bulk. The gate is imported
+    // once here (not per-record) and applied inside the switch below.
+    const { runDestructiveActionGate } = await import(
+      "../services/governance/destructive-action-gate.service.js"
+    );
+
     for (const evidenceId of uniqueIds) {
       try {
         const evidence =
@@ -6562,6 +6569,22 @@ await appendCustodyEvent({
           }
           case "ARCHIVE": {
             assertEvidenceNotLocked(evidence);
+            {
+              const gate = await runDestructiveActionGate({
+                action: "archive_evidence",
+                actorUserId: userId,
+                evidence: {
+                  id: evidence.id,
+                  teamId: evidence.teamId,
+                  retentionUntilUtc: evidence.retentionUntilUtc ?? null,
+                },
+                routeLabel: "archive",
+                req,
+              });
+              if (gate.gated) {
+                throw new Error(gate.body.code);
+              }
+            }
             const updated = await prisma.evidence.update({
               where: { id: evidenceId },
               data: { archivedAt: new Date() },
@@ -6597,6 +6620,22 @@ await appendCustodyEvent({
           case "TRASH": {
             assertEvidenceNotLocked(evidence);
             assertEvidenceDeletionAllowedByRetention(evidence);
+            {
+              const gate = await runDestructiveActionGate({
+                action: "delete_evidence",
+                actorUserId: userId,
+                evidence: {
+                  id: evidence.id,
+                  teamId: evidence.teamId,
+                  retentionUntilUtc: evidence.retentionUntilUtc ?? null,
+                },
+                routeLabel: "delete",
+                req,
+              });
+              if (gate.gated) {
+                throw new Error(gate.body.code);
+              }
+            }
             const now = new Date();
             const deleteScheduledForUtc = addDays(now, 90);
             const updated = await prisma.evidence.update({
@@ -8299,8 +8338,6 @@ await appendCustodyEvent({
               persistedVerificationPackageMetadata.signedManifestPresent,
             checksumIndexPresent:
               persistedVerificationPackageMetadata.checksumIndexPresent,
-            offlineVerifierIncluded:
-              persistedVerificationPackageMetadata.offlineVerifierIncluded,
             auditExportIncluded:
               persistedVerificationPackageMetadata.auditExportIncluded ?? false,
             custodyExportIncluded:
@@ -8328,8 +8365,6 @@ await appendCustodyEvent({
               inspectedArtifacts?.manifestDigestPresent ?? false,
             checksumIndexPresent:
               inspectedArtifacts?.checksumIndexPresent ?? false,
-            offlineVerifierIncluded:
-              inspectedArtifacts?.offlineVerifierIncluded ?? false,
             auditExportIncluded:
               inspectedArtifacts?.auditExportIncluded ?? false,
             custodyExportIncluded:
@@ -8347,7 +8382,6 @@ await appendCustodyEvent({
             signedManifestPresent: false,
             manifestDigestPresent: false,
             checksumIndexPresent: false,
-            offlineVerifierIncluded: false,
             auditExportIncluded: false,
             custodyExportIncluded: false,
             accessExportIncluded: false,
@@ -8726,8 +8760,8 @@ const timestampDigestMatches: boolean | null =
                 ? "Review the generated report together with the live record state."
                 : "Generate a report when a fixed reviewer snapshot is required.",
               latestVerificationPackage
-                ? "Download the verification package for offline review if needed."
-                : "Generate a verification package when offline review is required.",
+                ? "Download the verification package for independent review if needed."
+                : "Generate a verification package when independent review is required.",
             ],
           };
 
@@ -11375,8 +11409,6 @@ if (persistedVerificationPackageMetadata) {
       persistedVerificationPackageMetadata.signedManifestPresent,
     checksumIndexPresent:
       persistedVerificationPackageMetadata.checksumIndexPresent,
-    offlineVerifierIncluded:
-      persistedVerificationPackageMetadata.offlineVerifierIncluded,
     auditExportIncluded:
       persistedVerificationPackageMetadata.auditExportIncluded ?? false,
     custodyExportIncluded:
@@ -11407,8 +11439,6 @@ if (persistedVerificationPackageMetadata) {
       inspectedVerificationPackageArtifacts?.manifestDigestPresent ?? false,
     checksumIndexPresent:
       inspectedVerificationPackageArtifacts?.checksumIndexPresent ?? false,
-    offlineVerifierIncluded:
-      inspectedVerificationPackageArtifacts?.offlineVerifierIncluded ?? false,
     auditExportIncluded:
       inspectedVerificationPackageArtifacts?.auditExportIncluded ?? false,
     custodyExportIncluded:
@@ -11429,8 +11459,6 @@ if (persistedVerificationPackageMetadata) {
               inspectedVerificationPackageArtifacts.signedManifestPresent,
             checksumIndexPresent:
               inspectedVerificationPackageArtifacts.checksumIndexPresent,
-            offlineVerifierIncluded:
-              inspectedVerificationPackageArtifacts.offlineVerifierIncluded,
             auditExportIncluded:
               inspectedVerificationPackageArtifacts.auditExportIncluded,
             custodyExportIncluded:
@@ -11466,7 +11494,6 @@ if (persistedVerificationPackageMetadata) {
     signedManifestPresent: false,
     manifestDigestPresent: false,
     checksumIndexPresent: false,
-    offlineVerifierIncluded: false,
     auditExportIncluded: false,
     custodyExportIncluded: false,
     accessExportIncluded: false,

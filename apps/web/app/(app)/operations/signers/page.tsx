@@ -206,7 +206,7 @@ const PURPOSE_LABELS: Record<SignerPurpose, string> = {
 
 export default function OperationsSignersPage() {
   return (
-    <PageRouteGate routeId="workspace.security_center">
+    <PageRouteGate routeId="operations.signers">
       <OperationsSignersContent />
     </PageRouteGate>
   );

@@ -72,7 +72,6 @@ type VerificationPackageArtifactPresence = {
   manifestPresent: boolean;
   signedManifestPresent: boolean;
   checksumIndexPresent: boolean;
-  offlineVerifierIncluded: boolean;
   auditExportIncluded: boolean;
   custodyExportIncluded: boolean;
   accessExportIncluded: boolean;
@@ -129,7 +128,7 @@ type PackageManifest = {
   signingKeyVersion: string | null;
   multipart: boolean;
   // Phase D Blocker 5 — multipart hash semantics in the package manifest
-  // so the offline verifier and any downstream tool can interpret
+  // so downstream tooling can interpret
   // evidence.fileSha256 correctly without out-of-band knowledge.
   hashSemantics?: string | null;
   fileSha256Label?: string | null;
@@ -857,80 +856,6 @@ function appendPackageEntry(
   archive.append(buffer, { name });
 }
 
-/**
- * Phase M1 — text content for `OFFLINE-VERIFICATION.md` bundled at
- * the package root. Bounded; no legal claims; references the canonical
- * CLI + browser verifier.
- */
-function buildOfflineVerificationReadme(): string {
-  return [
-    "# Offline verification of this Verification Package",
-    "",
-    "This package can be verified WITHOUT logging into PROOVRA and",
-    "WITHOUT calling any PROOVRA APIs.",
-    "",
-    "## Option A — Command line (recommended)",
-    "",
-    "```",
-    "npx @proovra/offline-verifier <path-to-this-package.zip>",
-    "```",
-    "",
-    "Useful flags:",
-    "- `--json` — emit the full machine-readable result to stdout.",
-    "- `--strict` — exit non-zero when overall is `partial`.",
-    "- `--out result.json` — write the result to a file.",
-    "",
-    "Exit codes:",
-    "- `0` — overall=`verified` (or `partial` without `--strict`)",
-    "- `1` — overall=`failed`",
-    "- `2` — overall=`partial` AND `--strict`",
-    "",
-    "## Option B — Browser",
-    "",
-    "Open the static PROOVRA Offline Verifier (`apps/offline-verifier/index.html`)",
-    "in any modern browser. Select this ZIP file. Verification runs",
-    "entirely in your browser; the package is NEVER uploaded.",
-    "",
-    "## What is verified offline",
-    "",
-    "- `package-checksums.json` — every file's SHA-256 is recomputed and",
-    "  compared to the canonical index.",
-    "- `package-manifest.json` — schema sanity.",
-    "- `package-manifest.sig` — Ed25519 signature over the manifest hash",
-    "  (verified with the bundled `package-manifest-public-key.pem`).",
-    "- `custody/attestations.json` — bounded structural integrity of every",
-    "  detached custody attestation envelope.",
-    "- `signers/signer-registry-snapshot.json` — bounded shape sanity.",
-    "- `timestamp.tsr` / `opentimestamps-proof.ots` — presence and",
-    "  bounded structural sanity only.",
-    "",
-    "## What is NOT verified offline (honest limitations)",
-    "",
-    "- RFC3161 TSA signature chain — requires the issuing TSA's certificate",
-    "  chain. Use an RFC3161-capable tool with the published TSA cert.",
-    "- OpenTimestamps Bitcoin anchor — requires either the OpenTimestamps",
-    "  client (`ots verify`) and Bitcoin network access, or a calendar-server",
-    "  call.",
-    "- Custody attestation signatures — the signer's public material is",
-    "  referenced from `signers/signer-registry-snapshot.json` but is NOT",
-    "  bundled inside the package. The PROOVRA API endpoint",
-    "  `/v1/operations/custody-attestations/:id/verify` is the canonical",
-    "  verifier when bound to the live deployment.",
-    "- Embedded PDF signature — use a PDF-signing toolchain (e.g. Adobe",
-    "  Acrobat, `pdfsig`).",
-    "",
-    "## What this verifier does NOT claim",
-    "",
-    "- Legal admissibility of the package in any jurisdiction.",
-    "- Authorship or authenticity of the evidence content.",
-    "- That the underlying events occurred as described.",
-    "",
-    "All output uses bounded enum values. See",
-    "`docs/verification/offline-verification-result-schema.md` for the",
-    "complete result schema.",
-  ].join("\n");
-}
-
 function buildPackageChecksums(entries: PackageEntry[]) {
   return {
     schema: "PROOVRA_PACKAGE_CHECKSUMS",
@@ -1237,314 +1162,6 @@ async function buildCaptureContextMapPreview(
     console.warn("[verification-package] Failed to build capture map preview:", error);
     return null;
   }
-}
-
-function buildVerificationInstructions(params: {
-  evidenceFiles: Array<VerificationEvidenceFile & { finalName: string }>;
-  hasTimestampToken: boolean;
-  hasAnchor: boolean;
-  anchorStatusLabel: string;
-}) {
-  const evidencePaths =
-    params.evidenceFiles.length === 1
-      ? [params.evidenceFiles[0].finalName]
-      : params.evidenceFiles.map((file) => `evidence-parts/${file.finalName}`);
-
-  return `# PROOVRA Verification Instructions
-
-This package is designed for independent technical review.
-
-## 1. Verify package checksums
-
-Run from the extracted package root:
-
-\`\`\`bash
-node verify-package.mjs
-\`\`\`
-
-This checks every file listed in \`package-checksums.json\`.
-
-## 2. Verify evidence file SHA-256
-
-${evidencePaths
-  .map(
-    (filePath) => `\`\`\`bash
-sha256sum "${filePath}"
-\`\`\``
-  )
-  .join("\n\n")}
-
-Compare the result with:
-
-- \`original-linkage.json\`
-- \`fingerprint.json\`
-- \`package-checksums.json\`
-- the PDF report
-
-For multipart evidence, also inspect \`evidence-manifest.json\` to confirm each packaged part's
-role assignment, checklist mapping, and ordered part hash before recomputing the canonical
-multipart manifest digest.
-
-## 3. Verify package manifest digest
-
-\`\`\`bash
-sha256sum package-manifest.json
-cat package-manifest.sig
-\`\`\`
-
-The SHA-256 digest of \`package-manifest.json\` should match \`manifestSha256\` in \`package-manifest.sig\`, and \`signatureBase64\` is the Ed25519 signature over that digest.
-
-## 4. Verify signature material
-
-The package includes:
-
-- \`fingerprint.json\`
-- \`signature.txt\`
-- \`public-key.pem\`
-
-The signature is generated against PROOVRA fingerprint material. \`fingerprint.json\` is the raw canonical technical record and is IMMUTABLE — it is hashed into the signature and must not be altered. Its \`type\` field (e.g. \`DOCUMENT\`) is a low-level canonical enum fixed at capture time; for a mixed-media set it stays \`DOCUMENT\` by design and is NOT the reviewer-facing evidence classification. For the reviewer-facing classification (e.g. "Mixed media package") read \`reviewerEvidenceTypeLabel\` in \`canonical-record.json\`, the "Evidence Structure" row in the report, or \`case-metadata.json\` / \`original-linkage.json\`. Depending on the exact signing mode, independent verification may require the platform canonicalization rule or a verifier matched to the production signing scheme.
-
-## 5. Verify timestamp material
-
-${
-  params.hasTimestampToken
-    ? `\`timestamp.tsr\` is included as RFC 3161 DER-encoded timestamp data. Example:
-
-\`\`\`bash
-openssl ts -reply -in timestamp.tsr -text
-\`\`\`
-
-Use it together with the original digest and TSA certificate chain available from the timestamp provider.`
-    : `No \`timestamp.tsr\` is included. Review \`trust-decision.json\`, \`integrity-summary.json\`, and the PDF timestamp section for the timestamp status.`
-}
-
-## 6. Verify anchoring material
-
-${
-  params.hasAnchor
-    ? `\`anchor.json\` is included. Status: ${params.anchorStatusLabel}. Review its anchor hash, OpenTimestamps proof, Bitcoin transaction ID when present, and verification endpoint. If Bitcoin anchoring has not finalized, the Bitcoin transaction ID is not present yet.`
-    : `No \`anchor.json\` is included. Status: ${params.anchorStatusLabel}. Recheck anchoring on the verification page if independent Bitcoin anchoring is required.`
-}
-
-## 7. Review custody and access
-
-- \`custody.json\`: complete custody event chain included in the package.
-- \`forensic-custody.json\`: integrity-relevant custody events.
-- \`access-activity.json\`: package access snapshot at generation time.
-- \`audit-access-report.json\`: reviewer-friendly access/audit summary.
-
-Package access snapshot at generation may show zero events even when later live access activity appears on the verification page after reviewers open, download, or verify materials.
-
-## 8. Review capture context, if present
-
-- \`capture-context.json\`: signed device/browser-reported capture-location context.
-- \`map-preview.png\`: deterministic reviewer-facing location preview derived from the signed capture context.
-
-## Legal boundary
-
-This package supports technical integrity review only. It does not independently prove factual truth, authorship, legal admissibility, relevance, intent, or evidentiary weight.
-`;
-}
-
-function buildVerifyPackageScript() {
-  return [
-    "#!/usr/bin/env node",
-    'import { createHash, verify } from "node:crypto";',
-    'import { readFileSync, existsSync } from "node:fs";',
-    "",
-    "function sha256(filePath) {",
-    '  return createHash("sha256").update(readFileSync(filePath)).digest("hex");',
-    "}",
-    "",
-    "function fail(message) {",
-    '  console.error("FAIL:", message);',
-    "  process.exitCode = 1;",
-    "}",
-    "",
-    "// ------------------------------",
-    "// 1. CHECKSUM VALIDATION",
-    "// ------------------------------",
-    'const checksumsPath = "package-checksums.json";',
-    "",
-    "if (!existsSync(checksumsPath)) {",
-    '  fail("package-checksums.json not found.");',
-    "  process.exit();",
-    "}",
-    "",
-    'const checksums = JSON.parse(readFileSync(checksumsPath, "utf8"));',
-    "const files = Array.isArray(checksums.files) ? checksums.files : [];",
-    "",
-    "let checked = 0;",
-    "",
-    "for (const item of files) {",
-    '  if (!item || typeof item.path !== "string") continue;',
-    "",
-    '  if (item.path === "package-checksums.json") continue;',
-    "",
-    "  if (!existsSync(item.path)) {",
-    '    fail("Missing file: " + item.path);',
-    "    continue;",
-    "  }",
-    "",
-    "  const actual = sha256(item.path);",
-    "  checked++;",
-    "",
-    "  if (actual !== item.sha256) {",
-    '    fail("Checksum mismatch: " + item.path);',
-    "  }",
-    "}",
-    "",
-    'console.log("✔ Checksums OK:", checked, "files");',
-    "",
-    "// ------------------------------",
-    "// 2. MANIFEST SIGNATURE VERIFY",
-    "// ------------------------------",
-    "",
-    'const manifestPath = "package-manifest.json";',
-    'const sigPath = "package-manifest.sig";',
-    'const pubKeyPath = "package-manifest-public-key.pem";',
-    "",
-    "if (!existsSync(manifestPath) || !existsSync(sigPath) || !existsSync(pubKeyPath)) {",
-    '  fail("Missing manifest signature files");',
-    "  process.exit();",
-    "}",
-    "",
-    "const manifestBuffer = readFileSync(manifestPath);",
-    "const manifestSha256 = createHash('sha256').update(manifestBuffer).digest();",
-    "",
-    'const sigJson = JSON.parse(readFileSync(sigPath, "utf8"));',
-    "const signature = Buffer.from(sigJson.signatureBase64, 'base64');",
-    "",
-    "const publicKey = readFileSync(pubKeyPath);",
-    "",
-    "const verified = verify(null, manifestSha256, publicKey, signature);",
-    "",
-    "if (!verified) {",
-    '  fail("Manifest signature INVALID");',
-    "} else {",
-    '  console.log("✔ Manifest signature VALID");',
-    "}",
-    "",
-    "// ------------------------------",
-    "// 3. OPTIONAL MATERIAL STATUS",
-    "// ------------------------------",
-    "",
-    'if (existsSync("timestamp.tsr")) {',
-    '  console.log("ℹ RFC3161 TOKEN PRESENT");',
-    "} else {",
-    '  console.log("ℹ RFC3161 TOKEN NOT INCLUDED");',
-    "}",
-    "",
-    'if (existsSync("anchor.json")) {',
-    '  const anchor = JSON.parse(readFileSync("anchor.json", "utf8"));',
-    '  const anchorStatus = String(anchor.status || "").trim().toLowerCase();',
-    '  const anchorBitcoinTxid = typeof anchor.transactionId === "string" ? anchor.transactionId : typeof anchor.bitcoinTxid === "string" ? anchor.bitcoinTxid : "";',
-    '  const anchorHasValidBitcoinTxid = /^[a-f0-9]{64}$/i.test(String(anchorBitcoinTxid).trim());',
-    '  const anchorLabel = anchorStatus === "bitcoin_anchoring_pending"',
-    '    ? "OTS PROOF PRESENT - BITCOIN ANCHORING PENDING"',
-    '    : anchorStatus === "anchored"',
-    '      ? anchorHasValidBitcoinTxid ? "BITCOIN ANCHORING VERIFIED" : "OTS PROOF PRESENT - BITCOIN ANCHORING PENDING"',
-    '      : anchorStatus === "failed"',
-    '        ? "OPENTIMESTAMPS ANCHORING FAILED"',
-    '        : anchorStatus === "not_configured"',
-    '          ? "ANCHORING NOT RECORDED"',
-    '          : String(anchor.statusLabel || "ANCHOR STATUS RECORDED").toUpperCase();',
-    '  console.log("ℹ " + anchorLabel);',
-    "} else {",
-    '  let manifestAnchorMode = "";',
-    '  if (existsSync(manifestPath)) {',
-    '    const manifestJson = JSON.parse(readFileSync(manifestPath, "utf8"));',
-    '    manifestAnchorMode = String(manifestJson.anchorMode || "").trim().toLowerCase();',
-    "  }",
-    '  if (manifestAnchorMode === "bitcoin_anchoring_pending") {',
-    '    console.log("ℹ OTS PROOF PRESENT - BITCOIN ANCHORING PENDING");',
-    '  } else if (manifestAnchorMode === "not_configured") {',
-    '    console.log("ℹ ANCHORING NOT RECORDED");',
-    '  } else {',
-    '    console.log("ℹ ANCHORING MATERIAL NOT INCLUDED");',
-    "  }",
-    "}",
-    "",
-    "// ------------------------------",
-    "// 4. MULTIPART HASH SEMANTICS (Phase D Blocker 5)",
-    "// ------------------------------",
-    "",
-    "if (existsSync(manifestPath)) {",
-    '  const manifestJson = JSON.parse(readFileSync(manifestPath, "utf8"));',
-    '  const hashSemantics = String(manifestJson.hashSemantics || "single_file");',
-    '  const fileSha256Label = String(manifestJson.fileSha256Label || "");',
-    '  const claimedManifestDigest = manifestJson.multipartManifestSha256;',
-    '  console.log("ℹ HASH SEMANTICS: " + hashSemantics);',
-    '  if (fileSha256Label) console.log("  - " + fileSha256Label);',
-    '  if (hashSemantics === "multipart_composite") {',
-    '    if (typeof claimedManifestDigest === "string" && /^[a-f0-9]{64}$/i.test(claimedManifestDigest)) {',
-    '      const evidenceManifestPath = "evidence-manifest.json";',
-    '      if (!existsSync(evidenceManifestPath)) {',
-    '        fail("Multipart verification requires evidence-manifest.json");',
-    '      }',
-    '      const evidenceManifest = existsSync(evidenceManifestPath)',
-    '        ? JSON.parse(readFileSync(evidenceManifestPath, "utf8"))',
-    '        : null;',
-    '      const manifestFiles = Array.isArray(evidenceManifest?.files) ? evidenceManifest.files : [];',
-    '      const partFiles = manifestFiles',
-    '        .filter((file) => file && typeof file.packagePath === "string" && typeof file.sha256 === "string")',
-    '        .map((file, index) => ({',
-    '          partIndex: Number.isFinite(Number(file.partIndex)) ? Number(file.partIndex) : index + 1,',
-    '          packagePath: String(file.packagePath),',
-    '          claimedSha256: String(file.sha256).toLowerCase(),',
-    '        }))',
-    '        .sort((a, b) => a.partIndex - b.partIndex);',
-    '      if (partFiles.length > 1) {',
-    '        for (const part of partFiles) {',
-    '          const checksumEntry = files.find((item) => item && item.path === part.packagePath);',
-    '          if (!checksumEntry || typeof checksumEntry.sha256 !== "string") {',
-    '            fail("Missing checksum entry for multipart part: " + part.packagePath);',
-    '            continue;',
-    '          }',
-    '          if (!existsSync(part.packagePath)) {',
-    '            fail("Missing multipart part file: " + part.packagePath);',
-    '            continue;',
-    '          }',
-    '          const actualPartSha256 = sha256(part.packagePath);',
-    '          if (actualPartSha256 !== String(checksumEntry.sha256).toLowerCase()) {',
-    '            fail("Multipart part checksum mismatch: " + part.packagePath);',
-    '          }',
-    '          if (actualPartSha256 !== part.claimedSha256) {',
-    '            fail("Multipart manifest sha256 mismatch for part " + part.partIndex + ": " + part.packagePath);',
-    '          }',
-    '        }',
-    '        const recomputed = createHash("sha256")',
-    '          .update(partFiles.map((p) => p.claimedSha256).join("\\n"))',
-    '          .digest("hex");',
-    '        if (recomputed === claimedManifestDigest.toLowerCase()) {',
-    '          console.log("✔ multipartManifestSha256 RECOMPUTED OK (" + partFiles.length + " parts)");',
-    '        } else {',
-    '          fail("multipartManifestSha256 RECOMPUTE MISMATCH (claimed=" + claimedManifestDigest + ", recomputed=" + recomputed + ")");',
-    '        }',
-    '      } else {',
-    '        fail("multipartManifestSha256 present but multipart parts were not fully enumerable from evidence-manifest.json");',
-    '      }',
-    '    } else {',
-    '      console.log("ℹ multipartManifestSha256 not recorded in package manifest");',
-    '    }',
-    '  }',
-    "}",
-    "",
-    "// ------------------------------",
-    "// FINAL RESULT",
-    "// ------------------------------",
-    "",
-    "if (process.exitCode) process.exit();",
-    "",
-    'console.log("✅ PACKAGE FILES AND MANIFEST VERIFIED");',
-    'console.log("  - Checksums OK");',
-    'console.log("  - Manifest signature VALID");',
-    'console.log("  - Preserved package files match the signed manifest");',
-    'console.log("  - Multipart hash semantics inspected (see HASH SEMANTICS line above)");',
-    'console.log("  - This does not independently prove factual truth, authorship, legal admissibility, or completed Bitcoin anchoring");',
-    'console.log("  - Review RFC3161 timestamp, OpenTimestamps/Bitcoin anchoring, custody, and legal context separately");',
-    "",
-  ].join("\n");
 }
 
 function buildAnchorReadmeSection(params: {
@@ -2043,12 +1660,6 @@ Ed25519 signature record for package-manifest.json.
 package-checksums.json
 SHA-256 checksum manifest for packaged files.
 
-verification-instructions.md
-Executable-style verification guide with shell commands.
-
-verify-package.mjs
-Node.js script for checking package file checksums.
-
 case-metadata.json
 Case, matter, workspace, retention, and reviewer context when available.
 
@@ -2068,7 +1679,7 @@ trust-decision.json
 Enterprise trust decision summary aligned with the PDF report decision model.
 
 canonical-record.json
-Single self-describing snapshot of every canonical lifecycle material (evidence record, fingerprint, part index, custody snapshot, identity snapshot, timestamp state, storage state, OTS state with the honesty rule applied, trust decision, media intelligence snapshot, legal boundary). Schema: proovra.canonical-record/v1. Every material inside carries snapshotSemantics = "package-snapshot-only". Offline reviewers may read this single file to inspect the package-snapshot truth without re-aggregating per-artifact files.
+Single self-describing snapshot of every canonical lifecycle material (evidence record, fingerprint, part index, custody snapshot, identity snapshot, timestamp state, storage state, OTS state with the honesty rule applied, trust decision, media intelligence snapshot, legal boundary). Schema: proovra.canonical-record/v1. Every material inside carries snapshotSemantics = "package-snapshot-only". Reviewers may read this single file to inspect the package-snapshot truth without re-aggregating per-artifact files.
 
 original-linkage.json
 Links the included file(s), storage preservation details, and report artifact back to the preserved original record.
@@ -2091,9 +1702,6 @@ Structured readiness checklist describing what is present versus what still requ
 certifications/
 Templates and declarations to support custodian or qualified-person certification workflows.
 
-verify.html
-Offline explanatory page describing package contents.
-
 reports/
 ${params.hasReportArtifact ? "Includes the generated PROOVRA verification report bundled with this package." : "No embedded report artifact was attached."}
 
@@ -2109,8 +1717,10 @@ Sequence numbers reflect the original immutable event log. Gaps in forensic view
 HOW TO VERIFY
 
 1) Extract the package.
-2) Run: node verify-package.mjs
-   This verifies package file checksums and the signed package manifest only.
+2) Verify the packaged files against package-checksums.json (SHA-256) and
+   validate package-manifest.sig over package-manifest.json with standard
+   tooling. For live integrity and current-trust status, open the PROOVRA
+   Public Verify page referenced in the report.
 3) Review fingerprint.json.
 4) Calculate SHA-256 hash of the included evidence file(s).
 5) Compare computed hashes against original-linkage.json, fingerprint.json, and package-checksums.json.
@@ -2349,209 +1959,6 @@ This declaration describes the process and artifact boundaries. It does not inde
 `;
 }
 
-function buildVerifyHtml(params: {
-  evidenceFiles: VerificationEvidenceFile[];
-  anchorIncluded: boolean;
-  hasTimestampToken: boolean;
-  timestampStatus?: string | null;
-  otsStatus?: string | null;
-  bitcoinTxid?: string | null;
-  evidenceId?: string;
-  reportVersion?: number;
-}): string {
-  const timestampText = (() => {
-    const status = String(params.timestampStatus ?? "").toUpperCase();
-
-    if (params.hasTimestampToken && status !== "FAILED") {
-      return "RFC 3161 trusted timestamp token included.";
-    }
-
-    if (status === "FAILED") {
-      return "RFC 3161 timestamping failed or was unavailable. No timestamp.tsr file is attached.";
-    }
-
-    return "No RFC 3161 timestamp token is attached.";
-  })();
-
-  const anchoringText = (() => {
-    const status = String(params.otsStatus ?? "").toUpperCase();
-    const hasBitcoinTxid =
-      typeof params.bitcoinTxid === "string" &&
-      /^[a-f0-9]{64}$/i.test(params.bitcoinTxid.trim());
-
-    if (status === "ANCHORED") {
-      return hasBitcoinTxid
-        ? "OpenTimestamps Bitcoin anchoring verified (transaction reference recorded)."
-        : "OpenTimestamps proof present; Bitcoin anchoring pending. A Bitcoin transaction reference has not yet been attached to the OpenTimestamps proof.";
-    }
-
-    if (status === "PENDING") {
-      // Phase IA-OTS-hybrid-fix (UX correction) — the manifest
-      // text stays short. The detailed PENDING+txid explanation
-      // belongs in the technical appendix, not the package
-      // manifest prose.
-      return "OpenTimestamps proof present; Bitcoin anchoring pending.";
-    }
-
-    if (status === "FAILED") {
-      return "OpenTimestamps anchoring failed or could not be completed.";
-    }
-
-    return params.anchorIncluded
-      ? "Anchor material is included for review."
-      : "No anchor material is attached.";
-  })();
-
-  const multipart = params.evidenceFiles.length > 1;
-  const verificationUrl = params.evidenceId
-    ? `https://app.proovra.com/verify/${params.evidenceId}`
-    : null;
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>PROOVRA Offline Verification Guide</title>
-<style>
-body{font-family:Arial,sans-serif;margin:0;background:#f4f6f5;color:#10201d;line-height:1.6}
-.page{max-width:980px;margin:0 auto;padding:40px}
-.header{border-left:6px solid #0b2e27;background:#fff;padding:22px 24px;border-radius:12px;margin-bottom:18px}
-h1{margin:0 0 8px;color:#0b2e27;font-size:28px}
-h2{margin:0 0 10px;color:#0b2e27;font-size:18px}
-.card{background:#fff;border:1px solid rgba(12,28,25,.18);border-radius:12px;padding:18px 20px;margin-bottom:14px}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.kv{background:#f8faf9;border:1px solid rgba(12,28,25,.12);border-radius:10px;padding:12px}
-.label{font-size:11px;font-weight:800;color:#56706a;text-transform:uppercase;letter-spacing:.06em}
-.value{font-size:14px;font-weight:700;word-break:break-word}
-code{background:#eef2f1;padding:2px 6px;border-radius:6px}
-ol,ul{margin-top:8px}
-.notice{border-left:5px solid rgba(96,66,24,.95);background:#fff;padding:16px 18px;border-radius:10px}
-.small{color:#56706a;font-size:13px}
-a{color:#0b2e27;font-weight:700}
-</style>
-</head>
-<body>
-<div class="page">
-  <div class="header">
-    <h1>PROOVRA Offline Verification Guide</h1>
-    <div class="small">
-      This file explains how to interpret and verify the contents of this verification package without relying on live PROOVRA platform access.
-    </div>
-  </div>
-
-  <div class="grid">
-    <div class="kv">
-      <div class="label">Evidence ID</div>
-      <div class="value">${safeText(params.evidenceId, "Not included")}</div>
-    </div>
-    <div class="kv">
-      <div class="label">Report Version</div>
-      <div class="value">${
-        typeof params.reportVersion === "number"
-          ? String(params.reportVersion)
-          : "Not included"
-      }</div>
-    </div>
-    <div class="kv">
-      <div class="label">Integrity Status</div>
-      <div class="value">Materials Available</div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>1. Package Summary</h2>
-    <ul>
-      <li>Structure: ${multipart ? "Multipart evidence package" : "Single evidence item"}</li>
-      <li>Evidence file count: ${params.evidenceFiles.length}</li>
-      <li>Timestamp: ${timestampText}</li>
-      <li>Anchoring: ${anchoringText}</li>
-    </ul>
-    ${
-      multipart
-        ? `<p>${safeText(PROOVRA_MULTIPART_REVIEWER_EXPLANATION)}</p>
-    <p>${safeText(PROOVRA_MULTIPART_RECOMPUTATION_NOTE)} ${safeText(
-            PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE
-          )}</p>`
-        : ""
-    }
-  </div>
-
-  <div class="card">
-    <h2>2. Package Integrity</h2>
-    <p>
-      Run <code>node verify-package.mjs</code> from the extracted package root to verify files against <code>package-checksums.json</code>.
-      Review <code>package-manifest.sig</code> to confirm the SHA-256 digest of <code>package-manifest.json</code>.
-    </p>
-  </div>
-
-  <div class="card">
-    <h2>3. Original vs Report Artifact</h2>
-    <p>
-      The preserved original evidence file(s) are the primary evidentiary source.
-      The PDF report, previews, and this HTML guide are reviewer-facing artifacts.
-    </p>
-    <p>
-      Open <code>original-linkage.json</code> to map each packaged file to its original filename,
-      storage reference, SHA-256 digest, and preservation metadata.
-    </p>
-  </div>
-
-  <div class="card">
-    <h2>4. How to Verify</h2>
-    <ol>
-      <li>Review <code>verification-instructions.md</code>.</li>
-      <li>Run <code>node verify-package.mjs</code>.</li>
-      <li>Review <code>package-manifest.json</code>, <code>package-manifest.sig</code>, <code>integrity-summary.json</code>, and <code>trust-decision.json</code>.</li>
-      <li>Hash the included evidence file(s) with SHA-256.</li>
-      <li>Compare computed hashes against <code>original-linkage.json</code>, <code>fingerprint.json</code>, and <code>package-checksums.json</code>.</li>
-      ${
-        multipart
-          ? `<li>${safeText(
-              PROOVRA_MULTIPART_RECOMPUTATION_NOTE
-            )} ${safeText(PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE)}</li>`
-          : ""
-      }
-      <li>Verify <code>signature.txt</code> using <code>public-key.pem</code>.</li>
-      <li>If present, verify <code>timestamp.tsr</code> as RFC 3161 DER data, for example with <code>openssl ts -reply -in timestamp.tsr -text</code>.</li>
-      <li>If present, review <code>anchor.json</code> as anchoring material only; pending status is not the same as verified Bitcoin anchoring.</li>
-    </ol>
-  </div>
-
-  <div class="card">
-    <h2>5. Custody and Access Explanation</h2>
-    <p>
-      <code>custody.json</code> contains the complete system event chain.
-      <code>forensic-custody.json</code> contains a filtered subset used for forensic review.
-      <code>access-activity.json</code> contains later access, viewing, download, or verification activity.
-      <code>audit-access-report.json</code> summarizes access activity for reviewers.
-    </p>
-  </div>
-
-  <div class="notice">
-    <h2>6. Legal Boundary</h2>
-    <p>
-      This package supports technical verification of recorded integrity, preservation state,
-      signatures, hashes, custody continuity, and available timestamp or anchoring materials.
-    </p>
-    <p>
-      It does not independently establish factual truth, authorship, intent, legal admissibility,
-      relevance, or evidentiary weight.
-    </p>
-  </div>
-
-  ${
-    verificationUrl
-      ? `<div class="card">
-          <h2>Interactive Verification</h2>
-          <p>For the live reviewer interface, visit:</p>
-          <p><a href="${verificationUrl}">${verificationUrl}</a></p>
-        </div>`
-      : ""
-  }
-</div>
-</body>
-</html>`;
-}
 
 /**
  * Worker error thrown when the canonical package-eligibility gate
@@ -2594,7 +2001,7 @@ export async function createVerificationPackage(data: {
   isPersonalTeam?: boolean | null;
   /**
    * Human-readable workspace label captured at package generation
-   * time. Surfaced verbatim in package-mode.json so offline reviewers
+   * time. Surfaced verbatim in package-mode.json so reviewers
    * can read the workspace name without consulting the live API.
    */
   workspaceLabelAtPackageTime?: string | null;
@@ -2603,7 +2010,7 @@ export async function createVerificationPackage(data: {
    * verification-package generation time (outputType =
    * VERIFICATION_PACKAGE_SNAPSHOT). When provided, the package
    * emits `canonical-record.json` carrying the full canonical
-   * bundle so offline reviewers can read a single self-describing
+   * bundle so reviewers can read a single self-describing
    * snapshot of every lifecycle material. Optional for backward
    * compatibility — old callers still produce valid packages.
    */
@@ -2663,7 +2070,7 @@ export async function createVerificationPackage(data: {
   /**
    * Phase 31.9 — OPTIONAL advisory intelligence manifests. When
    * `intelligence` is undefined / null / empty, the package shape is
-   * UNCHANGED from prior generations — the offline verifier still
+   * UNCHANGED from prior generations — downstream tooling still
    * receives exactly the same files it received before this phase.
    * When intelligence is supplied, up to 5 bounded advisory JSON
    * files are emitted into the `intelligence/` subdirectory:
@@ -2675,15 +2082,15 @@ export async function createVerificationPackage(data: {
    *
    * Each manifest is OPTIONAL — only emitted when the corresponding
    * input array is non-empty. Manifests are advisory only and
-   * carry inline disclaimers; the offline verifier MUST NOT depend
+   * carry inline disclaimers; downstream tooling MUST NOT depend
    * on any of them.
    */
   intelligence?: import("./verification-package-intelligence.js").IntelligencePackageInput | null;
   /**
    * Phase 1B Closure — bounded ProvenanceChain projection. When supplied,
-   * the builder emits `provenance/chain.json` so offline verifiers see the
+   * the builder emits `provenance/chain.json` so downstream tooling sees the
    * device → attestation → signature → server-countersign chain. Always
-   * additive — the offline verifier works without it; null skips the file.
+   * additive — downstream tooling works without it; null skips the file.
    * NEVER carries raw assertion bytes or device public keys in plaintext —
    * only the bounded projection (hashes + fingerprints + bounded labels).
    */
@@ -2700,7 +2107,7 @@ export async function createVerificationPackage(data: {
   //     run the package-eligibility gate. The package still requires
   //     `evidenceId` so it can anchor a real record. The archive
   //     includes the same forensic primitives (manifest, evidence,
-  //     custody, signatures, TSA, OTS, offline verifier) but the
+  //     custody, signatures, TSA, OTS, downstream tooling) but the
   //     workspace policy / governance-audit sections are absent, and
   //     a `package-mode.json` notice declares the personal-basic
   //     mode for downstream consumers.
@@ -2759,7 +2166,6 @@ export async function createVerificationPackage(data: {
       manifestPresent: false,
       signedManifestPresent: false,
       checksumIndexPresent: false,
-      offlineVerifierIncluded: false,
       auditExportIncluded: false,
       custodyExportIncluded: false,
       accessExportIncluded: false,
@@ -3044,7 +2450,7 @@ export async function createVerificationPackage(data: {
     // Phase 32.6.6 + Phase 2 — bounded `package-mode.json` notice.
     //
     // Legacy `mode` field (`personal_basic` | `team_governed`) is
-    // retained verbatim for the offline verifier and historical
+    // retained verbatim for downstream tooling and historical
     // consumers. Phase 2 audit found the legacy derivation was
     // misleading: every record has a teamId because personal
     // workspaces are stored as `Team` rows with `isPersonal=true`,
@@ -3058,7 +2464,7 @@ export async function createVerificationPackage(data: {
     //     | TEAM_ACCOUNT_WORKSPACE
     //     | ORGANIZATION_WORKSPACE_RESERVED_OR_DISABLED
     //   - workspaceLabelAtPackageTime: the human label captured at
-    //     build time, so offline reviewers can read it without
+    //     build time, so reviewers can read it without
     //     consulting the live API.
     //   - isPersonalWorkspaceAtPackageTime: convenience boolean.
     //   - governanceMeaning: a neutral, plain-language description
@@ -3092,7 +2498,7 @@ export async function createVerificationPackage(data: {
         reportVersion: data.reportVersion ?? null,
         generatedAtUtc: new Date().toISOString(),
         // Phase 2 canonical workspace scope fields (additive; legacy
-        // `mode` above is preserved for the offline verifier).
+        // `mode` above is preserved for downstream tooling).
         workspaceScope,
         workspaceLabelAtPackageTime:
           (data.workspaceLabelAtPackageTime ?? null) || null,
@@ -3191,7 +2597,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     // bundle is built with outputType = VERIFICATION_PACKAGE_SNAPSHOT.
     //
     // The file is OPTIONAL for backward compatibility — packages
-    // built before this version simply omit it; the offline verifier
+    // built before this version simply omit it; downstream tooling
     // continues to read every other artefact as before.
     if (data.canonicalMaterials) {
       appendPackageEntry(
@@ -3265,29 +2671,10 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     );
     artifactPresence.auditExportIncluded = true;
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "verification-instructions.md",
-      textBuffer(
-        buildVerificationInstructions({
-          evidenceFiles: evidenceFilesWithFinalName,
-          hasTimestampToken,
-          hasAnchor: anchorIncluded,
-          anchorStatusLabel,
-        })
-      ),
-      "text/markdown"
-    );
-
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "verify-package.mjs",
-      textBuffer(buildVerifyPackageScript()),
-      "text/javascript"
-    );
-    artifactPresence.offlineVerifierIncluded = true;
+    // The embedded local package-inspection materials were removed with the
+    // discontinued local package-inspection tool. Reviewers confirm integrity
+    // online via Public Verify, or independently with standard tooling against
+    // the checksum + signed-manifest files.
 
     appendPackageEntry(
       archive,
@@ -3424,25 +2811,6 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       );
     }
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "verify.html",
-      textBuffer(
-        buildVerifyHtml({
-          evidenceFiles,
-          anchorIncluded,
-          hasTimestampToken,
-          timestampStatus: metadata.tsaStatus ?? null,
-          otsStatus: metadata.otsStatus ?? null,
-          bitcoinTxid: data.anchor?.transactionId ?? null,
-          evidenceId: data.evidenceId,
-          reportVersion: data.reportVersion,
-        })
-      ),
-      "text/html"
-    );
-
     if (data.reportPdf) {
       appendPackageEntry(
         archive,
@@ -3460,7 +2828,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     // Phase 31.9 — emit OPTIONAL advisory intelligence manifests.
     // MUST be appended BEFORE the checksums index so each manifest's
     // SHA-256 is recorded in `package-checksums.json` alongside the
-    // canonical artifacts. The package's offline verifier ignores
+    // canonical artifacts. Downstream tooling ignores
     // these files; they're operator-facing only.
     {
       const { buildIntelligencePackageManifests } = await import(
@@ -3516,7 +2884,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     // Phase 1B Closure — emit `provenance/chain.json` when a chain
     // projection was loaded. Appended BEFORE the checksums index so the
     // chain's SHA-256 is recorded in `package-checksums.json` alongside
-    // the canonical artifacts. The offline verifier treats this file as
+    // the canonical artifacts. Downstream tooling treats this file as
     // additive: it surfaces the capture → device → attestation → signature
     // sub-chain, but its absence does NOT break verification of the
     // primary fingerprint signature.
@@ -3541,7 +2909,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     //   * intelligence/subprocessor-manifest.json
     //
     // Wrapped in a try/catch — these manifests are advisory; a failure here must
-    // NOT block package generation (the offline verifier works without them).
+    // NOT block package generation (downstream tooling works without them).
     // Skipped for personal-mode packages (no teamId) since governance + trust
     // articles are workspace-anchored; personal packages get nothing here.
     if (data.teamId) {
@@ -3644,17 +3012,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       );
     }
 
-    // Phase M1 — bundle the offline verification quickstart.
-    // Operator + procurement-readable; references CLI + browser
-    // verifier; restates the bounded scope and honest limitations.
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "OFFLINE-VERIFICATION.md",
-      Buffer.from(buildOfflineVerificationReadme(), "utf8"),
-      "text/markdown"
-    );
-
+    // Compute the package checksum index over all packaged entries.
     appendPackageEntry(
       archive,
       packageEntries,

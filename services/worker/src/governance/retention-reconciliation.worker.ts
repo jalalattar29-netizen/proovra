@@ -36,6 +36,7 @@ import { logger } from "../logger.js";
 import { prisma } from "../db.js";
 import { runGovernanceReconciliation } from "./reconciliation-run.js";
 import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
+import { hasActiveLifecycleLegalHold } from "./lifecycle-legal-hold.js";
 
 const DEFAULT_BATCH_SIZE = 200;
 const MAX_BATCH_SIZE = 1000;
@@ -152,6 +153,28 @@ export async function runRetentionReconciliation(
               );
               continue;
             }
+          }
+
+          // Phase R6 (F39) — Phase-4B LegalHold check. The 4A checks above
+          // only cover EvidenceLegalHold + CaseLegalHold; a hold placed via
+          // the live `/lifecycle/legal-holds` UI lands in the 4B `legalHold`
+          // table (EVIDENCE/WORKSPACE/ORGANIZATION/CASE scope) and must also
+          // suspend automated destruction scheduling.
+          if (
+            await hasActiveLifecycleLegalHold(prisma, {
+              evidenceId: ev.id,
+              teamId,
+              caseId: evWithCase?.caseId ?? null,
+            })
+          ) {
+            ctx.reportProgress({ skipped: 1 });
+            await emitDestructionBlockedNotification(
+              teamId,
+              ev.id,
+              "hold",
+              correlationId,
+            );
+            continue;
           }
 
           // Immutable check.

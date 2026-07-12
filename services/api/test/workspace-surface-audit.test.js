@@ -113,7 +113,8 @@ describe("Workspace surface audit — LABEL_CLARIFICATION changes", () => {
     });
     it("workspace.trust label is the canonical 'Trust Center' entry", () => {
         const entry = sliceRouteEntry("workspace.trust");
-        expect(entry).toMatch(/href:\s*"\/trust"/);
+        // Phase R7.3 (F17) — authenticated Trust nav points at /trust-hub.
+        expect(entry).toMatch(/href:\s*"\/trust-hub"/);
         expect(entry).toMatch(/label:\s*"Trust Center"/);
     });
 });

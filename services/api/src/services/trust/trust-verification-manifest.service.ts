@@ -229,7 +229,7 @@ export async function buildSubprocessorManifestEntry(input: {
 // ---------------------------------------------------------------------------
 // Preview dispatcher — consumed by the /v1/trust/verification-package/preview
 // HTTP route in trust-and-governance.routes.ts. Returns the SAME manifest
-// shape that the worker emits inside the offline verification ZIP for the
+// shape that the worker emits inside the verification package ZIP for the
 // requested kind. Read-only, workspace-anchored.
 // ---------------------------------------------------------------------------
 

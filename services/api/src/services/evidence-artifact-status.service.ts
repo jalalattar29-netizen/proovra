@@ -258,7 +258,7 @@ export async function buildEvidenceArtifactStatus(params: {
 
   // Phase A2 — manifest signature block. Today the worker always
   // signs the Verification Package manifest with Ed25519 (the
-  // `MANIFEST.json.sig` artifact + the offline_verifier.html
+  // `MANIFEST.json.sig` artifact
   // bundle); the package is SIGNED whenever it exists. The bounded
   // union reserves UNSIGNED for a future opt-out path so we don't
   // ship a status the contract cannot describe.

@@ -19,7 +19,7 @@
  *   * No raw IP / raw User-Agent — masked IP + UA hash only; NEVER a full
  *     IP. (A future explicit internal/full package mode could add more.)
  *
- * ADDITIVE only. The offline verifier ignores these files; their absence
+ * ADDITIVE only. Downstream tooling ignores these files; their absence
  * never breaks verification. Never throws — a failure returns [].
  */
 

@@ -254,7 +254,6 @@ test("AI chat is hidden on sensitive routes from the (app) layout", () => {
     '/share',
     '/intake',
     '/portal',
-    '/offline-verifier',
     '/auth',
   ]) {
     assert.ok(

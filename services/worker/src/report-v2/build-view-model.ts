@@ -1520,7 +1520,6 @@ const verificationPackageIntegrity = {
   // manifest payload) and emit null when unknown.
   manifestDigestPresent: componentFlag("signedManifestPresent"),
   checksumIndexPresent: componentFlag("checksumIndexPresent"),
-  offlineVerifierIncluded: componentFlag("offlineVerifierIncluded"),
   auditExportIncluded: componentFlag("auditExportIncluded"),
   custodyExportIncluded: componentFlag("custodyExportIncluded"),
   accessExportIncluded: componentFlag("accessExportIncluded"),

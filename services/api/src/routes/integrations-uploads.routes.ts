@@ -164,6 +164,7 @@ function statusForDenial(
   switch (reason) {
     case "session_not_found":
     case "multipart_not_found":
+    case "evidence_not_found":
       return 404;
     case "service_unavailable":
     case "storage_unavailable":

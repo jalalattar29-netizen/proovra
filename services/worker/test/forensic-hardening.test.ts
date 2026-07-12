@@ -166,20 +166,6 @@ describe("claims governance across worker-facing reviewer materials (Governance 
     expect(packageSource).toContain("PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE");
   });
 
-  it("binds multipart offline verification to evidence-manifest ordering, not loose path sorting", () => {
-    const packageSource = readRepoFile(
-      "services",
-      "worker",
-      "src",
-      "verification-package.ts"
-    );
-
-    expect(packageSource).toContain('const evidenceManifestPath = "evidence-manifest.json"');
-    expect(packageSource).toContain("part.packagePath");
-    expect(packageSource).toContain("Multipart verification requires evidence-manifest.json");
-    expect(packageSource).toContain("Multipart manifest sha256 mismatch");
-  });
-
   it("exports artifact-role metadata into verification-package manifests", () => {
     const packageSource = readRepoFile(
       "services",

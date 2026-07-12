@@ -171,7 +171,7 @@ type ReproducibilityReport = {
 
 export default function OperationsExportsPage() {
   return (
-    <PageRouteGate routeId="workspace.security_center">
+    <PageRouteGate routeId="operations.exports">
       <OperationsExportsContent />
     </PageRouteGate>
   );

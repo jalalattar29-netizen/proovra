@@ -156,7 +156,6 @@ type VerificationPackageArtifactPresence = {
   manifestPresent: boolean;
   signedManifestPresent: boolean;
   checksumIndexPresent: boolean;
-  offlineVerifierIncluded: boolean;
   auditExportIncluded?: boolean;
   custodyExportIncluded?: boolean;
   accessExportIncluded?: boolean;
@@ -2584,7 +2583,6 @@ verificationPackageMetadata:
         manifestPresent?: boolean;
         signedManifestPresent?: boolean;
         checksumIndexPresent?: boolean;
-        offlineVerifierIncluded?: boolean;
         auditExportIncluded?: boolean;
         custodyExportIncluded?: boolean;
         accessExportIncluded?: boolean;
@@ -3598,7 +3596,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
         // Phase 31.14 — bounded intelligence projection for the
         // verification package. Returns null when no surfaceable
         // data exists OR on any failure — the package builds
-        // unchanged in either case (offline verifier independent).
+        // unchanged in either case (independent of downstream tooling).
         const verificationPackageIntelligence =
           await buildVerificationPackageIntelligence({
             teamId: evidence.teamId ?? null,
@@ -4057,8 +4055,6 @@ trustDecisionSnapshot:
                   finalizedVerificationArtifactPresence?.signedManifestPresent === true,
                 checksumIndexPresent:
                   finalizedVerificationArtifactPresence?.checksumIndexPresent === true,
-                offlineVerifierIncluded:
-                  finalizedVerificationArtifactPresence?.offlineVerifierIncluded === true,
                 auditExportIncluded:
                   finalizedVerificationArtifactPresence?.auditExportIncluded === true,
                 custodyExportIncluded:

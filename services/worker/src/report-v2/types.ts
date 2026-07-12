@@ -180,7 +180,6 @@ export type ReportEvidence = {
     manifestPresent?: boolean;
     signedManifestPresent?: boolean;
     checksumIndexPresent?: boolean;
-    offlineVerifierIncluded?: boolean;
     auditExportIncluded?: boolean;
     custodyExportIncluded?: boolean;
     accessExportIncluded?: boolean;
@@ -591,7 +590,6 @@ export type ReportViewModel = {
   signedManifestPresent: boolean | null;
   manifestDigestPresent: boolean | null;
   checksumIndexPresent: boolean | null;
-  offlineVerifierIncluded: boolean | null;
   auditExportIncluded: boolean | null;
   custodyExportIncluded?: boolean | null;
   accessExportIncluded?: boolean | null;

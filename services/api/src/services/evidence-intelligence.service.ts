@@ -164,7 +164,7 @@ const EVENT_TYPE_LABELS: Record<string, EventLabelInfo> = {
     label: "Verification package generated",
     source: "SYSTEM",
     tone: "success",
-    description: "An offline verification package was generated for independent technical review.",
+    description: "A verification package was generated for independent technical review.",
   },
   EVIDENCE_LOCKED: {
     label: "Evidence locked",

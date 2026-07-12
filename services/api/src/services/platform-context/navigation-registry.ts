@@ -202,13 +202,16 @@ const WORKSPACE_GROUP: NavRegistryGroup = {
       badgeKey: null,
       requiresCapability: "DASHBOARD_VIEW",
     },
-    // Canonical Trust Center discoverability. /trust is the single
-    // operator-facing trust hub; /trust-center is retained only as a
-    // legacy redirect to preserve deep links.
+    // Phase R7.3 (F17) — the AUTHENTICATED Trust nav points at the in-app
+    // hub `/trust-hub`. `/trust` is the PUBLIC marketing Trust Center and
+    // must not be the target of authenticated navigation; `/trust-center/*`
+    // holds the document surfaces. Kept in sync with the frontend
+    // routeRegistry `workspace.trust` entry (asserted by
+    // phase3-nav-frontend-drift).
     {
       id: "workspace.trust",
       label: "Trust Center",
-      href: "/trust",
+      href: "/trust-hub",
       iconKey: "trust",
       domain: "WORKSPACE",
       badgeKey: null,

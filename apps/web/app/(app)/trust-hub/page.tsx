@@ -15,7 +15,7 @@
  * single source of truth for:
  *
  *   1. Verification methodology — link to the public methodology
- *      disclosure + the offline verifier (CLI + browser).
+ *      disclosure.
  *   2. Signer health — link to /operations/signers when entitled.
  *   3. Reproducible exports — link to /operations/exports.
  *   4. Object-lock posture — link to /operations/recovery.
@@ -300,9 +300,10 @@ export default function TrustPage() {
             Verifier reproducibility statement
           </strong>
           Every artifact reachable from this hub can be independently
-          reproduced from cold storage. The offline verifier accepts the same
-          verification package the public verify page consumes. If PROOVRA
-          ever disappears, your evidence does not.
+          reproduced from cold storage. The verification package can be checked
+          independently with standard tooling, and the public verify page
+          consumes the same materials. If PROOVRA ever disappears, your
+          evidence does not.
         </footer>
       </div>
     </PageRouteGate>

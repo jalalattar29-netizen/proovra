@@ -552,11 +552,11 @@ useEffect(() => {
                     reason={reason}
                     nextAction={{
                       label: "Invite external reviewer",
-                      href: "/reviewer-ops/external",
+                      href: "/review/external",
                     }}
                     adminAction={{
                       label: "Open external review settings",
-                      href: "/reviewer-ops/external",
+                      href: "/review/external",
                     }}
                     diagnosticsLink="/operations/observability"
                     isAdmin={canDiagnostics}

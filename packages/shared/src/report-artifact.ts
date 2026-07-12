@@ -65,7 +65,7 @@ export const VERIFICATION_PACKAGE_SIGNATURE_STATUSES = [
   /**
    * MANIFEST.json carries a valid Ed25519 signature
    * (MANIFEST.json.sig) and a public key (signing_key.pem) for
-   * offline verification.
+   * independent verification.
    */
   "SIGNED",
   /**
@@ -123,7 +123,6 @@ export const ARTIFACT_LABELS = {
   REPORT_PDF_SIGNED: "Signed Report PDF",
   REPORT_PDF_UNSIGNED: "Unsigned Report PDF artifact",
   VERIFICATION_PACKAGE_ZIP: "Verification Package ZIP",
-  OFFLINE_VERIFIER: "Offline verifier",
   PUBLIC_VERIFY_PAGE: "Public Verify page",
 } as const;
 

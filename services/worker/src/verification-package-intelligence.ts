@@ -5,7 +5,7 @@
  * package may carry alongside the canonical integrity artifacts.
  * Every manifest in this module is:
  *
- *   * Additive only — the package's offline verifier MUST work
+ *   * Additive only — downstream tooling MUST work
  *     without any of these files. If the input data is absent, no
  *     manifest is emitted.
  *   * Advisory only — disclaimers carried inline. Manifests NEVER

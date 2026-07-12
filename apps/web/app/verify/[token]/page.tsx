@@ -482,7 +482,6 @@ function buildVerificationPackageIntegrity(params: {
     signedManifestPresent: server?.signedManifestPresent === true,
     manifestDigestPresent: server?.manifestDigestPresent === true,
     checksumIndexPresent: server?.checksumIndexPresent === true,
-    offlineVerifierIncluded: server?.offlineVerifierIncluded === true,
     auditExportIncluded: server?.auditExportIncluded === true,
 
     custodyExportIncluded:
@@ -2256,7 +2255,6 @@ function VerificationPackageIntegrityCard({
     integrity.manifestPresent &&
     integrity.signedManifestPresent &&
     integrity.checksumIndexPresent &&
-    integrity.offlineVerifierIncluded &&
     integrity.auditExportIncluded;
 
   const decisionLabel = complete
@@ -2272,9 +2270,9 @@ function VerificationPackageIntegrityCard({
       : "neutral";
 
   const decisionText = complete
-    ? "Independent offline verification is enabled for this evidence package."
+    ? "The verification package includes the complete integrity materials for independent review."
 : integrity.available
-? "A verification package version exists, but this public response has not confirmed every offline package artifact."
+? "A verification package version exists, but this public response has not confirmed every package artifact."
         : "No generated verification package was exposed in this verification response.";
 
   const rows = [
@@ -2292,11 +2290,6 @@ function VerificationPackageIntegrityCard({
       label: "Checksum Index",
       value: integrity.checksumIndexPresent ? "Present" : "Not available",
       tone: integrity.checksumIndexPresent ? "success" : "neutral",
-    },
-    {
-      label: "Offline Verifier",
-      value: integrity.offlineVerifierIncluded ? "Included" : "Not available",
-      tone: integrity.offlineVerifierIncluded ? "success" : "neutral",
     },
     {
       label: "Custody Export",
@@ -2404,7 +2397,7 @@ function VerificationPackageIntegrityCard({
           }}
         >
           <Badge
-            label={complete ? "Offline Review Enabled" : integrity.available ? "Partial Package" : "Unavailable"}
+            label={complete ? "Independent Review Enabled" : integrity.available ? "Partial Package" : "Unavailable"}
             tone={decisionTone}
           />
 
@@ -2434,8 +2427,8 @@ function VerificationPackageIntegrityCard({
 
         <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
           {complete
-            ? "The exported forensic bundle supports independent offline verification of package contents, checksums, manifest integrity, custody export, and audit/access materials."
-: "Evidence integrity can still be reviewed here. Package-level offline verification should be performed from the downloaded verification package."}
+            ? "The exported forensic bundle supports independent verification of package contents, checksums, manifest integrity, custody export, and audit/access materials with standard tooling."
+: "Evidence integrity can still be reviewed here. Package-level integrity can be checked independently from the downloaded verification package."}
         </div>
 
         {integrity.generatedAtUtc ? (
@@ -6785,8 +6778,8 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                           Evidence integrity verifies the preserved evidence state.
                           Package integrity verifies whether the exported forensic
                           bundle contains the manifest, checksum index, manifest
-                          digest reference, offline verifier, and audit exports
-                          needed for independent offline review.
+                          digest reference, and audit exports needed for
+                          independent review.
                         </div>
                       </div>
                     </div>

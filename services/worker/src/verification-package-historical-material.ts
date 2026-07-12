@@ -4,7 +4,7 @@
  * Produces `signers/historical-verification-material.json` for every
  * newly generated Verification Package. The file carries ONLY the
  * PUBLIC verification material the active signers expose at package
- * generation time, so a third party running the offline verifier can
+ * generation time, so a third party running independent tooling can
  * actually verify custody attestation + report signatures without
  * calling PROOVRA APIs.
  *
@@ -188,7 +188,7 @@ export async function buildHistoricalVerificationMaterial(input: {
           signers,
           trustInterpretation: {
             statement:
-              "Historical verification material reflects signing-time state only. It is NOT a current-trust assertion. The signer may have been rotated, retired, or revoked after this package was generated; the offline verifier reports currentTrustStatus=unknown to surface this.",
+              "Historical verification material reflects signing-time state only. It is NOT a current-trust assertion. The signer may have been rotated, retired, or revoked after this package was generated; currentTrustStatus is reported as unknown to surface this.",
             historicalVerificationMaterialReflectsSigningTimeStateOnly: true,
           },
           revocationAwareness: {
@@ -371,7 +371,7 @@ function degradedFile(input: {
     revocationAwareness: {
       currentLiveRevocationStatusNotIncluded: true,
       note:
-        "This file does not carry live revocation status. The offline verifier reports currentTrustStatus=unknown.",
+        "This file does not carry live revocation status. currentTrustStatus is reported as unknown.",
     },
   };
 }

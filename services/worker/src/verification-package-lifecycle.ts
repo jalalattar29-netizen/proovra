@@ -3,7 +3,7 @@
  *
  * Produces seven OPTIONAL advisory JSON files that the verification package
  * may carry. All manifests:
- *   * Are additive only — the offline verifier works without them.
+ *   * Are additive only — downstream tooling works without them.
  *   * Never include raw reasons or PII.
  *   * Carry only bounded counts + bounded ids + bounded states.
  *   * Are workspace-anchored on teamId; optional evidenceId narrows scope.

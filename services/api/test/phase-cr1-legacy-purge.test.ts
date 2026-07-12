@@ -260,7 +260,7 @@ describe("CR1 Part 2 — 8 backward-compat redirect pages folded into next.confi
     // legacy index) was RETIRED; redirect goes to `/review`. Same
     // closure file holds the new pin.
     expect(
-      existsSync(webPath("app/(app)/dashboard/batch-analysis/page.tsx")),
+      existsSync(webPath("app/(app)/operations/batch-analysis/page.tsx")),
     ).toBe(true);
     expect(
       existsSync(webPath("app/(app)/operations/reliability/page.tsx")),

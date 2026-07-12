@@ -24,11 +24,9 @@ describe("analytics path redaction", () => {
     expect(redactAnalyticsPath("/portal/xyz")).toBe("/portal/[redacted]");
   });
 
-  it("redacts OAuth callback paths and offline-verifier", () => {
+  it("redacts OAuth callback paths", () => {
     expect(redactAnalyticsPath("/auth/callback?code=abc&state=xyz"))
       .toBe("/auth/callback/[redacted]");
-    expect(redactAnalyticsPath("/offline-verifier/foo"))
-      .toBe("/offline-verifier/[redacted]");
   });
 
   it("strips query strings on any path", () => {

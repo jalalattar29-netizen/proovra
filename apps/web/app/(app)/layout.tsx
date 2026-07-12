@@ -64,11 +64,6 @@ export default function AppLayout({
       pathname.startsWith("/share") ||
       pathname.startsWith("/intake") ||
       pathname.startsWith("/portal") ||
-      // Privacy guard (not navigation): the public /offline-verifier
-      // marketing page was removed, but a stale bookmark could still hit
-      // this prefix — keep the AI widget suppressed there. Mirrors the
-      // retained analytics redaction rule in lib/privacy/redact.ts.
-      pathname.startsWith("/offline-verifier") ||
       pathname.startsWith("/auth")
     );
   }, [pathname]);

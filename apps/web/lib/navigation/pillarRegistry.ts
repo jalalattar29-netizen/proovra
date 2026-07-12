@@ -241,6 +241,11 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["platform.observability", "OPERATIONS"],
   // Phase 8 — Platform production-readiness posture (backup/DR, keys, resiliency).
   ["operations.readiness", "OPERATIONS"],
+  // Phase R2 — dedicated PLATFORM_ADMIN gates for the signer/export/recovery
+  // ops surfaces (repointed from the weaker workspace.security_center gate).
+  ["operations.signers", "OPERATIONS"],
+  ["operations.exports", "OPERATIONS"],
+  ["operations.recovery", "OPERATIONS"],
   ["platform.reliability", "OPERATIONS"],
   ["platform.queue_ops", "OPERATIONS"],
   // Phase IA-collapse — Messaging operations (SMS / WhatsApp / OTP
