@@ -2,6 +2,7 @@ import type { AiProvider } from "./ai-provider.js";
 import { AiResult, AiSeverity, AiTask } from "./ai-types.js";
 import { AiCostGuard } from "./ai-cost-guard.js";
 import { AI_LEGAL_DISCLAIMER } from "./ai-policy.js";
+import { sanitizeUntrustedField } from "./prompt-context-sanitizer.service.js";
 // Phase O1.5E — bounded ai.capture.review span.
 import {
   PROOVRA_SPAN_NAMES,
@@ -52,13 +53,7 @@ export type CaptureSessionReviewPayload = {
   items: CaptureSessionItem[];
 };
 
-export type CaptureItemReviewPayload = {
-  collectionPlan: CaptureCollectionPlan;
-  planMode: "FLEXIBLE" | "CHECKLIST_REQUIRED";
-  useLocation: boolean;
-  item: CaptureSessionItem;
-  selectedStep: CapturePlanStep;
-};
+// Phase B2 — CaptureItemReviewPayload type removed with the analyze-item endpoint.
 
 function inferEvidenceTypeFromMimeType(mimeType: string | null | undefined): EvidenceType {
   const normalized = String(mimeType ?? "").trim().toLowerCase();
@@ -141,8 +136,10 @@ function buildRedactedItems(
     extensionCategory: buildExtensionCategory(item.fileName),
     sizeBucket: bucketSizeBytes(item.sizeBytes),
     checklistStepId: item.checklistStepId ?? null,
-    role: item.role,
-    sourceLabel: item.sourceLabel,
+    // Phase E2 — role/sourceLabel are user free-text: sanitize (strip
+    // secrets/URLs/GPS/control chars, bound length) before the provider.
+    role: item.role ? sanitizeUntrustedField(item.role, 120) : item.role,
+    sourceLabel: item.sourceLabel ? sanitizeUntrustedField(item.sourceLabel, 120) : item.sourceLabel,
     clientSignals: item.clientSignals,
   }));
 }
@@ -166,26 +163,7 @@ function redactSessionPayloadForProvider(
   };
 }
 
-function redactItemPayloadForProvider(
-  payload: CaptureItemReviewPayload
-): {
-  collectionPlan: CaptureCollectionPlan;
-  planMode: "FLEXIBLE" | "CHECKLIST_REQUIRED";
-  useLocation: boolean;
-  privacyNotice: string;
-  selectedStep: CapturePlanStep;
-  item: RedactedCaptureItem;
-} {
-  return {
-    collectionPlan: payload.collectionPlan,
-    planMode: payload.planMode,
-    useLocation: payload.useLocation,
-    privacyNotice:
-      "Filenames have been redacted. Reference the item by itemLabel or id. Do not invent filenames.",
-    selectedStep: payload.selectedStep,
-    item: buildRedactedItems([payload.item])[0]!,
-  };
-}
+// Phase B2 — redactItemPayloadForProvider removed with the analyze-item endpoint.
 
 function isCloseUpStep(step: CapturePlanStep): boolean {
   return /close[-_ ]?up|close-up|close up/i.test(step.id) || /close[-_ ]?up/i.test(step.title);
@@ -376,95 +354,7 @@ function buildDeterministicSessionReview(
   };
 }
 
-function buildDeterministicItemReview(
-  payload: CaptureItemReviewPayload
-): AiResult {
-  const warnings: string[] = [];
-  const suggestions: string[] = [];
-  const flags: AiResult["flags"] = [];
-
-  const itemKind = inferEvidenceTypeFromMimeType(payload.item.mimeType);
-  const expectedKinds = payload.selectedStep.acceptedKinds ?? [];
-
-  if (expectedKinds.length > 0 && !expectedKinds.includes(itemKind)) {
-    flags.push({
-      severity: "warning",
-      title: "Mapped item type does not match requirement",
-      detail: `Selected step ${payload.selectedStep.title} accepts ${expectedKinds.join(
-        ", "
-      )} but the item is ${itemKind}.`,
-      affectedItemId: payload.item.id,
-      affectedStepId: payload.selectedStep.id,
-    });
-    suggestions.push(
-      "Confirm that this file is appropriate for the selected intake requirement."
-    );
-  }
-
-  if (isCloseUpStep(payload.selectedStep)) {
-    if (itemKind !== "PHOTO" && itemKind !== "VIDEO") {
-      flags.push({
-        severity: "warning",
-        title: "Close-up requirement mapped to non-photo/video",
-        detail: `The selected close-up requirement ${payload.selectedStep.title} is mapped to a ${itemKind} file.`,
-        affectedItemId: payload.item.id,
-        affectedStepId: payload.selectedStep.id,
-      });
-      suggestions.push(
-        "Use a photo or video if the requirement specifically asks for a close-up capture."
-      );
-    } else {
-      flags.push({
-        severity: "info",
-        title: "Close-up review recommended",
-        detail:
-          "The item is mapped to a close-up requirement, but visual close-up quality requires human review or future AI vision review.",
-        affectedItemId: payload.item.id,
-        affectedStepId: payload.selectedStep.id,
-      });
-    }
-  }
-
-  if (payload.item.clientSignals?.genericMime) {
-    flags.push({
-      severity: "warning",
-      title: "Generic MIME type",
-      detail: `The file ${payload.item.fileName} has a generic MIME type and may need review.`,
-      affectedItemId: payload.item.id,
-      affectedStepId: payload.selectedStep.id,
-    });
-    suggestions.push(
-      "Use a more specific file type or review the file metadata for accuracy."
-    );
-  }
-
-  if (payload.item.clientSignals?.duplicateStatus === "duplicate") {
-    warnings.push(
-      "This item has a duplicate signal. A reviewer should confirm whether it is intended."
-    );
-    flags.push({
-      severity: "warning",
-      title: "Duplicate intake signal",
-      detail: `Item ${payload.item.fileName} may be a duplicate upload.`,
-      affectedItemId: payload.item.id,
-      affectedStepId: payload.selectedStep.id,
-    });
-  }
-
-  const summary =
-    warnings.length > 0 || flags.length > 0
-      ? "Item review identified advisory concerns for reviewer assessment."
-      : "Item review did not identify obvious metadata issues.";
-
-  return {
-    status: "ok",
-    summary,
-    warnings,
-    suggestions,
-    flags,
-    legalDisclaimer: AI_LEGAL_DISCLAIMER,
-  };
-}
+// Phase B2 — buildDeterministicItemReview removed with the analyze-item endpoint.
 
 export class AiCaptureService {
   constructor(
@@ -525,53 +415,5 @@ return {
 };
   }
 
-  async analyzeItem(
-    userId: string,
-    payload: CaptureItemReviewPayload
-  ): Promise<AiResult> {
-    const deterministic = buildDeterministicItemReview(payload);
-    const guard = this.costGuard.canAnalyzeCapture(userId, payload.collectionPlan.id);
-
-    if (!guard.allowed) {
-      return {
-        ...deterministic,
-        status: "blocked",
-        summary:
-          "AI item review is blocked due to usage or budget limits.",
-        warnings: [...deterministic.warnings, guard.reason ?? "Usage limit reached."],
-        suggestions: [...deterministic.suggestions],
-        legalDisclaimer: AI_LEGAL_DISCLAIMER,
-      };
-    }
-
-// Redacted payload for the provider — see redactItemPayloadForProvider
-// for the privacy rationale (Issue #5: never send raw filenames to AI).
-const providerResult = await this.provider.run(
-AiTask.CAPTURE_ITEM_REVIEW,
-redactItemPayloadForProvider(payload)
-);
-
-if (providerResult.status === "ok") {
-  this.costGuard.recordCaptureAnalysis(userId, payload.collectionPlan.id);
-  return compareFlags(providerResult, deterministic);
-}
-
-return {
-  ...deterministic,
-  warnings: Array.from(
-    new Set([
-      ...deterministic.warnings,
-      providerResult.summary,
-      ...providerResult.warnings,
-    ])
-  ),
-  suggestions: Array.from(
-    new Set([
-      ...deterministic.suggestions,
-      "Continue capture normally; AI provider availability does not block Finish & Sign.",
-    ])
-  ),
-  legalDisclaimer: AI_LEGAL_DISCLAIMER,
-};
-  }
+  // Phase B2 — analyzeItem removed (endpoint deleted; zero callers).
 }

@@ -4,6 +4,7 @@ import { OpenAiProvider } from "./openai-provider.js";
 // Phase P2.0 — OPENAI_API_KEY is in the migrated set. Prefer AWS
 // Secrets Manager; fall back to env when AWS is disabled / missing.
 import { getSecret } from "../../config/runtime-secrets.js";
+import { validateProviderPrivacyConfig } from "./provider-privacy.service.js";
 
 export type { AiProvider } from "./ai-types.js";
 
@@ -36,6 +37,33 @@ export function createAiProvider(): AiProvider {
 
   if (!enabled) {
     return new NoopAiProvider();
+  }
+
+  // Phase A3 — validate provider privacy posture before returning a live
+  // provider. In strict mode (AI_REQUIRE_PROVIDER_PRIVACY=true) an unsafe/unknown
+  // configuration refuses to construct the live provider (falls back to Noop);
+  // otherwise it logs a bounded warning. store:false is always applied.
+  const privacy = validateProviderPrivacyConfig();
+  if (!privacy.ok) {
+    if (privacy.severity === "block") {
+      // eslint-disable-next-line no-console
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          event: "ai.provider_privacy.refused",
+          code: privacy.code,
+        }),
+      );
+      return new NoopAiProvider();
+    }
+    // eslint-disable-next-line no-console
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        event: "ai.provider_privacy.warning",
+        code: privacy.code,
+      }),
+    );
   }
 
   return new OpenAiProvider({

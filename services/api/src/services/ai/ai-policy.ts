@@ -1,4 +1,8 @@
 import { AiResult, AiResultSchema } from "./ai-types.js";
+import {
+  buildProhibitedClaimSafeSummary,
+  scanTextsForProhibitedClaims,
+} from "./prohibited-claims-engine.service.js";
 
 const LEGAL_DISCLAIMER =
   "AI assistance is advisory and does not determine factual truth, authorship, or legal admissibility.";
@@ -129,6 +133,7 @@ export function applyAiPolicy(result: Partial<AiResult>): AiResult {
     return safeResult;
   }
 
+  // Layer 1 — legacy literal blocklist (kept as defense-in-depth).
   if (isUnsafeResult(safeResult)) {
     return {
       status: "blocked",
@@ -139,6 +144,33 @@ export function applyAiPolicy(result: Partial<AiResult>): AiResult {
       ],
       suggestions: [
         "Adjust the request or consult PROOVRA support for help.",
+      ],
+      flags: [],
+      legalDisclaimer: LEGAL_DISCLAIMER,
+    };
+  }
+
+  // Layer 2 (Phase A5) — categorized, variant-normalized prohibited-claims
+  // engine. Covers truth/authenticity/authorship/identity/intent/liability/
+  // fraud/admissibility/court/validity/forensic/attestation/reliability/
+  // credibility, including spacing + homoglyph + punctuation variants the
+  // literal blocklist misses. On any match → safe rewrite + blocked.
+  const claimTexts: Array<string | null | undefined> = [
+    safeResult.summary,
+    ...safeResult.warnings,
+    ...safeResult.suggestions,
+    ...safeResult.flags.flatMap((f) => [f.title, f.detail]),
+  ];
+  const prohibited = scanTextsForProhibitedClaims(claimTexts);
+  if (prohibited.length > 0) {
+    return {
+      status: "blocked",
+      summary: buildProhibitedClaimSafeSummary(),
+      warnings: [
+        `Blocked prohibited claim categories: ${prohibited.join(", ")}.`,
+      ],
+      suggestions: [
+        "Review the underlying records and consult a qualified human reviewer for any determination.",
       ],
       flags: [],
       legalDisclaimer: LEGAL_DISCLAIMER,

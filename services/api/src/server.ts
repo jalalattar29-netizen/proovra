@@ -158,6 +158,9 @@ import { automationWebhooksRoutes } from "./routes/automation-webhooks.routes.js
 // every value is source-traceable to a real Prisma model.
 import { analyticsOperationsRoutes } from "./routes/analytics-operations.routes.js";
 import { governanceRoutes } from "./routes/governance.routes.js";
+import { workspaceAiPolicyRoutes } from "./routes/workspace-ai-policy.routes.js";
+import { aiCaseRoutes } from "./routes/ai-case.routes.js";
+import { aiReviewerRoutes } from "./routes/ai-reviewer.routes.js";
 import { governanceLifecycleRoutes } from "./routes/governance-lifecycle.routes.js";
 import { governanceOperationsRoutes } from "./routes/governance-operations.routes.js";
 import { productAndLifecycleRoutes } from "./routes/product-and-lifecycle.routes.js";
@@ -1117,6 +1120,9 @@ allowedHeaders: [
   await app.register(analyticsOperationsRoutes);
   // Phase 9 — Governance routes (policy + legal holds; authenticated only).
   await app.register(governanceRoutes);
+  await app.register(workspaceAiPolicyRoutes);
+  await app.register(aiCaseRoutes);
+  await app.register(aiReviewerRoutes);
   // Phase 27 — Governance lifecycle (retention policies, destruction
   // queue, lifecycle events, export gate, dashboard).
   await app.register(governanceLifecycleRoutes);

@@ -1,0 +1,197 @@
+/**
+ * Phase A2 — Workspace AI policy API.
+ *
+ *   GET /v1/workspaces/ai-policy?teamId        — effective policy + capability
+ *                                                disclosure + version (member).
+ *   PUT /v1/workspaces/ai-policy               — upsert policy (OWNER/ADMIN),
+ *                                                optimistic concurrency + audit.
+ *
+ * The evaluator (`evaluateWorkspaceAiPolicy`) is the enforcement path; this API
+ * is the management surface. Disabling AI here immediately affects the next
+ * provider call because the evaluator reads the same row.
+ */
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { z } from "zod";
+
+import { getAuthUserId } from "../auth.js";
+import { prisma } from "../db.js";
+import { requireAuth } from "../middleware/auth.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { resolveAiCapabilityDisclosure } from "../services/ai/ai-capability-disclosure.service.js";
+import {
+  DEFAULT_WORKSPACE_AI_POLICY,
+  WorkspaceAiPolicyVersionConflictError,
+  getWorkspaceAiPolicyRow,
+  resolveWorkspaceAiPolicy,
+  upsertWorkspaceAiPolicy,
+  type WorkspaceAiPolicyPatch,
+} from "../services/ai/workspace-ai-policy.service.js";
+
+async function requireMember(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  teamId: string,
+): Promise<{ userId: string; role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" } | null> {
+  const userId = getAuthUserId(req);
+  const membership = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+  });
+  if (!membership) {
+    reply.code(403).send({ error: { code: "not_a_member", reason: "Not a member of the workspace" } });
+    return null;
+  }
+  return { userId, role: membership.role };
+}
+
+const PatchBody = z.object({
+  teamId: z.string().uuid(),
+  expectedVersion: z.number().int().min(1).nullable().optional(),
+  reason: z.string().max(400).optional(),
+  aiEnabled: z.boolean().optional(),
+  supportChatEnabled: z.boolean().optional(),
+  captureAssistanceEnabled: z.boolean().optional(),
+  evidenceCategorizationEnabled: z.boolean().optional(),
+  semanticSearchEnabled: z.boolean().optional(),
+  contentIntelligenceEnabled: z.boolean().optional(),
+  reviewerCopilotEnabled: z.boolean().optional(),
+  caseCopilotEnabled: z.boolean().optional(),
+  rawContentProcessingAllowed: z.boolean().optional(),
+  ocrAllowed: z.boolean().optional(),
+  transcriptionAllowed: z.boolean().optional(),
+  embeddingsAllowed: z.boolean().optional(),
+  allowedRoles: z.array(z.string().max(40)).max(20).nullable().optional(),
+  dailyOperationLimit: z.number().int().min(0).max(1_000_000).nullable().optional(),
+  monthlyOperationLimit: z.number().int().min(0).max(10_000_000).nullable().optional(),
+  retentionDays: z.number().int().min(1).max(3650).nullable().optional(),
+});
+
+export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
+  // GET effective policy + capability disclosure (member read).
+  app.get(
+    "/v1/workspaces/ai-policy",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
+      const ok = await requireMember(req, reply, query.teamId);
+      if (!ok) return;
+
+      const resolved = await resolveWorkspaceAiPolicy(query.teamId);
+      const row = await getWorkspaceAiPolicyRow(query.teamId);
+      const capabilities = await resolveAiCapabilityDisclosure(query.teamId);
+      return reply.code(200).send({
+        policy: resolved,
+        version: row?.policyVersion ?? DEFAULT_WORKSPACE_AI_POLICY.policyVersion,
+        hasExplicitPolicy: Boolean(row),
+        lastModifiedByUserId: row?.updatedByUserId ?? null,
+        lastModifiedAtUtc: row?.updatedAt ?? null,
+        capabilities,
+      });
+    },
+  );
+
+  // Phase C8 — workspace AI usage & governance summary (member read).
+  app.get(
+    "/v1/workspaces/ai-usage",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
+      const ok = await requireMember(req, reply, query.teamId);
+      if (!ok) return;
+      const now = new Date();
+      const day = now.toISOString().slice(0, 10);
+      const month = now.toISOString().slice(0, 7);
+      try {
+        const [daily, monthly, recentRuns, blockedRuns] = await Promise.all([
+          prisma.aiUsageDaily.findUnique({ where: { workspaceId_dayUtc: { workspaceId: query.teamId, dayUtc: day } } }),
+          prisma.aiUsageMonthly.findUnique({ where: { workspaceId_monthUtc: { workspaceId: query.teamId, monthUtc: month } } }),
+          prisma.aiCopilotRun.count({ where: { workspaceId: query.teamId } }),
+          prisma.aiCopilotRun.count({ where: { workspaceId: query.teamId, status: "blocked_prohibited_claim" } }),
+        ]);
+        return reply.code(200).send({
+          dayUtc: day,
+          monthUtc: month,
+          daily: { operations: daily?.operations ?? 0, costUsdMicros: String(daily?.costUsdMicros ?? 0n) },
+          monthly: { operations: monthly?.operations ?? 0, costUsdMicros: String(monthly?.costUsdMicros ?? 0n) },
+          copilotRuns: recentRuns,
+          blockedProhibitedClaims: blockedRuns,
+        });
+      } catch {
+        // Ledger tables not applied on this environment — honest empty state.
+        return reply.code(200).send({
+          dayUtc: day, monthUtc: month,
+          daily: { operations: 0, costUsdMicros: "0" },
+          monthly: { operations: 0, costUsdMicros: "0" },
+          copilotRuns: 0, blockedProhibitedClaims: 0,
+          ledgerAvailable: false,
+        });
+      }
+    },
+  );
+
+  // PUT upsert (OWNER / ADMIN only) — optimistic concurrency + audit.
+  app.put(
+    "/v1/workspaces/ai-policy",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const body = PatchBody.parse(req.body ?? {});
+      const ok = await requireMember(req, reply, body.teamId);
+      if (!ok) return;
+      if (ok.role !== "OWNER" && ok.role !== "ADMIN") {
+        return reply.code(403).send({
+          error: { code: "permission_denied", reason: "Only workspace owners/admins can change AI policy." },
+        });
+      }
+
+      const { teamId, expectedVersion, reason, ...rest } = body;
+      const patch: WorkspaceAiPolicyPatch = rest;
+      const before = await getWorkspaceAiPolicyRow(teamId);
+
+      let result;
+      try {
+        result = await upsertWorkspaceAiPolicy({
+          teamId,
+          actorUserId: ok.userId,
+          patch,
+          expectedVersion: expectedVersion ?? undefined,
+        });
+      } catch (err) {
+        if (err instanceof WorkspaceAiPolicyVersionConflictError) {
+          return reply.code(409).send({
+            error: {
+              code: err.code,
+              reason: err.message,
+              currentVersion: err.currentVersion,
+            },
+          });
+        }
+        throw err;
+      }
+
+      // Bounded before/after audit — booleans + version only, no secrets.
+      await appendPlatformAuditLog({
+        userId: ok.userId,
+        action: "ai.workspace_policy_updated",
+        category: "ai",
+        source: "api_ai",
+        outcome: "success",
+        resourceType: "workspace_ai_policy",
+        resourceId: teamId,
+        metadata: {
+          reason: reason ?? null,
+          previousVersion: before?.policyVersion ?? null,
+          newVersion: result.row.policyVersion,
+          changed: Object.keys(patch),
+          aiEnabledBefore: before?.aiEnabled ?? null,
+          aiEnabledAfter: result.row.aiEnabled,
+        },
+      });
+
+      const resolved = await resolveWorkspaceAiPolicy(teamId);
+      return reply.code(200).send({
+        policy: resolved,
+        version: result.row.policyVersion,
+        hasExplicitPolicy: true,
+      });
+    },
+  );
+}

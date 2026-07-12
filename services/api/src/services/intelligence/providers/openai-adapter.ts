@@ -1,21 +1,24 @@
 /**
- * PROOVRA Phase 3B — OpenAI adapter (entity extraction +
- * document summary).
+ * PROOVRA Phase 3B — "OpenAI" entity-extraction / document-summary
+ * adapters.
  *
- * Bounded adapter that calls the existing OPENAI_API_KEY secret
- * if present. Honest NOT_CONFIGURED when not. The wrapper does
- * NOT install a new OpenAI SDK — the platform already gates
- * OPENAI_API_KEY via `getSecret`. The real network call is
- * deferred behind a single bounded `callOpenAI` seam that tests
- * inject around.
+ * TRUTHFUL STATUS (corrected Phase A1 — AI disclosure truthfulness):
+ * these two adapters do NOT make any live OpenAI network call. There
+ * is no `callOpenAI` seam in the codebase. `extractEntities` ALWAYS
+ * runs a bounded LOCAL REGEX_PII pass and `summariseDocument` ALWAYS
+ * returns a bounded LOCAL deterministic truncation — regardless of
+ * whether OPENAI_API_KEY is bound. Binding the key does NOT change
+ * behaviour. Because no OpenAI capability is operationally wired here,
+ * `probeOpenAI` reports NOT_CONFIGURED (never READY) so the Provider
+ * Status surface and the AI Disclosure Center do not present a stub as
+ * an operational OpenAI binding.
  *
- * For Phase 3B the adapter's `extractEntities` operation runs a
- * bounded REGEX_PII pass over the supplied text and bills the
- * estimated tokens. The OPENAI_DOCUMENT_SUMMARY operation
- * produces an honest deterministic bounded summary (first 200
- * chars + bounded entity counts) when the SDK is not bound — the
- * UI gets a real, bounded answer immediately and an operator
- * can swap in the real SDK call without touching the orchestrator.
+ * The ONLY real, opt-in OpenAI path in the platform is text embeddings,
+ * owned separately by
+ * services/api/src/services/search/embedding-provider.ts (gated behind
+ * SEMANTIC_SEARCH_ENABLED + SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND,
+ * both default false). A future phase (B-series) will either wire a
+ * real OpenAI call here or rename these to local-fallback adapters.
  */
 
 import { createHash } from "node:crypto";
@@ -26,7 +29,6 @@ import {
   type ProviderAdapterProbe,
 } from "@proovra/shared";
 
-import { getSecret } from "../../../config/runtime-secrets.js";
 import { regexPiiDetectorRun } from "../../redaction/redaction-detection-providers.service.js";
 import {
   registerAdapter,
@@ -44,26 +46,21 @@ const PROVIDER_SUMMARY: MediaIntelligenceProvider = "OPENAI_DOCUMENT_SUMMARY";
 const COST_PER_TOKEN_USD_MICROS = 0.15;
 
 function probeOpenAI(provider: MediaIntelligenceProvider): ProviderAdapterProbe {
-  const key = getSecret("OPENAI_API_KEY");
-  if (!key) {
-    return {
-      provider,
-      state: "NOT_CONFIGURED",
-      operations:
-        provider === PROVIDER_ENTITY
-          ? ["EXTRACT_ENTITIES"]
-          : ["SUMMARISE_DOCUMENT"],
-      reason: "OPENAI_API_KEY not bound — entity extraction will use the bounded REGEX_PII fallback",
-    };
-  }
+  // TRUTHFUL STATUS (Phase A1): no live OpenAI call is wired for these
+  // operations — `extractEntities` / `summariseDocument` always run the
+  // bounded LOCAL fallback. Binding OPENAI_API_KEY does not change that,
+  // so we never report READY (which would falsely imply an operational
+  // OpenAI binding). NOT_CONFIGURED is the honest verdict here; OpenAI
+  // embeddings are a separate, real, opt-in path in embedding-provider.ts.
   return {
     provider,
-    state: "READY",
+    state: "NOT_CONFIGURED",
     operations:
       provider === PROVIDER_ENTITY
         ? ["EXTRACT_ENTITIES"]
         : ["SUMMARISE_DOCUMENT"],
-    reason: null,
+    reason:
+      "No live OpenAI call is wired for this operation — output is produced by the bounded local REGEX_PII / deterministic-summary fallback; OpenAI is used only for opt-in text embeddings elsewhere.",
   };
 }
 

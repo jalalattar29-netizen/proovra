@@ -1084,6 +1084,7 @@ model Team {
   workflowIntakeLinks       WorkflowIntakeLink[]
   evidenceRequests          EvidenceRequest[]
   governancePolicy          WorkspaceGovernancePolicy?
+  aiPolicy                  WorkspaceAiPolicy?
   legalHolds                EvidenceLegalHold[]
   apiCredentials            ApiCredential[]
   webhookEndpoints          WebhookEndpoint[]
@@ -11583,4 +11584,174 @@ model DuplicateDecision {
   @@unique([teamId, edgeId])
   @@index([teamId, decision])
   @@map("duplicate_decisions")
+}
+
+/// Phase A2 — Workspace-level AI governance policy.
+///
+/// OPTIONAL per-Team row. ABSENCE of a row means "no explicit policy":
+/// the canonical evaluator (`evaluateWorkspaceAiPolicy`) applies the
+/// safe code-level DEFAULT_WORKSPACE_AI_POLICY, which mirrors the pre-A2
+/// runtime behaviour (advisory AI allowed subject to the global flag +
+/// plan entitlement; content-intelligence / raw-content / copilots off).
+/// Creating this table changes NO behaviour until an admin writes a row.
+/// The master `aiEnabled=false` switch is a fail-closed backend gate:
+/// no provider call may occur once the evaluator denies.
+model WorkspaceAiPolicy {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId String @unique @map("team_id") @db.Uuid
+
+  // Master + per-feature switches. A saved row's defaults mirror today's
+  // runtime so opening + saving the settings page keeps current behaviour.
+  aiEnabled                     Boolean @default(true) @map("ai_enabled")
+  supportChatEnabled            Boolean @default(true) @map("support_chat_enabled")
+  captureAssistanceEnabled      Boolean @default(true) @map("capture_assistance_enabled")
+  evidenceCategorizationEnabled Boolean @default(true) @map("evidence_categorization_enabled")
+  semanticSearchEnabled         Boolean @default(false) @map("semantic_search_enabled")
+  contentIntelligenceEnabled    Boolean @default(false) @map("content_intelligence_enabled")
+  reviewerCopilotEnabled        Boolean @default(false) @map("reviewer_copilot_enabled")
+  caseCopilotEnabled            Boolean @default(false) @map("case_copilot_enabled")
+
+  // Data-class permissions (default-deny beyond metadata).
+  rawContentProcessingAllowed Boolean @default(false) @map("raw_content_processing_allowed")
+  ocrAllowed                  Boolean @default(false) @map("ocr_allowed")
+  transcriptionAllowed        Boolean @default(false) @map("transcription_allowed")
+  embeddingsAllowed           Boolean @default(false) @map("embeddings_allowed")
+
+  // Role allowlist — null = all roles permitted (current behaviour).
+  allowedRolesJson Json? @map("allowed_roles_json")
+
+  // Optional workspace-level quotas/budgets (durable ledger lands in A7;
+  // these are the policy ceilings that ledger will enforce).
+  dailyOperationLimit       Int?    @map("daily_operation_limit")
+  monthlyOperationLimit     Int?    @map("monthly_operation_limit")
+  dailyCostLimitUsdMicros   BigInt? @map("daily_cost_limit_usd_micros")
+  monthlyCostLimitUsdMicros BigInt? @map("monthly_cost_limit_usd_micros")
+
+  // AI advisory-output retention window (E1 consumes this). Null = platform default.
+  retentionDays Int? @map("retention_days")
+
+  policyVersion   Int      @default(1) @map("policy_version")
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@map("workspace_ai_policies")
+}
+
+/// Phase D4 — Bounded Copilot run record (defensibility / audit / QC).
+/// Advisory work-product ONLY: never an integrity/custody fact. No raw
+/// prompts, no evidence bytes, no secrets — bounded structured result +
+/// validated citations + version metadata. Distinct from
+/// EvidenceAiCategorization (single-evidence advisory categorization) and
+/// ProviderUsageEvent (billing/usage): this is the Copilot work product.
+model AiCopilotRun {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String  @map("workspace_id") @db.Uuid
+  userId      String  @map("user_id") @db.Uuid
+  feature     String  @db.VarChar(40)
+  caseId      String? @map("case_id") @db.Uuid
+  reviewId    String? @map("review_id") @db.Uuid
+  requestId   String  @unique @map("request_id") @db.VarChar(120)
+
+  provider                String  @db.VarChar(40)
+  model                   String  @db.VarChar(80)
+  promptVersion           String  @map("prompt_version") @db.VarChar(40)
+  systemPolicyVersion     String  @map("system_policy_version") @db.VarChar(40)
+  productKnowledgeVersion String  @map("product_knowledge_version") @db.VarChar(40)
+  contextSchemaVersion    String  @map("context_schema_version") @db.VarChar(40)
+  outputSchemaVersion     String  @map("output_schema_version") @db.VarChar(40)
+  workspacePolicyVersion  Int     @map("workspace_policy_version")
+  criteriaVersion         String? @map("criteria_version") @db.VarChar(40)
+  processingMode          String  @map("processing_mode") @db.VarChar(40)
+
+  selectedObjectVersionsJson Json  @map("selected_object_versions_json")
+  boundedResultJson          Json? @map("bounded_result_json")
+  validatedCitationsJson     Json? @map("validated_citations_json")
+
+  status       String    @db.VarChar(40)
+  generatedAt  DateTime  @default(now()) @map("generated_at") @db.Timestamptz(6)
+  expiresAt    DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  observationReviews AiCopilotObservationReview[]
+
+  @@index([workspaceId, generatedAt(sort: Desc)])
+  @@index([reviewId])
+  @@index([caseId])
+  @@index([workspaceId, status])
+  @@map("ai_copilot_runs")
+}
+
+/// Phase D4 — Human interaction with a single Copilot observation.
+/// Preserves the original AI text (hash) separately from the human edit.
+/// The final review decision lives in its canonical model, never here.
+model AiCopilotObservationReview {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  copilotRunId  String   @map("copilot_run_id") @db.Uuid
+  observationId String   @map("observation_id") @db.VarChar(80)
+  state         String   @db.VarChar(20)
+  originalTextHash String @map("original_text_hash") @db.VarChar(64)
+  editedText    String?  @map("edited_text") @db.VarChar(600)
+  actorId       String   @map("actor_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  run AiCopilotRun @relation(fields: [copilotRunId], references: [id], onDelete: Cascade)
+
+  @@unique([copilotRunId, observationId, actorId])
+  @@index([copilotRunId])
+  @@map("ai_copilot_observation_reviews")
+}
+
+/// Phase A7 — Durable AI usage ledger (multi-replica-safe, restart-safe).
+/// Replaces the process-local AiCostGuard as budget AUTHORITY.
+model AiUsageEvent {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId  String   @map("workspace_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  feature      String   @db.VarChar(40)
+  provider     String   @db.VarChar(40)
+  model        String   @db.VarChar(80)
+  requestId    String   @unique @map("request_id") @db.VarChar(120)
+  inputTokens  Int?     @map("input_tokens")
+  outputTokens Int?     @map("output_tokens")
+  estimatedCostUsdMicros BigInt  @map("estimated_cost_usd_micros")
+  actualCostUsdMicros    BigInt? @map("actual_cost_usd_micros")
+  status       String   @db.VarChar(20)
+  reservedAt   DateTime @default(now()) @map("reserved_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+  failedAt     DateTime? @map("failed_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, reservedAt(sort: Desc)])
+  @@index([workspaceId, feature])
+  @@map("ai_usage_events")
+}
+
+/// Phase A7 — per-workspace-per-UTC-day rollup (atomic increments).
+model AiUsageDaily {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  dayUtc      String @map("day_utc") @db.VarChar(10)
+  operations  Int    @default(0)
+  costUsdMicros BigInt @default(0) @map("cost_usd_micros")
+
+  @@unique([workspaceId, dayUtc])
+  @@map("ai_usage_daily")
+}
+
+/// Phase A7 — per-workspace-per-UTC-month rollup (atomic increments).
+model AiUsageMonthly {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  monthUtc    String @map("month_utc") @db.VarChar(7)
+  operations  Int    @default(0)
+  costUsdMicros BigInt @default(0) @map("cost_usd_micros")
+
+  @@unique([workspaceId, monthUtc])
+  @@map("ai_usage_monthly")
 }

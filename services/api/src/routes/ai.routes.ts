@@ -13,6 +13,8 @@ import { AiCaptureService } from "../services/ai/ai-capture.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { getPersonalWorkspaceScope } from "../services/workspace-billing.service.js";
+import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
+import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
 import {
   assertWorkspaceAllowsAiOperation,
   recordWorkspaceAiOperation,
@@ -171,13 +173,7 @@ const CaptureSessionReviewBody = z.object({
   items: z.array(CaptureSessionItemSchema).max(100),
 });
 
-const CaptureItemReviewBody = z.object({
-  collectionPlan: CaptureCollectionPlanSchema,
-  planMode: z.enum(["FLEXIBLE", "CHECKLIST_REQUIRED"]),
-  useLocation: z.boolean(),
-  item: CaptureSessionItemSchema,
-  selectedStep: CapturePlanStepSchema,
-});
+// Phase B2 — CaptureItemReviewBody removed with the analyze-item endpoint.
 
 /**
  * Phase A3 — Hardened AI chat abuse-resistance helpers.
@@ -329,6 +325,22 @@ export async function aiRoutes(app: FastifyInstance) {
         });
       }
 
+      // Phase A2 — canonical workspace AI policy gate (fail-closed).
+      // A workspace master/feature disable prevents the provider call here,
+      // in the backend, before any AI runs. UI-only disabling is not relied on.
+      const chatPolicy = await evaluateWorkspaceAiPolicy({
+        teamId: aiScope.teamId,
+        feature: "SUPPORT_CHAT",
+        dataClass: "METADATA",
+      });
+      if (!chatPolicy.allowed) {
+        return reply.code(403).send({
+          code: "AI_WORKSPACE_POLICY_DENIED",
+          message: chatPolicy.reason,
+          decision: chatPolicy.decision,
+        });
+      }
+
       let result: Awaited<ReturnType<typeof aiChatService.analyzeChat>>;
       try {
         result = await withAiTimeout(
@@ -410,6 +422,18 @@ export async function aiRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const body = CaptureSessionReviewBody.parse(req.body);
 
+      // Phase A8 — rate limit + dedup before any expensive work.
+      const sGuard = await enforceAiEndpointGuard({
+        feature: "capture-session",
+        userId,
+        ip: req.ip,
+        dedupeKey: body.collectionPlan.id,
+      });
+      if (!sGuard.allowed) {
+        reply.header("Retry-After", String(sGuard.retryAfterSec));
+        return reply.code(429).send({ code: sGuard.code, message: "Too many AI requests; please slow down." });
+      }
+
       // Pricing-hardening: plan-aware monthly AI cap.
       const aiScope = await getPersonalWorkspaceScope(userId);
       try {
@@ -423,6 +447,20 @@ export async function aiRoutes(app: FastifyInstance) {
           message:
             (err as Error).message ??
             "Monthly AI advisory limit reached for current plan",
+        });
+      }
+
+      // Phase A2 — canonical workspace AI policy gate (fail-closed).
+      const sessionPolicy = await evaluateWorkspaceAiPolicy({
+        teamId: aiScope.teamId,
+        feature: "CAPTURE_ASSISTANCE",
+        dataClass: "METADATA",
+      });
+      if (!sessionPolicy.allowed) {
+        return reply.code(403).send({
+          code: "AI_WORKSPACE_POLICY_DENIED",
+          message: sessionPolicy.reason,
+          decision: sessionPolicy.decision,
         });
       }
 
@@ -464,64 +502,10 @@ export async function aiRoutes(app: FastifyInstance) {
     }
   );
 
-  app.post(
-    "/v1/ai/capture/analyze-item",
-    { preHandler: [requireAuthAndLegal] },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
-      const body = CaptureItemReviewBody.parse(req.body);
-
-      // Pricing-hardening: plan-aware monthly AI cap.
-      const aiScope = await getPersonalWorkspaceScope(userId);
-      try {
-        await assertWorkspaceAllowsAiOperation(aiScope);
-      } catch (err) {
-        const code =
-          (err as { code?: string }).code ?? "AI_MONTHLY_LIMIT_REACHED";
-        const status = (err as { statusCode?: number }).statusCode ?? 429;
-        return reply.code(status).send({
-          code,
-          message:
-            (err as Error).message ??
-            "Monthly AI advisory limit reached for current plan",
-        });
-      }
-
-      const result = await aiCaptureService.analyzeItem(userId, body);
-      if (result.status === "ok") {
-        try {
-          await recordWorkspaceAiOperation(aiScope);
-        } catch {
-          /* see chat handler comment */
-        }
-      }
-
-      auditAiAction(req, {
-        userId,
-        action: "ai.capture_item_review",
-        outcome:
-          result.status === "ok"
-            ? "success"
-            : result.status === "blocked"
-              ? "blocked"
-              : "failure",
-        severity: result.status === "blocked" ? "warning" : "info",
-        resourceId: body.collectionPlan.id,
-        metadata: {
-          itemId: body.item.id,
-          status: result.status,
-        },
-      });
-
-      fireAiAnalytics({
-        eventType: "ai_capture_item_review",
-        userId,
-        req,
-        entityId: body.collectionPlan.id,
-        metadata: { status: result.status },
-      });
-
-      return { data: result };
-    }
-  );
+  // Phase B2 — the per-item review endpoint (`POST /v1/ai/capture/analyze-item`)
+  // was fully implemented but had NO frontend caller and no test coverage, and
+  // its value is already covered by analyze-session (which flags every item in
+  // the session). Per the B2 decision it is removed rather than left as an
+  // unreachable authenticated surface. The service method + its item-only
+  // helpers are removed from ai-capture.service.ts in the same change.
 }

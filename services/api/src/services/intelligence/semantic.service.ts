@@ -23,6 +23,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 // below still writes the Bytes column for back-compat with the
 // keyword-fallback ranker; the queue handles the pgvector side.
 import { enqueueEmbedChunks } from "../../queue/mi-embed-queue.js";
+import { evaluateWorkspaceAiPolicy } from "../ai/workspace-ai-policy.service.js";
 
 export function isSemanticSearchEnabled(): boolean {
   return process.env.SEMANTIC_SEARCH_ENABLED === "true";
@@ -133,6 +134,16 @@ export async function indexEvidenceText(
     // any drift on the next reindex pass).
     if (input.teamId && newChunkIds.length > 0) {
       try {
+        // Phase A2 — workspace AI policy gate: a workspace that disabled
+        // semantic search must not have its chunks embedded/sent outbound.
+        const semPolicy = await evaluateWorkspaceAiPolicy({
+          teamId: input.teamId,
+          feature: "SEMANTIC_SEARCH",
+          dataClass: "DERIVED_CONTENT",
+        });
+        if (!semPolicy.allowed) {
+          return { chunks: chunks.length, embedded };
+        }
         await enqueueEmbedChunks({
           teamId: input.teamId,
           chunkIds: newChunkIds,

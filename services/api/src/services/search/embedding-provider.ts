@@ -31,6 +31,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { openAiClientPrivacyOptions } from "../ai/provider-privacy.service.js";
 
 // -----------------------------------------------------------------------------
 // Interface
@@ -299,7 +300,8 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
             "openai_sdk_missing_constructor",
           );
         }
-        return new Ctor({ apiKey: this.apiKey }) as never;
+        // Phase A3 — bind configured project/organization for embeddings too.
+        return new Ctor({ apiKey: this.apiKey, ...openAiClientPrivacyOptions() }) as never;
       })();
     }
     return this.clientPromise as Promise<{

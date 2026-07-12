@@ -509,7 +509,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "ai-governance",
     title: "AI governance",
     summary:
-      "Provider-tier extraction (Azure DI / Deepgram / OpenAI / Rekognition) gated by budget + audit + reviewer corrections. AI output is never ground truth.",
+      "Provider-tier extraction (Azure Document Intelligence OCR / Deepgram ASR / AWS Rekognition vision) gated by budget + audit + reviewer corrections. OpenAI is used ONLY for opt-in text embeddings (default off); entity-extraction and document-summary run as a bounded local fallback, not a live OpenAI call. AI output is never ground truth.",
     body:
       "Every paid provider call passes through `runProviderOperation`: budget gate → adapter dispatch → bounded ingest → usage event → lifecycle event. Reviewer corrections are append-only; the final confidence band is fused from provider + reviewer bands. See the AI Disclosure Center.",
     implementationReferences: [
@@ -721,9 +721,9 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "models-used",
     title: "Models used",
     summary:
-      "Azure Document Intelligence (OCR / layout / tables / forms); Deepgram (ASR / diarisation); OpenAI (entity extraction / document summary / text embeddings when SEMANTIC_SEARCH_ENABLED + opt-in outbound); AWS Rekognition (faces / text / labels). Local REGEX_PII fallback when OpenAI is not bound.",
+      "Azure Document Intelligence (OCR / layout / tables / forms); Deepgram (ASR / diarisation); AWS Rekognition (faces / text / labels); OpenAI text embeddings (text-embedding-3-small) ONLY when SEMANTIC_SEARCH_ENABLED + opt-in outbound are both set (default off). OpenAI entity-extraction and document-summary are NOT wired to a live OpenAI call — they run as a bounded LOCAL deterministic fallback (REGEX_PII entities / truncated summary).",
     body:
-      "Models are selected per operation by the provider adapter (services/api/src/services/intelligence/providers). Bounded REGEX_PII fallback runs locally when OpenAI is not configured so PII detection remains useful in air-gapped deployments. Embedding models (text-embedding-3-small by default) are gated behind both SEMANTIC_SEARCH_ENABLED=true and SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND=true; both default to false. Model selections are pinned per provider and recorded on every usage event so operators can audit which model produced which output.",
+      "Models are selected per operation by the provider adapter (services/api/src/services/intelligence/providers). The `OPENAI_ENTITY_EXTRACTION` and `OPENAI_DOCUMENT_SUMMARY` adapters make NO outbound OpenAI call today (no `callOpenAI` seam exists); they always run a bounded LOCAL REGEX_PII entity pass and a deterministic truncated summary, so binding OPENAI_API_KEY does not change their behaviour and their provider probe reports NOT_CONFIGURED. The only real OpenAI path is embeddings (text-embedding-3-small by default), gated behind both SEMANTIC_SEARCH_ENABLED=true and SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND=true; both default to false. Model selections are pinned per provider and recorded on every usage event so operators can audit which model produced which output.",
     implementationReferences: [
       "services/api/src/services/intelligence/providers",
       "services/api/src/services/search/embedding-provider.ts",
@@ -736,7 +736,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "providers-used",
     title: "Providers used",
     summary:
-      "Bounded ProviderAdapter set: AZURE_DOCUMENT_INTELLIGENCE, DEEPGRAM_TRANSCRIPT, OPENAI_ENTITY_EXTRACTION, OPENAI_DOCUMENT_SUMMARY, OPENAI_EMBEDDINGS (opt-in), AWS_REKOGNITION_FACES, AWS_REKOGNITION_TEXT, AWS_REKOGNITION_LABELS, MANUAL_OPERATOR. Every call is recorded in provider_usage_events.",
+      "Bounded ProviderAdapter set: AZURE_DOCUMENT_INTELLIGENCE, DEEPGRAM_TRANSCRIPT, AWS_REKOGNITION_FACES, AWS_REKOGNITION_TEXT, AWS_REKOGNITION_LABELS, OPENAI_EMBEDDINGS (opt-in, default off), MANUAL_OPERATOR — each a real binding that reports READY when configured. OPENAI_ENTITY_EXTRACTION and OPENAI_DOCUMENT_SUMMARY are registered but run a LOCAL fallback only (no live OpenAI call); their probe reports NOT_CONFIGURED rather than asserting an operational OpenAI binding. Every call is recorded in provider_usage_events.",
     body:
       "Every provider is registered as a bounded ProviderAdapter with a typed request/response contract. The orchestrator never bypasses the adapter — there is no ad-hoc provider call path. Each call writes a provider_usage_events row with provider, operation, status, cost_usd_micros, latency_ms, and a correlation id. The Provider Status surface (/v1/intelligence/providers/health) reports the live binding state per provider. Operators can disable a provider per-workspace via policy (DISABLED_BY_POLICY state) or globally via env unset.",
     implementationReferences: [
@@ -753,7 +753,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     summary:
       "Only the bytes required for the requested operation (e.g. Azure DI receives the document file; Deepgram receives the audio file; AWS Rekognition receives the image). The adapter abstracts the request shape so the orchestrator never serialises tenant metadata into the payload.",
     body:
-      "Bounded per operation. Azure DI receives the document file + region-pinned endpoint. Deepgram receives the audio bytes + a bounded model parameter. OpenAI entity-extraction receives the OCR or transcript text (never the raw file, never identifiers). OpenAI embeddings receive chunked text only when SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND=true. AWS Rekognition receives the image bytes. Across all providers, payloads never include reviewer identities, custody events, organization names, policy state, version chains, or any cross-workspace data. Provider TLS endpoints are pinned at the adapter layer.",
+      "Bounded per operation. Azure DI receives the document file + region-pinned endpoint. Deepgram receives the audio bytes + a bounded model parameter. AWS Rekognition receives the image bytes. OpenAI entity-extraction and document-summary send NOTHING outbound — the OCR/transcript text is processed by a bounded LOCAL REGEX_PII / truncation fallback, so no OpenAI call is made for these operations. OpenAI embeddings are the only OpenAI-bound path and receive chunked text only when SEMANTIC_EMBEDDINGS_SEND_CONTENT_OUTBOUND=true (default off). Across all providers, payloads never include reviewer identities, custody events, organization names, policy state, version chains, or any cross-workspace data. Provider TLS endpoints are pinned at the adapter layer.",
     implementationReferences: [
       "services/api/src/services/intelligence/providers",
       "services/api/src/services/search/embedding-provider.ts",

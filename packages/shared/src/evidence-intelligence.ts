@@ -73,7 +73,16 @@ export type EvidenceLibraryIntelligenceSummary = {
   label: string;
   score: number | null;
   description: string;
+  /**
+   * Phase A6 — mandatory completeness-only boundary. The readiness score is a
+   * review-preparation signal, never a truth/authenticity/admissibility claim.
+   */
+  boundary: string;
 };
+
+/** Phase A6 — the single canonical readiness boundary disclaimer. */
+export const EVIDENCE_READINESS_BOUNDARY =
+  "This score measures review-preparation completeness only. It does not assess truth, authenticity, reliability, evidential strength, or legal admissibility.";
 
 export function buildEvidenceLibraryIntelligenceSummary(score: number | null): EvidenceLibraryIntelligenceSummary {
   const normalizedScore = score === null ? null : Math.max(0, Math.min(100, score));
@@ -81,15 +90,16 @@ export function buildEvidenceLibraryIntelligenceSummary(score: number | null): E
     normalizedScore === null
       ? "Scored from custody integrity, artifact availability, and verification readiness."
       : normalizedScore >= 80
-        ? "High confidence for review."
+        ? "Well prepared for review."
         : normalizedScore >= 50
-          ? "Moderate confidence; review gaps remain."
-          : "Additional validation is recommended.";
+          ? "Most required review context is available; some gaps remain."
+          : "Additional preparation is recommended.";
 
   return {
     label: "Evidence readiness score",
     score: normalizedScore,
     description,
+    boundary: EVIDENCE_READINESS_BOUNDARY,
   };
 }
 

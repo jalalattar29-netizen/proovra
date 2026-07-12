@@ -139,6 +139,9 @@ import { createAiProvider } from "../services/ai/ai-provider.js";
 import { AiCostGuard } from "../services/ai/ai-cost-guard.js";
 import { AI_LEGAL_DISCLAIMER } from "../services/ai/ai-policy.js";
 import { AiTask } from "../services/ai/ai-types.js";
+import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
+import { sanitizeUntrustedField } from "../services/ai/prompt-context-sanitizer.service.js";
+import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
 import {
   appendReviewerAuditEvent,
   listReviewerAuditEvents,
@@ -7962,6 +7965,35 @@ await appendCustodyEvent({
         });
       }
 
+      // Phase A8 — burst rate limit + dedup (unchanged-object reanalysis).
+      const rlGuard = await enforceAiEndpointGuard({
+        feature: "categorization",
+        userId,
+        ip: req.ip,
+        dedupeKey: `${id}:${evidence.verificationPackageVersion ?? 0}:${evidence.latestReportVersion ?? 0}`,
+        dedupeWindowSec: 30,
+      });
+      if (!rlGuard.allowed) {
+        reply.header("Retry-After", String(rlGuard.retryAfterSec));
+        return reply.code(429).send({ code: rlGuard.code, message: "Too many AI requests; please slow down." });
+      }
+
+      // Phase A2 — canonical workspace AI policy gate (fail-closed). A
+      // workspace master/feature disable blocks the categorization provider
+      // call here, in the backend, before any AI runs.
+      const catPolicy = await evaluateWorkspaceAiPolicy({
+        teamId: evidence.teamId ?? null,
+        feature: "EVIDENCE_CATEGORIZATION",
+        dataClass: "METADATA",
+      });
+      if (!catPolicy.allowed) {
+        return reply.code(403).send({
+          code: "AI_WORKSPACE_POLICY_DENIED",
+          message: catPolicy.reason,
+          decision: catPolicy.decision,
+        });
+      }
+
       const itemCount = await getEvidenceItemCount(id);
       const canonicalAvailability = deriveCanonicalArtifactAvailability({
         latestReportVersion: evidence.latestReportVersion,
@@ -7970,9 +8002,13 @@ await appendCustodyEvent({
         verificationPackageGeneratedAtUtc:
           evidence.verificationPackageGeneratedAtUtc,
       });
+      // Phase A4 — user-controlled free-text (title, workspace label) is
+      // UNTRUSTED. Sanitize (Unicode-normalize, strip control/secret/URL/GPS,
+      // bound length) before it can enter the model prompt. An injected
+      // instruction in a title can no longer reach the model as text.
       const metadataPayload = {
         evidenceId: id,
-        title: resolveEvidenceTitle(evidence.title),
+        title: sanitizeUntrustedField(resolveEvidenceTitle(evidence.title), 300),
         type: evidence.type,
         mimeType: evidence.mimeType ?? null,
         itemCount,
@@ -7981,7 +8017,7 @@ await appendCustodyEvent({
         verificationStatus: evidence.verificationStatus ?? null,
         ...canonicalAvailability,
         caseLinked: Boolean(evidence.caseId),
-        workspaceLabel: evidence.workspaceNameSnapshot ?? null,
+        workspaceLabel: sanitizeUntrustedField(evidence.workspaceNameSnapshot ?? "", 200) || null,
         checklistMetadataOnly: true,
       };
 

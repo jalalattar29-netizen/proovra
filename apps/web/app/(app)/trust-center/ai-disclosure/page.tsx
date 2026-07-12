@@ -2,10 +2,13 @@
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { TrustCenterSectionList } from "../_section-list";
+import { AiCapabilityStatusTable } from "../../../../components/ai-copilot/AiCapabilityStatusTable";
 
 export default function AiDisclosurePage() {
   return (
     <PageRouteGate routeId="workspace.trust">
+      {/* Phase A1 — live, backend-computed capability status (never inferred). */}
+      <AiCapabilityStatusTable />
       <TrustCenterSectionList
         kind="AI_DISCLOSURE"
         title="AI Disclosure Center"

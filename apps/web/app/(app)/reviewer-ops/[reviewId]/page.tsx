@@ -26,6 +26,7 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 // the workflow has moved under them.
 import { PresenceIndicator } from "../../../../components/presence/PresenceIndicator";
 import { CollisionWarning } from "../../../../components/presence/CollisionWarning";
+import { ReviewerCopilotPanel } from "../../../../components/ai-copilot/ReviewerCopilotPanel";
 import {
   ReviewerReasonModal,
   type ReviewerReasonKind,
@@ -447,6 +448,21 @@ function ReviewWorkspacePageInner() {
             </p>
           </section>
         )}
+
+      {/* Phase D3 — Reviewer Copilot (advisory only; final decision stays human). */}
+      <div style={{ marginBottom: 12 }}>
+        <ReviewerCopilotPanel
+          reviewId={workflowId}
+          evidence={[
+            {
+              id: p.evidenceId,
+              title: `Evidence ${p.evidenceId.slice(0, 8)}…`,
+              version: 0,
+              status: p.lifecycleState,
+            },
+          ]}
+        />
+      </div>
 
       {/* Phase A.1D — review workflow continuity. Surface the related
           artifacts + cross-surface links the reviewer needs without

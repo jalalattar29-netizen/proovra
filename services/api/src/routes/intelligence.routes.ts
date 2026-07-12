@@ -63,7 +63,6 @@ import {
 // readers can locate the prior code path quickly.
 import {
   isSemanticSearchEnabled,
-  searchSemantic,
 } from "../services/intelligence/semantic.service.js";
 // Phase 14 — Stage 3 consolidation. The /v1/intelligence/search
 // endpoint is folded onto the canonical /v1/search backend
@@ -203,15 +202,11 @@ export async function intelligenceRoutes(app: FastifyInstance) {
       // searchEvidence projection); callers consuming only
       // `evidenceId` + `summary` are unaffected, while new callers
       // can already access the additional fields.
-      const semanticPayload = isSemanticSearchEnabled()
-        ? query.semantic === "true"
-          ? await searchSemantic({
-              teamId: query.teamId,
-              q: query.q,
-              limit: query.limit,
-            })
-          : { enabled: true, hits: [] }
-        : { enabled: false, hits: [] };
+      // Phase B1 — removed the legacy parallel `searchSemantic` embedding path.
+      // Canonical hybrid keyword+semantic ranking already runs inside
+      // `executeSearch` (searchResult above); this endpoint no longer calls the
+      // deprecated intelligence/semantic.service embedding abstraction.
+      const semanticPayload = { enabled: isSemanticSearchEnabled(), hits: [] as never[] };
 
       return reply.code(200).send({
         keyword: {

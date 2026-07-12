@@ -43,6 +43,7 @@ import {
 } from "../services/search/search-audit.service.js";
 // Phase 16 — semantic search admin surface (backfill + status).
 import { runSemanticBackfill } from "../services/search/semantic-backfill.service.js";
+import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
 import { getSemanticUsageSummary } from "../services/search/semantic-budget.service.js";
 import {
   isSemanticReadyAtRuntime,
@@ -917,6 +918,21 @@ export async function searchRoutes(app: FastifyInstance) {
           dryRun: z.coerce.boolean().optional(),
         })
         .parse((req.body ?? {}) as Record<string, unknown>);
+      // Phase A2 — workspace AI policy gate. A workspace that has disabled
+      // semantic search must not have embeddings computed/sent, even when a
+      // platform admin triggers a backfill for it.
+      const semPolicy = await evaluateWorkspaceAiPolicy({
+        teamId: body.workspaceId,
+        feature: "SEMANTIC_SEARCH",
+        dataClass: "DERIVED_CONTENT",
+      });
+      if (!semPolicy.allowed) {
+        return reply.code(403).send({
+          code: "AI_WORKSPACE_POLICY_DENIED",
+          message: semPolicy.reason,
+          decision: semPolicy.decision,
+        });
+      }
       const result = await runSemanticBackfill({
         workspaceId: body.workspaceId,
         batchSize: body.batchSize,

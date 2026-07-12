@@ -597,7 +597,11 @@ function buildLibrarySummary(params: {
   return {
     label: "Evidence readiness score",
     score: score === 0 ? null : score,
-    description: `Scored from custody integrity, artifact availability, and verification readiness. ${score >= 80 ? "High confidence for review." : score >= 50 ? "Moderate confidence; review gaps remain." : "Additional validation is recommended."}`,
+    description: `Scored from custody integrity, artifact availability, and verification readiness. ${score >= 80 ? "Well prepared for review." : score >= 50 ? "Most required review context is available; some gaps remain." : "Additional preparation is recommended."}`,
+    // Phase A6 — mandatory completeness-only boundary. This is a preparation
+    // signal, never a truth/authenticity/admissibility judgement.
+    boundary:
+      "This score measures review-preparation completeness only. It does not assess truth, authenticity, reliability, evidential strength, or legal admissibility.",
   };
 }
 

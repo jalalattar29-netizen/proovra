@@ -3,6 +3,8 @@ import { AiResult, AiTask } from "./ai-types.js";
 import { AiCostGuard } from "./ai-cost-guard.js";
 import { AI_LEGAL_DISCLAIMER } from "./ai-policy.js";
 import { answerProductKnowledge } from "./proovra-product-knowledge.js";
+import { classifyChatScope } from "./chat-scope-classifier.service.js";
+import { sanitizeUntrustedField } from "./prompt-context-sanitizer.service.js";
 // Phase O1.5E — bounded ai.chat + ai.support.response spans.
 import {
   PROOVRA_SPAN_NAMES,
@@ -55,9 +57,16 @@ export function sanitizePageContextPath(
 }
 
 function sanitizeChatPayload(payload: SupportChatPayload): SupportChatPayload {
-  if (!payload.pageContext) return payload;
+  // Phase E2 — user messages are untrusted free text: strip secrets, signed
+  // URLs, precise GPS, and control/bidi chars before the provider (bounded).
+  const messages = payload.messages.map((m) => ({
+    ...m,
+    content: sanitizeUntrustedField(m.content, 5000),
+  }));
+  if (!payload.pageContext) return { ...payload, messages };
   return {
     ...payload,
+    messages,
     pageContext: {
       // Title is short and reviewer-safe; path is the risk surface.
       title: payload.pageContext.title,
@@ -101,6 +110,24 @@ const productAnswer = answerProductKnowledge(payload.messages);
 if (productAnswer) {
   this.costGuard.recordChatMessage(userId);
   return productAnswer;
+}
+
+// Phase C2 — deterministic scope gate BEFORE any provider call. Off-domain
+// legal/general requests, forensic-truth determinations, and unsafe/jailbreak
+// attempts are refused without spending provider budget.
+const lastUserMessage =
+  [...payload.messages].reverse().find((m) => m.role === "user")?.content ?? "";
+const scope = classifyChatScope(lastUserMessage);
+if (scope.refuse) {
+  this.costGuard.recordChatMessage(userId);
+  return {
+    status: "ok",
+    summary: scope.refusalMessage ?? "That request is outside PROOVRA's scope.",
+    warnings: [],
+    suggestions: [],
+    flags: [],
+    legalDisclaimer: AI_LEGAL_DISCLAIMER,
+  };
 }
 
 const result = await this.provider.run(

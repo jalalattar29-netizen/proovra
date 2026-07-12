@@ -59,7 +59,10 @@ const SAFE_REFUSAL = (kind: AiAssistanceKind): AiAssistanceResult => ({
   summary: null,
   highlights: [],
   cautions: [
-    "AI assistance is not configured for this workspace.",
+    // Phase B3 — truthful status. Reviewer AI-assist is a PREVIEW capability
+    // that is not operational in production; the real Reviewer Copilot ships in
+    // phase D3. Never present this as an active AI feature.
+    "Reviewer AI assistance is in preview and not operational yet. It performs no analysis and makes no determination.",
     AI_ADVISORY_DISCLAIMER,
   ],
   disclaimer: AI_ADVISORY_DISCLAIMER,

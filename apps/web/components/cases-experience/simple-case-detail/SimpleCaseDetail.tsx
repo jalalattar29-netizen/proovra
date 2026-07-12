@@ -63,6 +63,7 @@ import { useConfirmAction } from "../../ui/ConfirmActionModal";
 // title cascade so Case Detail rows never render "Untitled evidence"
 // when filename fields exist on the record.
 import { getDisplayTitle } from "../../../app/(app)/evidence/lib/evidence-library-status";
+import { CaseCopilotPanel } from "../../ai-copilot/CaseCopilotPanel";
 // Phase CASES-STATUS-LISTBOX (§22) — accessible custom status listbox
 // replaces the native status dropdown in the Settings tab.
 import { CaseStatusSelect } from "./CaseStatusSelect";
@@ -357,15 +358,29 @@ export function SimpleCaseDetail({
         />
       ) : null}
       {activeTab === "evidence" ? (
-        <EvidenceTab
-          caseId={caseId}
-          items={evidenceItems}
-          viewer={viewer}
-          onOpenEvidence={onOpenEvidence}
-          onReload={reload}
-          addToast={addToast}
-          confirm={confirm}
-        />
+        <>
+          <EvidenceTab
+            caseId={caseId}
+            items={evidenceItems}
+            viewer={viewer}
+            onOpenEvidence={onOpenEvidence}
+            onReload={reload}
+            addToast={addToast}
+            confirm={confirm}
+          />
+          <div style={{ marginTop: 16 }}>
+            <CaseCopilotPanel
+              caseId={caseId}
+              linkedEvidence={evidenceItems.map((it) => ({
+                id: it.id,
+                title: getDisplayTitle(it),
+                type: (it as { type?: string }).type ?? "EVIDENCE",
+                version: (it as { verificationPackageVersion?: number | null }).verificationPackageVersion ?? 0,
+                status: (it as { status?: string }).status ?? "",
+              }))}
+            />
+          </div>
+        </>
       ) : null}
       {activeTab === "reports" ? (
         <ReportsPackagesTab

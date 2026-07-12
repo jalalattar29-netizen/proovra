@@ -1,0 +1,154 @@
+/**
+ * Phase D1/D2 — Live Case Copilot route.
+ *   POST /v1/ai/case/:caseId/copilot
+ */
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+
+import { getAuthUserId } from "../auth.js";
+import { prisma } from "../db.js";
+import { requireAuth } from "../middleware/auth.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { buildBaseContext, buildCaseContext, buildEvidenceContext } from "../services/ai/ai-context-resolver.service.js";
+
+function auditCase(userId: string, outcome: string, resourceId: string, metadata: Record<string, unknown>) {
+  return appendPlatformAuditLog({ userId, action: "ai.case_copilot", category: "ai", source: "api_ai", outcome, resourceType: "case", resourceId, metadata });
+}
+import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
+import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
+import { runCaseCopilot } from "../services/ai/case-copilot.service.js";
+import { buildCaseCopilotProvider, CaseCopilotProviderUnavailable } from "../services/ai/case-copilot-provider.js";
+import { buildCitationResolver, buildWorkspaceCitationLookups, type CitationPrisma } from "../services/ai/ai-citation-db-resolver.service.js";
+import { persistCopilotRun } from "../services/ai/ai-copilot-run-store.service.js";
+import { buildPrismaLedgerStore, reconcileAiUsage, releaseAiReservation, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
+import { cleanupExpiredCopilotRuns } from "../services/ai/ai-retention.service.js";
+
+const Body = z.object({
+  selectedEvidenceIds: z.array(z.string().uuid()).min(1).max(50),
+  selectedEvidenceVersions: z.record(z.string(), z.number().int()).optional(),
+  processingMode: z.enum(["METADATA_ONLY", "APPROVED_CONTENT"]).default("METADATA_ONLY"),
+  question: z.string().max(500).optional(),
+  idempotencyKey: z.string().max(80).optional(),
+});
+
+export async function aiCaseRoutes(app: FastifyInstance) {
+  app.post("/v1/ai/case/:caseId/copilot", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const caseId = z.string().uuid().parse((req.params as { caseId: string }).caseId);
+    const body = Body.parse(req.body ?? {});
+
+    // Authorize case via workspace membership.
+    const caseRow = await prisma.case.findUnique({
+      where: { id: caseId },
+      select: { id: true, teamId: true, name: true, status: true },
+    });
+    if (!caseRow?.teamId) return reply.code(404).send({ error: { code: "case_not_found" } });
+    const membership = await prisma.teamMember.findUnique({
+      where: { teamId_userId: { teamId: caseRow.teamId, userId } },
+    });
+    if (!membership) return reply.code(403).send({ error: { code: "not_a_member" } });
+    const teamId = caseRow.teamId;
+
+    // D2 — authorize + load explicitly-selected evidence (tenant-scoped, live).
+    const ids = [...new Set(body.selectedEvidenceIds)];
+    if (ids.length !== body.selectedEvidenceIds.length) {
+      return reply.code(400).send({ error: { code: "duplicate_evidence_ids" } });
+    }
+    const rows = await prisma.evidence.findMany({
+      where: { id: { in: ids }, teamId, deletedAt: null },
+      select: {
+        id: true, teamId: true, title: true, type: true, mimeType: true, status: true,
+        verificationStatus: true, caseId: true, verificationPackageVersion: true, latestReportVersion: true,
+      },
+    });
+    if (rows.length !== ids.length) {
+      return reply.code(403).send({ error: { code: "unauthorized_or_missing_evidence" } });
+    }
+    // Stale-version rejection.
+    if (body.selectedEvidenceVersions) {
+      for (const r of rows) {
+        const expected = body.selectedEvidenceVersions[r.id];
+        if (expected != null && expected !== (r.verificationPackageVersion ?? 0)) {
+          return reply.code(409).send({ error: { code: "stale_evidence_version", evidenceId: r.id } });
+        }
+      }
+    }
+
+    // Policy gate (CASE_COPILOT) + role + rate limit.
+    const policyDecision = await evaluateWorkspaceAiPolicy({
+      teamId, feature: "CASE_COPILOT", dataClass: body.processingMode === "APPROVED_CONTENT" ? "DERIVED_CONTENT" : "METADATA", userRole: membership.role,
+    });
+    const guard = await enforceAiEndpointGuard({
+      feature: "case-copilot", userId, ip: req.ip,
+      dedupeKey: body.idempotencyKey ?? `${caseId}:${ids.sort().join(",")}`,
+      dedupeWindowSec: 20,
+    });
+    if (!guard.allowed) {
+      reply.header("Retry-After", String(guard.retryAfterSec));
+      return reply.code(429).send({ code: guard.code, message: "Too many AI requests; please slow down." });
+    }
+
+    // C3 context (authorized rows only; allowlisted/sanitized/versioned).
+    const base = await buildBaseContext({ route: `/cases/${caseId}`, routeClass: "CASE", role: membership.role, teamId, dataMode: body.processingMode });
+    const caseContext = buildCaseContext(base, { id: caseRow.id, title: caseRow.name, status: caseRow.status });
+    const selectedEvidence = rows.map((r) =>
+      buildEvidenceContext({ ...base, routeClass: "EVIDENCE" }, {
+        id: r.id, teamId: r.teamId, title: r.title, type: r.type, mimeType: r.mimeType,
+        status: r.status, verificationStatus: r.verificationStatus, caseLinked: Boolean(r.caseId),
+        verificationPackageVersion: r.verificationPackageVersion, latestReportVersion: r.latestReportVersion,
+      }),
+    );
+
+    const resolveCitation = buildCitationResolver(
+      buildWorkspaceCitationLookups(prisma as unknown as CitationPrisma, teamId),
+    );
+
+    // Phase A7 — durable budget reservation (multi-replica-safe authority).
+    const ledgerRequestId = `${body.idempotencyKey ?? `case:${caseId}:${ids.sort().join(",")}`}:${Date.now()}`;
+    const ledger = await tryReserveAiBudget({
+      teamId, userId, feature: "CASE_COPILOT",
+      model: process.env.OPENAI_CASE_COPILOT_MODEL?.trim() || "gpt-4.1-mini",
+      requestId: ledgerRequestId, estimatedCostUsdMicros: 250_000n,
+    });
+    if (ledger.decision && !ledger.decision.allowed && ledger.decision.code !== "DUPLICATE_REQUEST") {
+      return reply.code(429).send({ code: `AI_BUDGET_${ledger.decision.code}`, message: "The workspace AI budget or operation limit has been reached." });
+    }
+
+    let result;
+    try {
+      result = await runCaseCopilot({
+        teamId, caseContext, selectedEvidence, policyDecision,
+        provider: buildCaseCopilotProvider(), resolveCitation,
+      });
+    } catch (err) {
+      if (err instanceof CaseCopilotProviderUnavailable) {
+        if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+        await auditCase(userId, "failure", caseId, { status: "provider_unavailable", selectedCount: ids.length });
+        return reply.code(200).send({ status: "provider_unavailable", advisoryBoundary: "AI assistance is advisory only." });
+      }
+      if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+      throw err;
+    }
+    if (ledger.reservationId) await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
+
+    await auditCase(userId, result.status === "ok" ? "success" : result.status === "blocked_prohibited_claim" ? "blocked" : "failure", caseId, {
+      status: result.status, selectedCount: ids.length, droppedCitations: result.droppedCitations ?? 0, policyDecision: policyDecision.decision,
+    });
+
+    // Phase D4 — bounded defensibility record (never blocks the response).
+    const run = await persistCopilotRun({
+      workspaceId: teamId, userId, feature: "CASE_COPILOT", caseId,
+      requestId: body.idempotencyKey ?? `case:${caseId}:${ids.sort().join(",")}`,
+      model: process.env.OPENAI_CASE_COPILOT_MODEL?.trim() || "gpt-4.1-mini",
+      workspacePolicyVersion: policyDecision.policyVersion,
+      processingMode: body.processingMode,
+      selectedObjectVersions: result.versionMeta.contextObjectVersions,
+      status: result.status,
+      boundedResult: result.status === "ok" ? result.data : undefined,
+      validatedCitations: result.status === "ok" ? (result.data as { citations?: unknown })?.citations : undefined,
+    });
+    // Phase E1 — opportunistic advisory-record retention (never blocks).
+    void cleanupExpiredCopilotRuns(teamId).catch(() => undefined);
+    return reply.code(200).send({ data: result, runId: run?.id ?? null });
+  });
+}
