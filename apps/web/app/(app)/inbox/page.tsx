@@ -48,6 +48,14 @@ import {
   useOrganizations,
   usePersonalSpace,
 } from "../../../lib/platform-context";
+import { useOperationsUiContext } from "../../../lib/notifications/useOperationsUiContext";
+import {
+  shouldOfferMarkAllRead,
+  shouldOfferMarkCategoryRead,
+  toneTileDisabled,
+  visiblePrimaryFilters,
+  visibleSecondaryFilters,
+} from "../../../lib/notifications/operationsFilterPolicy";
 
 type InboxTone = "info" | "warning" | "high" | "critical";
 type InboxCategory =
@@ -166,6 +174,13 @@ type InboxEnvelope = {
     byCategory: Record<InboxCategory, number>;
     byPriority?: Record<InboxPriority, number>;
   };
+  /** HYBRID contract — workspace-scope ACTIVE totals, independent of
+   * the category/tone filter. Absent on History responses. */
+  scopeSummary?: {
+    total: number;
+    unread: number;
+    byTone: Record<InboxTone, number>;
+  };
   truncated?: InboxTruncated;
   anyTruncated?: boolean;
   /** History responses only — false when the persistent snapshot store
@@ -241,7 +256,7 @@ const PRIORITY_META: Record<
     tagline: "Workspace governance + admin notifications.",
   },
   P5: {
-    label: "P5 · Notifications",
+    label: "P5 · Awareness",
     tagline: "Awareness signals — informational only.",
   },
 };
@@ -309,29 +324,6 @@ function isCategoryFilter(f: InboxFilter): boolean {
   return f !== "all" && f !== "unread" && f !== "history" && f !== "snoozed";
 }
 
-const INBOX_FILTER_ORDER: ReadonlyArray<InboxFilter> = [
-  "all",
-  "unread",
-  "critical",
-  "assigned_to_me",
-  "mentions",
-  "invitations",
-  "review",
-  "collaboration",
-  "governance",
-  "security",
-  "integrity",
-  "reports",
-  "packages",
-  "intake",
-  "failures",
-  "due_soon",
-  "overdue",
-  "admin",
-  "snoozed",
-  "history",
-];
-
 // Human label for each truncation key. Keep in sync with the InboxTruncated
 // union above.
 const TRUNCATION_LABELS: Record<keyof InboxTruncated, string> = {
@@ -376,6 +368,15 @@ function InboxPageInner() {
   const [workspaceFilter, setWorkspaceFilter] = useState<string>("all");
   const personalSpace = usePersonalSpace();
   const organizations = useOrganizations();
+  // Canonical UI-context — relevance only; the backend enforces data.
+  const uiCtx = useOperationsUiContext();
+  // Filter grouping (pure policy, unit-tested): a stable primary row +
+  // a "More filters" overflow; capability-gated chips (admin,
+  // governance) never render for users who can never receive them, and
+  // the ACTIVE filter is always visible even while collapsed.
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
+  const primaryFilters = visiblePrimaryFilters(uiCtx, filter);
+  const secondaryFilters = visibleSecondaryFilters(uiCtx, filter);
   const workspaceOptions: Array<{ value: string; label: string }> = [
     { value: "all", label: "All workspaces" },
     ...(personalSpace?.id
@@ -648,7 +649,7 @@ function InboxPageInner() {
       data-inbox-total={state.kind === "ready" ? state.data.summary.total : 0}
       header={
         <PageHeader
-          eyebrow="Account · Operational inbox"
+          eyebrow="Account · Operations Center"
           title="Operations Center"
           subtitle="Operational items that require your attention — reviews, mentions, invitations, governance, security, and integrity signals."
           primaryAction={
@@ -676,13 +677,18 @@ function InboxPageInner() {
         >
           {(["critical", "high", "warning", "info"] as InboxTone[]).map(
             (tone) => {
-              const count = state.data.summary.byTone[tone];
+              const count =
+                state.data.scopeSummary?.byTone[tone] ??
+                state.data.summary.byTone[tone];
               const active = toneFilter === tone;
+              const disabled = toneTileDisabled(count, active);
               return (
                 <button
                   key={tone}
                   type="button"
                   onClick={() => setToneFilter(active ? "all" : tone)}
+                  aria-pressed={active}
+                  disabled={disabled}
                   data-inbox-tone-tile={tone}
                   data-inbox-tone-tile-active={active ? "true" : "false"}
                   data-inbox-tone-tile-count={count}
@@ -704,19 +710,24 @@ function InboxPageInner() {
           <button
             type="button"
             onClick={() => setToneFilter("all")}
+            aria-pressed={toneFilter === "all"}
             data-inbox-tone-tile="all"
             data-inbox-tone-tile-active={toneFilter === "all" ? "true" : "false"}
-            data-inbox-tone-tile-count={state.data.summary.total}
+            data-inbox-tone-tile-count={
+              state.data.scopeSummary?.total ?? state.data.summary.total
+            }
             data-tone="all"
             data-active={toneFilter === "all" ? "true" : "false"}
             className="ops-tone-tile"
           >
             <div className="ops-tone-tile__label">ALL</div>
             <div className="ops-tone-tile__count">
-              {state.data.summary.total}
+              {state.data.scopeSummary?.total ?? state.data.summary.total}
             </div>
             <div className="ops-tone-tile__hint">
-              {state.data.summary.total === 1 ? "open item" : "open items"}
+              {(state.data.scopeSummary?.total ?? state.data.summary.total) === 1
+                ? "open item"
+                : "open items"}
             </div>
           </button>
         </section>
@@ -740,7 +751,12 @@ function InboxPageInner() {
            frontend never submits item keys for mass updates. Read is
            attention-state only: it never resolves, dismisses, or
            acknowledges anything. */}
-      {state.kind === "ready" && filter !== "history" && filter !== "snoozed" && (
+      {state.kind === "ready" &&
+        filter !== "history" &&
+        filter !== "snoozed" &&
+        shouldOfferMarkAllRead(
+          state.data.scopeSummary?.unread ?? state.data.summary.total,
+        ) && (
         <section
           data-inbox-bulk-actions
           aria-label="Bulk read actions"
@@ -754,7 +770,11 @@ function InboxPageInner() {
           >
             Mark all as read
           </Button>
-          {isCategoryFilter(filter) ? (
+          {shouldOfferMarkCategoryRead(
+            state.data.scopeSummary?.unread ?? state.data.summary.total,
+            state.data.summary.total,
+            isCategoryFilter(filter),
+          ) ? (
             <Button
               variant="secondary"
               data-action="mark-category-read"
@@ -812,28 +832,67 @@ function InboxPageInner() {
         <section
           data-inbox-filter-chips
           aria-label="Operations Center filters"
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-          }}
+          style={{ display: "flex", flexDirection: "column", gap: 6 }}
         >
-          {INBOX_FILTER_ORDER.map((key) => {
-            const active = filter === key;
-            return (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {primaryFilters.map((key) => {
+              const active = filter === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFilter(key)}
+                  aria-pressed={active}
+                  data-inbox-filter-chip={key}
+                  data-inbox-filter-chip-active={active ? "true" : "false"}
+                  data-active={active ? "true" : "false"}
+                  className="ops-chip"
+                >
+                  {INBOX_FILTER_LABELS[key]}
+                </button>
+              );
+            })}
+            {secondaryFilters.length > 0 ? (
               <button
-                key={key}
                 type="button"
-                onClick={() => setFilter(key)}
-                data-inbox-filter-chip={key}
-                data-inbox-filter-chip-active={active ? "true" : "false"}
-                data-active={active ? "true" : "false"}
-                className="ops-chip"
+                onClick={() => setMoreFiltersOpen((v) => !v)}
+                aria-expanded={moreFiltersOpen}
+                aria-controls="inbox-secondary-filters"
+                data-action="toggle-more-filters"
+                data-active={moreFiltersOpen ? "true" : "false"}
+                className="ops-chip ops-chip--more"
               >
-                {INBOX_FILTER_LABELS[key]}
+                {moreFiltersOpen
+                  ? "Fewer filters"
+                  : `More filters (${secondaryFilters.length})`}
               </button>
-            );
-          })}
+            ) : null}
+          </div>
+          {moreFiltersOpen && secondaryFilters.length > 0 ? (
+            <div
+              id="inbox-secondary-filters"
+              data-inbox-secondary-filters
+              style={{ display: "flex", flexWrap: "wrap", gap: 6 }}
+            >
+              {secondaryFilters.map((key) => {
+                const active = filter === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setFilter(key)}
+                    aria-pressed={active}
+                    data-inbox-filter-chip={key}
+                    data-inbox-filter-chip-active={active ? "true" : "false"}
+                    data-active={active ? "true" : "false"}
+                    className="ops-chip"
+                  >
+                    {INBOX_FILTER_LABELS[key]}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </section>
       )}
 
@@ -857,7 +916,8 @@ function InboxPageInner() {
           >
             Showing {visibleItems.length} of{" "}
             {state.data.pagination.totalEstimate}
-            {state.data.pagination.totalIsExact ? "" : "+"} items
+            {state.data.pagination.totalIsExact ? "" : "+"}{" "}
+            {filter === "all" ? "items" : `${INBOX_FILTER_LABELS[filter]} items`}
           </strong>
           {state.data.anyTruncated && state.data.truncated && (
             <span style={{ opacity: 0.85 }}>
@@ -913,7 +973,7 @@ function InboxPageInner() {
       )}
 
       {state.kind === "ready" &&
-        state.data.summary.total === 0 && (
+        (state.data.scopeSummary?.total ?? state.data.summary.total) === 0 && (
           <div data-state="empty">
             <EmptyState
               framed
@@ -929,13 +989,23 @@ function InboxPageInner() {
                   >
                     Open workspace command center
                   </Link>
-                  <Link
-                    href="/organizations"
-                    data-action="empty-open-organizations"
-                    className="ops-link-btn"
-                  >
-                    Organizations
-                  </Link>
+                  {uiCtx.hasOrganizations ? (
+                    <Link
+                      href="/organizations"
+                      data-action="empty-open-organizations"
+                      className="ops-link-btn"
+                    >
+                      Organizations
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/evidence"
+                      data-action="empty-open-evidence"
+                      className="ops-link-btn"
+                    >
+                      Evidence library
+                    </Link>
+                  )}
                 </div>
               }
             />
@@ -943,7 +1013,7 @@ function InboxPageInner() {
         )}
 
       {state.kind === "ready" &&
-        state.data.summary.total > 0 &&
+        (state.data.scopeSummary?.total ?? state.data.summary.total) > 0 &&
         visibleItems.length === 0 && (
           <div data-state="filter-empty">
             <Card variant="empty" padding="comfortable">

@@ -261,12 +261,14 @@ export type RuntimeOwner =
   | "api:export-lineage.service"
   | "api:governance-notification.service"
   | "api:governance-analytics.service"
+  | "api:incident.service"
   | "api:review-operations.service"
   | "api:workflow-engine.service"
   | "api:platform-audit-log.service"
   | "worker:retention-reconciliation"
   | "worker:destruction-orchestrator"
-  | "worker:immutable-storage-reconciliation";
+  | "worker:immutable-storage-reconciliation"
+  | "worker:notification-emitter";
 
 export type CanonicalDomain =
   | "lifecycle"
@@ -388,18 +390,21 @@ export const RUNTIME_OWNERSHIP_MAP: ReadonlyArray<RuntimeOwnershipEntry> = [
   {
     domain: "governance_notification",
     artifact: "GovernanceNotification rows",
-    authoritativeWriter: "api:governance-notification.service",
-    readers: ["api:governance-analytics.service"],
+    authoritativeWriter: "worker:notification-emitter",
+    readers: [
+      "api:governance-notification.service",
+      "api:governance-analytics.service",
+    ],
     notes:
-      "KNOWN GAP: the three Phase 27.5 workers write notifications directly via `prisma.governanceNotification.upsert` rather than calling the canonical service. Throttle and incident fan-out are therefore bypassed for those emissions. Cross-runtime test asserts the dedupe-key shape stays consistent; full delegation is a future cleanup, not a blocker.",
+      "Product decision 2026-07-14: the worker emitter is the SOLE writer. The dedupe/throttle contract (scrubMetadata, boundedJson, SEVERITY_RANK, resolveChannels) is extracted to @proovra/shared governance-notification-contract; the api service reads/projects/acknowledges only. Resolves the former known gap where workers wrote rows directly while the api emit path was nominal.",
   },
   {
     domain: "governance_incident",
     artifact: "OperationalIncident (governance category)",
-    authoritativeWriter: "api:governance-notification.service",
+    authoritativeWriter: "api:incident.service",
     readers: ["api:governance-analytics.service"],
     notes:
-      "Workers raise incidents via the existing Phase 21 recordIncident helper (re-implemented inline in the immutable worker). Future cleanup: delegate via shared client.",
+      "Governance-category incidents are raised through the Phase 21 recordIncident upsert (api) and the worker incident-emitter twin. The api notification-emit fan-out path was deleted 2026-07-14 (worker notification-emitter is the sole notification writer and fans HIGH/CRITICAL out via recordWorkerIncident).",
   },
   {
     domain: "review_workflow",

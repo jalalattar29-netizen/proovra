@@ -982,3 +982,68 @@ describe("IN_APP preference honesty — suppression is real, email-independent",
     ).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// HYBRID summary contract (UX remediation) — the workspace-scope severity
+// totals survive category filtering; the filtered summary keeps reflecting
+// the active filter. Both derive from one authorized aggregation.
+// ---------------------------------------------------------------------------
+describe("Hybrid summary — scopeSummary is filter-independent", () => {
+  function seedTsa() {
+    H.tsaRows = [
+      {
+        id: "77777777-7777-4777-8777-777777777777",
+        teamId: H.teamId,
+        caseId: null,
+        title: "Contract scan",
+        originalFileName: "contract.pdf",
+        tsaFailureReason: "TSA endpoint rejected the request",
+        updatedAt: new Date("2026-07-12T00:00:00Z"),
+      },
+    ];
+  }
+
+  it("selecting a non-matching category zeroes the FILTERED summary but not the SCOPE summary", async () => {
+    seedTsa();
+    const { body } = await getInbox("?filter=mentions");
+    // Filtered scope: no mentions exist.
+    expect(body.summary.total).toBe(0);
+    expect(body.items.length).toBe(0);
+    // Workspace scope: the live TSA failure (high) + the unread collab
+    // item remain visible in the cards.
+    expect(body.scopeSummary.byTone.high).toBeGreaterThanOrEqual(1);
+    expect(body.scopeSummary.total).toBeGreaterThanOrEqual(2);
+    expect(body.scopeSummary.unread).toBeGreaterThanOrEqual(1);
+  });
+
+  it("scopeSummary honors the workspace selector", async () => {
+    seedTsa();
+    const { body } = await getInbox(
+      `?filter=mentions&workspaceId=${H.teamId}`,
+    );
+    expect(body.scopeSummary.byTone.high).toBeGreaterThanOrEqual(1);
+  });
+
+  it("scopeSummary counts the ACTIVE set even in the snoozed view", async () => {
+    seedTsa();
+    const { body } = await getInbox("?filter=snoozed");
+    // The snoozed view lists only snoozed items, but the cards keep the
+    // active workspace totals.
+    expect(body.scopeSummary.byTone.high).toBeGreaterThanOrEqual(1);
+  });
+
+  it("dismissed and suppressed items are excluded from scopeSummary", async () => {
+    seedTsa();
+    H.disabledInAppTypes.push("ASSIGNED_THREAD"); // suppresses the collab rows
+    H.stateRows = [
+      {
+        itemKey: "tsa_failure:77777777-7777-4777-8777-777777777777",
+        readAt: null,
+        dismissedAt: new Date("2026-07-13T00:00:00Z"),
+        snoozedUntil: null,
+      },
+    ];
+    const { body } = await getInbox("");
+    expect(body.scopeSummary.total).toBe(0);
+  });
+});

@@ -1338,6 +1338,17 @@ export {
   isValidDedupeKey,
 } from "./governance-operations.js";
 
+// Governance notification emission contract (extracted 2026-07-14):
+// scrub / bound / severity-escalation / channel-routing helpers shared
+// by the sole runtime writer (worker notification-emitter). See
+// governance-notification-contract.ts.
+export {
+  SEVERITY_RANK,
+  boundedJson,
+  resolveChannels,
+  scrubMetadata,
+} from "./governance-notification-contract.js";
+
 // -----------------------------------------------------------------------------
 // Phase 26.75 — Identity runtime (quarantine, geo, privileged action
 // catalog, runtime risk recompute, trust decay)

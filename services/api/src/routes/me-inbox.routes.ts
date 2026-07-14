@@ -2744,6 +2744,48 @@ export async function meInboxRoutes(app: FastifyInstance) {
         return true;
       });
 
+      // -----------------------------------------------------------------
+      // HYBRID summary contract (UX remediation 2026-07-14).
+      //
+      // scopeItems — the workspace-scoped ACTIVE attention set: same
+      // authorization/preference/state visibility as the default view
+      // (never suppressed, never dismissed, never actively snoozed —
+      // regardless of the requested filter), narrowed only by the
+      // validated workspace selector. This feeds `scopeSummary`, so the
+      // severity cards keep showing real operational conditions even
+      // while a non-matching category filter is selected. The category/
+      // tone-filtered `summary` below remains the FILTERED result scope.
+      // Both derive from the one authorized aggregation — no second
+      // aggregation runs.
+      // -----------------------------------------------------------------
+      const scopeItems = allItems.filter((it) => {
+        if (it.suppressedInApp) return false;
+        if (it.dismissedAt != null) return false;
+        if (
+          it.snoozedUntil != null &&
+          new Date(it.snoozedUntil).getTime() > nowMs
+        ) {
+          return false;
+        }
+        if (
+          requestedWorkspaceId &&
+          it.context?.teamId !== requestedWorkspaceId
+        ) {
+          return false;
+        }
+        return true;
+      });
+      const scopeSummary = {
+        total: scopeItems.length,
+        unread: scopeItems.filter((i) => !i.isRead).length,
+        byTone: {
+          critical: scopeItems.filter((i) => i.tone === "critical").length,
+          high: scopeItems.filter((i) => i.tone === "high").length,
+          warning: scopeItems.filter((i) => i.tone === "warning").length,
+          info: scopeItems.filter((i) => i.tone === "info").length,
+        },
+      };
+
       const filteredItems = visibleItems.filter((it) => {
         if (
           requestedWorkspaceId &&
@@ -2868,7 +2910,15 @@ export async function meInboxRoutes(app: FastifyInstance) {
         // not wrapped — their failure produces a 500 by design.
         degraded: degradedSources.length > 0,
         degradedSources,
+        // FILTERED result scope — reflects the active category/tone
+        // filter (kept under its long-standing name for compatibility).
         summary,
+        // WORKSPACE scope — active-item totals BEFORE category/tone
+        // filters (hybrid contract): the severity cards read this so a
+        // non-matching filter can never hide live critical/high
+        // conditions. Absent on History responses (snapshot store, not
+        // the live aggregation).
+        scopeSummary,
         // Phase IA-cleanup — honest pagination signal. Per-category +
         // top-level boolean. UI banners read these so the operator
         // knows when to drill into the canonical console for the

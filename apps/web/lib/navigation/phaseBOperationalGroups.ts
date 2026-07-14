@@ -77,14 +77,20 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
     description:
       "Primary operational execution surfaces. Where evidence is captured, organised, reviewed, and coordinated.",
     hint: "Daily operational work happens here.",
+    // PRODUCT DECISION (2026-07-14) — canonical Workspace order for ALL
+    // personas: Home first (orientation), Operations Center second (the
+    // attention queue), then the working surfaces. This array IS the
+    // rendered order contract: resolveNavigationGroups ranks each
+    // group's items by their position here, for every role and plan.
+    // Navigation stays predictable — never data- or persona-reordered.
     primary: [
       "workspace.home",
+      "account.inbox",
       "workspace.review",
       "workspace.cases",
       "workspace.evidence",
       "workspace.capture",
       "workspace.intake_links",
-      "account.inbox",
       "workspace.search",
       // Phase 2A — canonical reviewer-operator surfaces. These are daily
       // operational pages (workspace + queues), so they live in WORKSPACE

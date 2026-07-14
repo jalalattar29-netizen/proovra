@@ -30,7 +30,10 @@ import {
   SIDEBAR_GROUP_SYSTEM,
   SIDEBAR_GROUP_WORKSPACE,
 } from "./canonicalNavigationGroups";
-import { operationalGroupForRoute } from "./phaseBOperationalGroups";
+import {
+  PHASE_B_OPERATIONAL_GROUPS,
+  operationalGroupForRoute,
+} from "./phaseBOperationalGroups";
 // Phase 1A — pillar-aware persona visibility + sidebar node-budget ceiling.
 // The grouping resolver consults the pillar registry's persona overlay so
 // that a sidebar role never renders a pillar it shouldn't see, and clamps
@@ -164,6 +167,32 @@ export function resolveNavigationGroups(
         break;
     }
   }
+
+  // -------------------------------------------------------------------
+  // PRODUCT-DECISION ORDER CONTRACT (2026-07-14) — within every group,
+  // items render in the DECLARATIVE Phase B order (primary array first,
+  // then secondary array, then anything unlisted in arrival order).
+  // This makes the sidebar order explicit and identical for every
+  // role/plan/persona instead of an emergent artifact of workflow
+  // bucketing: Home is always first, Operations Center always second.
+  // -------------------------------------------------------------------
+  const declarativeRank = new Map<string, number>();
+  for (const group of PHASE_B_OPERATIONAL_GROUPS) {
+    group.primary.forEach((id, i) => declarativeRank.set(id, i));
+    group.secondary.forEach((id, i) =>
+      declarativeRank.set(id, group.primary.length + i),
+    );
+  }
+  const byDeclarativeOrder = (
+    a: WorkflowExposureItem,
+    b: WorkflowExposureItem,
+  ) =>
+    (declarativeRank.get(a.route.id) ?? Number.MAX_SAFE_INTEGER) -
+    (declarativeRank.get(b.route.id) ?? Number.MAX_SAFE_INTEGER);
+  workspaceItems.sort(byDeclarativeOrder);
+  governanceItems.sort(byDeclarativeOrder);
+  outputsItems.sort(byDeclarativeOrder);
+  systemItems.sort(byDeclarativeOrder);
 
   // -------------------------------------------------------------------
   // Emit the four canonical groups in the Phase B order. Each group

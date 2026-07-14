@@ -106,6 +106,8 @@ export function NotificationBell() {
   const [items, setItems] = useState<BellItem[] | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
 
   // Lightweight summary poll — drives the badge only. The summary is
   // computed server-side from the SAME canonical aggregation as the
@@ -148,6 +150,44 @@ export function NotificationBell() {
       if (timer) clearTimeout(timer);
     };
   }, [loadSummary]);
+
+  // Focus management — move focus into the popover on open, keep Tab
+  // cycling inside it (light trap for a non-modal dialog), and hand
+  // focus back to the bell trigger on close.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const popover = popoverRef.current;
+    const focusables = () =>
+      popover
+        ? Array.from(
+            popover.querySelectorAll<HTMLElement>(
+              'a[href], button:not([disabled])',
+            ),
+          )
+        : [];
+    focusables()[0]?.focus();
+    function onTrapKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Tab") return;
+      const list = focusables();
+      if (list.length === 0) return;
+      const first = list[0];
+      const last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    popover?.addEventListener("keydown", onTrapKeyDown);
+    return () => {
+      popover?.removeEventListener("keydown", onTrapKeyDown);
+      triggerRef.current?.focus();
+    };
+  }, [open]);
 
   // Fetch rows on open; close on outside click and on Escape.
   useEffect(() => {
@@ -209,6 +249,7 @@ export function NotificationBell() {
   return (
     <div ref={rootRef} style={{ position: "relative" }} data-app-notification-bell>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
@@ -237,6 +278,7 @@ export function NotificationBell() {
 
       {open ? (
         <div
+          ref={popoverRef}
           role="dialog"
           aria-label="Unread notifications"
           data-notification-bell-popover

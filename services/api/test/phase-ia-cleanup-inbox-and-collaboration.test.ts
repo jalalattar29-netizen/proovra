@@ -233,12 +233,13 @@ describe("Phase IA-cleanup — /inbox UI exposes the 5 new categories", () => {
     }
   });
 
-  it("declares INBOX_FILTER_ORDER + labels for the enterprise filter chips", () => {
-    // Phase IA-enterprise — replaced the older 7-key CATEGORY_GROUP
-    // chip set with the spec's 12-key server-driven filter (see
-    // Section 9 below). This older contract is preserved as a
-    // sanity check on the chip-rendering attribute.
-    expect(PAGE).toContain("INBOX_FILTER_ORDER");
+  it("declares the filter labels and renders chips from the grouped policy", () => {
+    // Final completion pass 2026-07-14 — chip ORDERING moved to the
+    // pure, unit-tested policy module (operationsFilterPolicy.ts);
+    // the page keeps the label map and renders primary + overflow
+    // rows from the policy.
+    expect(PAGE).toContain("operationsFilterPolicy");
+    expect(PAGE).toContain("visiblePrimaryFilters");
     expect(PAGE).toContain("INBOX_FILTER_LABELS");
     for (const id of [
       "all",

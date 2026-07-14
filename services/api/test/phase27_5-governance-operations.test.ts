@@ -336,18 +336,34 @@ describe("Phase 27.5 — SecurityEvent + metrics + step-up wiring", () => {
 // -----------------------------------------------------------------------------
 
 describe("Phase 27.5 — Service source wiring", () => {
-  it("notification service dedupes by (teamId, kind, dedupeKey) with throttle gating", () => {
-    const src = readSource(
+  it("notification writer dedupes by (teamId, kind, dedupeKey) with throttle gating", () => {
+    // Product decision 2026-07-14: worker emitter is the sole writer;
+    // contract extracted to @proovra/shared. The api service only
+    // reads/projects/acknowledges rows, so the dedupe/throttle pins
+    // point at the worker emitter + shared contract module.
+    const workerSrc = readSource(
+      "../../worker/src/governance/notification-emitter.ts",
+    );
+    expect(workerSrc).toContain("teamId_kind_dedupeKey");
+    expect(workerSrc).toContain("isValidDedupeKey");
+    expect(workerSrc).toContain("NOTIFICATION_THROTTLE_SECONDS");
+    expect(workerSrc).toContain("occurrenceCount");
+    // Channel defaults + scrub/bound helpers live in the shared contract.
+    const contractSrc = readSource(
+      "../../../packages/shared/src/governance-notification-contract.ts",
+    );
+    expect(contractSrc).toContain("DEFAULT_NOTIFICATION_CHANNELS");
+    expect(contractSrc).toContain("scrubMetadata");
+    expect(contractSrc).toContain("boundedJson");
+    // HIGH+ fan out to operational incidents.
+    expect(workerSrc).toContain("recordWorkerIncident");
+    expect(workerSrc).toContain('category: "GOVERNANCE"');
+    // The api read surface still projects the dedupe row shape.
+    const apiSrc = readSource(
       "../src/services/governance-lifecycle/governance-notification.service.ts",
     );
-    expect(src).toContain("teamId_kind_dedupeKey");
-    expect(src).toContain("isValidDedupeKey");
-    expect(src).toContain("NOTIFICATION_THROTTLE_SECONDS");
-    expect(src).toContain("occurrenceCount");
-    expect(src).toContain("DEFAULT_NOTIFICATION_CHANNELS");
-    // HIGH+ fan out to operational incidents.
-    expect(src).toContain("recordIncident");
-    expect(src).toContain('category: "GOVERNANCE"');
+    expect(apiSrc).toContain("occurrenceCount");
+    expect(apiSrc).not.toContain("emitGovernanceNotification");
   });
 
   it("export-lineage service captures bounded payload + hashes canonical JSON", () => {

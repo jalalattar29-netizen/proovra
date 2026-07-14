@@ -552,3 +552,66 @@
   color: var(--ink-primary);
   overflow-wrap: anywhere;
 }
+
+/* ---------- "More filters" disclosure chip ---------- */
+
+.ops-chip--more {
+  border-style: dashed;
+  color: var(--ink-muted);
+}
+.ops-chip--more[data-active="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface-muted);
+  color: var(--ink-primary);
+}
+
+/* ---------- disabled (zero-count) severity tiles ---------- */
+
+.ops-tone-tile:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.ops-tone-tile:disabled:hover {
+  background: var(--surface-card);
+}
+
+/* ---------- responsive behavior (tablet / mobile) ---------- */
+
+@media (max-width: 768px) {
+  /* Preference + policy tables scroll inside their panel instead of
+     forcing the page wider. */
+  .ops-panel {
+    overflow-x: auto;
+  }
+  .ops-table {
+    min-width: 560px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Bell popover becomes an edge-anchored sheet on small screens. */
+  .ops-bell-popover {
+    position: fixed;
+    top: 56px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+  }
+  /* Severity tiles: two columns instead of five squeezed cells. */
+  [data-inbox-summary] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  /* Item rows stack their action cluster under the content. */
+  .ops-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ops-item__actions {
+    justify-content: flex-start;
+  }
+  /* Quiet-hours form collapses to one column. */
+  .ops-form {
+    grid-template-columns: 1fr;
+  }
+}

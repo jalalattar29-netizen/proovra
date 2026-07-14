@@ -107,9 +107,13 @@ describe("Phase G0 (B.1) — sidebar uses Phase B canonical hierarchy", () => {
   });
 
   it("grouping resolver consumes phaseBOperationalGroups.ts for group membership", () => {
+    // Product-decision 2026-07-14: the resolver also imports the
+    // declarative group arrays (PHASE_B_OPERATIONAL_GROUPS) to enforce
+    // the item-order contract, so the import is multi-name now.
     expect(GROUPING_RESOLVER).toMatch(
-      /import\s*\{\s*operationalGroupForRoute\s*\}\s*from\s+"\.\/phaseBOperationalGroups"/,
+      /import\s*\{[\s\S]*?operationalGroupForRoute[\s\S]*?\}\s*from\s+"\.\/phaseBOperationalGroups"/,
     );
+    expect(GROUPING_RESOLVER).toMatch(/PHASE_B_OPERATIONAL_GROUPS/);
     expect(GROUPING_RESOLVER).toMatch(
       /operationalGroupForRoute\(item\.route\.id\)/,
     );

@@ -25,6 +25,7 @@ import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { useOperationsUiContext } from "../../lib/notifications/useOperationsUiContext";
 
 type PreferenceType =
   | "MENTION"
@@ -90,13 +91,18 @@ const FREQUENCY_RANK: Record<Frequency, number> = {
 const PREFERENCE_GROUPS: ReadonlyArray<{
   title: string;
   types: ReadonlyArray<PreferenceType>;
-  orgOnly?: boolean;
+  /** Rendered only when the caller can actually receive governance
+   * events (canReceiveGovernance from the canonical UI-context
+   * resolver: all org members; Personal only with the governance
+   * capability, i.e. the plan tier that can create retention/legal-
+   * hold sources in the first place). */
+  requiresGovernance?: boolean;
 }> = [
   { title: "Evidence integrity & verification", types: ["SLA_NEAR_BREACH"] },
   { title: "Reviews & quality", types: ["REVIEWER_ASSIGNMENT", "ESCALATION"] },
   { title: "Secure intake", types: ["EVIDENCE_REQUEST_UPDATE"] },
   { title: "Collaboration", types: ["MENTION", "ASSIGNED_THREAD"] },
-  { title: "Governance & retention", types: ["GOVERNANCE_UPDATE"], orgOnly: true },
+  { title: "Governance & retention", types: ["GOVERNANCE_UPDATE"], requiresGovernance: true },
 ];
 
 const TYPE_LABEL: Record<PreferenceType, string> = {
@@ -104,7 +110,11 @@ const TYPE_LABEL: Record<PreferenceType, string> = {
   ASSIGNED_THREAD: "Discussion threads assigned to you",
   REVIEWER_ASSIGNMENT: "Reviewer workflow assignments",
   ESCALATION: "Escalations routed to you",
-  SLA_NEAR_BREACH: "SLA timers approaching breach",
+  // Semantic-honesty rename (2026-07-14): the backend type is still
+  // SLA_NEAR_BREACH, but what it actually maps to is the mandatory
+  // evidence-integrity failure set (TSA/OTS timestamping, report and
+  // verification-package failures) — the label says so.
+  SLA_NEAR_BREACH: "Evidence integrity & verification failures",
   EVIDENCE_REQUEST_UPDATE: "Evidence request updates",
   GOVERNANCE_UPDATE: "Governance / destruction updates",
 };
@@ -118,7 +128,7 @@ const IN_APP_LOCK_REASON: Partial<Record<PreferenceType, string>> = {
   SLA_NEAR_BREACH:
     "Required for evidence integrity — always shown in the app",
   GOVERNANCE_UPDATE:
-    "Required governance duty — managed by your organization and always shown in the app",
+    "Required governance duty — always shown in the app",
 };
 
 function inAppLockReason(type: PreferenceType): string {
@@ -136,7 +146,7 @@ const TYPE_HELP: Record<PreferenceType, string> = {
     "Notified when a reviewer-ops workflow is assigned to you.",
   ESCALATION: "Notified when an escalation is routed to you.",
   SLA_NEAR_BREACH:
-    "Notified when an SLA timer on a workflow you own is approaching its breach window.",
+    "Failed trusted timestamps (TSA/OTS), report generation failures, and verification-package failures on records you can access. Always shown in the app; email delivery is your choice.",
   EVIDENCE_REQUEST_UPDATE:
     "Notified when an evidence request you own has new activity.",
   GOVERNANCE_UPDATE:
@@ -152,6 +162,9 @@ export function NotificationPreferencesPanel({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  // Canonical UI-context — group relevance only; the backend enforces
+  // every preference write regardless of what renders here.
+  const uiCtx = useOperationsUiContext();
 
   const load = useCallback(async () => {
     if (!teamId) {
@@ -345,7 +358,7 @@ export function NotificationPreferencesPanel({
         </thead>
         <tbody>
           {PREFERENCE_GROUPS.filter(
-            (g) => !(g.orgOnly && responseData.isPersonalWorkspace),
+            (g) => !(g.requiresGovernance && !uiCtx.canReceiveGovernance),
           ).flatMap((g) => [
             <tr
               key={`group-${g.title}`}

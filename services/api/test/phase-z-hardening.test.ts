@@ -1071,12 +1071,17 @@ describe("Phase Z [FM-GOV-001] — RUNTIME_OWNERSHIP_MAP has exactly one writer 
   });
 });
 
-describe("Phase Z [FM-GOV-002] — known governance-notification gap is documented", () => {
-  it("the ownership map carries a notes line acknowledging worker direct writes", () => {
+describe("Phase Z [FM-GOV-002] — governance-notification single-writer decision is documented", () => {
+  it("the ownership map records the worker emitter as the sole writer", () => {
+    // Product decision 2026-07-14: worker emitter is the sole writer;
+    // contract extracted to @proovra/shared. The former known gap
+    // (workers writing rows directly) is resolved, and the map notes
+    // must say so.
     const entry = RUNTIME_OWNERSHIP_MAP.find(
       (e) => e.domain === "governance_notification",
     );
-    expect(entry?.notes ?? "").toMatch(/known gap/i);
+    expect(entry?.authoritativeWriter).toBe("worker:notification-emitter");
+    expect(entry?.notes ?? "").toMatch(/sole writer/i);
   });
 
   it("worker emitter exists and is reachable", () => {

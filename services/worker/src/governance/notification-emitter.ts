@@ -1,13 +1,13 @@
 /**
  * Phase X.1 — Worker-side canonical governance-notification emitter.
  *
- * Mirrors the contract enforced by
- * `services/api/src/services/governance-lifecycle/governance-notification.service.ts`
- * using the SAME shared catalog (`@proovra/shared` —
- * NOTIFICATION_THROTTLE_SECONDS, DEFAULT_NOTIFICATION_CHANNELS,
- * NOTIFICATION_TO_INCIDENT_SEVERITY, isValidDedupeKey, severity
- * escalation rank). DB writes happen in this process because the
- * worker is a separate runtime — but the DECISION FORMULA is shared.
+ * SOLE runtime writer of GovernanceNotification rows (product decision
+ * 2026-07-14). The api service
+ * (`services/api/src/services/governance-lifecycle/governance-notification.service.ts`)
+ * only READS/projects/acknowledges them. The decision formula lives in
+ * `@proovra/shared` — NOTIFICATION_THROTTLE_SECONDS, isValidDedupeKey,
+ * and the extracted governance-notification-contract helpers
+ * (scrubMetadata, boundedJson, SEVERITY_RANK, resolveChannels).
  *
  * Hard rules:
  *   - Dedupe at the DB layer via the unique `(team_id, kind,
@@ -29,13 +29,15 @@
 import * as prismaPkg from "@prisma/client";
 import {
   DEDUPE_KEY_MAX_LEN,
-  DEFAULT_NOTIFICATION_CHANNELS,
   GOVERNANCE_NOTIFICATION_KINDS,
   GOVERNANCE_NOTIFICATION_SEVERITIES,
   NOTIFICATION_SUMMARY_MAX_LEN,
   NOTIFICATION_THROTTLE_SECONDS,
   NOTIFICATION_TITLE_MAX_LEN,
+  SEVERITY_RANK,
+  boundedJson,
   isValidDedupeKey,
+  resolveChannels,
   type GovernanceNotificationKind,
   type GovernanceNotificationSeverity,
 } from "@proovra/shared";
@@ -45,8 +47,9 @@ import { logger } from "../logger.js";
 import { recordWorkerIncident } from "./incident-emitter.js";
 
 // -----------------------------------------------------------------------------
-// Input contract — matches the api service's EmitGovernanceNotificationInput
-// exactly. Future drift triggers a test failure (see
+// Input contract — the canonical emission input (the api-side twin was
+// deleted 2026-07-14; this emitter is the sole writer). Contract drift
+// against @proovra/shared triggers a test failure (see
 // phase-x1-architecture-closure.test.ts).
 // -----------------------------------------------------------------------------
 
@@ -78,69 +81,16 @@ export type EmitWorkerGovernanceNotificationResult = {
 
 const VALID_KINDS = new Set<string>(GOVERNANCE_NOTIFICATION_KINDS);
 const VALID_SEVERITIES = new Set<string>(GOVERNANCE_NOTIFICATION_SEVERITIES);
-const MAX_METADATA_BYTES = 4 * 1024;
-const SENSITIVE_KEY_PREFIXES = [
-  "legalnote",
-  "privileged",
-  "secret",
-  "token",
-  "credential",
-  "password",
-  "apikey",
-  "api_key",
-] as const;
 
-const SEVERITY_RANK: Record<GovernanceNotificationSeverity, number> = {
-  INFO: 0,
-  WARNING: 1,
-  HIGH: 2,
-  CRITICAL: 3,
-};
+// scrubMetadata / boundedJson / SEVERITY_RANK / resolveChannels are
+// imported from the @proovra/shared governance-notification-contract —
+// the formerly duplicated local copies were extracted 2026-07-14.
 
-function scrubMetadata(input: unknown): unknown {
-  if (input === null || input === undefined) return null;
-  if (typeof input !== "object") {
-    if (typeof input === "string") return input.slice(0, 500);
-    return input;
-  }
-  if (Array.isArray(input)) return input.slice(0, 50).map(scrubMetadata);
-  const obj = input as Record<string, unknown>;
-  const out: Record<string, unknown> = {};
-  let i = 0;
-  for (const [k, v] of Object.entries(obj)) {
-    if (i >= 50) break;
-    const lowered = String(k).toLowerCase();
-    if (SENSITIVE_KEY_PREFIXES.some((p) => lowered.includes(p))) {
-      out[String(k).slice(0, 64)] = "[redacted]";
-    } else {
-      out[String(k).slice(0, 64)] = scrubMetadata(v);
-    }
-    i += 1;
-  }
-  return out;
-}
-
-function boundedJson(
+/** Prisma-typed wrapper over the shared bounded/scrubbed serializer. */
+function boundedJsonForPrisma(
   input: unknown,
 ): prismaPkg.Prisma.InputJsonValue | undefined {
-  if (input === null || input === undefined) return undefined;
-  const scrubbed = scrubMetadata(input);
-  try {
-    const s = JSON.stringify(scrubbed);
-    if (s.length > MAX_METADATA_BYTES) {
-      return {
-        truncated: true,
-        preview: s.slice(0, 1500),
-      } as prismaPkg.Prisma.InputJsonValue;
-    }
-    return scrubbed as prismaPkg.Prisma.InputJsonValue;
-  } catch {
-    return { truncated: true } as prismaPkg.Prisma.InputJsonValue;
-  }
-}
-
-function resolveChannels(severity: GovernanceNotificationSeverity): string[] {
-  return Array.from(DEFAULT_NOTIFICATION_CHANNELS[severity]);
+  return boundedJson(input) as prismaPkg.Prisma.InputJsonValue | undefined;
 }
 
 export class WorkerGovernanceNotificationError extends Error {
@@ -182,7 +132,7 @@ export async function emitWorkerGovernanceNotification(
       field: !title ? "title" : "summary",
     });
   }
-  const channels = resolveChannels(input.severity);
+  const channels = Array.from(resolveChannels(input.severity));
 
   // Encode correlation id into metadata for the audit chain. Operators
   // grep on `correlationId` to stitch the flow end-to-end.
@@ -234,7 +184,7 @@ export async function emitWorkerGovernanceNotification(
         recipientUserIds: Array.from(input.recipientUserIds ?? []),
         channels,
         deliveryStatus: prismaPkg.GovernanceNotificationDeliveryStatus.PENDING,
-        metadata: boundedJson(metadataWithCorrelation),
+        metadata: boundedJsonForPrisma(metadataWithCorrelation),
       },
     });
     created = true;
@@ -263,7 +213,7 @@ export async function emitWorkerGovernanceNotification(
         relatedPolicyId: input.relatedPolicyId ?? existing.relatedPolicyId,
         relatedIncidentId:
           input.relatedIncidentId ?? existing.relatedIncidentId,
-        metadata: boundedJson(metadataWithCorrelation),
+        metadata: boundedJsonForPrisma(metadataWithCorrelation),
       },
     });
     throttled = Boolean(shouldThrottle);

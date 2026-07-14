@@ -470,12 +470,12 @@ export const FAILURE_MODE_AUDIT: ReadonlyArray<FailureModeEntry> = [
     domain: "governance_runtime",
     severity: "MEDIUM",
     scenario:
-      "Worker raises a governance notification by writing to GovernanceNotification directly instead of through the canonical service.",
+      "A worker or api module writes GovernanceNotification rows directly via Prisma instead of through the canonical worker emitter (notification-emitter.ts).",
     impact:
-      "Throttle / dedupe / incident fan-out logic in the canonical service is bypassed for that emission.",
+      "The shared throttle / dedupe / scrub / incident fan-out contract (@proovra/shared governance-notification-contract) is bypassed for that emission.",
     mitigations: [
-      "KNOWN GAP documented in RUNTIME_OWNERSHIP_MAP.governance_notification.notes.",
-      "Phase X.1 emitter (notification-emitter.ts) mirrors the canonical scrub + dedupe-key shape.",
+      "Product decision 2026-07-14: the worker emitter is the SOLE writer (RUNTIME_OWNERSHIP_MAP.governance_notification); the api service is read-only.",
+      "Contract helpers (scrubMetadata, boundedJson, SEVERITY_RANK, resolveChannels) are extracted to @proovra/shared and imported by the emitter; source tests pin the wiring.",
     ],
     validationStrategy: "source_contract_test",
   },

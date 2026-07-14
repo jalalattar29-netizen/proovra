@@ -445,17 +445,23 @@ describe("Phase X — Runtime ownership map", () => {
     );
   });
 
-  it("documents the known governance-notification cross-runtime gap", () => {
+  it("records the worker emitter as the sole GovernanceNotification writer", () => {
+    // Product decision 2026-07-14: worker emitter is the sole writer;
+    // contract extracted to @proovra/shared. The former "known gap"
+    // (workers writing directly while the api emit path was nominal)
+    // is resolved by making the worker emitter authoritative and the
+    // api service read-only.
     const owners = findRuntimeOwners("governance_notification");
     const writer = owners.find(
       (o) => o.artifact === "GovernanceNotification rows",
     );
-    expect(writer?.authoritativeWriter).toBe(
+    expect(writer?.authoritativeWriter).toBe("worker:notification-emitter");
+    expect(writer?.readers ?? []).toContain(
       "api:governance-notification.service",
     );
-    // The notes field must call out the worker bypass so future
+    // The notes field must record the single-writer decision so future
     // engineers see it without source-archeology.
-    expect(writer?.notes ?? "").toMatch(/workers? write notifications directly/i);
+    expect(writer?.notes ?? "").toMatch(/sole writer/i);
   });
 });
 

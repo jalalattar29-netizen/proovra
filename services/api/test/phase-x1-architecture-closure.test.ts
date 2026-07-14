@@ -326,23 +326,56 @@ describe("Phase X.1 — Part D: destructive-action gate orchestrator", () => {
 // -----------------------------------------------------------------------------
 
 describe("Phase X.1 — Part E: cross-runtime alignment", () => {
-  it("api notification service AND worker emitter share the same throttle catalog", () => {
-    const apiSrc = readSource(
-      "../src/services/governance-lifecycle/governance-notification.service.ts",
-    );
+  it("worker emitter consumes the shared throttle catalog + extracted contract; api service is read-only", () => {
+    // Product decision 2026-07-14: worker emitter is the sole writer;
+    // the dedupe/throttle contract is extracted to @proovra/shared
+    // (governance-notification-contract.ts). The api service no longer
+    // duplicates any writer logic — it reads/projects/acknowledges.
     const workerSrc = readSource(
       "../../worker/src/governance/notification-emitter.ts",
     );
+    const contractSrc = readSource(
+      "../../../packages/shared/src/governance-notification-contract.ts",
+    );
+    const apiSrc = readSource(
+      "../src/services/governance-lifecycle/governance-notification.service.ts",
+    );
+    // Shared throttle catalog consumed by the sole writer.
     for (const name of [
       "NOTIFICATION_THROTTLE_SECONDS",
-      "DEFAULT_NOTIFICATION_CHANNELS",
       "isValidDedupeKey",
       "NOTIFICATION_TITLE_MAX_LEN",
       "NOTIFICATION_SUMMARY_MAX_LEN",
       "DEDUPE_KEY_MAX_LEN",
     ]) {
-      expect(apiSrc).toContain(name);
       expect(workerSrc).toContain(name);
+    }
+    // Extracted contract helpers live in ONE place.
+    for (const name of [
+      "SEVERITY_RANK",
+      "scrubMetadata",
+      "boundedJson",
+      "resolveChannels",
+      "DEFAULT_NOTIFICATION_CHANNELS",
+    ]) {
+      expect(contractSrc).toContain(name);
+    }
+    // Worker imports the helpers rather than duplicating them.
+    expect(workerSrc).toMatch(
+      /import\s*\{[\s\S]*?SEVERITY_RANK[\s\S]*?\}\s*from\s*"@proovra\/shared"/,
+    );
+    expect(workerSrc).toMatch(
+      /import\s*\{[\s\S]*?boundedJson[\s\S]*?\}\s*from\s*"@proovra\/shared"/,
+    );
+    // The api read surface carries no duplicate of the writer contract.
+    for (const name of [
+      "emitGovernanceNotification",
+      "scrubMetadata",
+      "boundedJson",
+      "resolveChannels",
+      "NOTIFICATION_THROTTLE_SECONDS",
+    ]) {
+      expect(apiSrc).not.toContain(name);
     }
   });
 
