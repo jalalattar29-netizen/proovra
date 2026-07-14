@@ -125,10 +125,18 @@ describe("Phase IA-reliability — inbox endpoint computes itemKey + joins state
   });
 
   it("drops dismissed items + actively-snoozed items from the default result", () => {
-    expect(ROUTES).toMatch(/if \(state\?\.dismissedAt\) continue/);
+    // Operations-Center completion — the aggregation ANNOTATES every
+    // item; the GET handler applies visibility so the summary, bulk
+    // read, and snapshot sync can share the full set. Dismissed and
+    // actively-snoozed items stay hidden by default; the `snoozed`
+    // filter shows exactly the actively-snoozed set; History reads the
+    // persistent snapshot store.
+    expect(ROUTES).toMatch(/const visibleItems = allItems\.filter/);
     expect(ROUTES).toMatch(
-      /if \(state\?\.snoozedUntil[\s\S]{0,200}getTime\(\)\s*>\s*nowMs\)\s*\{\s*continue/,
+      /if \(requestedFilter === "snoozed"\) \{\s*\n\s*return activeSnooze && it\.dismissedAt == null;/,
     );
+    expect(ROUTES).toMatch(/if \(it\.dismissedAt != null\) return false;/);
+    expect(ROUTES).toMatch(/if \(activeSnooze\) return false;/);
   });
 
   it("the unread filter is a REAL filter, not aliased to all", () => {
@@ -202,9 +210,11 @@ describe("Phase IA-reliability — read/unread/dismiss/snooze endpoints", () => 
   });
 
   it("every endpoint upserts by the (userId, itemKey) compound unique", () => {
-    // The upsertState helper is the single mutation site.
+    // applyStateMutation is the single mutation site — inside ONE
+    // transaction (tx) alongside the canonical collaboration row and
+    // the history-snapshot mirror.
     expect(ROUTES).toMatch(
-      /prisma\.inboxItemState\.upsert\([\s\S]{0,400}userId_itemKey:/,
+      /tx\.inboxItemState\.upsert\([\s\S]{0,400}userId_itemKey:/,
     );
   });
 
@@ -216,11 +226,12 @@ describe("Phase IA-reliability — read/unread/dismiss/snooze endpoints", () => 
 
   it("every mutation endpoint uses requireAuthAndLegal (no anonymous writes)", () => {
     // The endpoints share a `preHandler: requireAuthAndLegal` literal.
-    // Each one must declare it — we count matches and assert >=5 (one
-    // for GET inbox + 4 mutations + 1 summary).
+    // Each one must declare it — GET inbox + 4 mutations = 5. (The
+    // former /summary endpoint was removed by the Operations-Center
+    // redesign — the bell uses the canonical GET /v1/me/inbox.)
     const matches = ROUTES.match(/preHandler:\s*requireAuthAndLegal/g);
     expect(matches, "missing requireAuthAndLegal preHandler").not.toBeNull();
-    expect((matches ?? []).length).toBeGreaterThanOrEqual(6);
+    expect((matches ?? []).length).toBeGreaterThanOrEqual(5);
   });
 });
 

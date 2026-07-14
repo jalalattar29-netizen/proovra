@@ -122,7 +122,7 @@ export function GlobalRuntimeIndicator({
   // STAGE 2 — The global runtime indicator is an operator-facing surface
   // (readiness subsystems, incidents, escalations, runbooks). Personal
   // workspaces (workspace.scope !== "TEAM") pass teamId === null from
-  // AppTopbarV2; for those users there is no team-scoped runtime to
+  // AppAccountToolbar; for those users there is no team-scoped runtime to
   // report against, so the pill perpetually renders as UNKNOWN with the
   // "Status pending" label. That looks like a broken/alarming status
   // chip in the primary shell for users who should never have seen the

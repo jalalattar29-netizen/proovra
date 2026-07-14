@@ -610,6 +610,7 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
       "ots.upgrade.failed"
     );
 
+
     throw new Error("OTS_UPGRADE_FAILED");
   } finally {
     await fs.rm(workDir, { recursive: true, force: true });

@@ -300,6 +300,7 @@ export async function createEscalation(
 
   bump("reviewer_escalation_created_total");
 
+
   // Update the workflow's denormalised pointer + escalation counters.
   await client.evidenceReviewWorkflow.update({
     where: { id: input.workflowId },

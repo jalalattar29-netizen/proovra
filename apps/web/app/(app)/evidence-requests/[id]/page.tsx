@@ -30,6 +30,7 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { ContextualDeliveryStatus } from "../../../../components/notifications/ContextualDeliveryStatus";
 
 import { apiFetch } from "../../../../lib/api";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
@@ -788,6 +789,7 @@ function Inner() {
           </div>
         </div>
       ) : null}
+      {requestId ? <ContextualDeliveryStatus requestId={requestId} /> : null}
     </main>
   );
 }

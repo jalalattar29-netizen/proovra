@@ -11,6 +11,7 @@
 @import "../components/command-center/command-center.css";
 @import "../components/cases-experience/cases-experience.css";
 @import "../components/workspace-admin/workspace-admin.css";
+@import "../components/notifications/notifications.css";
 @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap");
 
 /* Cookie-banner scope — the cookie consent banner (vanilla-cookieconsent

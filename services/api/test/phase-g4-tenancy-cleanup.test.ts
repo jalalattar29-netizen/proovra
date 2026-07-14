@@ -96,7 +96,6 @@ const PLATFORM_CONTEXT_DIR = resolve(
  */
 const TENANCY_TELEMETRY_ALLOWLIST = new Set<string>([
   resolve(WEB_ROOT, "lib/platform-context/PlatformContextProvider.tsx"),
-  resolve(WEB_ROOT, "components/app-shell-v2/AppTopbarV2.tsx"),
   resolve(WEB_ROOT, "components/app-shell-v2/AppSidebarV2.tsx"),
   resolve(WEB_ROOT, "components/command-center/CommandCenter.tsx"),
   resolve(WEB_ROOT, "components/reviewer-experience/ReviewerCommandConsole.tsx"),

@@ -14,6 +14,21 @@
  *   - silently no-ops if any required field is missing
  *   - never throws into the caller (all dispatch goes through
  *     `safeSendEmailNotification`)
+ *
+ * DELIVERY CONTRACT (remediation verdict, 2026-07-14 — Decision A):
+ * these emails are a BEST-EFFORT convenience channel for INTERNAL
+ * users. The canonical discovery paths do not depend on them:
+ *   - assigned reviews live in the reviewer work queues (/workflows,
+ *     reviewer-ops surfaces), which the reviewer reaches without email;
+ *   - reviews that actually need attention reach the Bell/Operations
+ *     Center through the ESCALATION path (ReviewEscalation → the
+ *     `review_escalation` category) and conflict adjudication
+ *     (`review_decision`), never through email delivery state.
+ * A failed send therefore blocks no work. Delivery failures remain
+ * visible to workspace OWNER/ADMIN in the global delivery log
+ * (/notifications), which owns retry. We deliberately do NOT surface
+ * "your assignment email failed" to the reviewer: they cannot fix
+ * SMTP, and the assignment itself is already in their queue.
  */
 
 import type {

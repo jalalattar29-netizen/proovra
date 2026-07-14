@@ -641,7 +641,12 @@ describe("Phase IA-enterprise — /inbox UI pagination + filters + priority sect
     // a fresh fetch starting at offset=0. We assert the dependency
     // chain by source string.
     expect(PAGE).toMatch(/useEffect\([\s\S]{0,200}void load\(\);[\s\S]{0,100}\[load\]/);
-    expect(PAGE).toMatch(/useCallback\([\s\S]{0,800}\[filter,\s*toneFilter\]/);
+    // Final-completion rebaseline: buildUrl also depends on the
+    // server-validated workspace narrowing selector (workspaceFilter),
+    // so a scope change is a fresh query too.
+    expect(PAGE).toMatch(
+      /useCallback\([\s\S]{0,900}\[filter,\s*toneFilter,\s*workspaceFilter\]/,
+    );
   });
 });
 

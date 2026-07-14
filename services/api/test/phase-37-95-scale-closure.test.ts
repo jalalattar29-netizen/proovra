@@ -259,9 +259,6 @@ describe("Phase 37.95 — legacy context field non-regression", () => {
     /apps[\\/]web[\\/]lib[\\/]platform-context[\\/]/,
     // Tests that document and lock the contract.
     /[\\/]test[\\/]/,
-    // The deprecated topbar fallback path (renders legacy shape when
-    // the envelope still ships it). Slated for removal next phase.
-    /apps[\\/]web[\\/]components[\\/]app-shell-v2[\\/]AppTopbarV2\.tsx$/,
     // The sidebar runtime-indicator gate reads envelope.workspace.scope
     // + .id to feed the team-scoped runtime banner. Migration to
     // envelope.activeSpace is queued for the next phase.

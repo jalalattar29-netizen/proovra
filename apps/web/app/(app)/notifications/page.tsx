@@ -22,7 +22,12 @@ import { apiFetch } from "../../../lib/api";
 import { formatUserDateTime } from "../../../lib/date";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-import { statusBadgeStyle } from "../../../components/ui/StatusBadge";
+import { PageShell, PageHeader } from "../../../components/ui";
+import {
+  AppListbox,
+  AppStatusBadge,
+  type AppTone,
+} from "../../../components/app-primitives";
 type Delivery = {
   id: string;
   eventType: string;
@@ -73,6 +78,24 @@ const RESEND_ELIGIBLE = new Set([
   "SKIPPED",
 ]);
 
+/** Delivery status → shared semantic badge tone. */
+function deliveryTone(status: string): AppTone {
+  switch (status) {
+    case "DELIVERED":
+    case "SENT":
+      return "green";
+    case "PENDING":
+    case "RETRY_SCHEDULED":
+      return "amber";
+    case "FAILED":
+      return "red";
+    case "SKIPPED":
+    case "CANCELLED":
+    default:
+      return "slate";
+  }
+}
+
 // Phase 38.9 — wrap in canonical PageRouteGate.
 export default function NotificationsPage() {
   return (
@@ -90,7 +113,7 @@ function NotificationsPageInner() {
   const [eventFilter, setEventFilter] = useState<string>("");
   const [resendBusyId, setResendBusyId] = useState<string | null>(null);
 
-  
+
 const queryString = useMemo(() => {
     if (!teamId) return "";
     const params = new URLSearchParams({ teamId });
@@ -139,63 +162,63 @@ const queryString = useMemo(() => {
   }
 
   return (
-    <main style={pageStyle}>
-      <header>
-        <h1 style={titleStyle}>Notification log</h1>
-        <p style={mutedTextStyle}>
-          Operational delivery history for this workspace. Reviewer notes,
-          token internals, IP, and user-agent are never displayed here.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title="Notification deliveries"
+        subtitle={
+          <>
+            Outbound delivery log for this workspace — sent, queued, failed, and
+            retried communications with resend controls. Available to workspace
+            owners and admins. This is a delivery-debugging surface, not your
+            notifications: those live in the Operations Center.
+          </>
+        }
+      />
 
-      <section style={filterRowStyle}>
-        <label style={filterLabelStyle}>Status</label>
-        <select
-          style={selectStyle}
+      <section
+        style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}
+      >
+        <label className="ops-filter-label" id="notifications-status-filter-label">
+          Status
+        </label>
+        <AppListbox
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          {STATUS_FILTERS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+          options={STATUS_FILTERS}
+          onChange={(v) => setStatusFilter(v)}
+          ariaLabelledby="notifications-status-filter-label"
+        />
 
-        <label style={filterLabelStyle}>Event</label>
-        <select
-          style={selectStyle}
+        <label className="ops-filter-label" id="notifications-event-filter-label">
+          Event
+        </label>
+        <AppListbox
           value={eventFilter}
-          onChange={(e) => setEventFilter(e.target.value)}
-        >
-          {EVENT_FILTERS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+          options={EVENT_FILTERS}
+          onChange={(v) => setEventFilter(v)}
+          ariaLabelledby="notifications-event-filter-label"
+        />
       </section>
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? <div className="ops-error-box">{error}</div> : null}
 
       {!teamId ? (
-        <p style={mutedTextStyle}>Switch to a workspace to view notifications.</p>
+        <p className="ops-muted">Switch to a workspace to view notifications.</p>
       ) : items === null ? (
-        <p style={mutedTextStyle}>Loading…</p>
+        <p className="ops-muted">Loading…</p>
       ) : items.length === 0 ? (
-        <p style={mutedTextStyle}>No notifications match the current filters.</p>
+        <p className="ops-muted">No notifications match the current filters.</p>
       ) : (
-        <ul style={listStyle}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {items.map((it) => (
-            <li key={it.id} style={rowStyle}>
+            <li key={it.id} className="ops-log-row">
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+                <div className="ops-log-row__subject">
                   {it.subject ?? "(no subject)"}
                 </div>
-                <div style={mutedTextStyle}>
+                <div className="ops-muted">
                   {it.eventType} · {it.channel}/{it.provider} · {it.recipient}
                 </div>
-                <div style={mutedTextStyle}>
+                <div className="ops-muted">
                   Created {formatUserDateTime(it.createdAt)}
                   {it.sentAtUtc
                     ? ` · sent ${formatUserDateTime(it.sentAtUtc)}`
@@ -205,13 +228,13 @@ const queryString = useMemo(() => {
                     : ""}
                 </div>
                 {it.errorCode || it.errorMessage ? (
-                  <div style={{ ...mutedTextStyle, color: "#b91c1c" }}>
+                  <div className="ops-error">
                     {it.errorCode ? `${it.errorCode}: ` : ""}
                     {it.errorMessage ?? ""}
                   </div>
                 ) : null}
                 {it.retryCount > 0 ? (
-                  <div style={mutedTextStyle}>
+                  <div className="ops-muted">
                     Retry attempts: {it.retryCount}
                     {it.nextAttemptAtUtc
                       ? ` · next ${formatUserDateTime(it.nextAttemptAtUtc)}`
@@ -219,11 +242,13 @@ const queryString = useMemo(() => {
                   </div>
                 ) : null}
               </div>
-              <span style={statusBadgeStyle(it.status)}>{it.status}</span>
+              <AppStatusBadge tone={deliveryTone(it.status)}>
+                {it.status}
+              </AppStatusBadge>
               {RESEND_ELIGIBLE.has(it.status) ? (
                 <button
                   type="button"
-                  style={resendButtonStyle}
+                  className="ops-retry-btn"
                   onClick={() => resend(it.id)}
                   disabled={resendBusyId === it.id}
                 >
@@ -234,81 +259,14 @@ const queryString = useMemo(() => {
           ))}
         </ul>
       )}
-    </main>
+    </PageShell>
   );
 }
-
-const pageStyle: React.CSSProperties = {
-  maxWidth: 1080,
-  margin: "0 auto",
-  padding: "32px 24px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
-};
-const titleStyle: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 700,
-  marginBottom: 4,
-};
-const mutedTextStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: "#64748b",
-};
-const filterRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 12,
-  alignItems: "center",
-  flexWrap: "wrap",
-  marginTop: 16,
-  marginBottom: 16,
-};
-const filterLabelStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 600,
-  color: "#334155",
-};
-const selectStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontSize: 13,
-  background: "#fff",
-};
-const listStyle: React.CSSProperties = {
-  listStyle: "none",
-  padding: 0,
-  margin: 0,
-};
-const rowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: "12px 16px",
-  border: "1px solid #e2e8f0",
-  borderRadius: 8,
-  marginBottom: 8,
-};
-const errorBoxStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: 12,
-  background: "#fef2f2",
-  color: "#7f1d1d",
-  border: "1px solid #fecaca",
-  borderRadius: 8,
-  fontSize: 14,
-};
-const resendButtonStyle: React.CSSProperties = {
-  padding: "6px 12px",
-  fontSize: 13,
-  fontWeight: 500,
-  color: "#fff",
-  background: "#0f172a",
-  border: 0,
-  borderRadius: 8,
-  cursor: "pointer",
-};
 
 // Phase Final-Closure — local statusBadgeStyle removed; the canonical
 // version lives in components/ui/StatusBadge.tsx. CANCELLED now renders
 // neutral (terminal-passive), matching ARCHIVED elsewhere.
+// Ops-restyle — visual styling now comes from notifications.css
+// (`ops-log-row`, `ops-muted`, `ops-error`, `ops-error-box`,
+// `ops-retry-btn`, `ops-filter-label`) plus the shared AppListbox /
+// AppStatusBadge primitives. No literal colors remain in this file.

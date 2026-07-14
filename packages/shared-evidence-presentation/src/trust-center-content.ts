@@ -321,7 +321,7 @@ export const TRUST_CENTER_REQUIRED_PHRASES = [
 
 export function trustCenterDeepLink(id: TrustCenterSectionId): string {
   // Canonical Trust Center lives at /trust (phase-e5). The /about/trust
-  // route is a thin re-export wrapper kept for AppTopbarV2 deep-link
+  // route is a thin re-export wrapper kept for legacy in-app deep-link
   // back-compat; deep links must point at the canonical /trust hub so
   // history/share URLs are stable.
   return `/trust#${id}`;

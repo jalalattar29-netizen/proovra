@@ -56,7 +56,9 @@ const REVIEWER_TSX = readWeb(
 const GOVERNANCE_TSX = readWeb(
   "components/governance-experience/GovernanceControlPlane.tsx",
 );
-const TOPBAR_TSX = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
+// Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+// retargeted to the live AppAccountToolbar.
+const TOPBAR_TSX = readWeb("components/app-shell-v2/AppAccountToolbar.tsx");
 const CC_TYPES = readWeb("components/command-center/types.ts");
 const CC_TSX = readWeb("components/command-center/CommandCenter.tsx");
 
@@ -666,9 +668,9 @@ describe("Phase 32.8C FINAL-3 — no-regression invariants", () => {
   });
 
   it("topbar fix does NOT break the workspace switcher menu", () => {
-    // Phase 32.8 Foundation — switcher now iterates
-    // `availableWorkspaces` and still exposes the scope chip hook.
-    expect(TOPBAR_TSX).toMatch(/availableWorkspaces/);
+    // ENTERPRISE TENANT MODEL — the live toolbar iterates the canonical
+    // envelope sections and still exposes the scope chip hook.
+    expect(TOPBAR_TSX).toMatch(/envelope\?\.organizations/);
     expect(TOPBAR_TSX).toMatch(/data-workspace-scope-chip/);
   });
 

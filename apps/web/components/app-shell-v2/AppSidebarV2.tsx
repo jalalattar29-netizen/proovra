@@ -124,6 +124,8 @@ const ICON_BY_ROUTE_ID: Record<string, SidebarIcon> = {
   "workspace.cases": BriefcaseBusiness,
   "workspace.reports": FileText,
   "workspace.search": Search,
+  // Operations Center — the single sidebar entry for /inbox.
+  "account.inbox": Inbox,
   "workspace.notifications": Bell,
   "workspace.integrations": Plug,
   "workspace.collaboration_teams": UsersRound,

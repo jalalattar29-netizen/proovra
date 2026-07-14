@@ -113,6 +113,10 @@ export const NOTIFICATION_EVENT_TYPES = [
   // Intake links (standalone — not bound to a request)
   "EXTERNAL_INTAKE_LINK_CREATED",
   "EXTERNAL_INTAKE_SUBMITTED",
+  // Operations Center — scheduled digest of unread operational items.
+  // Bodies contain ONLY item titles/categories the recipient was already
+  // authorized to see when the item was surfaced — never raw content.
+  "OPERATIONS_DIGEST",
 ] as const;
 export const NotificationEventTypeSchema = z.enum(NOTIFICATION_EVENT_TYPES);
 export type NotificationEventType = z.infer<typeof NotificationEventTypeSchema>;

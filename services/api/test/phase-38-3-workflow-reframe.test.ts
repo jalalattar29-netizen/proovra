@@ -5,8 +5,7 @@
  *   1. Workflow profile mapping is bijective with the persona enum
  *   2. Workflow descriptors are bounded + non-profession-locking
  *   3. Onboarding wizard renders workflow labels/descriptions
- *   4. Topbar persona chip renders the workflow label (not the raw enum)
- *   5. Setup banner copy is workflow-oriented (no profession language)
+ *   4. Setup banner copy is workflow-oriented (no profession language)
  *   6. suggestWorkflow pure-function correctness
  *   7. Capability registry remains untouched (workflow stays UX-only)
  */
@@ -31,7 +30,6 @@ const WORKFLOW = readWeb("lib/platform-context/workflowProfile.ts");
 const SUGGEST = readWeb("lib/platform-context/workflowSuggestion.ts");
 const INDEX = readWeb("lib/platform-context/index.ts");
 const WIZARD = readWeb("app/(app)/settings/persona/page.tsx");
-const TOPBAR = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
 const BANNER = readWeb("components/app-shell-v2/PersonaSetupBanner.tsx");
 
 // =============================================================================
@@ -163,25 +161,7 @@ describe("Phase 38.3 — onboarding wizard wording", () => {
 });
 
 // =============================================================================
-// PART 4 — Topbar persona chip uses workflow label
-// =============================================================================
-
-describe("Phase 38.3 — topbar workflow chip", () => {
-  it("topbar imports workflowFromPersona", () => {
-    expect(TOPBAR).toMatch(/workflowFromPersona/);
-  });
-
-  it("topbar renders the workflow label (not the raw persona enum code)", () => {
-    // The chip's text content comes from `wf.label`, not the raw enum.
-    expect(TOPBAR).toMatch(/data-app-topbar-workflow=\{wf\.code\}/);
-    expect(TOPBAR).toMatch(/title=\{`Workflow profile: \$\{wf\.label\}`\}/);
-    // The legacy raw-enum `replace(/_/g, " ")` rendering is gone.
-    expect(TOPBAR).not.toMatch(/primaryProfile\.replace\(\/_\/g/);
-  });
-});
-
-// =============================================================================
-// PART 5 — Setup banner is workflow-oriented
+// PART 4 — Setup banner is workflow-oriented
 // =============================================================================
 
 describe("Phase 38.3 — setup banner copy", () => {

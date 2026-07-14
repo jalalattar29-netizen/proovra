@@ -42,7 +42,9 @@ function readWeb(rel: string): string {
 // REDIRECTS, sidebar-group role tuples) were removed with the file.
 const NAV_CONFIG = readWeb("lib/navigation/routeRegistry.ts");
 const SIDEBAR = readWeb("components/app-shell-v2/AppSidebarV2.tsx");
-const TOPBAR = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
+// Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+// retargeted to the live AppAccountToolbar.
+const TOPBAR = readWeb("components/app-shell-v2/AppAccountToolbar.tsx");
 
 // =============================================================================
 // PART 2 — Canonical route labels + href invariants (routeRegistry)
@@ -145,12 +147,12 @@ describe("Phase 32.8B — topbar separates workspace context from account contex
     expect(TOPBAR).toMatch(/data-workspace-scope-chip/);
   });
 
-  // Phase 32.8 Foundation — switcher now consumes
-  // `envelope.availableWorkspaces` (server-resolved). The local
-  // workspaceList state was removed.
+  // ENTERPRISE TENANT MODEL — the live toolbar consumes the canonical
+  // envelope sections (personalSpace + organizations), not the legacy
+  // `availableWorkspaces` list.
   it("workspace switcher lists workspaces from the canonical envelope", () => {
-    expect(TOPBAR).toMatch(/availableWorkspaces/);
-    expect(TOPBAR).toMatch(/data-workspace-option/);
+    expect(TOPBAR).toMatch(/envelope\?\.personalSpace/);
+    expect(TOPBAR).toMatch(/envelope\?\.organizations/);
   });
 
   it("account dropdown consumes the canonical envelope account-menu items (Profile, Notifications, Pricing, Billing, Teams, Help, Settings) + Sign out", () => {

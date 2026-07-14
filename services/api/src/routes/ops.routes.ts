@@ -309,9 +309,10 @@ export async function opsRoutes(app: FastifyInstance) {
   });
 
   // /readyz — readiness. Public. Returns 200 if the database is
-  // reachable AND no critical-in-production config violations exist.
-  // Operators / orchestrators should use this for "should new traffic
-  // be sent to this instance".
+  // reachable AND no critical-in-production config violations exist
+  // AND the required runtime schema is present. Operators /
+  // orchestrators should use this for "should new traffic be sent to
+  // this instance".
   app.get("/readyz", async (_req, reply) => {
     const violations = collectStartupViolations();
     if (violations.length > 0 && process.env.NODE_ENV === "production") {
@@ -324,6 +325,25 @@ export async function opsRoutes(app: FastifyInstance) {
       await prisma.$queryRaw`SELECT 1`;
     } catch {
       return reply.code(503).send({ status: "degraded", reason: "db_unreachable" });
+    }
+    // Required-schema gate — migrations must be applied before this
+    // instance reports ready. `notification_schedule_settings`
+    // (migration 20270916000000_operations_center_history_and_schedule)
+    // is the canary: the notification-preferences routes and the digest
+    // scheduler fail without it. The `SELECT 1` above already
+    // succeeded, so a throw here means the table is missing (Prisma
+    // P2021 / Postgres 42P01) — i.e. `pnpm prisma:migrate` has not been
+    // run against this database yet. Fail readiness, NEVER the process:
+    // startup schema validation registers these objects at `important`
+    // severity (see runtime/schema-validation.ts) so the api still
+    // boots and an operator can exec in to apply the migration.
+    try {
+      await prisma.$queryRaw`SELECT 1 FROM "notification_schedule_settings" LIMIT 1`;
+    } catch {
+      return reply.code(503).send({
+        status: "degraded",
+        reason: "required_schema_missing",
+      });
     }
     return reply.code(200).send({ status: "ok" });
   });

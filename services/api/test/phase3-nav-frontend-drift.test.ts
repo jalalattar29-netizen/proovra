@@ -3,7 +3,7 @@
  *
  * The backend navigation-registry (services/api/src/services/platform-context)
  * feeds the platform-context envelope's account-menu (rendered live by
- * AppAccountToolbar / AppTopbarV2) and the legacy navigation.groups. Every
+ * AppAccountToolbar) and the legacy navigation.groups. Every
  * backend nav href MUST resolve to a canonical route in the frontend
  * routeRegistry (the single source of truth for the product's routes), OR be
  * on a small, documented compatibility allowlist (public marketing/help pages

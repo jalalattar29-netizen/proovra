@@ -282,6 +282,8 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // in SYSTEM alongside the other /settings/* preference pages.
       "workspace.ai_settings",
       "workspace.reviewer_criteria",
+      // Notification preferences — personal settings surface.
+      "account.notification_settings",
     ],
     secondary: [
       "account.persona",

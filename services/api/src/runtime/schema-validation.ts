@@ -279,6 +279,27 @@ export const EXPECTED_SCHEMA: ReadonlyArray<ExpectedSchemaObject> = [
   { kind: "index", table: "investigation_graph_nodes", indexName: "investigation_graph_nodes_team_kind_ext_uk", severity: "important", subsystem: "core_evidence" },
   { kind: "index", table: "investigation_graph_edges", indexName: "investigation_graph_edges_team_triple_uk", severity: "important", subsystem: "core_evidence" },
 
+  // ---------------------------------------------------------------------------
+  // Operations Center — notification schedule + persistent inbox history
+  // (migration 20270916000000_operations_center_history_and_schedule) and
+  // organization notification policy + resolution provenance
+  // (20270917000000_org_notification_policy_and_resolution_provenance).
+  // Registered `important` (NOT critical) on purpose: the notification-
+  // preferences routes and the digest scheduler fail closed with bounded
+  // 503s when the schedule table is missing, and /readyz reports NOT-ready
+  // — but the process must keep serving the rest of the platform, so
+  // startup never fail-fasts on these.
+  // ---------------------------------------------------------------------------
+  { kind: "table", name: "notification_schedule_settings", severity: "important", subsystem: "operational_incidents" },
+  { kind: "index", table: "notification_schedule_settings", indexName: "notification_schedule_settings_user_id_team_id_key", severity: "important", subsystem: "operational_incidents" },
+  { kind: "table", name: "operations_inbox_snapshots", severity: "important", subsystem: "operational_incidents" },
+  { kind: "index", table: "operations_inbox_snapshots", indexName: "operations_inbox_snapshots_user_id_item_key_key", severity: "important", subsystem: "operational_incidents" },
+  { kind: "column", table: "workspace_notification_preferences", column: "frequency", severity: "important", subsystem: "operational_incidents" },
+  { kind: "table", name: "organization_notification_policies", severity: "important", subsystem: "operational_incidents" },
+  { kind: "index", table: "organization_notification_policies", indexName: "organization_notification_policies_organization_id_categor_key", severity: "important", subsystem: "operational_incidents" },
+  { kind: "column", table: "operations_inbox_snapshots", column: "resolution_source", severity: "important", subsystem: "operational_incidents" },
+  { kind: "column", table: "operations_inbox_snapshots", column: "resolved_by_user_id", severity: "important", subsystem: "operational_incidents" },
+
   { kind: "table", name: "external_review_grants", severity: "important", subsystem: "governance_lifecycle" },
   { kind: "column", table: "external_review_grants", column: "state", severity: "critical", subsystem: "governance_lifecycle" },
   { kind: "column", table: "external_review_grants", column: "token_hash", severity: "critical", subsystem: "governance_lifecycle" },

@@ -22,7 +22,7 @@ import {
 import type { ForwardRefExoticComponent, RefAttributes } from "react";
 
 import { LanguageSwitcher } from "../language-switcher";
-import { InboxIndicator } from "./InboxIndicator";
+import { NotificationBell } from "./NotificationBell";
 import { GlobalRuntimeIndicator } from "../operational";
 import { usePlatformContext } from "../../lib/platform-context";
 import { canAccessSurface } from "../../lib/surface/access";
@@ -298,7 +298,7 @@ export function AppAccountToolbar({
             </div>
           ) : null}
 
-          <InboxIndicator />
+          <NotificationBell />
 
           <div className="app-topbar-v2-language" aria-label="Language">
             <LanguageSwitcher />

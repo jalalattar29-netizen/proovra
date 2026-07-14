@@ -123,7 +123,10 @@ const CLAIMS_MATRIX_BYTES = 2317;
 // Phase E5 rebaseline: trustCenterDeepLink helper repointed at the
 // canonical `/trust` hub (was `/about/trust`). Source-of-truth pin
 // updated to the new on-disk size after the helper fix + comment.
-const TRUST_CENTER_CONTENT_BYTES = 25090;
+// Product-reset rebaseline (2026-07-14): 25,090 → 25,420 — a comment
+// referencing the deleted AppTopbarV2 duplicate topbar was reworded to
+// "legacy in-app deep-link". Comment-only; no canonical content changed.
+const TRUST_CENTER_CONTENT_BYTES = 25420;
 
 // ---------------------------------------------------------------------------
 // Group 1 — File-size guards
@@ -195,7 +198,15 @@ describe("CR4 Group 1 — file-size guards", () => {
     // assertions were added at the file-security enqueue callsite after
     // UploadSession / intelligence teamId tightening; no evidence-complete
     // lifecycle behavior changed.
-    expect(sz).toBe(48327);
+    // Operations-Center forensic completion rebaseline: 48,327 → 49,241.
+    // Added the bounded, best-effort Operations-Center summary invalidation
+    // after the TSA outcome persist (workspace members' bell caches refresh
+    // when a timestamp fails or recovers). No finalize-transaction or
+    // custody logic changed.
+    // Product-reset rebaseline: 49,241 -> 48,334. The TSA-outcome bell-cache
+    // invalidation hook was REMOVED (event-driven invalidation deleted; the
+    // 45s summary TTL is the refresh path). Finalize-tx semantics unchanged.
+    expect(sz).toBe(48334);
   });
 
   it("custody-events.service.ts pin (CR1.6 — 5,155 bytes)", () => {

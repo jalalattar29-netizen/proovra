@@ -2,7 +2,7 @@
 //
 // The canonical Trust Center implementation lives at
 // `apps/web/app/trust/page.tsx`. This file exists so the in-app
-// AppTopbarV2 help link (`href="/about/trust"`) and any pre-existing
+// AppAccountToolbar-era in-app links (`href="/about/trust"`) and any pre-existing
 // external links to /about/trust continue to land on the same
 // canonical content. There is no separate "About > Trust" page to
 // maintain — /about/trust follows /trust, not the other way around.

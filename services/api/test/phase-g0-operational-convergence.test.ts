@@ -38,8 +38,10 @@ const GROUPING_RESOLVER = readSource(
 const ROUTE_REGISTRY = readSource(
   "../../../apps/web/lib/navigation/routeRegistry.ts",
 );
+// Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+// retargeted to the live AppAccountToolbar.
 const TOPBAR = readSource(
-  "../../../apps/web/components/app-shell-v2/AppTopbarV2.tsx",
+  "../../../apps/web/components/app-shell-v2/AppAccountToolbar.tsx",
 );
 const WORKSPACES_PAGE = readSource(
   "../../../apps/web/app/(app)/workspaces/page.tsx",
@@ -205,7 +207,7 @@ describe("Phase G0 (B.3) — terminology normalized in primary navigation", () =
 
   it("topbar workspace switcher uses 'Workspace' and 'Organization' terminology", () => {
     expect(TOPBAR).toContain("Personal Space");
-    expect(TOPBAR).toContain("Workspace vs Organization");
+    expect(TOPBAR).toContain("Organization workspace");
   });
 });
 
@@ -227,33 +229,11 @@ describe("Phase G0 (B.4) — operations path alias preserved", () => {
 // ===========================================================================
 
 describe("Phase G0 (B0.3) — workspace switcher UX", () => {
-  it("renders the workspace-vs-organization help block", () => {
-    expect(TOPBAR).toContain("data-workspace-menu-help");
-    expect(TOPBAR).toContain("Workspace vs Organization");
-    expect(TOPBAR).toMatch(/Workspace\s*=\s*where evidence work happens/);
-    expect(TOPBAR).toMatch(
-      /Organization\s*=\s*governance over one or more Workspaces/,
-    );
-  });
-
-  it("links to the trust center for the longer explanation", () => {
-    expect(TOPBAR).toContain('href="/about/trust"');
-    expect(TOPBAR).toContain("data-workspace-menu-help-link");
-  });
-
-  it("renders an explicit recovery banner when platform context is FAILED", () => {
-    expect(TOPBAR).toContain("data-workspace-menu-degraded");
+  it("renders an explicit failure label when platform context is FAILED", () => {
+    // The live toolbar surfaces the FAILED platform-context state as a
+    // "Workspace unavailable / Tap to retry" label in the switcher chip.
     expect(TOPBAR).toContain('state.name === "FAILED"');
-    expect(TOPBAR).toMatch(/Workspace context unavailable/);
-  });
-
-  it("solo personal-only accounts still see the help (no org noise pollution)", () => {
-    // The condition is `organizations.length > 0 || personalSpace?.id`
-    // — so personal-only accounts (no orgs) see only the workspace
-    // sentence; the help block does not unfurl org-specific copy.
-    expect(TOPBAR).toMatch(
-      /organizations\.length\s*>\s*0\s*\?\s*"\s*Organization/,
-    );
+    expect(TOPBAR).toMatch(/Workspace unavailable/);
   });
 });
 

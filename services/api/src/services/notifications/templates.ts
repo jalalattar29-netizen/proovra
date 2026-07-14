@@ -83,6 +83,19 @@ export type EvidenceRequestSimpleContext = {
   requestTitle: string;
 };
 
+/**
+ * Operations Center digest — bounded list of item TITLES + categories the
+ * recipient was already authorized to see when the item surfaced. Never
+ * raw content, never other users' data, never admin-only enrichment.
+ */
+export type OperationsDigestContext = {
+  workspaceName: string;
+  cadenceLabel: string; // "Hourly" | "Daily" | "Weekly"
+  items: Array<{ title: string; category: string; severity: string }>;
+  totalUnread: number;
+  operationsCenterUrl: string | null;
+};
+
 // Discriminated union the renderer accepts. Adding an event type means
 // adding both an entry here and a renderer branch below.
 export type TemplateContext =
@@ -92,7 +105,8 @@ export type TemplateContext =
   | { kind: "ReviewAssigned"; data: ReviewRequestAssignedContext }
   | { kind: "IntakeLinkCreated"; data: ExternalIntakeLinkCreatedContext }
   | { kind: "IntakeSubmitted"; data: ExternalIntakeSubmittedContext }
-  | { kind: "Simple"; data: EvidenceRequestSimpleContext };
+  | { kind: "Simple"; data: EvidenceRequestSimpleContext }
+  | { kind: "OperationsDigest"; data: OperationsDigestContext };
 
 export type RenderedTemplate = {
   subject: string;
@@ -170,6 +184,8 @@ export function renderTransactionalTemplate(
       return renderIntakeLinkCreated(expectCtx(ctx, "IntakeLinkCreated"));
     case "EXTERNAL_INTAKE_SUBMITTED":
       return renderIntakeSubmitted(expectCtx(ctx, "IntakeSubmitted"));
+    case "OPERATIONS_DIGEST":
+      return renderOperationsDigest(expectCtx(ctx, "OperationsDigest"));
     // Phase 16 — collaboration variants reuse the ReviewAssigned
     // context shape so bodies stay workspace-only (no message text,
     // no thread internals).
@@ -223,6 +239,7 @@ function expectCtx(ctx: TemplateContext, kind: "ReviewAssigned"): ReviewRequestA
 function expectCtx(ctx: TemplateContext, kind: "IntakeLinkCreated"): ExternalIntakeLinkCreatedContext;
 function expectCtx(ctx: TemplateContext, kind: "IntakeSubmitted"): ExternalIntakeSubmittedContext;
 function expectCtx(ctx: TemplateContext, kind: "Simple"): EvidenceRequestSimpleContext;
+function expectCtx(ctx: TemplateContext, kind: "OperationsDigest"): OperationsDigestContext;
 function expectCtx(ctx: TemplateContext, kind: TemplateContext["kind"]): unknown {
   if (ctx.kind !== kind) {
     throw new Error(
@@ -572,6 +589,51 @@ function renderIntakeLinkCreated(
     .join("\n");
   return {
     subject: `Secure upload link from ${d.workspaceName}`,
+    html,
+    text,
+    plaintextPreview: text.slice(0, 2000),
+  };
+}
+
+function renderOperationsDigest(d: OperationsDigestContext): RenderedTemplate {
+  const workspaceName = escapeEmailHtml(d.workspaceName);
+  const listedItems = d.items.slice(0, 15);
+  const overflow = d.totalUnread - listedItems.length;
+  const rowsHtml = listedItems
+    .map(
+      (it) =>
+        `<li style="margin:0 0 6px 0;">[${escapeEmailHtml(it.severity.toUpperCase())}] ${escapeEmailHtml(it.category)} — ${escapeEmailHtml(it.title)}</li>`,
+    )
+    .join("");
+  const body = `
+    <div style="margin:0 0 12px 0;">
+      Your ${escapeEmailHtml(d.cadenceLabel.toLowerCase())} Operations Center
+      digest for ${workspaceName}: ${d.totalUnread} unread operational
+      item${d.totalUnread === 1 ? "" : "s"}.
+    </div>
+    <ul style="margin:0 0 12px 0; padding-left:18px;">${rowsHtml}</ul>
+    ${overflow > 0 ? `<div style="margin:0 0 12px 0;">…and ${overflow} more in the Operations Center.</div>` : ""}
+  `.trim();
+  const html = renderEmailShell({
+    title: `${d.cadenceLabel} operations digest`,
+    preheader: `${d.totalUnread} unread operational item${d.totalUnread === 1 ? "" : "s"} in ${d.workspaceName}.`,
+    bodyHtml: body,
+    ctaText: d.operationsCenterUrl ? "Open the Operations Center" : undefined,
+    ctaUrl: d.operationsCenterUrl ?? undefined,
+  });
+  const text = [
+    `${d.cadenceLabel} operations digest — ${d.workspaceName}`,
+    `${d.totalUnread} unread operational item${d.totalUnread === 1 ? "" : "s"}:`,
+    ...listedItems.map(
+      (it) => `- [${it.severity.toUpperCase()}] ${it.category} — ${it.title}`,
+    ),
+    overflow > 0 ? `…and ${overflow} more.` : null,
+    d.operationsCenterUrl ? `Open: ${d.operationsCenterUrl}` : null,
+  ]
+    .filter((line): line is string => typeof line === "string")
+    .join("\n");
+  return {
+    subject: `${d.cadenceLabel} operations digest — ${d.workspaceName} (${d.totalUnread} unread)`,
     html,
     text,
     plaintextPreview: text.slice(0, 2000),

@@ -172,7 +172,8 @@ test("/reports has no raw .cc-page terminal states or btn-secondary buttons", ()
 
 // ---------------------------------------------------------------------------
 // Sidebar/header — the live shell CSS uses the new enterprise nav tokens;
-// the live header is AppAccountToolbar (AppTopbarV2 is a dead fragment).
+// the live header is AppAccountToolbar (the dead AppTopbarV2 fragment
+// was deleted in the product reset).
 // ---------------------------------------------------------------------------
 test("app shell sidebar uses the branded light surface + enterprise-dark nav ink", () => {
   const css = read("components/app-shell-v2/app-shell-v2.css");

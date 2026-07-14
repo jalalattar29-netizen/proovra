@@ -930,6 +930,9 @@ model User {
   initiatedVerificationAttempts    VerificationAttempt[]             @relation("VerificationAttemptInitiatedBy")
   // Phase G3.1 — operator notification preferences (per-workspace toggles).
   workspaceNotificationPreferences WorkspaceNotificationPreference[] @relation("WorkspaceNotificationPreferenceUser")
+  // Operations Center — persistent history snapshots + schedule settings.
+  operationsInboxSnapshots         OperationsInboxSnapshot[]         @relation("OperationsInboxSnapshotUser")
+  notificationScheduleSettings     NotificationScheduleSetting[]     @relation("NotificationScheduleSettingUser")
 
   // Phase 19 — identity security back-relations.
   initiatedStepUpChallenges StepUpChallenge[] @relation("StepUpChallengeInitiatedBy")
@@ -1108,6 +1111,8 @@ model Team {
   verificationAttempts             VerificationAttempt[]
   // Phase G3.1 — operator notification preferences (per-workspace toggles).
   workspaceNotificationPreferences WorkspaceNotificationPreference[] @relation("WorkspaceNotificationPreferenceTeam")
+  // Operations Center — notification schedule settings (quiet hours / tz).
+  notificationScheduleSettings     NotificationScheduleSetting[]     @relation("NotificationScheduleSettingTeam")
 
   // Phase 19 — identity security back-relations.
   stepUpChallenges StepUpChallenge[]
@@ -5067,6 +5072,11 @@ model WorkspaceNotificationPreference {
   preferenceType NotificationPreferenceType    @map("preference_type")
   channel        NotificationPreferenceChannel @default(IN_APP)
   enabled        Boolean                       @default(true)
+  /// Delivery cadence for the EMAIL channel: IMMEDIATE | HOURLY |
+  /// DAILY | WEEKLY | OFF. IN_APP rows ignore this (in-app is always
+  /// immediate when enabled). VarChar (not an enum) so cadence changes
+  /// stay additive.
+  frequency      String                        @default("IMMEDIATE") @db.VarChar(16)
   createdAt      DateTime                      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -6137,6 +6147,153 @@ model InboxItemState {
   @@index([userId, sourceType])
   @@index([userId, teamId])
   @@map("inbox_item_state")
+}
+
+/// Operations Center — PERSISTENT history snapshots. A bounded,
+/// per-user copy of each item the aggregator surfaced, preserved after
+/// the canonical source row resolves/disappears so History remains
+/// available. These are OPERATIONAL AUDIT RECORDS — deliberately NOT
+/// part of the legal evidence chain (no hashes, no custody linkage).
+/// Title/body are captured once at first surface and never rewritten,
+/// so the record cannot be falsified against what the user saw.
+/// Contains only content the user was already authorized to see when
+/// it was surfaced; no secrets, no raw recipient PII beyond what the
+/// live item showed.
+model OperationsInboxSnapshot {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  userId String @map("user_id") @db.Uuid
+
+  /// Same deterministic composite key as InboxItemState.
+  itemKey    String  @map("item_key") @db.VarChar(200)
+  sourceType String  @map("source_type") @db.VarChar(64)
+  sourceId   String? @map("source_id") @db.VarChar(200)
+
+  /// Workspace / org audit context (NOT a tenancy gate — every read
+  /// is additionally scoped by userId). Nullable for account-tier
+  /// items.
+  teamId String? @map("team_id") @db.Uuid
+  orgId  String? @map("org_id") @db.Uuid
+
+  category String @db.VarChar(64)
+  /// info | warning | high | critical (aggregator tone).
+  severity String @db.VarChar(16)
+  /// P1..P5 operator priority at first surface.
+  priority String @db.VarChar(4)
+
+  /// Captured ONCE at first surface — never rewritten.
+  title String  @db.VarChar(300)
+  body  String  @db.VarChar(1200)
+  /// Deep link captured at first surface (server-generated route).
+  href  String  @db.VarChar(300)
+
+  /// Real due date from the source when one existed; never fabricated.
+  dueAtUtc DateTime? @map("due_at_utc") @db.Timestamptz(6)
+
+  /// Lifecycle timestamps.
+  sourceOccurredAtUtc DateTime  @map("source_occurred_at_utc") @db.Timestamptz(6)
+  firstSeenAtUtc      DateTime  @default(now()) @map("first_seen_at_utc") @db.Timestamptz(6)
+  lastSeenAtUtc       DateTime  @default(now()) @map("last_seen_at_utc") @db.Timestamptz(6)
+  readAtUtc           DateTime? @map("read_at_utc") @db.Timestamptz(6)
+  dismissedAtUtc      DateTime? @map("dismissed_at_utc") @db.Timestamptz(6)
+  snoozedUntilUtc     DateTime? @map("snoozed_until_utc") @db.Timestamptz(6)
+  /// Set when the canonical source stopped emitting the item (resolved
+  /// upstream: invite accepted, incident closed, review completed…).
+  resolvedAtUtc       DateTime? @map("resolved_at_utc") @db.Timestamptz(6)
+  /// Resolution provenance. "SOURCE_STATE" = the canonical source
+  /// stopped emitting the item (automatic, system-labeled — never a
+  /// fabricated human resolver). Future workflow-driven resolutions may
+  /// record their own source labels + the acting user.
+  resolutionSource String? @map("resolution_source") @db.VarChar(32)
+  resolvedByUserId String? @map("resolved_by_user_id") @db.Uuid
+
+  /// Bounded, validated context copied from the item's `context` map
+  /// (names/ids the user already saw — never admin-only enrichment).
+  metadataJson Json @default("{}") @map("metadata_json")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation("OperationsInboxSnapshotUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemKey])
+  @@index([userId, lastSeenAtUtc(sort: Desc)])
+  @@index([userId, category, lastSeenAtUtc(sort: Desc)])
+  @@index([userId, resolvedAtUtc])
+  @@index([userId, readAtUtc])
+  @@index([userId, teamId])
+  @@map("operations_inbox_snapshots")
+}
+
+/// Notification schedule settings — per user per workspace: timezone,
+/// quiet hours, and digest bookkeeping. One row per (user, workspace);
+/// absence means platform defaults (no quiet hours, UTC, immediate
+/// delivery only).
+/// Organization notification policy — enterprise controls ONLY for
+/// PROOVRA-relevant requirements (mandatory critical categories, minimum
+/// delivery frequency, quiet-hours override). One row per
+/// (organization, category); absence of a row means platform defaults.
+/// Managed exclusively by ORG_OWNER / ORG_ADMIN via the policy routes;
+/// members see locked "Managed by your organization" states.
+model OrganizationNotificationPolicy {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  organizationId String @map("organization_id") @db.Uuid
+  /// NotificationPreferenceType value (bounded at the app layer).
+  category String @db.VarChar(40)
+
+  mandatoryInApp Boolean @default(false) @map("mandatory_in_app")
+  mandatoryEmail Boolean @default(false) @map("mandatory_email")
+  /// Minimum allowed EMAIL cadence (IMMEDIATE strongest … WEEKLY weakest);
+  /// null = no minimum. Users cannot weaken below this.
+  minimumFrequency String? @map("minimum_frequency") @db.VarChar(16)
+  /// Whether CRITICAL items in this category may bypass quiet hours.
+  quietHoursCriticalOverride Boolean @default(true) @map("quiet_hours_critical_override")
+
+  policyVersion   Int    @default(1) @map("policy_version")
+  createdByUserId String @map("created_by_user_id") @db.Uuid
+  updatedByUserId String? @map("updated_by_user_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation("OrganizationNotificationPolicyOrg", fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, category])
+  @@index([organizationId])
+  @@map("organization_notification_policies")
+}
+
+model NotificationScheduleSetting {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  userId String @map("user_id") @db.Uuid
+  teamId String @map("team_id") @db.Uuid
+
+  /// IANA timezone name, validated at the application layer.
+  timezone String @default("UTC") @db.VarChar(64)
+
+  quietHoursEnabled Boolean @default(false) @map("quiet_hours_enabled")
+  /// Minutes after local midnight (0..1439).
+  quietStartMinute Int @default(1320) @map("quiet_start_minute")
+  quietEndMinute   Int @default(420) @map("quiet_end_minute")
+  /// When true, CRITICAL items may still deliver during quiet hours.
+  quietCriticalOverride Boolean @default(true) @map("quiet_critical_override")
+
+  /// Digest bookkeeping — last successful digest send per cadence.
+  lastHourlyDigestAt DateTime? @map("last_hourly_digest_at") @db.Timestamptz(6)
+  lastDailyDigestAt  DateTime? @map("last_daily_digest_at") @db.Timestamptz(6)
+  lastWeeklyDigestAt DateTime? @map("last_weekly_digest_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation("NotificationScheduleSettingUser", fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation("NotificationScheduleSettingTeam", fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@index([teamId])
+  @@map("notification_schedule_settings")
 }
 
 // =============================================================================
@@ -9094,6 +9251,7 @@ model Organization {
   invites     OrganizationInvite[]
   auditEvents OrganizationAuditEvent[]
   workspaces  Team[]                   @relation("OrganizationToTeam")
+  notificationPolicies OrganizationNotificationPolicy[] @relation("OrganizationNotificationPolicyOrg")
   policies    OrganizationPolicy[]
   // Phase 3 — Enterprise Identity: DNS-verified domain ownership.
   domains     OrganizationDomain[]

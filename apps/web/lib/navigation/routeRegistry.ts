@@ -245,9 +245,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "account.inbox",
     href: "/inbox",
-    label: "Inbox",
+    label: "Operations Center",
     description:
-      "Operational items that require your attention (pending invites, governance events, admin signals).",
+      "Operational items that require your attention — reviews, mentions, invitations, governance, security, integrity, and delivery signals.",
     domain: "ACCOUNT",
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
@@ -256,7 +256,11 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: false,
+    // Operations-Center completion — the Operations Center is a primary
+    // work surface with exactly ONE sidebar entry (the Bell stays the
+    // quick preview). Categories inside stay role/workspace-scoped by
+    // the backend, so personal users see personal work only.
+    sidebarEligible: true,
   },
 
   // ---------------------------------------------------------------------------
@@ -374,13 +378,36 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: true,
   },
   {
+    // Notification preferences (System 3) — the user-facing settings
+    // surface for the per-workspace, per-category, per-channel
+    // notification preference model. Distinct from the Operations Center
+    // (where items are worked) and the delivery log (admin debugging).
+    id: "account.notification_settings",
+    href: "/settings/notifications",
+    label: "Notification preferences",
+    description:
+      "Per-workspace notification preferences — which operational categories reach you in-app and by email.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    // ACCOUNT-domain rule (phase 38.6): always NONE — the page itself
+    // asks the user to pick a workspace when none is active.
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
     id: "workspace.notifications",
     href: "/notifications",
-    label: "Notifications",
-    description: "Workspace delivery log + retry actions.",
+    label: "Notification deliveries",
+    description:
+      "Outbound delivery log (email) with retry actions — an operations/admin debugging surface, not user notifications.",
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: ["SETTINGS_VIEW"],
-    requiredActiveSpace: "PERSONAL_OR_ORG",
+    requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "DEGRADED",
     workflowTags: ["OPERATIONAL_ADMINISTRATION"],
     advancedByDefault: true,

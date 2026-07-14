@@ -243,7 +243,15 @@ const CAPTURE_ROUTES_BYTES_EXACT = 21793;
 // Phase 2C-D mechanical rebaseline: 48,332 → 48,327. The only delta is
 // non-null assertions at the file-security scan callsite so the compile-time
 // contract matches the already-required runtime/team-scoped flow.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 48327;
+// Operations-Center forensic completion rebaseline: 48,327 → 49,241.
+// Added the bounded, best-effort Operations-Center summary invalidation
+// after the TSA outcome persist (workspace members' bell caches refresh
+// when a timestamp fails or recovers). No finalize-transaction or
+// custody logic changed.
+// Product-reset rebaseline: 49,241 -> 48,334. The TSA-outcome bell-cache
+// invalidation hook was REMOVED (event-driven invalidation deleted; the
+// 45s summary TTL is the refresh path). Finalize-tx semantics unchanged.
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 48334;
 const CUSTODY_EVENTS_SVC_BYTES_EXACT = 5155;
 const TIMESTAMP_SVC_BYTES_EXACT = 12988;
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the

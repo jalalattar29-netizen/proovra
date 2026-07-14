@@ -47,7 +47,9 @@ const FORBIDDEN = readWeb("lib/product-language/forbidden.ts");
 const BARREL = readWeb("lib/product-language/index.ts");
 
 const SIDEBAR = readWeb("components/app-shell-v2/AppSidebarV2.tsx");
-const TOPBAR = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
+// Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+// retargeted to the live AppAccountToolbar.
+const TOPBAR = readWeb("components/app-shell-v2/AppAccountToolbar.tsx");
 const SHELL = readWeb("components/app-shell-v2/AppShellV2.tsx");
 const PALETTE = readWeb("components/navigation/CommandPalette.tsx");
 const COMMAND_CENTER = readWeb(
@@ -63,7 +65,7 @@ const ADMIN_DASHBOARD = readWeb("app/(app)/admin/dashboard/page.tsx");
 // Primary UX surfaces — the bounded set the language sweep runs on.
 const PRIMARY_UX_SOURCES: ReadonlyArray<{ name: string; src: string }> = [
   { name: "AppSidebarV2.tsx", src: SIDEBAR },
-  { name: "AppTopbarV2.tsx", src: TOPBAR },
+  { name: "AppAccountToolbar.tsx", src: TOPBAR },
   { name: "AppShellV2.tsx", src: SHELL },
   { name: "CommandPalette.tsx", src: PALETTE },
   { name: "CommandCenter.tsx", src: COMMAND_CENTER },
@@ -124,7 +126,7 @@ describe("R4 Part 3 — no raw 'Unknown' user-facing labels in primary + billing
   // cleaned (billing addon panel + admin dashboard).
   const SURFACES = [
     { name: "AppSidebarV2.tsx", src: SIDEBAR },
-    { name: "AppTopbarV2.tsx", src: TOPBAR },
+    { name: "AppAccountToolbar.tsx", src: TOPBAR },
     { name: "AppShellV2.tsx", src: SHELL },
     { name: "CommandPalette.tsx", src: PALETTE },
     { name: "CommandCenter.tsx", src: COMMAND_CENTER },

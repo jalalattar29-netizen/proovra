@@ -356,13 +356,15 @@ describe("Phase ROUTE-FIX — public routes are not workspace-gated", () => {
 // ===========================================================================
 
 describe("Phase ROUTE-FIX — topbar wires the canonical account menu", () => {
-  it("AppTopbarV2 reads navigation.accountMenu.items from the envelope", async () => {
+  // Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+  // retargeted to the live AppAccountToolbar.
+  it("AppAccountToolbar reads navigation.accountMenu.items from the envelope", async () => {
     const { readFileSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
     const src = readFileSync(
       fileURLToPath(
         new URL(
-          "../../../apps/web/components/app-shell-v2/AppTopbarV2.tsx",
+          "../../../apps/web/components/app-shell-v2/AppAccountToolbar.tsx",
           import.meta.url,
         ),
       ),
@@ -378,13 +380,13 @@ describe("Phase ROUTE-FIX — topbar wires the canonical account menu", () => {
     expect(src).toMatch(/data-account-menu-item="signout"/);
   });
 
-  it("AppTopbarV2 maps known icon keys (billing / teams / support) for the account menu", async () => {
+  it("AppAccountToolbar maps known icon keys (billing / teams / support) for the account menu", async () => {
     const { readFileSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
     const src = readFileSync(
       fileURLToPath(
         new URL(
-          "../../../apps/web/components/app-shell-v2/AppTopbarV2.tsx",
+          "../../../apps/web/components/app-shell-v2/AppAccountToolbar.tsx",
           import.meta.url,
         ),
       ),

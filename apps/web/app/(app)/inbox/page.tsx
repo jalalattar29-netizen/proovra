@@ -39,10 +39,15 @@ import Link from "next/link";
 import { apiFetch } from "../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../lib/date";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-import { PageShell, PageHeader, PageSection } from "../../../components/ui";
+import { PageShell, PageHeader } from "../../../components/ui";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { EmptyState } from "../../../components/ui/EmptyState";
+import { AppListbox } from "../../../components/app-primitives";
+import {
+  useOrganizations,
+  usePersonalSpace,
+} from "../../../lib/platform-context";
 
 type InboxTone = "info" | "warning" | "high" | "critical";
 type InboxCategory =
@@ -67,7 +72,13 @@ type InboxCategory =
   // Phase IA-reliability — intake action signals.
   | "intake_submission_pending_review"
   | "intake_required_items_missing"
-  | "intake_link_expiring";
+  | "intake_link_expiring"
+  // Collaboration-team notifications (read state shared with Team pages).
+  | "collaboration"
+  // Forensic completion — RFC3161 timestamping failures + real case
+  // assignments (CaseAssignment, status ACTIVE).
+  | "tsa_failure"
+  | "case_assignment";
 
 // Phase IA-enterprise — operator-priority tier. Mirrors the backend
 // `InboxPriority` so the section-grouping render reads the server's
@@ -96,6 +107,9 @@ type InboxItem = {
   readAt?: string | null;
   dismissedAt?: string | null;
   snoozedUntil?: string | null;
+  /** History (snapshot-backed) rows only — when the canonical source
+   * resolved the item upstream. */
+  resolvedAt?: string | null;
   canMarkRead: boolean;
   canDismiss: boolean;
   canSnooze: boolean;
@@ -120,7 +134,10 @@ type InboxTruncated = Record<
   | "ots_failure"
   | "intake_submission_pending_review"
   | "intake_required_items_missing"
-  | "intake_link_expiring",
+  | "intake_link_expiring"
+  | "collaboration"
+  | "tsa_failure"
+  | "case_assignment",
   boolean
 >;
 
@@ -151,6 +168,9 @@ type InboxEnvelope = {
   };
   truncated?: InboxTruncated;
   anyTruncated?: boolean;
+  /** History responses only — false when the persistent snapshot store
+   * is not provisioned in this environment. */
+  historyAvailable?: boolean;
   pagination?: InboxPagination;
   items: InboxItem[];
 };
@@ -160,38 +180,13 @@ type LoadState =
   | { kind: "ready"; data: InboxEnvelope }
   | { kind: "error"; status: number; message: string };
 
-const TONE_STYLES: Record<
-  InboxTone,
-  { border: string; background: string; chipBg: string; chipFg: string; label: string }
-> = {
-  critical: {
-    border: "rgba(127, 29, 29, 0.65)",
-    background: "rgba(239, 68, 68, 0.12)",
-    chipBg: "rgba(127, 29, 29, 0.3)",
-    chipFg: "#7f1d1d",
-    label: "CRITICAL",
-  },
-  high: {
-    border: "rgba(239, 68, 68, 0.55)",
-    background: "rgba(239, 68, 68, 0.08)",
-    chipBg: "rgba(239, 68, 68, 0.22)",
-    chipFg: "#7f1d1d",
-    label: "HIGH",
-  },
-  warning: {
-    border: "rgba(245, 158, 11, 0.55)",
-    background: "rgba(245, 158, 11, 0.08)",
-    chipBg: "rgba(245, 158, 11, 0.22)",
-    chipFg: "#78350f",
-    label: "WARNING",
-  },
-  info: {
-    border: "rgba(99, 102, 241, 0.45)",
-    background: "rgba(99, 102, 241, 0.06)",
-    chipBg: "rgba(99, 102, 241, 0.18)",
-    chipFg: "#312e81",
-    label: "INFO",
-  },
+// Tone visuals live in notifications.css (`.ops-*[data-tone]`); the
+// page only supplies the label.
+const TONE_LABELS: Record<InboxTone, string> = {
+  critical: "CRITICAL",
+  high: "HIGH",
+  warning: "WARNING",
+  info: "INFO",
 };
 
 const CATEGORY_LABELS: Record<InboxCategory, string> = {
@@ -217,6 +212,9 @@ const CATEGORY_LABELS: Record<InboxCategory, string> = {
   intake_submission_pending_review: "Intake review",
   intake_required_items_missing: "Intake incomplete",
   intake_link_expiring: "Link expiring",
+  collaboration: "Collaboration",
+  tsa_failure: "Timestamp failure",
+  case_assignment: "Case assignment",
 };
 
 // Phase IA-enterprise — operator-priority tier display metadata. Tiers
@@ -224,32 +222,27 @@ const CATEGORY_LABELS: Record<InboxCategory, string> = {
 // gets a short label + accent color.
 const PRIORITY_META: Record<
   InboxPriority,
-  { label: string; tagline: string; accent: string }
+  { label: string; tagline: string }
 > = {
   P1: {
     label: "P1 · Critical",
     tagline: "Operational failures and critical signals — act now.",
-    accent: "#7f1d1d",
   },
   P2: {
     label: "P2 · Requires action",
     tagline: "Items waiting on you (escalations, reviews, approvals, security).",
-    accent: "#92400e",
   },
   P3: {
     label: "P3 · Assigned to me",
     tagline: "Discussion mentions + assigned threads.",
-    accent: "#1e3a8a",
   },
   P4: {
     label: "P4 · Governance",
     tagline: "Workspace governance + admin notifications.",
-    accent: "#3730a3",
   },
   P5: {
     label: "P5 · Notifications",
     tagline: "Awareness signals — informational only.",
-    accent: "#475569",
   },
 };
 
@@ -277,36 +270,66 @@ type InboxFilter =
   | "unread"
   | "due_soon"
   | "overdue"
-  | "admin";
+  | "admin"
+  | "invitations"
+  | "intake"
+  | "reports"
+  | "packages"
+  | "integrity"
+  | "collaboration"
+  | "snoozed"
+  | "history";
 
 const INBOX_FILTER_LABELS: Record<InboxFilter, string> = {
   all: "All",
+  unread: "Unread",
   critical: "Critical",
   assigned_to_me: "Assigned to me",
-  review: "Review",
-  governance: "Governance",
-  failures: "Failures",
-  security: "Security",
   mentions: "Mentions",
-  unread: "Unread",
+  invitations: "Invitations",
+  review: "Reviews",
+  collaboration: "Collaboration",
+  governance: "Governance",
+  security: "Security",
+  integrity: "Integrity",
+  reports: "Reports",
+  packages: "Verification packages",
+  intake: "Intake",
+  failures: "Failures",
   due_soon: "Due soon",
   overdue: "Overdue",
   admin: "Admin",
+  snoozed: "Snoozed",
+  history: "History",
 };
+
+/** Filters that make sense as a "mark this category as read" scope —
+ *  everything except the whole-queue/state views. */
+function isCategoryFilter(f: InboxFilter): boolean {
+  return f !== "all" && f !== "unread" && f !== "history" && f !== "snoozed";
+}
 
 const INBOX_FILTER_ORDER: ReadonlyArray<InboxFilter> = [
   "all",
+  "unread",
   "critical",
   "assigned_to_me",
-  "review",
-  "governance",
-  "failures",
-  "security",
   "mentions",
+  "invitations",
+  "review",
+  "collaboration",
+  "governance",
+  "security",
+  "integrity",
+  "reports",
+  "packages",
+  "intake",
+  "failures",
   "due_soon",
   "overdue",
   "admin",
-  "unread",
+  "snoozed",
+  "history",
 ];
 
 // Human label for each truncation key. Keep in sync with the InboxTruncated
@@ -326,6 +349,9 @@ const TRUNCATION_LABELS: Record<keyof InboxTruncated, string> = {
   intake_submission_pending_review: "Intake awaiting review",
   intake_required_items_missing: "Intake incomplete",
   intake_link_expiring: "Intake link expiring",
+  collaboration: "Collaboration",
+  tsa_failure: "Timestamp failures",
+  case_assignment: "Case assignments",
 };
 
 export default function InboxPage() {
@@ -344,22 +370,42 @@ function InboxPageInner() {
   // summary + paginated items.
   const [toneFilter, setToneFilter] = useState<"all" | InboxTone>("all");
   const [filter, setFilter] = useState<InboxFilter>("all");
+  // Workspace narrowing — "all" (default) keeps the canonical
+  // all-workspaces scope; a workspace id narrows server-side (the
+  // backend validates membership and 403s on anything else).
+  const [workspaceFilter, setWorkspaceFilter] = useState<string>("all");
+  const personalSpace = usePersonalSpace();
+  const organizations = useOrganizations();
+  const workspaceOptions: Array<{ value: string; label: string }> = [
+    { value: "all", label: "All workspaces" },
+    ...(personalSpace?.id
+      ? [{ value: personalSpace.id, label: "Personal Space" }]
+      : []),
+    ...organizations
+      .filter((o) => o.membershipStatus === "ACTIVE")
+      .map((o) => ({
+        value: o.id,
+        label: o.displayName ?? o.name ?? "Organization",
+      })),
+  ];
   // Accumulated items across the current filter window. Reset on
   // filter/tone change; appended on Load More.
   const [items, setItems] = useState<InboxItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState<"all" | "category" | null>(null);
 
   const buildUrl = useCallback(
     (cursor: string | null): string => {
       const params = new URLSearchParams();
       if (filter !== "all") params.set("filter", filter);
       if (toneFilter !== "all") params.set("tone", toneFilter);
+      if (workspaceFilter !== "all") params.set("workspaceId", workspaceFilter);
       if (cursor) params.set("cursor", cursor);
       const qs = params.toString();
       return qs ? `/v1/me/inbox?${qs}` : "/v1/me/inbox";
     },
-    [filter, toneFilter],
+    [filter, toneFilter, workspaceFilter],
   );
 
   const load = useCallback(async () => {
@@ -383,6 +429,32 @@ function InboxPageInner() {
       setState({ kind: "error", status, message });
     }
   }, [buildUrl]);
+
+  /**
+   * SERVER-scoped bulk read. The backend re-derives the caller's visible
+   * unread items from the canonical aggregation (optionally narrowed by
+   * ONE validated filter key) — no item keys leave the client. Read is
+   * attention state only.
+   */
+  const markAllRead = useCallback(
+    async (bulkFilter: InboxFilter | null) => {
+      if (bulkBusy) return;
+      setBulkBusy(bulkFilter ? "category" : "all");
+      try {
+        await apiFetch("/v1/me/inbox/mark-all-read", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(bulkFilter ? { filter: bulkFilter } : {}),
+        });
+        await load();
+      } catch {
+        /* server state unchanged on failure; the list stays as-is */
+      } finally {
+        setBulkBusy(null);
+      }
+    },
+    [bulkBusy, load],
+  );
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore) return;
@@ -577,8 +649,8 @@ function InboxPageInner() {
       header={
         <PageHeader
           eyebrow="Account · Operational inbox"
-          title="Inbox"
-          subtitle="Operational items that require your attention. Each item is a real, unresolved backend signal — items disappear when the underlying state is resolved (invite accepted, governance event acknowledged, organization joined). No invented alerts."
+          title="Operations Center"
+          subtitle="Operational items that require your attention — reviews, mentions, invitations, governance, security, and integrity signals."
           primaryAction={
             <Button
               variant="secondary"
@@ -605,7 +677,6 @@ function InboxPageInner() {
           {(["critical", "high", "warning", "info"] as InboxTone[]).map(
             (tone) => {
               const count = state.data.summary.byTone[tone];
-              const tStyle = TONE_STYLES[tone];
               const active = toneFilter === tone;
               return (
                 <button
@@ -615,23 +686,15 @@ function InboxPageInner() {
                   data-inbox-tone-tile={tone}
                   data-inbox-tone-tile-active={active ? "true" : "false"}
                   data-inbox-tone-tile-count={count}
-                  style={{
-                    padding: "0.6rem 0.8rem",
-                    border: `1px solid ${tStyle.border}`,
-                    background: active
-                      ? tStyle.chipBg
-                      : tStyle.background,
-                    borderRadius: "var(--radius-card, 12px)",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    color: "inherit",
-                  }}
+                  data-tone={tone}
+                  data-active={active ? "true" : "false"}
+                  className="ops-tone-tile"
                 >
-                  <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.8 }}>
-                    {tStyle.label}
+                  <div className="ops-tone-tile__label">
+                    {TONE_LABELS[tone]}
                   </div>
-                  <div style={{ fontSize: 22, fontWeight: 700 }}>{count}</div>
-                  <div style={{ fontSize: 12, opacity: 0.75 }}>
+                  <div className="ops-tone-tile__count">{count}</div>
+                  <div className="ops-tone-tile__hint">
                     {count === 1 ? "item" : "items"}
                   </div>
                 </button>
@@ -644,29 +707,63 @@ function InboxPageInner() {
             data-inbox-tone-tile="all"
             data-inbox-tone-tile-active={toneFilter === "all" ? "true" : "false"}
             data-inbox-tone-tile-count={state.data.summary.total}
-            style={{
-              padding: "0.6rem 0.8rem",
-              border: "1px dashed var(--border-strong, rgba(127,127,127,0.4))",
-              background:
-                toneFilter === "all"
-                  ? "var(--surface-muted, rgba(127,127,127,0.12))"
-                  : "rgba(127,127,127,0.04)",
-              borderRadius: "var(--radius-card, 12px)",
-              cursor: "pointer",
-              textAlign: "left",
-              color: "inherit",
-            }}
+            data-tone="all"
+            data-active={toneFilter === "all" ? "true" : "false"}
+            className="ops-tone-tile"
           >
-            <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.8 }}>
-              ALL
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>
+            <div className="ops-tone-tile__label">ALL</div>
+            <div className="ops-tone-tile__count">
               {state.data.summary.total}
             </div>
-            <div style={{ fontSize: 12, opacity: 0.75 }}>
+            <div className="ops-tone-tile__hint">
               {state.data.summary.total === 1 ? "open item" : "open items"}
             </div>
           </button>
+        </section>
+      )}
+
+      {state.kind === "ready" &&
+      filter === "history" &&
+      state.data.historyAvailable === false ? (
+        <section
+          data-inbox-history-unavailable
+          role="status"
+          className="ops-note"
+        >
+          Operations history is not provisioned in this environment yet.
+        </section>
+      ) : null}
+
+      {/* ---------- bulk read actions. SERVER-scoped: the backend re-runs
+           the canonical aggregation for the caller and marks exactly the
+           visible unread items (optionally one validated category) — the
+           frontend never submits item keys for mass updates. Read is
+           attention-state only: it never resolves, dismisses, or
+           acknowledges anything. */}
+      {state.kind === "ready" && filter !== "history" && filter !== "snoozed" && (
+        <section
+          data-inbox-bulk-actions
+          aria-label="Bulk read actions"
+          style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
+        >
+          <Button
+            variant="secondary"
+            data-action="mark-all-read"
+            loading={bulkBusy === "all"}
+            onClick={() => void markAllRead(null)}
+          >
+            Mark all as read
+          </Button>
+          {isCategoryFilter(filter) ? (
+            <Button
+              variant="secondary"
+              data-action="mark-category-read"
+              loading={bulkBusy === "category"}
+              onClick={() => void markAllRead(filter)}
+            >
+              Mark {INBOX_FILTER_LABELS[filter].toLowerCase()} as read
+            </Button>
+          ) : null}
         </section>
       )}
 
@@ -676,10 +773,45 @@ function InboxPageInner() {
            admin-only items never reach a non-admin even via crafted
            requests. The chip click triggers a fresh `/v1/me/inbox`
            request with `filter=...` and resets pagination. */}
+      {/* ---------- workspace scope. The default is the canonical
+           all-workspaces aggregation; picking a workspace narrows
+           SERVER-side (?workspaceId= is membership-validated — a
+           crafted id gets a 403, never data). Hidden for single-
+           workspace users, where scope is meaningless. */}
+      {state.kind === "ready" && workspaceOptions.length > 2 && (
+        <section
+          data-inbox-workspace-scope
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
+          <span
+            id="inbox-workspace-scope-label"
+            style={{ fontSize: 12, fontWeight: 600, opacity: 0.75 }}
+          >
+            Workspace scope
+          </span>
+          <AppListbox
+            value={workspaceFilter}
+            options={workspaceOptions}
+            onChange={(v) => setWorkspaceFilter(v)}
+            ariaLabelledby="inbox-workspace-scope-label"
+          />
+          <span style={{ fontSize: 11.5, opacity: 0.65 }}>
+            {workspaceFilter === "all"
+              ? "Showing items from every workspace you belong to."
+              : "Showing only this workspace’s items."}
+          </span>
+        </section>
+      )}
+
       {state.kind === "ready" && (
         <section
           data-inbox-filter-chips
-          aria-label="Inbox filters"
+          aria-label="Operations Center filters"
           style={{
             display: "flex",
             flexWrap: "wrap",
@@ -695,22 +827,8 @@ function InboxPageInner() {
                 onClick={() => setFilter(key)}
                 data-inbox-filter-chip={key}
                 data-inbox-filter-chip-active={active ? "true" : "false"}
-                style={{
-                  padding: "0.3rem 0.7rem",
-                  border: active
-                    ? "1px solid var(--status-governance-solid, rgba(99,102,241,0.7))"
-                    : "1px solid var(--border-default, rgba(127,127,127,0.4))",
-                  background: active
-                    ? "var(--status-governance-bg, rgba(99,102,241,0.16))"
-                    : "transparent",
-                  color: active
-                    ? "var(--status-governance-fg, inherit)"
-                    : "inherit",
-                  borderRadius: 999,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
+                data-active={active ? "true" : "false"}
+                className="ops-chip"
               >
                 {INBOX_FILTER_LABELS[key]}
               </button>
@@ -727,18 +845,7 @@ function InboxPageInner() {
       {state.kind === "ready" && state.data.pagination && (
         <section
           data-inbox-pagination-summary
-          style={{
-            padding: "0.45rem 0.75rem",
-            border: "1px solid var(--border-default, rgba(127,127,127,0.3))",
-            background: "var(--surface-muted, rgba(127,127,127,0.04))",
-            borderRadius: "var(--radius-card, 12px)",
-            fontSize: 12.5,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flexWrap: "wrap",
-            color: "var(--ink-secondary, inherit)",
-          }}
+          className="ops-note"
         >
           <strong
             data-inbox-showing-text
@@ -811,20 +918,21 @@ function InboxPageInner() {
             <EmptyState
               framed
               title="Nothing requires your attention right now."
-              purpose="When operational items appear — pending invites, governance events, admin governance signals — they show up here. Items disappear automatically when their underlying state resolves (accepted, acknowledged, etc.). No noisy read/unread counters."
+              purpose="When operational items appear — failed timestamps or reports, reviews and escalations waiting on you, case assignments, mentions, invitations, governance events — they show up here. Items disappear automatically when their underlying state resolves. Resolved items remain in History."
               action={
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
                   <Link
                     href="/home"
                     data-action="empty-open-home"
-                    style={cardLinkBtn(true)}
+                    className="ops-link-btn"
+                    data-variant="primary"
                   >
                     Open workspace command center
                   </Link>
                   <Link
                     href="/organizations"
                     data-action="empty-open-organizations"
-                    style={cardLinkBtn(false)}
+                    className="ops-link-btn"
                   >
                     Organizations
                   </Link>
@@ -856,15 +964,8 @@ function InboxPageInner() {
                     setToneFilter("all");
                   }}
                   data-action="clear-filter"
-                  style={{
-                    background: "transparent",
-                    border: "1px solid currentColor",
-                    borderRadius: 4,
-                    padding: "0.2rem 0.5rem",
-                    fontSize: 12,
-                    cursor: "pointer",
-                    marginLeft: 6,
-                  }}
+                  className="ops-link-btn"
+                  style={{ marginLeft: 6 }}
                 >
                   Show all
                 </button>
@@ -895,33 +996,16 @@ function InboxPageInner() {
                 data-inbox-priority-count={groupItems.length}
               >
                 <header
-                  style={{
-                    display: "flex",
-                    alignItems: "baseline",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    marginBottom: 6,
-                    paddingBottom: 4,
-                    borderBottom: `2px solid ${meta.accent}`,
-                  }}
+                  className="ops-priority-header"
+                  data-priority={priority}
                 >
                   <span
                     data-inbox-priority-label={priority}
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      letterSpacing: 0.3,
-                      color: meta.accent,
-                    }}
+                    className="ops-priority-header__label"
                   >
                     {meta.label}
                   </span>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      opacity: 0.75,
-                    }}
-                  >
+                  <span className="ops-priority-header__tagline">
                     {meta.tagline} · {groupItems.length}{" "}
                     {groupItems.length === 1 ? "item" : "items"}
                   </span>
@@ -936,7 +1020,6 @@ function InboxPageInner() {
                   }}
                 >
                   {groupItems.map((item) => {
-                    const tStyle = TONE_STYLES[item.tone];
                     return (
                       <li
                         key={item.id}
@@ -946,25 +1029,11 @@ function InboxPageInner() {
                         data-inbox-item-tone={item.tone}
                         data-inbox-item-priority={item.priority}
                         data-inbox-item-read={item.isRead ? "true" : "false"}
-                        style={{
-                          padding: "0.7rem 0.9rem",
-                          border: `1px solid ${tStyle.border}`,
-                          background: tStyle.background,
-                          borderRadius: "var(--radius-card, 12px)",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: 12,
-                          flexWrap: "wrap",
-                          // Phase IA-reliability — visually de-emphasize
-                          // already-read items so unread items pop. We
-                          // keep them readable (opacity 0.7) rather than
-                          // hiding them outright, so operators can still
-                          // re-open / mark-unread if needed.
-                          opacity: item.isRead ? 0.7 : 1,
-                        }}
+                        data-tone={item.tone}
+                        data-read={item.isRead ? "true" : "false"}
+                        className="ops-item"
                       >
-                        <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+                        <div className="ops-item__main">
                           <div
                             style={{
                               display: "flex",
@@ -975,56 +1044,23 @@ function InboxPageInner() {
                           >
                             <span
                               data-tone-chip={item.tone}
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                letterSpacing: 0.5,
-                                textTransform: "uppercase",
-                                padding: "1px 6px",
-                                borderRadius: 4,
-                                background: tStyle.chipBg,
-                                color: tStyle.chipFg,
-                              }}
+                              data-tone={item.tone}
+                              className="ops-item__chip"
                             >
-                              {tStyle.label}
+                              {TONE_LABELS[item.tone]}
                             </span>
                             <span
                               data-category-chip={item.category}
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 600,
-                                letterSpacing: 0.4,
-                                textTransform: "uppercase",
-                                padding: "1px 6px",
-                                borderRadius: 4,
-                                background: "rgba(127,127,127,0.18)",
-                              }}
+                              className="ops-item__chip"
                             >
                               {CATEGORY_LABELS[item.category]}
                             </span>
-                            <span style={{ fontWeight: 600, fontSize: 14 }}>
+                            <span className="ops-item__title">
                               {item.title}
                             </span>
                           </div>
-                          <div
-                            style={{
-                              fontSize: 12.5,
-                              opacity: 0.85,
-                              marginTop: 3,
-                            }}
-                          >
-                            {item.body}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              opacity: 0.7,
-                              marginTop: 3,
-                              display: "flex",
-                              gap: 8,
-                              flexWrap: "wrap",
-                            }}
-                          >
+                          <div className="ops-item__body">{item.body}</div>
+                          <div className="ops-item__meta">
                             <span>
                               {formatUserDateTime(item.occurredAt)}
                             </span>
@@ -1034,13 +1070,11 @@ function InboxPageInner() {
                             {item.dueAt && (
                               <span
                                 data-inbox-item-due={item.dueAt}
-                                style={{
-                                  fontWeight: 600,
-                                  color:
-                                    new Date(item.dueAt).getTime() < Date.now()
-                                      ? "#7f1d1d"
-                                      : "#92400e",
-                                }}
+                                data-overdue={
+                                  new Date(item.dueAt).getTime() < Date.now()
+                                    ? "true"
+                                    : "false"
+                                }
                               >
                                 {new Date(item.dueAt).getTime() < Date.now()
                                   ? "Overdue · "
@@ -1048,6 +1082,26 @@ function InboxPageInner() {
                                 {formatUserDate(item.dueAt)}
                               </span>
                             )}
+                            {/* History (snapshot) lifecycle chips — the
+                                persistent record survives source
+                                resolution; each state is a real
+                                timestamp, never inferred. */}
+                            {item.resolvedAt ? (
+                              <span data-inbox-item-resolved>
+                                Resolved {formatUserDate(item.resolvedAt)}
+                              </span>
+                            ) : null}
+                            {item.dismissedAt ? (
+                              <span data-inbox-item-dismissed>
+                                Dismissed {formatUserDate(item.dismissedAt)}
+                              </span>
+                            ) : null}
+                            {item.snoozedUntil &&
+                            new Date(item.snoozedUntil).getTime() > Date.now() ? (
+                              <span data-inbox-item-snoozed>
+                                Snoozed until {formatUserDate(item.snoozedUntil)}
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                         {/* Phase IA-reliability — per-item action
@@ -1056,15 +1110,7 @@ function InboxPageInner() {
                             defaults to 1 day; future UI can expose a
                             picker. Dismiss is final (until the source
                             re-fires). */}
-                        <div
-                          data-inbox-item-actions
-                          style={{
-                            display: "flex",
-                            gap: 6,
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                          }}
-                        >
+                        <div data-inbox-item-actions className="ops-item__actions">
                           <Link
                             href={item.href}
                             data-action="open-inbox-item"
@@ -1077,7 +1123,8 @@ function InboxPageInner() {
                                 void markRead(item);
                               }
                             }}
-                            style={cardLinkBtn(true)}
+                            className="ops-link-btn"
+                    data-variant="primary"
                           >
                             Open
                           </Link>
@@ -1170,192 +1217,8 @@ function InboxPageInner() {
         </div>
       )}
 
-      {/* ---------- operational scope panel ---------- */}
-      <PageSection
-        data-inbox-scope-panel
-        title="Operational scope"
-        description="Honest summary of what the inbox surfaces today vs what is deliberately deferred to later backend work. Items marked “deferred” are not faked in the UI — the underlying signal either does not exist as a model, or its cross-workspace aggregation is not built."
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: 10,
-          }}
-        >
-          <div
-            data-inbox-scope-block="available"
-            style={scopeBlockStyle("available")}
-          >
-            <div style={scopeBlockTitle}>Available now</div>
-            <ul style={scopeListStyle}>
-              <li data-inbox-scope-item="pending-org-invites">
-                <strong>Pending organization invites.</strong> Email-matched
-                invites the caller can accept.
-              </li>
-              <li data-inbox-scope-item="admin-pending-invites">
-                <strong>Admin pending-invite rollup.</strong> One item per
-                org the caller administers with open invites.
-              </li>
-              <li data-inbox-scope-item="governance-notifications">
-                <strong>Unacknowledged governance notifications.</strong>{" "}
-                Legal hold placed, destruction pending, retention conflict,
-                lifecycle drift, export blocked, etc. — per team the caller
-                belongs to.
-              </li>
-              <li data-inbox-scope-item="discussion-mentions">
-                <strong>Discussion @-mentions.</strong> Workspace-scoped
-                evidence-discussion mentions the caller has not yet been
-                notified about. Each opens the exact thread.
-              </li>
-              <li data-inbox-scope-item="discussion-assigned">
-                <strong>Assigned discussion threads.</strong> Open threads
-                where the caller is the assignee. Escalated threads bump
-                to high tone.
-              </li>
-              <li data-inbox-scope-item="review-decisions">
-                <strong>Multi-stage review decisions.</strong> Conflict-
-                detected workflows where the caller is an adjudicator,
-                plus awareness for first-stage decisions awaiting peer
-                review.
-              </li>
-              <li data-inbox-scope-item="review-escalations">
-                <strong>Review escalations assigned to me.</strong> Open
-                workflow-tier escalations with the caller as assignee
-                (SLA breach, reviewer inactivity, QC failure, …).
-              </li>
-              <li data-inbox-scope-item="access-reviews">
-                <strong>Access reviews involving me.</strong> Pending
-                reviews where the caller is the subject or the initiator,
-                with the source dueAt date.
-              </li>
-              <li data-inbox-scope-item="mfa-recovery-admin">
-                <strong>MFA recovery approvals (admin only).</strong>{" "}
-                Pending lost-factor reset queue for teams the caller
-                OWNs or ADMINs. Never surfaces to non-admins.
-              </li>
-              <li data-inbox-scope-item="communication-failures">
-                <strong>Recent delivery failures (admin only).</strong>{" "}
-                Failed SMS/WhatsApp/OTP in the last 24h for teams the
-                caller OWNs or ADMINs. Phone preview is masked; OTP
-                codes are never persisted.
-              </li>
-              <li data-inbox-scope-item="my-security-alerts">
-                <strong>Security alerts on my account.</strong> High-
-                severity SecurityEvents on the caller's userId in the
-                last 7 days. Never surfaces other users' events.
-              </li>
-              <li data-inbox-scope-item="report-failures">
-                <strong>Report generation failures.</strong> Sourced from
-                OperationalIncident rows with category REPORT (status
-                OPEN or ACKNOWLEDGED). Team-scoped via incident.teamId.
-                Deep-links to evidence integrity tab when set, else the
-                Operations / Observability console.
-              </li>
-              <li data-inbox-scope-item="package-failures">
-                <strong>Verification package failures.</strong> Same
-                source + scoping as report failures, category PACKAGE.
-              </li>
-              <li data-inbox-scope-item="ots-failures">
-                <strong>OTS anchoring failures.</strong> Evidence rows
-                with otsStatus = FAILED (the Phase-12 OTS pipeline
-                terminal state). Never surfaces PENDING /
-                RETRY_SCHEDULED / WAITING_CONFIRMATIONS — those are
-                normal lifecycle states. Terminal GLOBAL_BUDGET_EXHAUSTED
-                renders as critical tone.
-              </li>
-              <li data-inbox-scope-item="onboarding">
-                <strong>Onboarding signals.</strong> No-organizations yet;
-                no email identity bound.
-              </li>
-              <li data-inbox-scope-item="per-user-state">
-                <strong>Per-user read / dismiss / snooze.</strong> Read,
-                unread, dismiss, and snooze persist per user in the
-                InboxItemState table (unique per user + item). Dismissed
-                and snoozed items drop out of the list until they re-fire;
-                read items de-emphasize. These are real, audited-by-source
-                mutations — not local UI state.
-              </li>
-            </ul>
-          </div>
-          <div
-            data-inbox-scope-block="deferred"
-            style={scopeBlockStyle("deferred")}
-          >
-            <div style={scopeBlockTitle}>Deferred</div>
-            <ul style={scopeListStyle}>
-              <li data-inbox-scope-item="preferences-ui">
-                <strong>Notification preferences UI.</strong> The
-                NotificationPreference model is partially wired (per-
-                workspace MENTION + ASSIGNED_THREAD toggles); a full UI
-                for managing per-category delivery channels is not built.
-              </li>
-              <li data-inbox-scope-item="email-digest">
-                <strong>Email digests / push channels.</strong>{" "}
-                Transactional email delivery exists for evidence-request
-                and reviewer-assignment paths (the existing
-                NotificationDelivery pipeline). Digest / push / SMS aren’t
-                wired for inbox items.
-              </li>
-              <li data-inbox-scope-item="seat-overrun">
-                <strong>Billing seat-overrun alerts.</strong> Per-workspace
-                billing posture is visible to admins on the
-                /organizations/[id] page (Phase A.1B); a seat-overrun
-                inbox item is not built — backend has no incident model
-                for it yet.
-              </li>
-            </ul>
-          </div>
-        </div>
-      </PageSection>
     </PageShell>
   );
 }
 
-// ---------- shared styles ----------
 
-function cardLinkBtn(primary: boolean): React.CSSProperties {
-  return {
-    padding: "0.35rem 0.7rem",
-    border: "1px solid currentColor",
-    borderRadius: 4,
-    fontSize: 13,
-    fontWeight: primary ? 600 : 500,
-    background: primary ? "rgba(99,102,241,0.12)" : "transparent",
-    color: "inherit",
-    textDecoration: "none",
-    whiteSpace: "nowrap",
-  };
-}
-
-function scopeBlockStyle(kind: "available" | "deferred"): React.CSSProperties {
-  return {
-    padding: "0.7rem 0.85rem",
-    border:
-      kind === "available"
-        ? "1px solid var(--status-verified-border, rgba(34, 197, 94, 0.45))"
-        : "1px solid var(--border-default, rgba(127, 127, 127, 0.4))",
-    background:
-      kind === "available"
-        ? "var(--status-verified-bg, rgba(34, 197, 94, 0.06))"
-        : "var(--surface-muted, rgba(127, 127, 127, 0.04))",
-    borderRadius: "var(--radius-card, 10px)",
-    fontSize: 12,
-  };
-}
-
-const scopeBlockTitle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: 0.5,
-  textTransform: "uppercase",
-  marginBottom: 6,
-  opacity: 0.85,
-};
-
-const scopeListStyle: React.CSSProperties = {
-  margin: 0,
-  paddingLeft: "1.1rem",
-  display: "grid",
-  gap: 5,
-};

@@ -5,7 +5,7 @@
  * security reviewers, procurement teams, and compliance evaluators.
  *
  * IA placement: top-level `/trust`. /about/trust is a thin re-export
- * (AppTopbarV2 help link target). /trust-hub is the SEPARATE in-product
+ * (legacy in-app help link target). /trust-hub is the SEPARATE in-product
  * operator hub and is NOT touched here.
  *
  * Safe-language contract — this file must comply with the public Trust

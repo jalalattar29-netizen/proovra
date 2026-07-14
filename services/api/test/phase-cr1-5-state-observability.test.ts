@@ -152,7 +152,9 @@ describe("CR1.5 Test 3 — active-workspace trace documented", () => {
     expect(DOC).toMatch(/useActiveSpace/);
     expect(DOC).toMatch(/useActiveSpaceId/);
     expect(DOC).toMatch(/useTeamWorkspaceGate/);
-    expect(DOC).toMatch(/AppTopbarV2\.tsx:113/);
+    // Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+    // retargeted to the live AppAccountToolbar.
+    expect(DOC).toMatch(/AppAccountToolbar\.tsx:91/);
     expect(DOC).toMatch(/CommandCenter\.tsx:70/);
   });
 });

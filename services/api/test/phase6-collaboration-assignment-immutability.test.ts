@@ -132,21 +132,22 @@ describe("SCOPE C — route gating for assignment is preserved", () => {
   });
 });
 
-describe("SCOPE E — inbox scope panel is honest about shipped per-user state", () => {
+describe("SCOPE E — Operations Center ships per-user state without developer-facing panels", () => {
   const INBOX_PAGE = readSrc("../../../apps/web/app/(app)/inbox/page.tsx");
 
-  it("does not advertise read-state persistence as deferred (it ships via InboxItemState)", () => {
-    // The frontend calls /read /unread /dismiss /snooze which persist to
-    // InboxItemState. The scope panel must not tell operators these are
-    // "not tracked yet" / "no manual per-user dismiss yet".
-    expect(INBOX_PAGE).not.toMatch(/data-inbox-scope-item="read-state"/);
-    expect(INBOX_PAGE).not.toMatch(/data-inbox-scope-item="dismiss"/);
-    expect(INBOX_PAGE).not.toMatch(/we do not track\s+a separate per-user/);
-    expect(INBOX_PAGE).not.toMatch(/no manual\s+per-user dismiss yet/);
+  it("the developer-facing scope panel is GONE (production UI only)", () => {
+    // Operations-Center redesign — the "Available now / Deferred"
+    // engineering panel was removed from the production page. Honesty
+    // now lives in behavior (real filters, computed counters, degraded
+    // banners), not in embedded engineering notes.
+    expect(INBOX_PAGE).not.toMatch(/data-inbox-scope-panel/);
+    expect(INBOX_PAGE).not.toMatch(/data-inbox-scope-item=/);
+    expect(INBOX_PAGE).not.toMatch(/>Deferred</);
+    expect(INBOX_PAGE).not.toMatch(/>Available now</);
   });
 
   it("the page still actually calls the per-user state mutation endpoints", () => {
-    // Guard against a lazy 'fix' that removes the deferred claim by also
+    // Guard against a lazy 'fix' that removes the dev panel by also
     // removing the feature. The mutation calls must remain wired.
     expect(INBOX_PAGE).toMatch(
       /\/v1\/me\/inbox\/items\/\$\{encodeURIComponent\(itemKey\)\}\/\$\{action\}/,
@@ -154,16 +155,11 @@ describe("SCOPE E — inbox scope panel is honest about shipped per-user state",
     expect(INBOX_PAGE).toMatch(/"read" \| "unread" \| "dismiss" \| "snooze"/);
   });
 
-  it("documents per-user read / dismiss / snooze as an available capability", () => {
-    expect(INBOX_PAGE).toMatch(/data-inbox-scope-item="per-user-state"/);
-  });
-
-  it("keeps genuinely-deferred items in the deferred panel (no over-correction)", () => {
-    // Notification preferences UI, email digests, and seat-overrun
-    // alerts really are not built — they must stay documented as
-    // deferred so the panel remains honest in both directions.
-    expect(INBOX_PAGE).toMatch(/data-inbox-scope-item="preferences-ui"/);
-    expect(INBOX_PAGE).toMatch(/data-inbox-scope-item="email-digest"/);
-    expect(INBOX_PAGE).toMatch(/data-inbox-scope-item="seat-overrun"/);
+  it("the formerly-deferred notification preferences UI now EXISTS as a real page", () => {
+    const prefsPage = readSrc(
+      "../../../apps/web/app/(app)/settings/notifications/page.tsx",
+    );
+    expect(prefsPage).toContain("NotificationPreferencesPanel");
+    expect(prefsPage).toContain("account.notification_settings");
   });
 });

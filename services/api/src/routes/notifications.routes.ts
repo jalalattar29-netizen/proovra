@@ -39,9 +39,20 @@ import {
   resendNotificationDelivery,
 } from "../services/notifications/index.js";
 import { runReminderScheduler } from "../services/notifications/reminder-scheduler.js";
+import { runDigestScheduler } from "../services/notifications/digest-scheduler.js";
 
 const ParamsId = z.object({ id: z.string().uuid() });
 
+/**
+ * The outbound delivery log is an ORGANIZATION OPERATIONS/ADMIN
+ * debugging surface (raw recipients, provider error text, retry
+ * controls, cron diagnostics). Access requires BOTH:
+ *   1. an ORGANIZATION workspace — Personal users get contextual
+ *      delivery status inside the originating workflow (evidence
+ *      request / intake), never the global log; owning a personal
+ *      workspace is deliberately NOT sufficient authorization, and
+ *   2. workspace OWNER or ADMIN role.
+ */
 async function requireMember(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -50,9 +61,24 @@ async function requireMember(
   const userId = getAuthUserId(req);
   const membership = await prisma.teamMember.findUnique({
     where: { teamId_userId: { teamId, userId } },
+    select: { role: true, team: { select: { isPersonal: true } } },
   });
   if (!membership) {
     reply.code(403).send({ message: "Not a member of the workspace" });
+    return null;
+  }
+  if (membership.team?.isPersonal === true) {
+    reply.code(403).send({
+      message:
+        "The delivery log is an organization operations surface. Delivery status for your own workflows appears on the originating request.",
+    });
+    return null;
+  }
+  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+    reply.code(403).send({
+      message:
+        "The notification delivery log is limited to workspace owners and admins.",
+    });
     return null;
   }
   return { userId };
@@ -218,6 +244,38 @@ export async function notificationsRoutes(app: FastifyInstance) {
       const summary = await runReminderScheduler({
         batchSize: body.batchSize,
       });
+      return reply.code(200).send({ summary });
+    },
+  );
+
+  // POST /v1/notifications/run-digests
+  //
+  // Operations Center digest scheduler (hourly/daily/weekly email
+  // digests per user preference, quiet-hours + timezone aware,
+  // idempotent per bucket). Same cron-secret trigger pattern as
+  // run-reminders — no second worker architecture.
+  app.post(
+    "/v1/notifications/run-digests",
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const ok = await requireNotificationCronSecret(req, reply);
+      if (!ok) return;
+      const body = z
+        .object({ maxGroups: z.number().int().min(1).max(2000).optional() })
+        .parse(req.body ?? {});
+      const summary = await runDigestScheduler({
+        maxGroups: body.maxGroups,
+      });
+      // Migration-order safety — a refused run (schedule schema not
+      // provisioned) is an operator-visible 503, not a fake success.
+      if (summary.unavailableReason) {
+        return reply.code(503).send({
+          error: {
+            code: "digest_unavailable",
+            reason: summary.unavailableReason,
+          },
+          summary,
+        });
+      }
       return reply.code(200).send({ summary });
     },
   );

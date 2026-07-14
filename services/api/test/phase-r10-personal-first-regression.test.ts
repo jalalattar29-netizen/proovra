@@ -286,11 +286,14 @@ describe("Phase R10 — Stage 2: GlobalRuntimeIndicator hides for personal users
     );
   });
 
-  it("AppTopbarV2 passes teamId=null for non-TEAM workspaces (source contract on sidebar derivation)", () => {
-    // Topbar derives teamId from envelope.workspace.scope === "TEAM";
-    // any other scope (or absent workspace) must yield null. The
-    // sidebar uses the same derivation — we pin the literal here
-    // since AppTopbarV2 wraps GlobalRuntimeIndicator.
+  // Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+  // retargeted to the live AppAccountToolbar.
+  it("shell passes teamId=null for non-TEAM workspaces (source contract on sidebar derivation)", () => {
+    // The sidebar derives teamId from envelope.workspace.scope ===
+    // "TEAM"; any other scope (or absent workspace) must yield null.
+    // We pin the literal here; the live AppAccountToolbar applies the
+    // same rule via activeSpace (ORGANIZATION → id, otherwise null)
+    // where it wraps GlobalRuntimeIndicator.
     expect(APP_SIDEBAR_SRC).toMatch(
       /workspace\?\.status === "active"\s*&&\s*envelope\.workspace\.scope === "TEAM"/,
     );

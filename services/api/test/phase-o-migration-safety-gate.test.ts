@@ -358,6 +358,24 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     "20270828000000_email_verification_tokens": new Set([
       "CREATE_TABLE_IF_NOT_EXISTS",
     ]),
+    // Operations-Center completion — persistent history snapshots
+    // (operations_inbox_snapshots) + notification schedule settings
+    // (notification_schedule_settings) + the additive `frequency`
+    // column on workspace_notification_preferences. Pure-additive
+    // Phase O pattern mirroring the contact-sales / email-verification
+    // precedents: CREATE TABLE IF NOT EXISTS, guarded indexes, FKs in
+    // DO + duplicate_object blocks, ADD COLUMN IF NOT EXISTS with a
+    // default. Zero DROP / RENAME / TRUNCATE / DELETE / UPDATE.
+    "20270916000000_operations_center_history_and_schedule": new Set([
+      "CREATE_TABLE_IF_NOT_EXISTS",
+    ]),
+    // Operations-Center forensic completion — organization notification
+    // policy table (CREATE TABLE IF NOT EXISTS) + additive provenance
+    // columns on operations_inbox_snapshots. Same pure-additive Phase O
+    // pattern as the 20270916 precedent; zero destructive statements.
+    "20270917000000_org_notification_policy_and_resolution_provenance": new Set([
+      "CREATE_TABLE_IF_NOT_EXISTS",
+    ]),
   };
 
   it("every migration with timestamp > baseline has ZERO CRITICAL findings", async () => {

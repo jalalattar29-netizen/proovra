@@ -192,16 +192,19 @@ describe("Phase G3.1 — inbox aggregator respects notification preferences", ()
     );
   });
 
-  it("filters MENTION items through the preference check", () => {
-    expect(ME_INBOX).toMatch(
-      /if \(!\(await isAllowed\(m\.teamId,\s*"MENTION"\)\)\) continue/,
-    );
+  // Remediation 2026-07-14 — IN_APP suppression moved from emit-time
+  // `continue` guards to a finalize-loop ANNOTATION (suppressedInApp)
+  // so the EMAIL/digest channel stays independent of IN_APP toggles.
+  // Behavior is inject-tested in phase-opscenter-redesign.test.ts.
+  it("annotates suppressed items via the canonical optional-type map", () => {
+    expect(ME_INBOX).toMatch(/OPTIONAL_INAPP_CATEGORY_TO_TYPE\.get\(it\.category\)/);
+    expect(ME_INBOX).toMatch(/suppressedInApp/);
   });
 
-  it("filters ASSIGNED_THREAD items through the preference check", () => {
-    expect(ME_INBOX).toMatch(
-      /if \(!\(await isAllowed\(t\.teamId,\s*"ASSIGNED_THREAD"\)\)\) continue/,
-    );
+  it("the live view, summary, and bulk targets all exclude suppressed items", () => {
+    const occurrences =
+      ME_INBOX.match(/if \(it\.suppressedInApp\) return false;/g) ?? [];
+    expect(occurrences.length).toBeGreaterThanOrEqual(3);
   });
 
   it("caches the preference verdict per (teamId, type) to avoid N+1", () => {

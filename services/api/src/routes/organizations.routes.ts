@@ -810,6 +810,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
           select: { id: true, expiresAt: true },
         });
 
+
         await emitOrgAuditEvent(tx, {
           organizationId: orgId,
           actorUserId: userId,

@@ -51,7 +51,9 @@ const SVC = readApi("src/services/platform-context/platform-context.service.ts")
 const WEB_TYPES = readWeb("lib/platform-context/types.ts");
 const WEB_HOOKS = readWeb("lib/platform-context/useTenantModel.ts");
 const WEB_INDEX = readWeb("lib/platform-context/index.ts");
-const WEB_TOPBAR = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
+// Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+// retargeted to the live AppAccountToolbar.
+const WEB_TOPBAR = readWeb("components/app-shell-v2/AppAccountToolbar.tsx");
 // Phase Final-Closure-Remediation — the legacy duplicate
 // `app/(app)/teams/page.tsx` was deleted in favour of the canonical
 // `app/(app)/workspaces/page.tsx`. The `/teams` URL now redirects
@@ -334,19 +336,18 @@ describe("ENTERPRISE TENANT MODEL — workspace switcher", () => {
 
   it("switcher renders Personal section with the Personal Space label", () => {
     expect(WEB_TOPBAR).toMatch(/data-workspace-menu-group="PERSONAL"/);
-    expect(WEB_TOPBAR).toMatch(/data-personal-space-option/);
     expect(WEB_TOPBAR).toMatch(/>Personal Space</);
   });
 
-  it("switcher renders Organizations section using data-organization-option", () => {
+  it("switcher renders Organizations section from the envelope org list", () => {
     expect(WEB_TOPBAR).toMatch(/data-workspace-menu-group="ORGANIZATIONS"/);
-    expect(WEB_TOPBAR).toMatch(/data-organization-option/);
+    expect(WEB_TOPBAR).toMatch(/organizations\.map\(/);
   });
 
   it("switcher renders Actions section (create / join / manage)", () => {
-    expect(WEB_TOPBAR).toMatch(/data-workspace-action="create_organization"/);
-    expect(WEB_TOPBAR).toMatch(/data-workspace-action="join_organization"/);
-    expect(WEB_TOPBAR).toMatch(/data-workspace-action="manage_organizations"/);
+    expect(WEB_TOPBAR).toMatch(/href="\/workspaces\?action=create"/);
+    expect(WEB_TOPBAR).toMatch(/href="\/workspaces\?action=join"/);
+    expect(WEB_TOPBAR).toMatch(/Manage organizations/);
   });
 
   it("switcher never labels Personal Space as TEAM", () => {

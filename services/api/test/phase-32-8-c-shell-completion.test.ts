@@ -27,7 +27,9 @@ function readWeb(rel: string): string {
   );
 }
 
-const TOPBAR = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
+// Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+// retargeted to the live AppAccountToolbar.
+const TOPBAR = readWeb("components/app-shell-v2/AppAccountToolbar.tsx");
 const TOPBAR_CSS = readWeb("components/app-shell-v2/app-shell-v2.css");
 const CC_TSX = readWeb("components/command-center/CommandCenter.tsx");
 const CC_CSS = readWeb("components/command-center/command-center.css");
@@ -96,7 +98,9 @@ describe("Phase 32.8C FINAL-4 — grouped workspace switcher", () => {
     expect(TOPBAR).toMatch(/data-workspace-menu-group="PERSONAL"/);
     expect(TOPBAR).toMatch(/data-workspace-menu-group="ORGANIZATIONS"/);
     expect(TOPBAR).toMatch(/data-workspace-menu-group="ACTIONS"/);
-    expect(TOPBAR).toMatch(/data-workspace-menu-group-label/);
+    // The live toolbar renders the group label via its class (no
+    // separate data attribute).
+    expect(TOPBAR).toMatch(/app-topbar-v2-workspace-menu-group-label/);
   });
 
   it("group labels read as 'Personal' and 'Organizations' and 'Actions'", () => {
@@ -106,20 +110,14 @@ describe("Phase 32.8C FINAL-4 — grouped workspace switcher", () => {
     expect(TOPBAR).toMatch(/>\s*Actions\s*</);
   });
 
-  it("active workspace is marked with aria-current='true'", () => {
-    expect(TOPBAR).toMatch(/aria-current=\{[^}]{0,150}\?[^:]{0,100}:\s*undefined/);
+  it("active workspace is visually marked (is-active menu item state)", () => {
+    // The live toolbar marks the active space via the is-active class
+    // modifier on the menu item.
+    expect(TOPBAR).toMatch(/app-topbar-v2-workspace-menu-item is-active/);
   });
 
-  it("menu items expose canonical option attributes (data-personal-space-option / data-organization-option / data-workspace-scope-chip)", () => {
-    expect(TOPBAR).toMatch(/data-personal-space-option/);
-    expect(TOPBAR).toMatch(/data-organization-option/);
-    expect(TOPBAR).toMatch(/data-workspace-option-name/);
+  it("menu items expose the workspace scope chip", () => {
     expect(TOPBAR).toMatch(/data-workspace-scope-chip/);
-  });
-
-  it("empty state explains operational meaning (no organizations yet)", () => {
-    expect(TOPBAR).toMatch(/You don't have any organizations yet/);
-    expect(TOPBAR).toMatch(/Only Personal Space/);
   });
 });
 
@@ -276,9 +274,9 @@ describe("Phase 32.8C FINAL-4 — no raw UUID in shell rendering paths", () => {
   });
 
   it("type allows nullable workspace name (so we can fall back to a scope label, not an id)", () => {
-    // Phase 32.8 Foundation — name nullability lives on the
-    // canonical envelope; topbar consumes envelope.workspace.name.
-    expect(TOPBAR).toMatch(/workspace\.name/);
+    // The live toolbar falls back from activeSpace.displayName to the
+    // bounded "Organization workspace" scope label — never the raw id.
+    expect(TOPBAR).toMatch(/displayName \?\?[\s\S]{0,80}Organization workspace/);
   });
 });
 

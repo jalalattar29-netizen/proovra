@@ -5,9 +5,11 @@
  *
  *   1. The /v1/me/inbox aggregator now surfaces discussion mentions +
  *      assigned threads, scoped to caller's teamIds.
- *   2. GET /v1/me/inbox/summary returns the bounded
- *      `{ unreadMentions, openAssignments }` counter envelope used by
- *      the topbar indicator. Workspace-scoped server-side.
+ *   2. The header Notification Bell shares the CANONICAL unread
+ *      calculation: it polls GET /v1/me/inbox?filter=unread (the same
+ *      aggregation the Operations Center renders) — the former
+ *      /v1/me/inbox/summary two-category endpoint is gone, so no
+ *      partial badge math can exist anywhere.
  *   3. POST /v1/collaboration/threads/:id/mark-mentions-read updates
  *      DiscussionMention.notifiedAtUtc for the caller, idempotent, and
  *      gated by reviewer-member access + cross-workspace safety.
@@ -24,8 +26,8 @@
  *      threads via the new aggregator without breaking the C1
  *      empty-state contract.
  *   8. The /inbox page handles the two new categories.
- *   9. AppTopbarV2 mounts InboxIndicator (and remains apiFetch-free
- *      itself, satisfying the Phase 32.8 foundation contract).
+ *   9. AppAccountToolbar mounts the NotificationBell (and remains
+ *      apiFetch-free itself, satisfying the Phase 32.8 contract).
  *  10. Vocabulary discipline — no chat / Slack / social phrases leak
  *      into any C2 surface.
  */
@@ -74,11 +76,13 @@ const MATTER_UI = readSource(
   "../../../apps/web/components/cases-experience/MatterWorkspace.tsx",
 );
 const INBOX_PAGE = readSource("../../../apps/web/app/(app)/inbox/page.tsx");
+// Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+// retargeted to the live AppAccountToolbar.
 const TOPBAR = readSource(
-  "../../../apps/web/components/app-shell-v2/AppTopbarV2.tsx",
+  "../../../apps/web/components/app-shell-v2/AppAccountToolbar.tsx",
 );
-const TOPBAR_INDICATOR = readSource(
-  "../../../apps/web/components/app-shell-v2/InboxIndicator.tsx",
+const NOTIFICATION_BELL = readSource(
+  "../../../apps/web/components/app-shell-v2/NotificationBell.tsx",
 );
 
 // ===========================================================================
@@ -124,40 +128,38 @@ describe("Phase C2 — /v1/me/inbox surfaces discussion signals", () => {
 });
 
 // ===========================================================================
-// 2. /v1/me/inbox/summary topbar endpoint
+// 2. Unified unread calculation (Operations-Center redesign)
 // ===========================================================================
 
-describe("Phase C2 — /v1/me/inbox/summary topbar counter endpoint", () => {
-  it("registers GET /v1/me/inbox/summary", () => {
-    expect(ME_INBOX_ROUTES).toMatch(
-      /app\.get\(\s*"\/v1\/me\/inbox\/summary"/,
+describe("Unified unread calculation — one backend computation platform-wide", () => {
+  it("the summary endpoint is computed from the CANONICAL aggregation (never partial counts)", () => {
+    expect(ME_INBOX_ROUTES).toMatch(/app\.get\(\s*"\/v1\/me\/inbox\/summary"/);
+    // The summary handler calls the same buildInboxAggregation as the
+    // page — the legacy mention/assignment-only count queries are gone.
+    const summaryBlock = ME_INBOX_ROUTES.slice(
+      ME_INBOX_ROUTES.indexOf('"/v1/me/inbox/summary"'),
+      ME_INBOX_ROUTES.indexOf('"/v1/me/inbox/mark-all-read"'),
     );
+    expect(summaryBlock).toContain("buildInboxAggregation(userId");
+    expect(summaryBlock).not.toMatch(/discussionMention\.count/);
+    expect(summaryBlock).not.toMatch(/discussionThread\.count/);
+    // Cached per user + invalidated on mutation.
+    expect(summaryBlock).toContain("getCachedOperationsSummary");
+    expect(summaryBlock).toContain("setCachedOperationsSummary");
+    expect(ME_INBOX_ROUTES).toContain("invalidateOperationsSummary");
   });
 
-  it("returns bounded { unreadMentions, openAssignments } counters", () => {
-    expect(ME_INBOX_ROUTES).toMatch(
-      /reply\.code\(200\)\.send\(\{[\s\S]*?unreadMentions[\s\S]*?openAssignments/,
-    );
+  it("the NotificationBell polls the lightweight summary; rows load only on open", () => {
+    expect(NOTIFICATION_BELL).toContain("/v1/me/inbox/summary");
+    expect(NOTIFICATION_BELL).toContain("/v1/me/inbox?filter=unread");
+    // The poll loop drives loadSummary, not the full item fetch.
+    expect(NOTIFICATION_BELL).toMatch(/await loadSummary\(\);\s*\n\s*if \(alive\) timer/);
+    expect(NOTIFICATION_BELL).toMatch(/if \(!open\) return;\s*\n\s*void loadItems\(\)/);
   });
 
-  it("is workspace-scoped — counts narrow to teamIds the caller is a member of", () => {
-    // Both count queries inside /v1/me/inbox/summary must constrain
-    // by `teamId: { in: teamIds }` so cross-workspace counters cannot
-    // leak. We check by anchoring to the count() callsites unique to
-    // this endpoint (discussionMention.count + discussionThread.count
-    // immediately under the new summary handler).
-    expect(ME_INBOX_ROUTES).toMatch(
-      /discussionMention\.count\(\{[\s\S]*?teamId:\s*\{\s*in:\s*teamIds\s*\}[\s\S]*?mentionedUserId:\s*userId[\s\S]*?notifiedAtUtc:\s*null/,
-    );
-    expect(ME_INBOX_ROUTES).toMatch(
-      /discussionThread\.count\(\{[\s\S]*?teamId:\s*\{\s*in:\s*teamIds\s*\}[\s\S]*?assignedToUserId:\s*userId/,
-    );
-  });
-
-  it("short-circuits to zero when caller belongs to no workspace", () => {
-    expect(ME_INBOX_ROUTES).toMatch(
-      /if\s*\(teamIds\.length\s*===\s*0\)\s*\{[\s\S]*?unreadMentions:\s*0[\s\S]*?openAssignments:\s*0/,
-    );
+  it("the badge is the server-computed unread total — never a client estimate", () => {
+    expect(NOTIFICATION_BELL).toMatch(/setUnreadCount\(res\.unread\)/);
+    expect(NOTIFICATION_BELL).toMatch(/pagination\.totalEstimate/);
   });
 });
 
@@ -364,37 +366,44 @@ describe("Phase C2 — /inbox page surfaces the new categories", () => {
 });
 
 // ===========================================================================
-// 9. Topbar inbox indicator
+// 9. Header Notification Bell (Operations-Center redesign)
 // ===========================================================================
 
-describe("Phase C2 — topbar inbox indicator", () => {
-  it("AppTopbarV2 mounts the InboxIndicator", () => {
-    expect(TOPBAR).toContain("InboxIndicator");
-    expect(TOPBAR).toMatch(/<InboxIndicator\s*\/>/);
+describe("Header Notification Bell", () => {
+  it("AppAccountToolbar mounts the NotificationBell", () => {
+    expect(TOPBAR).toContain("NotificationBell");
+    expect(TOPBAR).toMatch(/<NotificationBell\s*\/>/);
   });
 
-  it("AppTopbarV2 itself still satisfies the Phase 32.8 'no apiFetch' contract", () => {
+  it("AppAccountToolbar itself still satisfies the Phase 32.8 'no apiFetch' contract", () => {
     const code = stripComments(TOPBAR);
     expect(code).not.toMatch(/apiFetch\(/);
   });
 
-  it("InboxIndicator polls /v1/me/inbox/summary on a slow interval", () => {
-    expect(TOPBAR_INDICATOR).toContain("/v1/me/inbox/summary");
-    expect(TOPBAR_INDICATOR).toMatch(/POLL_INTERVAL_MS\s*=\s*60_000/);
+  it("polls on a slow (2-minute) awareness cadence — no realtime sockets", () => {
+    expect(NOTIFICATION_BELL).toMatch(/POLL_INTERVAL_MS\s*=\s*120_000/);
+    expect(NOTIFICATION_BELL).not.toMatch(/WebSocket|EventSource|socket\.io/);
   });
 
-  it("InboxIndicator deep-links to /inbox", () => {
-    expect(TOPBAR_INDICATOR).toMatch(/href="\/inbox"/);
+  it("popover footer deep-links to the Operations Center", () => {
+    expect(NOTIFICATION_BELL).toMatch(/href="\/inbox"/);
+    expect(NOTIFICATION_BELL).toContain("View Operations Center");
   });
 
   it("badge count is bounded (99+ overflow)", () => {
-    expect(TOPBAR_INDICATOR).toMatch(/return\s+"99\+"/);
+    expect(NOTIFICATION_BELL).toMatch(/return\s+"99\+"/);
   });
 
-  it("read-only — does not call any mutation API", () => {
-    expect(TOPBAR_INDICATOR).not.toMatch(/method:\s*"POST"/);
-    expect(TOPBAR_INDICATOR).not.toMatch(/method:\s*"PATCH"/);
-    expect(TOPBAR_INDICATOR).not.toMatch(/method:\s*"DELETE"/);
+  it("mutates ONLY via the canonical per-item state endpoints (read/dismiss)", () => {
+    // The popover's mark-read/dismiss go through the same audited
+    // /v1/me/inbox/items/:itemKey/{read,dismiss} endpoints the
+    // Operations Center uses — never a parallel mutation surface.
+    expect(NOTIFICATION_BELL).toMatch(
+      /\/v1\/me\/inbox\/items\/\$\{encodeURIComponent\(itemKey\)\}\/\$\{action\}/,
+    );
+    expect(NOTIFICATION_BELL).toMatch(/"read" \| "dismiss"/);
+    expect(NOTIFICATION_BELL).not.toMatch(/method:\s*"PATCH"/);
+    expect(NOTIFICATION_BELL).not.toMatch(/method:\s*"DELETE"/);
   });
 });
 
@@ -407,7 +416,7 @@ describe("Phase C2 — vocabulary discipline", () => {
     { name: "DiscussionPanel", src: DISCUSSION_PANEL },
     { name: "MatterWorkspace", src: MATTER_UI },
     { name: "InboxPage", src: INBOX_PAGE },
-    { name: "InboxIndicator", src: TOPBAR_INDICATOR },
+    { name: "NotificationBell", src: NOTIFICATION_BELL },
   ];
 
   const banned: Array<{ name: string; re: RegExp }> = [

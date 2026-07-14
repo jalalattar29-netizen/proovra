@@ -7,8 +7,8 @@
  *   - GlobalRuntimeIndicator renders the five severity states, opens a
  *     dropdown on click, fails closed to UNKNOWN, and exposes the four
  *     quick-link footer entries.
- *   - AppTopbarV2 mounts the indicator between LanguageSwitcher and the
- *     account menu.
+ *   - AppAccountToolbar mounts the indicator between LanguageSwitcher and
+ *     the account menu.
  *   - Sidebar IA reorganised into Primary / Operations / Governance /
  *     Admin and consumes real runtime state for badges.
  *   - Observability page surfaces worker heartbeat + queue health
@@ -163,9 +163,11 @@ describe("GlobalRuntimeIndicator (Phase 28-J)", () => {
 // Topbar wiring
 // =============================================================================
 
-describe("AppTopbarV2 — runtime indicator wiring", () => {
+// Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+// retargeted to the live AppAccountToolbar.
+describe("AppAccountToolbar — runtime indicator wiring", () => {
   const src = readSource(
-    "../../../apps/web/components/app-shell-v2/AppTopbarV2.tsx",
+    "../../../apps/web/components/app-shell-v2/AppAccountToolbar.tsx",
   );
 
   it("imports GlobalRuntimeIndicator from the operational barrel", () => {
@@ -175,12 +177,12 @@ describe("AppTopbarV2 — runtime indicator wiring", () => {
   });
 
   it("resolves teamId via the canonical platform context", () => {
-    // Phase 32.8 Foundation — topbar reads teamId from the canonical
-    // envelope: `envelope.workspace.id` when workspace is an active
-    // TEAM. The legacy useActiveWorkspaceId fallback is no longer
-    // used by the topbar.
+    // The live toolbar reads teamId from the canonical envelope:
+    // `envelope.activeSpace.id` when the active space is an
+    // ORGANIZATION; null otherwise. The legacy useActiveWorkspaceId
+    // fallback is not used.
     expect(src).toMatch(/usePlatformContext/);
-    expect(src).toMatch(/envelope[\s\S]{0,200}workspace\.id/);
+    expect(src).toMatch(/envelope[\s\S]{0,200}activeSpace\.id/);
   });
 
   it("renders the indicator inside the topbar actions, before the language switcher", () => {

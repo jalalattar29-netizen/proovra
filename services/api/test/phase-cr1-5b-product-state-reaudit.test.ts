@@ -172,8 +172,10 @@ describe("CR1.5B Test 3 — `Personal Space` label is canonical (no drift)", () 
     expect(src).toMatch(/"Personal Space"/);
   });
 
-  it("topbar AppTopbarV2.tsx renders the exact string `Personal Space`", () => {
-    const src = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
+  // Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+  // retargeted to the live AppAccountToolbar.
+  it("toolbar AppAccountToolbar.tsx renders the exact string `Personal Space`", () => {
+    const src = readWeb("components/app-shell-v2/AppAccountToolbar.tsx");
     expect(src).toMatch(/"Personal Space"/);
   });
 });

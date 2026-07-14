@@ -515,7 +515,15 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     // finalize/report/custody behavior changed.
     expect(
       statSync(apiSrcPath("services/evidence-complete.service.ts")).size,
-    ).toBe(48327);
+    // Operations-Center forensic completion rebaseline: 48,327 → 49,241.
+    // Added the bounded, best-effort Operations-Center summary invalidation
+    // after the TSA outcome persist (workspace members' bell caches refresh
+    // when a timestamp fails or recovers). No finalize-transaction or
+    // custody logic changed.
+    // Product-reset rebaseline: 49,241 -> 48,334. The TSA-outcome bell-cache
+    // invalidation hook was REMOVED (event-driven invalidation deleted; the
+    // 45s summary TTL is the refresh path). Finalize-tx semantics unchanged.
+    ).toBe(48334);
   });
 
   it("CR1.6 byte-exact pin on custody-events.service.ts holds (5,155 bytes)", () => {

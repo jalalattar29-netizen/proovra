@@ -298,11 +298,13 @@ describe("Phase IA-surface-tier-wiring — simplified normal-user sidebar", () =
 });
 
 // ============================================================================
-// AppTopbarV2 — workspace switcher hides org actions for non-enterprise
+// AppAccountToolbar — workspace switcher hides org actions for non-enterprise
 // ============================================================================
 
 describe("Phase IA-surface-tier-pricing — topbar workspace switcher", () => {
-  const TOPBAR = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
+  // Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+  // retargeted to the live AppAccountToolbar.
+  const TOPBAR = readWeb("components/app-shell-v2/AppAccountToolbar.tsx");
 
   it("imports canAccessSurface + useSurfaceUserContext", () => {
     expect(TOPBAR).toMatch(
@@ -327,15 +329,9 @@ describe("Phase IA-surface-tier-pricing — topbar workspace switcher", () => {
     );
   });
 
-  it("empty-state hint is gated on canSeeOrganizations", () => {
-    expect(TOPBAR).toMatch(
-      /\{canSeeOrganizations && organizations\.length === 0/,
-    );
-  });
-
   it("Create/Join/Manage organization actions are gated on canSeeOrganizations", () => {
     expect(TOPBAR).toMatch(
-      /\{canSeeOrganizations \?[\s\S]{0,2000}data-workspace-action="manage_organizations"/,
+      /\{canSeeOrganizations \?[\s\S]{0,2000}Manage organizations/,
     );
   });
 });

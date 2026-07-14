@@ -107,9 +107,13 @@ describe("Phase IA-securityEvent-driftFix — bounded source isolation", () => {
   });
 
   it("safelyLoadSource logs at error level with the source name", () => {
+    // Operations-Center completion — the aggregation was extracted into
+    // buildInboxAggregation(userId, log), so the logger is the injected
+    // `log` (the route passes req.log). Same structured error contract.
     expect(ROUTES).toMatch(
-      /req\.log\.error\([\s\S]{0,300}source:\s*name[\s\S]{0,200}"inbox\.source_failed"/,
+      /log\.error\(\s*\{[\s\S]{0,300}source:\s*name[\s\S]{0,200}"inbox\.source_failed"/,
     );
+    expect(ROUTES).toMatch(/buildInboxAggregation\(userId,\s*req\.log/);
   });
 
   it("EVERY optional source is wrapped (security_event_high — the production-incident source — pinned explicitly)", () => {

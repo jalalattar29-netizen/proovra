@@ -36,6 +36,7 @@ import {
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { resendNotificationDelivery } from "../services/notifications/index.js";
 import {
   createEvidenceRequest,
   editDraftEvidenceRequest,
@@ -213,6 +214,89 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         request: projectRequestForAuthenticatedView(row),
       });
+    },
+  );
+
+  // ---------------------------------------------------------------------
+  // CONTEXTUAL delivery status — the ONLY delivery surface for Personal
+  // users and ordinary members: outbound emails for THIS request, safe
+  // projection only (status, timestamps, bounded error code). Provider
+  // internals, unrelated rows, and cron/retry diagnostics never appear —
+  // the global delivery log stays an org-operations surface.
+  // ---------------------------------------------------------------------
+  app.get(
+    "/v1/evidence-requests/:id/deliveries",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsId.parse(req.params);
+      const row = await getEvidenceRequest(id);
+      if (!row) return reply.code(404).send({ error: { code: "request_not_found" } });
+      const ok = await requireMember(req, reply, row.teamId);
+      if (!ok) return;
+      const deliveries = await prisma.notificationDelivery.findMany({
+        where: { evidenceRequestId: id },
+        select: {
+          id: true,
+          eventType: true,
+          status: true,
+          errorCode: true,
+          retryCount: true,
+          sentAtUtc: true,
+          failedAtUtc: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      });
+      return reply.code(200).send({
+        deliveries: deliveries.map((d) => ({
+          id: d.id,
+          eventType: d.eventType,
+          status: d.status,
+          // Bounded, safe reason only — never provider payloads.
+          errorCode: d.errorCode ?? null,
+          retryCount: d.retryCount,
+          lastAttemptAtUtc: (d.failedAtUtc ?? d.sentAtUtc ?? d.createdAt).toISOString(),
+          retryable: ["FAILED", "RETRY_SCHEDULED", "SKIPPED"].includes(d.status),
+        })),
+      });
+    },
+  );
+
+  // Contextual retry — reuses the existing resend infrastructure with
+  // the SAME workflow authorization as the request itself; idempotent
+  // (a non-retryable row is rejected) and recorded by the pipeline.
+  app.post(
+    "/v1/evidence-requests/:id/deliveries/:deliveryId/retry",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = z
+        .object({ id: z.string().uuid(), deliveryId: z.string().uuid() })
+        .parse(req.params);
+      const row = await getEvidenceRequest(params.id);
+      if (!row) return reply.code(404).send({ error: { code: "request_not_found" } });
+      const ok = await requireMember(req, reply, row.teamId);
+      if (!ok) return;
+      // The delivery must belong to THIS request (cross-workspace /
+      // cross-request retries are impossible by construction).
+      const delivery = await prisma.notificationDelivery.findFirst({
+        where: { id: params.deliveryId, evidenceRequestId: params.id },
+        select: { id: true, status: true },
+      });
+      if (!delivery) {
+        return reply.code(404).send({ error: { code: "delivery_not_found" } });
+      }
+      if (!["FAILED", "RETRY_SCHEDULED", "SKIPPED"].includes(delivery.status)) {
+        return reply.code(409).send({ error: { code: "not_retryable" } });
+      }
+      const result = await resendNotificationDelivery({
+        id: params.deliveryId,
+        teamId: row.teamId,
+        actorUserId: ok.userId,
+      });
+      return reply
+        .code(200)
+        .send({ ok: true, outcome: result.outcome ?? "resent" });
     },
   );
 

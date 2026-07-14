@@ -813,6 +813,18 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // to_regclass. No DDL, no deletes. Unrelated to Phase 32.7.2
       // SecurityEvent mapping.
       "20270915000000_mi_provider_local_value_rename",
+      // Operations-Center completion — persistent history snapshots +
+      // notification schedule settings + preference frequency column.
+      // Pure-additive (CREATE TABLE IF NOT EXISTS / ADD COLUMN IF NOT
+      // EXISTS / guarded FKs+indexes); zero destructive statements.
+      // Unrelated to Phase 32.7.2 SecurityEvent mapping.
+      "20270916000000_operations_center_history_and_schedule",
+      // Operations-Center forensic completion — organization notification
+      // policy table + snapshot resolution-provenance columns. Pure-
+      // additive (CREATE TABLE IF NOT EXISTS / ADD COLUMN IF NOT EXISTS /
+      // guarded FK); zero destructive statements. Unrelated to Phase
+      // 32.7.2 SecurityEvent mapping.
+      "20270917000000_org_notification_policy_and_resolution_provenance",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

@@ -335,7 +335,9 @@ describe("D-1 — frontend double-.json() sweep is complete", () => {
     // files and assert none contains the offending two-line pattern.
     const FIXED_FILES = [
       "apps/web/app/(app)/inbox/page.tsx",
-      "apps/web/components/app-shell-v2/InboxIndicator.tsx",
+      // Operations-Center redesign — InboxIndicator.tsx was replaced by
+      // NotificationBell.tsx (same double-.json() rule applies).
+      "apps/web/components/app-shell-v2/NotificationBell.tsx",
       "apps/web/components/governance/RetentionInheritanceSummary.tsx",
       "apps/web/components/command-center/AccountPrioritiesBanner.tsx",
       "apps/web/components/governance/RetentionConflictAlert.tsx",

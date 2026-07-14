@@ -70,7 +70,9 @@ const WEB_TYPES = readWeb("lib/platform-context/types.ts");
 const WEB_PROVIDER = readWeb("lib/platform-context/PlatformContextProvider.tsx");
 const WEB_INDEX = readWeb("lib/platform-context/index.ts");
 const WEB_DEGRADED = readWeb("lib/platform-context/CapabilityDegradedPanel.tsx");
-const WEB_TOPBAR = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
+// Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
+// retargeted to the live AppAccountToolbar.
+const WEB_TOPBAR = readWeb("components/app-shell-v2/AppAccountToolbar.tsx");
 const WEB_SIDEBAR = readWeb("components/app-shell-v2/AppSidebarV2.tsx");
 const WEB_SHELL = readWeb("components/app-shell-v2/AppShellV2.tsx");
 const WEB_LAYOUT = readWeb("app/(app)/layout.tsx");
@@ -707,14 +709,14 @@ describe("Phase 32.8 Foundation — shell rewiring (F-3)", () => {
     expect(WEB_SHELL).not.toMatch(/isPlatformAdmin:\s*boolean/);
   });
 
-  it("AppTopbarV2 consumes platform context only — no apiFetch", () => {
+  it("AppAccountToolbar consumes platform context only — no apiFetch", () => {
     const code = stripComments(WEB_TOPBAR);
     expect(WEB_TOPBAR).toMatch(/usePlatformContext/);
     expect(code).not.toMatch(/apiFetch\(/);
     expect(code).not.toMatch(/useActiveWorkspaceId\(/);
   });
 
-  it("AppTopbarV2 never substitutes a hardcoded 'Member' fallback", () => {
+  it("AppAccountToolbar never substitutes a hardcoded 'Member' fallback", () => {
     // Negative match on the literal "Member" used as a UI fallback.
     const code = stripComments(WEB_TOPBAR);
     expect(code).not.toMatch(/['"]Member['"]/);

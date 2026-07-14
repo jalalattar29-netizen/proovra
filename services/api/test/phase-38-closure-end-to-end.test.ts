@@ -33,7 +33,6 @@ const SERVER = readApi("src/server.ts");
 const WEB_TERMS = readWeb("lib/platform-context/useTerminology.ts");
 const WEB_EMPTY = readWeb("lib/platform-context/personaEmptyStates.ts");
 const WEB_INDEX = readWeb("lib/platform-context/index.ts");
-const WEB_TOPBAR = readWeb("components/app-shell-v2/AppTopbarV2.tsx");
 const WEB_WIZARD = readWeb("app/(app)/settings/persona/page.tsx");
 
 // =============================================================================
@@ -274,20 +273,10 @@ describe("Phase 38-closure — persona empty-state library", () => {
 });
 
 // =============================================================================
-// PART 4 — Topbar persona chip + onboarding wizard
+// PART 4 — Onboarding wizard
 // =============================================================================
 
-describe("Phase 38-closure — topbar + onboarding", () => {
-  it("topbar renders the persona chip with data-app-topbar-persona attribute", () => {
-    expect(WEB_TOPBAR).toMatch(/data-app-topbar-persona/);
-    expect(WEB_TOPBAR).toMatch(/envelope\?\.personaProfile\?\.primaryProfile/);
-  });
-
-  it("topbar chip is hidden for INDIVIDUAL (default — no visual clutter)", () => {
-    // We assert the conditional check exists.
-    expect(WEB_TOPBAR).toMatch(/primaryProfile\s*!==\s*"INDIVIDUAL"/);
-  });
-
+describe("Phase 38-closure — onboarding", () => {
   it("onboarding wizard is a 4-step flow at /settings/persona", () => {
     expect(WEB_WIZARD).toMatch(/data-persona-wizard\b/);
     expect(WEB_WIZARD).toMatch(/data-persona-wizard-step-block="1"/);

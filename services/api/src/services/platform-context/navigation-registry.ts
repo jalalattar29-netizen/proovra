@@ -642,10 +642,15 @@ const ACCOUNT_GROUP: NavRegistryGroup = {
       surface: "ACCOUNT_MENU",
       requiresCapability: null,
     },
+    // Operations-Center redesign — the account menu's notification entry
+    // points at the user's NOTIFICATION PREFERENCES (System 3). The
+    // outbound delivery log keeps its own admin-tier sidebar entry under
+    // its honest name; the Operations Center is reached via the header
+    // bell — neither is duplicated here.
     {
       id: "account.notifications",
-      label: "Notifications",
-      href: "/notifications",
+      label: "Notification preferences",
+      href: "/settings/notifications",
       iconKey: "notifications",
       domain: "ACCOUNT",
       badgeKey: null,
@@ -722,21 +727,11 @@ const ACCOUNT_GROUP: NavRegistryGroup = {
       surface: "ACCOUNT_MENU",
       requiresCapability: null,
     },
-    // Phase C — Operational Inbox. Caller-scoped unified attention
-    // stream. Surfaced in the account menu so every authenticated
-    // user can find it; capability gate is `null` because the
-    // underlying endpoint already filters to the caller's
-    // authorization scope.
-    {
-      id: "account.inbox",
-      label: "Inbox",
-      href: "/inbox",
-      iconKey: "notifications",
-      domain: "ACCOUNT",
-      badgeKey: null,
-      surface: "ACCOUNT_MENU",
-      requiresCapability: null,
-    },
+    // Operations-Center redesign — the former "Inbox" account-menu entry
+    // was REMOVED. The Operations Center's single navigation owner is the
+    // header Notification Bell (plus the command palette via the client
+    // route registry); duplicating it in the account menu violated the
+    // one-responsibility-per-menu-entry rule.
     {
       id: "account.help",
       label: "Help & support",

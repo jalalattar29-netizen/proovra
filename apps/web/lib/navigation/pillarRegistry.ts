@@ -326,6 +326,8 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   // catalog. Settings-tier management surfaces under /settings/*.
   ["workspace.ai_settings", "ADMIN"],
   ["workspace.reviewer_criteria", "ADMIN"],
+  // Notification preferences — personal settings surface under /settings/*.
+  ["account.notification_settings", "ADMIN"],
   ["account.persona", "ADMIN"],
   ["account.billing", "ADMIN"],
   ["platform.admin", "ADMIN"],

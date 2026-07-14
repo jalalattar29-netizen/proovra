@@ -65,8 +65,15 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import {
   isPreferenceEnabled,
+  OPTIONAL_INAPP_CATEGORY_TO_TYPE,
   type NotificationPreferenceType,
 } from "../services/notifications/notification-preferences.service.js";
+import {
+  getCachedOperationsSummary,
+  invalidateOperationsSummary,
+  setCachedOperationsSummary,
+} from "../services/notifications/operations-summary-cache.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import { formatTimestampForReportUtc } from "@proovra/shared";
 
 /**
@@ -107,6 +114,27 @@ const INBOX_FILTER_KEYS = [
   "due_soon",
   "overdue",
   "admin",
+  // Operations-Center redesign — every key below is backed by a real
+  // server-side query (category membership or state-join predicate):
+  //   invitations    — org_invite
+  //   intake         — the three intake categories
+  //   reports        — report_failure
+  //   packages       — verification_package_failure
+  //   integrity      — ots_failure (deterministic integrity pipeline)
+  //   collaboration  — collaboration-team notifications + discussion
+  //                    mentions/assignments
+  //   snoozed        — items with an ACTIVE snooze (normally hidden)
+  //   history        — read or dismissed items whose source signal is
+  //                    still present (source-resolved items leave the
+  //                    aggregation entirely; see the docstring above)
+  "invitations",
+  "intake",
+  "reports",
+  "packages",
+  "integrity",
+  "collaboration",
+  "snoozed",
+  "history",
 ] as const;
 type InboxFilter = (typeof INBOX_FILTER_KEYS)[number];
 
@@ -117,6 +145,9 @@ const inboxQuerySchema = z.object({
   cursor: z.string().optional(),
   pageSize: z.coerce.number().int().min(1).max(50).optional(),
   filter: z.enum(INBOX_FILTER_KEYS).optional(),
+  // All-workspaces scope — the page may narrow to ONE workspace,
+  // validated against the caller's memberships server-side.
+  workspaceId: z.string().uuid().optional(),
   // Existing tone enum — same key as the in-page chips. Server-side
   // tone filtering complements the filter enum.
   tone: z.enum(["critical", "high", "warning", "info"]).optional(),
@@ -226,7 +257,17 @@ type InboxCategory =
   //       creator should renew or revoke.
   | "intake_submission_pending_review"
   | "intake_required_items_missing"
-  | "intake_link_expiring";
+  | "intake_link_expiring"
+  // Operations-Center redesign — collaboration-team notifications
+  // (CollaborationTeamNotification rows: invites accepted, role changes,
+  // replies, removals …). The COLLAB ROW's `readAt` is the single source
+  // of read truth for this category: reading in the Operations Center
+  // updates the row, so the Team page reflects it — and vice versa.
+  | "collaboration"
+  // Forensic completion — first-class RFC3161 timestamping failures and
+  // real case assignments (CaseAssignment model, status ACTIVE).
+  | "tsa_failure"
+  | "case_assignment";
 
 /**
  * Phase IA-enterprise — bounded operator-priority tier per item.
@@ -243,7 +284,7 @@ type InboxCategory =
  */
 type InboxPriority = "P1" | "P2" | "P3" | "P4" | "P5";
 
-type InboxItem = {
+export type InboxItem = {
   /**
    * Stable, deterministic identifier for this item. Composite of
    * (sourceTable, sourceId). The frontend keys lists on this and an
@@ -290,6 +331,14 @@ type InboxItem = {
   canMarkRead: boolean;
   canDismiss: boolean;
   canSnooze: boolean;
+  /**
+   * IN_APP-honesty — true when the item's category maps to an OPTIONAL
+   * preference type whose IN_APP toggle the user disabled for this
+   * workspace. Suppressed items are excluded from the live view, the
+   * summary count, bulk-read targets, and history sync — but stay in
+   * `allItems` so the EMAIL/digest channel remains fully independent.
+   */
+  suppressedInApp?: boolean;
   /**
    * Optional deadline for the action. Populated when the underlying
    * source carries a real expiry / due date (access review dueAtUtc,
@@ -338,6 +387,14 @@ const INBOX_ITEM_KEY_PREFIXES = new Set<string>([
   "intake_submission_pending_review",
   "intake_required_items_missing",
   "intake_link_expiring",
+  "collaboration",
+  // Remediation 2026-07-14 — these two categories emitted items whose
+  // keys the mutation endpoints rejected 400 (forgotten allowlist
+  // entries, exactly the failure mode this manual list is designed to
+  // surface). Keys match the aggregation emitters verbatim:
+  // `tsa_failure:${evidence.id}` / `case_assignment:${assignment.id}`.
+  "tsa_failure",
+  "case_assignment",
 ]);
 
 /**
@@ -389,6 +446,7 @@ function priorityForItem(item: {
     case "report_failure":
     case "verification_package_failure":
     case "ots_failure":
+    case "tsa_failure":
       return "P1";
     case "review_escalation":
     case "access_review_pending":
@@ -408,6 +466,8 @@ function priorityForItem(item: {
       return "P2"; // upgraded below per-id when known
     case "discussion_mention":
     case "discussion_assigned":
+    case "collaboration":
+    case "case_assignment":
       return "P3";
     case "governance":
     case "org_admin":
@@ -429,7 +489,7 @@ function priorityForItem(item: {
 const FILTER_CATEGORY_MEMBERS: Partial<
   Record<InboxFilter, ReadonlyArray<InboxCategory>>
 > = {
-  assigned_to_me: ["discussion_assigned", "review_escalation"],
+  assigned_to_me: ["discussion_assigned", "review_escalation", "case_assignment"],
   review: [
     "review_decision",
     "review_escalation",
@@ -441,6 +501,7 @@ const FILTER_CATEGORY_MEMBERS: Partial<
     "report_failure",
     "verification_package_failure",
     "ots_failure",
+    "tsa_failure",
     // intake_required_items_missing surfaces as a "failure" in the
     // sense that the intake didn't complete — operators expect to find
     // it under Failures alongside report/package issues.
@@ -457,6 +518,21 @@ const FILTER_CATEGORY_MEMBERS: Partial<
     "intake_submission_pending_review",
     "intake_link_expiring",
   ],
+  // Operations-Center redesign — additional real category filters.
+  invitations: ["org_invite"],
+  intake: [
+    "intake_submission_pending_review",
+    "intake_required_items_missing",
+    "intake_link_expiring",
+  ],
+  reports: ["report_failure"],
+  packages: ["verification_package_failure"],
+  integrity: ["ots_failure", "tsa_failure"],
+  collaboration: [
+    "collaboration",
+    "discussion_mention",
+    "discussion_assigned",
+  ],
 };
 
 function matchesFilter(
@@ -470,6 +546,19 @@ function matchesFilter(
   // exists or its `readAt` is null. (Dismissed and snoozed items are
   // already filtered out upstream.)
   if (filter === "unread") return !item.isRead;
+  // Operations-Center redesign — snoozed shows ONLY actively-snoozed
+  // items (they are included upstream when this filter is requested);
+  // history shows read or dismissed items whose source signal still
+  // exists. Both are state-join-backed, never decorative.
+  if (filter === "snoozed") {
+    return (
+      item.snoozedUntil != null &&
+      new Date(item.snoozedUntil).getTime() > nowMs
+    );
+  }
+  if (filter === "history") {
+    return item.isRead || item.dismissedAt != null;
+  }
   if (filter === "critical") return item.tone === "critical";
   if (filter === "overdue") {
     return item.dueAt !== null && item.dueAt !== undefined
@@ -534,27 +623,165 @@ function dueScore(dueAt: string | null | undefined, nowMs: number): number {
   return 0;
 }
 
-export async function meInboxRoutes(app: FastifyInstance) {
-  app.get(
-    "/v1/me/inbox",
-    { preHandler: requireAuthAndLegal },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
+// ---------------------------------------------------------------------------
+// Operations-Center completion — persistent history snapshots.
+//
+// `operations_inbox_snapshots` preserves a per-user copy of every surfaced
+// item so History survives source resolution. The table may not exist on an
+// un-migrated environment; a cached one-time probe downgrades gracefully
+// (History reports historyAvailable:false, sync/no-ops elsewhere).
+// ---------------------------------------------------------------------------
+let snapshotTableState: "unknown" | "available" | "missing" = "unknown";
+
+async function snapshotsAvailable(): Promise<boolean> {
+  if (snapshotTableState === "unknown") {
+    try {
+      await prisma.operationsInboxSnapshot.findFirst({ select: { id: true } });
+      snapshotTableState = "available";
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      snapshotTableState =
+        code === "P2021" || code === "P2022" ? "missing" : "available";
+    }
+  }
+  return snapshotTableState === "available";
+}
+
+/** Bounded metadata copy — string/number/null values only, capped. The
+ *  source `context` map already contains ONLY fields the user saw. */
+function boundedSnapshotMetadata(
+  context: Record<string, string | number | null>,
+): Record<string, string | number | null> {
+  const out: Record<string, string | number | null> = {};
+  let n = 0;
+  for (const [k, v] of Object.entries(context ?? {})) {
+    if (n >= 20) break;
+    if (v === null || typeof v === "number") out[k] = v;
+    else if (typeof v === "string") out[k] = v.slice(0, 300);
+    else continue;
+    n += 1;
+  }
+  return out;
+}
+
+/**
+ * Upsert snapshots for every currently-live item and mark previously-live
+ * snapshots RESOLVED when their source stopped emitting them. Title/body
+ * are written ONCE at first surface and never rewritten. Bounded to four
+ * statements per request. Failures never break the inbox response.
+ */
+export async function syncInboxSnapshots(
+  userId: string,
+  items: InboxItem[],
+  now: Date,
+  log: FastifyRequest["log"],
+): Promise<void> {
+  if (!(await snapshotsAvailable())) return;
+  try {
+    const keys = items.map((i) => i.itemKey);
+    if (keys.length > 0) {
+      const existing = await prisma.operationsInboxSnapshot.findMany({
+        where: { userId, itemKey: { in: keys } },
+        select: { itemKey: true },
+      });
+      const existingSet = new Set(existing.map((e) => e.itemKey));
+      const missing = items.filter((i) => !existingSet.has(i.itemKey));
+      if (missing.length > 0) {
+        await prisma.operationsInboxSnapshot.createMany({
+          data: missing.map((i) => {
+            const colon = i.itemKey.indexOf(":");
+            return {
+              userId,
+              itemKey: i.itemKey,
+              sourceType: colon > 0 ? i.itemKey.slice(0, colon) : i.category,
+              sourceId: colon > 0 ? i.itemKey.slice(colon + 1).slice(0, 200) : null,
+              teamId:
+                typeof i.context?.teamId === "string" ? i.context.teamId : null,
+              orgId:
+                typeof i.context?.organizationId === "string"
+                  ? i.context.organizationId
+                  : null,
+              category: i.category,
+              severity: i.tone,
+              priority: i.priority,
+              title: i.title.slice(0, 300),
+              body: i.body.slice(0, 1200),
+              href: i.href.slice(0, 300),
+              dueAtUtc: i.dueAt ? new Date(i.dueAt) : null,
+              sourceOccurredAtUtc: new Date(i.occurredAt),
+              readAtUtc: i.readAt ? new Date(i.readAt) : null,
+              dismissedAtUtc: i.dismissedAt ? new Date(i.dismissedAt) : null,
+              snoozedUntilUtc: i.snoozedUntil ? new Date(i.snoozedUntil) : null,
+              metadataJson: boundedSnapshotMetadata(i.context),
+            };
+          }),
+          skipDuplicates: true,
+        });
+      }
+      // Still live: refresh lastSeen and clear any earlier resolution
+      // (a source that re-fires under the same key is live again).
+      await prisma.operationsInboxSnapshot.updateMany({
+        where: { userId, itemKey: { in: keys } },
+        data: {
+          lastSeenAtUtc: now,
+          resolvedAtUtc: null,
+          resolutionSource: null,
+          resolvedByUserId: null,
+        },
+      });
+    }
+    // Previously live, absent now → the canonical source resolved it.
+    await prisma.operationsInboxSnapshot.updateMany({
+      where: {
+        userId,
+        resolvedAtUtc: null,
+        ...(keys.length > 0 ? { itemKey: { notIn: keys } } : {}),
+      },
+      // Provenance is labeled SYSTEM/source-state — no human resolver is
+      // ever fabricated for automatic resolutions.
+      data: { resolvedAtUtc: now, resolutionSource: "SOURCE_STATE" },
+    });
+  } catch (err) {
+    log.error({ err, userId }, "inbox.snapshot_sync_failed");
+  }
+}
+
+/**
+ * Operations-Center completion — the CANONICAL aggregation, shared by:
+ *   GET  /v1/me/inbox           (the Operations Center page)
+ *   GET  /v1/me/inbox/summary   (the header bell — cached)
+ *   POST /v1/me/inbox/mark-all-read
+ *
+ * One computation means the badge, the page, and bulk actions can never
+ * disagree on authorization, category scope, or read state. Returns the
+ * post-state item set with dismissed items REMOVED (History reads the
+ * persistent snapshot table instead) and actively-snoozed items removed
+ * unless `opts.includeSnoozed` is set (the live `snoozed` filter).
+ */
+export type InboxAggregationResult =
+  | {
+      ok: true;
+      caller: { id: string; email: string | null; displayName: string | null };
+      allItems: InboxItem[];
+      degradedSources: string[];
+      truncated: Record<string, boolean>;
+      anyTruncated: boolean;
+      generatedAt: Date;
+    }
+  | { ok: false };
+
+/**
+ * EXPORTED at module scope so the digest scheduler runs the EXACT same
+ * canonical aggregation as the Operations Center page, the Bell summary,
+ * and bulk read — digests never depend on a prior UI visit and never use
+ * a second aggregator.
+ */
+export async function buildInboxAggregation(
+    userId: string,
+    log: FastifyRequest["log"],
+  ): Promise<InboxAggregationResult> {
       const now = new Date();
       const nowMs = now.getTime();
-
-      // Phase IA-enterprise — parse pagination + filter query. The
-      // schema rejects malformed input by silently falling through to
-      // defaults (decodeCursor swallows bad cursors and returns 0), so
-      // callers never see a 4xx for benign client glitches.
-      const parsed = inboxQuerySchema.safeParse(req.query ?? {});
-      const queryParams: z.infer<typeof inboxQuerySchema> = parsed.success
-        ? parsed.data
-        : {};
-      const pageSize = queryParams.pageSize ?? DEFAULT_PAGE_SIZE;
-      const offset = decodeCursor(queryParams.cursor);
-      const requestedFilter: InboxFilter = queryParams.filter ?? "all";
-      const requestedTone = queryParams.tone;
 
       // Phase IA-securityEvent-driftFix — bounded source isolation.
       //
@@ -590,7 +817,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
           return await fn();
         } catch (err) {
           degradedSources.push(name);
-          req.log.error(
+          log.error(
             {
               err,
               source: name,
@@ -611,7 +838,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
         select: { id: true, email: true, displayName: true },
       });
       if (!me) {
-        return reply.code(401).send({ message: "Unknown caller" });
+        return { ok: false as const };
       }
       const callerEmail = (me.email ?? "").trim().toLowerCase();
 
@@ -1359,6 +1586,108 @@ export async function meInboxRoutes(app: FastifyInstance) {
             );
 
       // -----------------------------------------------------------------
+      // Forensic completion — Source 18: RFC3161 TIMESTAMPING failures.
+      // The TSA pipeline writes its terminal state on Evidence
+      // (tsaStatus = "FAILED" + a bounded reason in tsaFailureReason).
+      // Normal lifecycle states (pending / retry-scheduled) never alert;
+      // records where timestamping was never promised (tsaStatus null)
+      // never alert. Soft-deleted evidence is excluded.
+      // -----------------------------------------------------------------
+      const tsaFailedEvidence =
+        teamIds.length === 0
+          ? []
+          : await safelyLoadSource(
+              "tsa_failure",
+              () =>
+                prisma.evidence.findMany({
+                  where: {
+                    teamId: { in: teamIds },
+                    tsaStatus: "FAILED",
+                    deletedAt: null,
+                  },
+                  select: {
+                    id: true,
+                    teamId: true,
+                    caseId: true,
+                    title: true,
+                    originalFileName: true,
+                    tsaFailureReason: true,
+                    updatedAt: true,
+                  },
+                  orderBy: { updatedAt: "desc" },
+                  take: PER_CATEGORY_TAKE,
+                }),
+              [],
+            );
+
+      // -----------------------------------------------------------------
+      // Forensic completion — Source 19: CASE ASSIGNMENTS. Real
+      // CaseAssignment rows (status ACTIVE) addressed to the caller —
+      // never a fabricated assignment concept. Resolved when the
+      // assignment leaves ACTIVE (completed / removed).
+      // -----------------------------------------------------------------
+      const myCaseAssignments =
+        teamIds.length === 0
+          ? []
+          : await safelyLoadSource(
+              "case_assignment",
+              () =>
+                prisma.caseAssignment.findMany({
+                  where: {
+                    teamId: { in: teamIds },
+                    assignedToUserId: userId,
+                    status: "ACTIVE",
+                  },
+                  select: {
+                    id: true,
+                    teamId: true,
+                    caseId: true,
+                    role: true,
+                    note: true,
+                    assignedAtUtc: true,
+                    case: { select: { name: true } },
+                  },
+                  orderBy: { assignedAtUtc: "desc" },
+                  take: PER_CATEGORY_TAKE,
+                }),
+              [],
+            );
+
+      // -----------------------------------------------------------------
+      // Operations-Center redesign — Source 17: collaboration-team
+      // notifications addressed to THIS caller (CollaborationTeamNotification
+      // rows: invite accepted, role change, discussion reply, removal…).
+      // We fetch the last 30 days INCLUDING read rows so read items can
+      // render as read (and appear under the History filter); the row's
+      // own `readAt` is the single source of read truth for this
+      // category — reading here or on the Team page updates the same row.
+      // -----------------------------------------------------------------
+      const COLLAB_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+      const collabNotifications = await safelyLoadSource(
+        "collaboration",
+        () =>
+          prisma.collaborationTeamNotification.findMany({
+            where: {
+              userId,
+              createdAt: { gte: new Date(nowMs - COLLAB_WINDOW_MS) },
+            },
+            select: {
+              id: true,
+              workspaceId: true,
+              teamId: true,
+              type: true,
+              title: true,
+              body: true,
+              readAt: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: "desc" },
+            take: PER_CATEGORY_TAKE,
+          }),
+        [],
+      );
+
+      // -----------------------------------------------------------------
       // Truncation tracking. We expose a per-category boolean so the
       // frontend can render an honest "showing latest N" banner and
       // point operators at the canonical console for the full set.
@@ -1391,6 +1720,9 @@ export async function meInboxRoutes(app: FastifyInstance) {
           incompleteRequests.length >= PER_CATEGORY_TAKE,
         intake_link_expiring:
           expiringIntakeLinks.length >= PER_CATEGORY_TAKE,
+        collaboration: collabNotifications.length >= PER_CATEGORY_TAKE,
+        tsa_failure: tsaFailedEvidence.length >= PER_CATEGORY_TAKE,
+        case_assignment: myCaseAssignments.length >= PER_CATEGORY_TAKE,
       };
       const anyTruncated = Object.values(truncated).some((v) => v);
 
@@ -1555,13 +1887,13 @@ export async function meInboxRoutes(app: FastifyInstance) {
       }
 
       // -----------------------------------------------------------------
-      // Phase G3.1 — notification preference filter. Per-workspace
-      // toggles control which discussion mentions and assignment
-      // items surface in the inbox. The mapping is bounded:
-      //   * discussion_mention → MENTION
-      //   * discussion_assigned → ASSIGNED_THREAD
-      // The aggregator caches the per-workspace verdict so a 100-row
-      // mention list does not produce 100 round-trips.
+      // IN_APP preference verdicts (one cached lookup per workspace ×
+      // type). Suppression is applied as an ANNOTATION in the finalize
+      // loop below — never at emit time — so the EMAIL/digest channel
+      // stays independent of the IN_APP toggles. The category → type
+      // mapping is the canonical OPTIONAL_INAPP_CATEGORY_TO_TYPE;
+      // mandatory types (SLA_NEAR_BREACH, GOVERNANCE_UPDATE) are absent
+      // from it and therefore can never be suppressed.
       // -----------------------------------------------------------------
       const preferenceCache = new Map<string, boolean>();
       async function isAllowed(
@@ -1593,8 +1925,6 @@ export async function meInboxRoutes(app: FastifyInstance) {
       for (const m of unreadMentions) {
         const thread = m.message?.thread;
         if (!thread) continue;
-        // Phase G3.1 — respect per-workspace MENTION toggle.
-        if (!(await isAllowed(m.teamId, "MENTION"))) continue;
         items.push({
           id: `discussion_mention:${m.id}`,
           category: "discussion_mention",
@@ -1619,7 +1949,6 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // Phase G3.1 — respect per-workspace ASSIGNED_THREAD toggle.
       // -----------------------------------------------------------------
       for (const t of assignedThreads) {
-        if (!(await isAllowed(t.teamId, "ASSIGNED_THREAD"))) continue;
         items.push({
           id: `discussion_assigned:${t.id}`,
           category: "discussion_assigned",
@@ -1910,6 +2239,67 @@ export async function meInboxRoutes(app: FastifyInstance) {
         });
       }
 
+
+      // -----------------------------------------------------------------
+      // Forensic completion — RFC3161 timestamping failure items. P1:
+      // the record's time-based evidentiary confidence is affected and
+      // an operator decision is required. The reason is the bounded
+      // pipeline reason, never provider internals.
+      // -----------------------------------------------------------------
+      for (const ev of tsaFailedEvidence) {
+        const teamName = ev.teamId
+          ? teamNameById.get(ev.teamId) ?? "workspace"
+          : "workspace";
+        const evidenceLabel =
+          ev.title ?? ev.originalFileName ?? ev.id.slice(0, 8);
+        const reason = (ev.tsaFailureReason ?? "Timestamping failed.").slice(0, 240);
+        items.push({
+          id: `tsa_failure:${ev.id}`,
+          category: "tsa_failure",
+          tone: "high",
+          title: `Trusted timestamp failed — ${evidenceLabel}`,
+          body: `${reason} Open the evidence Integrity tab for the timestamping status and retry posture.`,
+          href: `/evidence/${encodeURIComponent(ev.id)}?tab=integrity`,
+          occurredAt: ev.updatedAt.toISOString(),
+          dueAt: null,
+          context: {
+            teamId: ev.teamId ?? null,
+            teamName,
+            evidenceId: ev.id,
+            caseId: ev.caseId ?? null,
+            failureReason: reason,
+          },
+        });
+      }
+
+      // -----------------------------------------------------------------
+      // Forensic completion — active case assignments addressed to the
+      // caller. Resolved automatically when the assignment leaves ACTIVE.
+      // -----------------------------------------------------------------
+      for (const ca of myCaseAssignments) {
+        const teamName = ca.teamId
+          ? teamNameById.get(ca.teamId) ?? "workspace"
+          : "workspace";
+        items.push({
+          id: `case_assignment:${ca.id}`,
+          category: "case_assignment",
+          tone: "warning",
+          title: `Case assigned to you: "${ca.case?.name ?? "Untitled case"}"`,
+          body: ca.note
+            ? `Role: ${String(ca.role).toLowerCase()}. ${ca.note}`
+            : `Role: ${String(ca.role).toLowerCase()}. Open the case to begin.`,
+          href: `/cases/${encodeURIComponent(ca.caseId)}`,
+          occurredAt: ca.assignedAtUtc.toISOString(),
+          dueAt: null,
+          context: {
+            teamId: ca.teamId ?? null,
+            teamName,
+            caseId: ca.caseId,
+            role: String(ca.role),
+          },
+        });
+      }
+
       // -----------------------------------------------------------------
       // Phase IA-reliability — batch-fetch per-user state for every
       // assembled item. We do ONE round trip with `itemKey IN (...)`
@@ -2036,6 +2426,52 @@ export async function meInboxRoutes(app: FastifyInstance) {
       }
 
       // -----------------------------------------------------------------
+      // Operations-Center redesign — collaboration items + source-truth
+      // read state. Emitted here (after the state batch-fetch is safe —
+      // itemKeys are collected right below in a second pass).
+      // -----------------------------------------------------------------
+      const collabReadAtByKey = new Map<string, Date>();
+      for (const n of collabNotifications) {
+        const wsName = teamNameById.get(n.workspaceId) ?? "workspace";
+        const key = `collaboration:${n.id}`;
+        if (n.readAt) collabReadAtByKey.set(key, n.readAt);
+        items.push({
+          id: key,
+          category: "collaboration",
+          tone: "info",
+          title: n.title,
+          body: n.body ?? "Open the collaboration team page for details.",
+          href: n.teamId
+            ? `/collaboration-teams/${encodeURIComponent(n.teamId)}/collaboration`
+            : "/collaboration-teams",
+          occurredAt: n.createdAt.toISOString(),
+          context: {
+            teamId: n.workspaceId,
+            teamName: wsName,
+            collaborationTeamId: n.teamId ?? null,
+            type: n.type,
+          },
+        });
+      }
+      // Collaboration items were emitted AFTER the state batch-fetch, so
+      // load their state rows in one extra bounded round trip.
+      const collabKeys = collabNotifications.map(
+        (n) => `collaboration:${n.id}`,
+      );
+      if (collabKeys.length > 0) {
+        const collabState = await prisma.inboxItemState.findMany({
+          where: { userId, itemKey: { in: collabKeys } },
+          select: {
+            itemKey: true,
+            readAt: true,
+            dismissedAt: true,
+            snoozedUntil: true,
+          },
+        });
+        for (const row of collabState) stateByKey.set(row.itemKey, row);
+      }
+
+      // -----------------------------------------------------------------
       // Phase IA-enterprise — finalize: assign priority to every item,
       // apply the requested server-side filters (filter + tone), sort
       // by the operator-friendly comparator, then paginate.
@@ -2045,19 +2481,19 @@ export async function meInboxRoutes(app: FastifyInstance) {
       // result. Snooze expiry is timestamp-based so we never need a
       // cron — a snoozed item simply re-emerges on the next request
       // after `snoozedUntil` passes.
+      //
+      // Operations-Center completion — the aggregation returns EVERY item
+      // ANNOTATED with its per-user state (dismissed / snoozed included).
+      // Consumers apply visibility: the page hides dismissed + actively-
+      // snoozed items by default (the `snoozed` filter opts them back
+      // in), the summary counts only default-visible unread items, and
+      // the snapshot sync needs the full set so a dismissed/snoozed item
+      // is never falsely marked resolved. History reads the persistent
+      // snapshot table, not this live set.
       // -----------------------------------------------------------------
       const allItems: InboxItem[] = [];
       for (const it of items) {
         const state = stateByKey.get(it.id);
-        // Dismissed items disappear from default view. (A future
-        // /undismiss endpoint can null the column to bring them
-        // back; we never delete the row outright so the audit
-        // history of "I dismissed this" survives.)
-        if (state?.dismissedAt) continue;
-        // Active snooze hides the item until the timestamp passes.
-        if (state?.snoozedUntil && state.snoozedUntil.getTime() > nowMs) {
-          continue;
-        }
         // review_decision awaiting_second is awareness-only — demote
         // from the default P2 to P5. Recognized by its id prefix.
         const isAwaitingSecond = it.id.startsWith(
@@ -2065,23 +2501,256 @@ export async function meInboxRoutes(app: FastifyInstance) {
         );
         const basePriority = priorityForItem(it);
         const priority: InboxPriority = isAwaitingSecond ? "P5" : basePriority;
+        // Collaboration items OR the source row's readAt into the read
+        // state so a read on the Team page reads here too.
+        const sourceReadAt = collabReadAtByKey.get(it.id) ?? null;
+        const effectiveReadAt = state?.readAt ?? sourceReadAt;
+        // IN_APP-honesty — annotate (never drop) items whose OPTIONAL
+        // preference type is disabled for this workspace.
+        const optionalType = OPTIONAL_INAPP_CATEGORY_TO_TYPE.get(it.category);
+        const teamIdForPref =
+          typeof it.context?.teamId === "string" ? it.context.teamId : null;
+        const suppressedInApp =
+          optionalType != null &&
+          !(await isAllowed(teamIdForPref, optionalType));
         allItems.push({
           ...it,
           itemKey: it.id,
           priority,
-          isRead: state?.readAt != null,
-          readAt: state?.readAt ? state.readAt.toISOString() : null,
-          dismissedAt: null, // dismissed items already filtered out above
+          isRead: effectiveReadAt != null,
+          readAt: effectiveReadAt ? effectiveReadAt.toISOString() : null,
+          dismissedAt: state?.dismissedAt
+            ? state.dismissedAt.toISOString()
+            : null,
           snoozedUntil: state?.snoozedUntil
             ? state.snoozedUntil.toISOString()
             : null,
           canMarkRead: true,
           canDismiss: true,
           canSnooze: true,
+          ...(suppressedInApp ? { suppressedInApp: true } : {}),
         } satisfies InboxItem);
       }
 
-      const filteredItems = allItems.filter((it) => {
+      return {
+        ok: true as const,
+        caller: me,
+        allItems,
+        degradedSources,
+        truncated,
+        anyTruncated,
+        generatedAt: now,
+      };
+}
+
+export async function meInboxRoutes(app: FastifyInstance) {
+  app.get(
+    "/v1/me/inbox",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const now = new Date();
+      const nowMs = now.getTime();
+
+      // Phase IA-enterprise — parse pagination + filter query. The
+      // schema rejects malformed input by silently falling through to
+      // defaults (decodeCursor swallows bad cursors and returns 0), so
+      // callers never see a 4xx for benign client glitches.
+      const parsed = inboxQuerySchema.safeParse(req.query ?? {});
+      const queryParams: z.infer<typeof inboxQuerySchema> = parsed.success
+        ? parsed.data
+        : {};
+      const pageSize = queryParams.pageSize ?? DEFAULT_PAGE_SIZE;
+      const offset = decodeCursor(queryParams.cursor);
+      const requestedFilter: InboxFilter = queryParams.filter ?? "all";
+      const requestedTone = queryParams.tone;
+      const requestedWorkspaceId = queryParams.workspaceId;
+
+      // Workspace narrowing — the caller may only narrow to a workspace
+      // they belong to (anti-enumeration 403 otherwise). Validated up
+      // front so BOTH the live view and the history view honor it.
+      if (requestedWorkspaceId) {
+        const wsMembership = await prisma.teamMember.findUnique({
+          where: {
+            teamId_userId: { teamId: requestedWorkspaceId, userId },
+          },
+          select: { teamId: true },
+        });
+        if (!wsMembership) {
+          return reply.code(403).send({ error: { code: "not_a_member" } });
+        }
+      }
+
+      // ---------------------------------------------------------------
+      // Operations-Center completion — HISTORY is served from the
+      // PERSISTENT snapshot table, so items remain available after the
+      // canonical source resolves. Snapshot rows are per-user copies of
+      // content the user was already authorized to see when it was
+      // surfaced; every query is userId-scoped.
+      // ---------------------------------------------------------------
+      if (requestedFilter === "history") {
+        if (!(await snapshotsAvailable())) {
+          return reply.code(200).send({
+            generatedAt: now.toISOString(),
+            degraded: false,
+            degradedSources: [],
+            historyAvailable: false,
+            summary: { total: 0, byTone: {}, byCategory: {}, byPriority: {} },
+            truncated: {},
+            anyTruncated: false,
+            pagination: {
+              offset: 0,
+              pageSize,
+              returned: 0,
+              nextCursor: null,
+              totalEstimate: 0,
+              totalIsExact: true,
+              appliedFilter: requestedFilter,
+              appliedTone: requestedTone ?? null,
+            },
+            items: [],
+          });
+        }
+        const where = {
+          userId,
+          ...(requestedTone ? { severity: requestedTone } : {}),
+          // Membership was validated above, so narrowing the snapshot
+          // window to one workspace is safe here.
+          ...(requestedWorkspaceId ? { teamId: requestedWorkspaceId } : {}),
+        };
+        const [total, rows] = await Promise.all([
+          prisma.operationsInboxSnapshot.count({ where }),
+          prisma.operationsInboxSnapshot.findMany({
+            where,
+            orderBy: { lastSeenAtUtc: "desc" },
+            skip: offset,
+            take: pageSize,
+          }),
+        ]);
+        // Membership-loss redaction — snapshots whose workspace the
+        // caller can no longer access keep ONLY safe personal-state
+        // metadata; tenant-sensitive content and deep links are
+        // withheld. Organization-side audit trails are unaffected.
+        const currentMemberships = await prisma.teamMember.findMany({
+          where: { userId },
+          select: { teamId: true },
+        });
+        const currentTeamIds = new Set(
+          currentMemberships.map((m) => m.teamId),
+        );
+        const items = rows.map((s) => {
+          const accessible = s.teamId == null || currentTeamIds.has(s.teamId);
+          if (!accessible) {
+            return {
+              id: s.itemKey,
+              itemKey: s.itemKey,
+              category: s.category as InboxCategory,
+              tone: s.severity as InboxTone,
+              priority: s.priority as InboxPriority,
+              title: "[No longer accessible — workspace access removed]",
+              body: "This historical item belongs to a workspace you no longer have access to.",
+              href: "",
+              occurredAt: s.sourceOccurredAtUtc.toISOString(),
+              isRead: s.readAtUtc != null,
+              readAt: s.readAtUtc ? s.readAtUtc.toISOString() : null,
+              dismissedAt: s.dismissedAtUtc ? s.dismissedAtUtc.toISOString() : null,
+              snoozedUntil: null,
+              resolvedAt: s.resolvedAtUtc ? s.resolvedAtUtc.toISOString() : null,
+              resolutionSource: s.resolutionSource ?? null,
+              canMarkRead: false,
+              canDismiss: false,
+              canSnooze: false,
+              dueAt: null,
+              context: {},
+            };
+          }
+          return {
+          id: s.itemKey,
+          itemKey: s.itemKey,
+          category: s.category as InboxCategory,
+          tone: s.severity as InboxTone,
+          priority: s.priority as InboxPriority,
+          title: s.title,
+          body: s.body,
+          href: s.href,
+          occurredAt: s.sourceOccurredAtUtc.toISOString(),
+          isRead: s.readAtUtc != null,
+          readAt: s.readAtUtc ? s.readAtUtc.toISOString() : null,
+          dismissedAt: s.dismissedAtUtc ? s.dismissedAtUtc.toISOString() : null,
+          snoozedUntil: s.snoozedUntilUtc ? s.snoozedUntilUtc.toISOString() : null,
+          resolvedAt: s.resolvedAtUtc ? s.resolvedAtUtc.toISOString() : null,
+          resolutionSource: s.resolutionSource ?? null,
+          canMarkRead: s.resolvedAtUtc == null,
+          canDismiss: s.resolvedAtUtc == null,
+          canSnooze: s.resolvedAtUtc == null,
+          dueAt: s.dueAtUtc ? s.dueAtUtc.toISOString() : null,
+          context: (s.metadataJson ?? {}) as Record<string, string | number | null>,
+          };
+        });
+        const nextOffset = offset + items.length;
+        return reply.code(200).send({
+          generatedAt: now.toISOString(),
+          degraded: false,
+          degradedSources: [],
+          historyAvailable: true,
+          summary: { total, byTone: {}, byCategory: {}, byPriority: {} },
+          truncated: {},
+          anyTruncated: false,
+          pagination: {
+            offset,
+            pageSize,
+            returned: items.length,
+            nextCursor: nextOffset < total ? encodeCursor(nextOffset) : null,
+            totalEstimate: total,
+            totalIsExact: true,
+            appliedFilter: requestedFilter,
+            appliedTone: requestedTone ?? null,
+          },
+          items,
+        });
+      }
+
+      const agg = await buildInboxAggregation(userId, req.log);
+      if (!agg.ok) {
+        return reply.code(401).send({ message: "Unknown caller" });
+      }
+      const { allItems, degradedSources, truncated, anyTruncated, caller: me } = agg;
+
+      // Persist/refresh history snapshots for everything surfaced in this
+      // response window (bounded; skipped gracefully on un-migrated envs).
+      await syncInboxSnapshots(
+        userId,
+        // Suppressed items accrue no operational history.
+        allItems.filter((it) => !it.suppressedInApp),
+        now,
+        req.log,
+      );
+
+      // Visibility (per-user state) BEFORE category/tone filters: dismissed
+      // and actively-snoozed items are hidden by default; the `snoozed`
+      // filter shows exactly the actively-snoozed set.
+      const visibleItems = allItems.filter((it) => {
+        // IN_APP-honesty — a disabled optional type is invisible in the
+        // app (all filters, including the snoozed view).
+        if (it.suppressedInApp) return false;
+        const activeSnooze =
+          it.snoozedUntil != null &&
+          new Date(it.snoozedUntil).getTime() > nowMs;
+        if (requestedFilter === "snoozed") {
+          return activeSnooze && it.dismissedAt == null;
+        }
+        if (it.dismissedAt != null) return false;
+        if (activeSnooze) return false;
+        return true;
+      });
+
+      const filteredItems = visibleItems.filter((it) => {
+        if (
+          requestedWorkspaceId &&
+          it.context?.teamId !== requestedWorkspaceId
+        ) {
+          return false;
+        }
         if (requestedTone && it.tone !== requestedTone) return false;
         if (!matchesFilter(it, requestedFilter, nowMs)) return false;
         return true;
@@ -2164,6 +2833,15 @@ export async function meInboxRoutes(app: FastifyInstance) {
           intake_link_expiring: filteredItems.filter(
             (i) => i.category === "intake_link_expiring",
           ).length,
+          collaboration: filteredItems.filter(
+            (i) => i.category === "collaboration",
+          ).length,
+          tsa_failure: filteredItems.filter(
+            (i) => i.category === "tsa_failure",
+          ).length,
+          case_assignment: filteredItems.filter(
+            (i) => i.category === "case_assignment",
+          ).length,
         },
         byPriority: {
           P1: filteredItems.filter((i) => i.priority === "P1").length,
@@ -2217,70 +2895,193 @@ export async function meInboxRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------
-  // Phase C2 — topbar summary endpoint.
+  // Operations-Center completion — CACHED full-fidelity summary.
   //
   // GET /v1/me/inbox/summary
   //
-  // Bounded counters for the global topbar mention indicator. This is
-  // a tiny, cheap projection: caller's unread discussion mentions and
-  // unresolved assigned discussion threads. The frontend polls this on
-  // a slow interval to drive a small badge — full inbox content is
-  // fetched only when the user clicks through to /inbox.
+  // The bell polls this instead of the full aggregation. It is computed
+  // from the SAME buildInboxAggregation the page uses (identical
+  // authorization, categories, and per-user state), cached per USER for
+  // a short TTL, and explicitly invalidated by every state mutation
+  // (read / unread / dismiss / snooze / bulk read). The cache key is the
+  // caller's user id — entries can never be shared across users or
+  // tenants, and the aggregation itself is membership-scoped so no
+  // cross-organization count can enter the entry. Source-side changes
+  // are bounded by the TTL (≤45s staleness), user mutations reconcile
+  // immediately.
   //
-  // Workspace-scoped (caller's teamIds). No cross-workspace leak.
-  // No full inbox aggregation, no joins beyond the two count queries.
+  // The old two-category summary (mentions + assignments only) is NOT
+  // restored — every count below is derived from the full item set.
   // ---------------------------------------------------------------------
   app.get(
     "/v1/me/inbox/summary",
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const userId = getAuthUserId(req);
-      const now = new Date();
-
-      const teamMemberships = await prisma.teamMember.findMany({
-        where: { userId },
-        select: { teamId: true },
+      const cached = await getCachedOperationsSummary(userId);
+      if (cached) {
+        try {
+          return reply.code(200).send(JSON.parse(cached));
+        } catch {
+          /* fall through to recompute on a corrupt entry */
+        }
+      }
+      const agg = await buildInboxAggregation(userId, req.log);
+      if (!agg.ok) {
+        return reply.code(401).send({ message: "Unknown caller" });
+      }
+      const nowMs = agg.generatedAt.getTime();
+      const visible = agg.allItems.filter((it) => {
+        if (it.suppressedInApp) return false;
+        if (it.dismissedAt != null) return false;
+        if (
+          it.snoozedUntil != null &&
+          new Date(it.snoozedUntil).getTime() > nowMs
+        ) {
+          return false;
+        }
+        return true;
       });
-      const ownedPersonalTeams = await prisma.team.findMany({
-        where: { ownerUserId: userId },
-        select: { id: true },
-      });
-      const teamIdSet = new Set<string>([
-        ...teamMemberships.map((tm) => tm.teamId),
-        ...ownedPersonalTeams.map((t) => t.id),
-      ]);
-      const teamIds = Array.from(teamIdSet);
+      const unreadItems = visible.filter((i) => !i.isRead);
+      const assignedCats = FILTER_CATEGORY_MEMBERS.assigned_to_me ?? [];
+      const summary = {
+        unread: unreadItems.length,
+        critical: unreadItems.filter((i) => i.tone === "critical").length,
+        high: unreadItems.filter((i) => i.tone === "high").length,
+        assignedToMe: unreadItems.filter((i) =>
+          assignedCats.includes(i.category),
+        ).length,
+        overdue: unreadItems.filter(
+          (i) => i.dueAt != null && new Date(i.dueAt).getTime() < nowMs,
+        ).length,
+        total: visible.length,
+        hasTruncatedSources: agg.anyTruncated,
+        degraded: agg.degradedSources.length > 0,
+        degradedSources: agg.degradedSources,
+        generatedAtUtc: agg.generatedAt.toISOString(),
+      };
+      await setCachedOperationsSummary(userId, JSON.stringify(summary));
+      return reply.code(200).send(summary);
+    },
+  );
 
-      if (teamIds.length === 0) {
-        return reply.code(200).send({
-          generatedAt: now.toISOString(),
-          unreadMentions: 0,
-          openAssignments: 0,
+  // ---------------------------------------------------------------------
+  // Operations-Center completion — BULK mark-read.
+  //
+  // POST /v1/me/inbox/mark-all-read   body: { filter?: <InboxFilter> }
+  //
+  // The FRONTEND never supplies item keys for mass updates: the server
+  // re-runs the canonical aggregation for the caller and marks exactly
+  // the currently-visible unread items (optionally narrowed by ONE
+  // validated backend filter — the same enum the page chips use).
+  // Because the aggregation is membership-scoped, the operation can only
+  // ever touch the caller's own attention state within their own
+  // workspaces — never another user's state, never another tenant's
+  // items.
+  //
+  // Semantics: read ≠ resolve / dismiss / acknowledge / complete. Bulk
+  // read changes ONLY the caller's attention state. Collaboration items
+  // update their canonical row readAt in the same transaction.
+  // ---------------------------------------------------------------------
+  app.post(
+    "/v1/me/inbox/mark-all-read",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const body = z
+        .object({ filter: z.string().min(1).max(32).optional() })
+        .safeParse(req.body ?? {});
+      const rawFilter = body.success ? body.data.filter : undefined;
+      // History and snoozed are state views, not attention queues —
+      // bulk-reading them is rejected explicitly.
+      if (
+        rawFilter &&
+        (!INBOX_FILTER_KEYS.includes(rawFilter as InboxFilter) ||
+          rawFilter === "history" ||
+          rawFilter === "snoozed")
+      ) {
+        return reply.code(400).send({
+          message: "INBOX_FILTER_INVALID",
+          details: "filter must be a bulk-readable Operations Center filter.",
         });
       }
-
-      const [unreadMentions, openAssignments] = await Promise.all([
-        prisma.discussionMention.count({
-          where: {
-            teamId: { in: teamIds },
-            mentionedUserId: userId,
-            notifiedAtUtc: null,
-          },
-        }),
-        prisma.discussionThread.count({
-          where: {
-            teamId: { in: teamIds },
-            assignedToUserId: userId,
-            status: { notIn: ["RESOLVED", "CLOSED"] },
-          },
-        }),
-      ]);
-
-      return reply.code(200).send({
-        generatedAt: now.toISOString(),
-        unreadMentions,
-        openAssignments,
+      const bulkFilter = rawFilter as InboxFilter | undefined;
+      const agg = await buildInboxAggregation(userId, req.log);
+      if (!agg.ok) {
+        return reply.code(401).send({ message: "Unknown caller" });
+      }
+      const now = new Date();
+      const nowMs = now.getTime();
+      const targets = agg.allItems.filter((it) => {
+        if (it.suppressedInApp) return false;
+        if (it.dismissedAt != null) return false;
+        if (
+          it.snoozedUntil != null &&
+          new Date(it.snoozedUntil).getTime() > nowMs
+        ) {
+          return false;
+        }
+        if (it.isRead) return false;
+        if (bulkFilter && !matchesFilter(it, bulkFilter, nowMs)) return false;
+        return true;
       });
+      if (targets.length === 0) {
+        return reply
+          .code(200)
+          .send({ markedRead: 0, filter: bulkFilter ?? null });
+      }
+      const keys = targets.map((t) => t.itemKey);
+      const collabIds = targets
+        .filter((t) => t.category === "collaboration")
+        .map((t) => t.itemKey.slice("collaboration:".length))
+        .filter((id) => id.length > 0);
+      const snapAvail = await snapshotsAvailable();
+      await prisma.$transaction(async (tx) => {
+        if (collabIds.length > 0) {
+          // Canonical read owner for collaboration items is the collab row.
+          await tx.collaborationTeamNotification.updateMany({
+            where: { userId, id: { in: collabIds } },
+            data: { readAt: now },
+          });
+        }
+        await tx.inboxItemState.createMany({
+          data: keys.map((k) => {
+            const colon = k.indexOf(":");
+            return {
+              userId,
+              itemKey: k,
+              sourceType: colon > 0 ? k.slice(0, colon) : k,
+              sourceId: colon > 0 ? k.slice(colon + 1).slice(0, 200) : null,
+              readAt: now,
+            };
+          }),
+          skipDuplicates: true,
+        });
+        await tx.inboxItemState.updateMany({
+          where: { userId, itemKey: { in: keys } },
+          data: { readAt: now },
+        });
+        if (snapAvail) {
+          await tx.operationsInboxSnapshot.updateMany({
+            where: { userId, itemKey: { in: keys } },
+            data: { readAtUtc: now },
+          });
+        }
+      });
+      await invalidateOperationsSummary(userId);
+      await appendPlatformAuditLog({
+        userId,
+        action: "inbox.bulk_mark_read",
+        category: "operations",
+        source: "api",
+        outcome: "success",
+        resourceType: "user",
+        resourceId: userId,
+        metadata: { markedRead: keys.length, appliedFilter: bulkFilter ?? null },
+      }).catch(() => undefined);
+      return reply
+        .code(200)
+        .send({ markedRead: keys.length, filter: bulkFilter ?? null });
     },
   );
 
@@ -2352,10 +3153,24 @@ export async function meInboxRoutes(app: FastifyInstance) {
   }
 
   /**
-   * Common upsert. Always succeeds (the unique constraint makes the
-   * write idempotent) and never echoes another user's state.
+   * Operations-Center completion — TRANSACTIONAL state mutation.
+   *
+   * CANONICAL READ-STATE OWNERSHIP: for `collaboration:*` items the
+   * CollaborationTeamNotification ROW's `readAt` is the canonical read
+   * state (the Team page reads/writes the same row); InboxItemState is a
+   * derived mirror. Both records are written inside ONE database
+   * transaction — read, unread, and dismiss all use this path — so
+   * partial success is impossible: if either write fails the whole
+   * mutation rolls back and neither store changes. The collab update is
+   * scoped to `userId = caller`, so a crafted itemKey can never mutate
+   * another user's notification, and the operation is idempotent
+   * (repeated read/unread converges on the same state).
+   *
+   * The persistent history snapshot mirrors the state change in the same
+   * transaction when the snapshot table exists. The per-user summary
+   * cache is invalidated after commit so the bell reconciles.
    */
-  async function upsertState(
+  async function applyStateMutation(
     userId: string,
     parsed: { itemKey: string; sourceType: string; sourceId: string },
     delta: {
@@ -2364,26 +3179,54 @@ export async function meInboxRoutes(app: FastifyInstance) {
       snoozedUntil?: Date | null;
     },
   ) {
-    return prisma.inboxItemState.upsert({
-      where: { userId_itemKey: { userId, itemKey: parsed.itemKey } },
-      create: {
-        userId,
-        itemKey: parsed.itemKey,
-        sourceType: parsed.sourceType,
-        sourceId: parsed.sourceId || null,
-        readAt: delta.readAt ?? null,
-        dismissedAt: delta.dismissedAt ?? null,
-        snoozedUntil: delta.snoozedUntil ?? null,
-      },
-      update: delta,
-      select: {
-        itemKey: true,
-        readAt: true,
-        dismissedAt: true,
-        snoozedUntil: true,
-        updatedAt: true,
-      },
+    const isCollab =
+      parsed.sourceType === "collaboration" && parsed.sourceId.length > 0;
+    const snapAvail = await snapshotsAvailable();
+    const row = await prisma.$transaction(async (tx) => {
+      if (isCollab && "readAt" in delta) {
+        await tx.collaborationTeamNotification.updateMany({
+          where: { id: parsed.sourceId, userId },
+          data: { readAt: delta.readAt ?? null },
+        });
+      }
+      const stateRow = await tx.inboxItemState.upsert({
+        where: { userId_itemKey: { userId, itemKey: parsed.itemKey } },
+        create: {
+          userId,
+          itemKey: parsed.itemKey,
+          sourceType: parsed.sourceType,
+          sourceId: parsed.sourceId || null,
+          readAt: delta.readAt ?? null,
+          dismissedAt: delta.dismissedAt ?? null,
+          snoozedUntil: delta.snoozedUntil ?? null,
+        },
+        update: delta,
+        select: {
+          itemKey: true,
+          readAt: true,
+          dismissedAt: true,
+          snoozedUntil: true,
+          updatedAt: true,
+        },
+      });
+      if (snapAvail) {
+        await tx.operationsInboxSnapshot.updateMany({
+          where: { userId, itemKey: parsed.itemKey },
+          data: {
+            ...("readAt" in delta ? { readAtUtc: delta.readAt ?? null } : {}),
+            ...("dismissedAt" in delta
+              ? { dismissedAtUtc: delta.dismissedAt ?? null }
+              : {}),
+            ...("snoozedUntil" in delta
+              ? { snoozedUntilUtc: delta.snoozedUntil ?? null }
+              : {}),
+          },
+        });
+      }
+      return stateRow;
     });
+    await invalidateOperationsSummary(userId);
+    return row;
   }
 
   app.post(
@@ -2393,7 +3236,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const parsed = await resolveItemKey(req, reply);
       if (!parsed) return;
-      const row = await upsertState(userId, parsed, { readAt: new Date() });
+      const row = await applyStateMutation(userId, parsed, { readAt: new Date() });
       return reply.code(200).send({
         itemKey: row.itemKey,
         isRead: row.readAt != null,
@@ -2411,7 +3254,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const parsed = await resolveItemKey(req, reply);
       if (!parsed) return;
-      const row = await upsertState(userId, parsed, { readAt: null });
+      const row = await applyStateMutation(userId, parsed, { readAt: null });
       return reply.code(200).send({
         itemKey: row.itemKey,
         isRead: row.readAt != null,
@@ -2429,11 +3272,12 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const parsed = await resolveItemKey(req, reply);
       if (!parsed) return;
-      const row = await upsertState(userId, parsed, {
+      const row = await applyStateMutation(userId, parsed, {
         dismissedAt: new Date(),
         // Dismissing implicitly marks the item read — we'd rather be
         // strict about read-state than have a "dismissed but unread"
-        // ghost item polluting unread counters.
+        // ghost item polluting unread counters. For collaboration items
+        // the canonical row's readAt updates in the same transaction.
         readAt: new Date(),
       });
       return reply.code(200).send({
@@ -2479,7 +3323,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
           details: "snoozedUntil cannot be more than 365 days out.",
         });
       }
-      const row = await upsertState(userId, parsed, {
+      const row = await applyStateMutation(userId, parsed, {
         snoozedUntil,
       });
       return reply.code(200).send({
