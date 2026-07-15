@@ -50,6 +50,7 @@ import {
 } from "../../../lib/platform-context";
 import { useOperationsUiContext } from "../../../lib/notifications/useOperationsUiContext";
 import {
+  buildActualItemSignal,
   shouldOfferMarkAllRead,
   shouldOfferMarkCategoryRead,
   toneTileDisabled,
@@ -180,6 +181,13 @@ type InboxEnvelope = {
     total: number;
     unread: number;
     byTone: Record<InboxTone, number>;
+    /** Filter-independent per-category presence — the actual-item override
+     *  signal (backend-authorized). Reveals a category chip that static
+     *  eligibility would hide. */
+    byCategory?: Partial<Record<InboxCategory, number>>;
+    /** Filter-independent deadline posture — powers due_soon / overdue
+     *  filter eligibility. */
+    deadlines?: { dueSoon: number; overdue: number };
   };
   truncated?: InboxTruncated;
   anyTruncated?: boolean;
@@ -346,6 +354,56 @@ const TRUNCATION_LABELS: Record<keyof InboxTruncated, string> = {
   case_assignment: "Case assignments",
 };
 
+/** Oxford-comma join for a human-readable inline list. */
+function joinReadable(parts: string[]): string {
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * §8 — context-aware attention areas. The page describes ONLY the
+ * categories this workspace/plan can actually surface, so a FREE
+ * personal user is never told about reviews or governance they cannot
+ * receive. Incoming/universal categories (mentions, invitations,
+ * security, integrity) always apply and anchor the list.
+ */
+function describeAttentionAreas(
+  uiCtx: ReturnType<typeof useOperationsUiContext>,
+  items: ReturnType<typeof buildActualItemSignal>,
+): string[] {
+  // Universal signals anchor the list; plan/participation areas are added
+  // only when the user can genuinely receive them OR already has a real
+  // item (the same eligibility-OR-item rule as the filters).
+  const has = (cats: InboxCategory[]): boolean =>
+    cats.some((c) => (items.byCategory[c] ?? 0) > 0);
+  const areas: string[] = ["integrity signals"];
+  if (uiCtx.canUseReports || has(["report_failure"]))
+    areas.push("report failures");
+  if (uiCtx.canUseVerificationPackages || has(["verification_package_failure"]))
+    areas.push("verification-package failures");
+  if (
+    uiCtx.canUseIntake ||
+    has([
+      "intake_submission_pending_review",
+      "intake_required_items_missing",
+      "intake_link_expiring",
+    ])
+  )
+    areas.push("intake activity");
+  if (uiCtx.canReceiveAssignments || has(["case_assignment", "discussion_assigned"]))
+    areas.push("assignments");
+  if (uiCtx.canParticipateInReviews || has(["review_decision", "review_escalation"]))
+    areas.push("reviews and escalations");
+  if (uiCtx.canCollaborate || has(["collaboration", "discussion_mention"]))
+    areas.push("mentions");
+  if (uiCtx.canReceiveGovernance || has(["governance"]))
+    areas.push("governance events");
+  areas.push("security alerts");
+  return areas;
+}
+
 export default function InboxPage() {
   return (
     <PageRouteGate routeId="account.inbox">
@@ -370,13 +428,24 @@ function InboxPageInner() {
   const organizations = useOrganizations();
   // Canonical UI-context — relevance only; the backend enforces data.
   const uiCtx = useOperationsUiContext();
+  // Actual-item override signal — the aggregation's filter-independent,
+  // backend-authorized scope summary. A real item reveals its category
+  // even when static eligibility would hide it.
+  const itemSignal = buildActualItemSignal(
+    state.kind === "ready" ? state.data.scopeSummary : null,
+  );
+  // §8 — subtitle + empty-state describe only categories this user can
+  // surface (adaptive, never over-promising reviews/governance), plus any
+  // category a real item reveals.
+  const attentionAreas = describeAttentionAreas(uiCtx, itemSignal);
+  const attentionSummary = joinReadable(attentionAreas);
   // Filter grouping (pure policy, unit-tested): a stable primary row +
   // a "More filters" overflow; capability-gated chips (admin,
   // governance) never render for users who can never receive them, and
   // the ACTIVE filter is always visible even while collapsed.
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
-  const primaryFilters = visiblePrimaryFilters(uiCtx, filter);
-  const secondaryFilters = visibleSecondaryFilters(uiCtx, filter);
+  const primaryFilters = visiblePrimaryFilters(uiCtx, filter, itemSignal);
+  const secondaryFilters = visibleSecondaryFilters(uiCtx, filter, itemSignal);
   const workspaceOptions: Array<{ value: string; label: string }> = [
     { value: "all", label: "All workspaces" },
     ...(personalSpace?.id
@@ -651,7 +720,7 @@ function InboxPageInner() {
         <PageHeader
           eyebrow="Account · Operations Center"
           title="Operations Center"
-          subtitle="Operational items that require your attention — reviews, mentions, invitations, governance, security, and integrity signals."
+          subtitle={`Operational items that require your attention — ${attentionSummary}.`}
           primaryAction={
             <Button
               variant="secondary"
@@ -978,7 +1047,7 @@ function InboxPageInner() {
             <EmptyState
               framed
               title="Nothing requires your attention right now."
-              purpose="When operational items appear — failed timestamps or reports, reviews and escalations waiting on you, case assignments, mentions, invitations, governance events — they show up here. Items disappear automatically when their underlying state resolves. Resolved items remain in History."
+              purpose={`When operational items appear — ${attentionSummary} — they show up here. Items disappear automatically when their underlying state resolves. Resolved items remain in History.`}
               action={
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
                   <Link

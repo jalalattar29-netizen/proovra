@@ -241,6 +241,30 @@ export async function assertWorkspaceAllowsReport(scope: WorkspaceScope) {
   }
 }
 
+/**
+ * Secure-intake plan gate (Teams Entitlement Alignment follow-up,
+ * 2026-07-15). Intake links + submission requests are excluded from
+ * FREE per the published Pricing contract (`intakeIncluded`). This
+ * enforces the commercial contract at the CREATION boundary — before
+ * any WorkflowIntakeLink / EvidenceRequest row is written — so the
+ * `intake_*` Operations Center sources are structurally impossible for
+ * plans that exclude intake, not merely hidden in the UI. Same shape
+ * as the report/package guards (409 + stable code).
+ */
+export async function assertWorkspaceAllowsIntake(scope: WorkspaceScope) {
+  if (shouldBypassForInternalTester(scope)) return;
+  const caps = getPlanCapabilities(scope.plan);
+
+  if (!caps.intakeIncluded) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "Secure intake (intake links and submission requests) is not included in the current plan"
+    );
+    err.statusCode = 409;
+    err.code = "INTAKE_NOT_INCLUDED";
+    throw err;
+  }
+}
+
 export async function assertWorkspaceAllowsVerificationPackage(
   scope: WorkspaceScope
 ) {

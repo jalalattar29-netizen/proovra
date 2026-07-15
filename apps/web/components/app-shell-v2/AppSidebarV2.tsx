@@ -114,10 +114,11 @@ const ICON_BY_ROUTE_ID: Record<string, SidebarIcon> = {
   // Semantic distinctness — each visible sidebar entry maps to a
   // distinct Lucide glyph. Route IDs are the canonical values from
   // routeRegistry.ts (verified against the rendered DOM
-  // `data-sidebar-nav-id`). The workspace-scoped Teams and Trust routes
-  // use `workspace.collaboration_teams` and `workspace.trust` — the
-  // sidebar renders those; `admin.teams` / `governance.hub` are separate
-  // registry entries that aren't currently sidebar-eligible.
+  // `data-sidebar-nav-id`). The workspace-scoped Teams route uses
+  // `workspace.collaboration_teams` — the sidebar renders it; `admin.teams`
+  // / `governance.hub` are separate registry entries that aren't currently
+  // sidebar-eligible. (The former `workspace.trust` Trust Hub sidebar entry
+  // was removed 2026-07-15 when the authenticated Trust Hub was deleted.)
   "workspace.home": Home,
   "workspace.capture": Camera,
   "workspace.evidence": FolderArchive,
@@ -129,7 +130,6 @@ const ICON_BY_ROUTE_ID: Record<string, SidebarIcon> = {
   "workspace.notifications": Bell,
   "workspace.integrations": Plug,
   "workspace.collaboration_teams": UsersRound,
-  "workspace.trust": ShieldCheck,
   "review.queue": ListTodo,
   "review.sla": GaugeCircle,
   "governance.hub": ShieldCheck,

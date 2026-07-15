@@ -4,10 +4,11 @@
  * Locks the R7.3 (Trust nav) and R7.5 (Dashboard→Operations inversion)
  * migrations so the old shapes cannot silently return:
  *
- *   - R7.3 (F17): the AUTHENTICATED Trust nav (`workspace.trust`) points at
- *     the in-app hub `/trust-hub`, NOT the public marketing `/trust` — in
- *     BOTH the frontend routeRegistry and the backend navigation-registry.
- *     The public `/trust` page still exists.
+ *   - R7.3 (2026-07-15 update): the authenticated static Trust Hub
+ *     (`/trust-hub`, id `workspace.trust`) was REMOVED as redundant. There is
+ *     no authenticated Trust nav; the public marketing `/trust` remains the
+ *     canonical trust portal, and `/trust-hub` is a temporary compatibility
+ *     redirect to it. The in-app `/trust-center/*` articles are a non-nav gate.
  *   - R7.5 (F19): the live quota / batch-analysis implementations live under
  *     `/operations/*`; NO `/operations/*` page re-exports from `/dashboard/*`
  *     (the file/URL inversion is gone); the `(app)/dashboard/*` impl files
@@ -31,20 +32,34 @@ const nextConfig = readWeb("next.config.js");
 
 // --- R7.3 — Trust navigation ------------------------------------------------
 
-test("R7.3 — frontend workspace.trust points at /trust-hub, not the public /trust", () => {
-  const idx = registry.indexOf('id: "workspace.trust"');
-  assert.ok(idx > -1, "workspace.trust must be registered");
-  const entry = registry.slice(idx, registry.indexOf("\n  },", idx));
-  assert.match(entry, /href:\s*"\/trust-hub"/, "authenticated Trust nav must target /trust-hub");
-  assert.doesNotMatch(entry, /href:\s*"\/trust"[,\s]/, "must NOT target the public /trust");
+test("R7.3 — the authenticated Trust Hub route id + URL are gone from the registry", () => {
+  // `"workspace.trust"` (closing quote after `trust`) does not match
+  // `"workspace.trust_center"`, so this correctly asserts the OLD id is gone.
+  assert.doesNotMatch(registry, /id:\s*"workspace\.trust"/, "workspace.trust must be removed");
+  assert.doesNotMatch(registry, /"\/trust-hub"/, "no /trust-hub href may remain in the registry");
 });
 
-test("R7.3 — the public marketing /trust page still exists (not merged away)", () => {
+test("R7.3 — the trust-center docs gate is non-navigational (no Trust sidebar entry)", () => {
+  const idx = registry.indexOf('id: "workspace.trust_center"');
+  assert.ok(idx > -1, "workspace.trust_center gate must be registered");
+  const entry = registry.slice(idx, registry.indexOf("\n  },", idx));
+  assert.match(entry, /href:\s*"\/trust-center"/);
+  assert.match(entry, /sidebarEligible:\s*false/, "trust docs gate must not be sidebar-eligible");
+});
+
+test("R7.3 — the public marketing /trust page still exists (canonical trust portal)", () => {
   assert.ok(existsSync(webPath("app/trust/page.tsx")), "public /trust page must remain");
 });
 
-test("R7.3 — /trust-hub authenticated page exists", () => {
-  assert.ok(existsSync(webPath("app/(app)/trust-hub/page.tsx")));
+test("R7.3 — the authenticated /trust-hub page is deleted", () => {
+  assert.ok(!existsSync(webPath("app/(app)/trust-hub/page.tsx")), "trust-hub page must be gone");
+});
+
+test("R7.3 — /trust-hub is a temporary compatibility redirect to /trust", () => {
+  assert.match(
+    nextConfig,
+    /source:\s*["']\/trust-hub["'][\s\S]{0,200}destination:\s*["']\/trust["']/,
+  );
 });
 
 // --- R7.5 — Dashboard → Operations inversion --------------------------------

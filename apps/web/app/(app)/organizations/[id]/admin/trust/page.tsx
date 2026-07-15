@@ -80,7 +80,7 @@ function TrustTab() {
             testId="trust-deep-link-center"
             label="Trust Center"
             description="Published trust articles (security, methodology, AI disclosure, …)."
-            href="/trust-hub"
+            href="/trust"
           />
           <DeepLink
             testId="trust-deep-link-subprocessors"

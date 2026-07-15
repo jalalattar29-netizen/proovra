@@ -31,6 +31,10 @@ import {
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import {
+  assertWorkspaceAllowsIntake,
+  resolveWorkspaceScopeForUser,
+} from "../services/billing-enforcement.service.js";
 import { hasRole } from "../services/rbac.js";
 import {
   archiveWorkflowIntakeLink,
@@ -268,6 +272,27 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       const body = CreateBody.parse(req.body ?? {});
       const ok = await requireAdmin(req, reply, body.teamId);
       if (!ok) return;
+
+      // Secure-intake plan gate (2026-07-15) — intake links are excluded
+      // from FREE per the Pricing contract. Enforced before any DB write;
+      // a known plan restriction surfaced as a stable code.
+      {
+        const scope = await resolveWorkspaceScopeForUser({
+          ownerUserId: ok.userId,
+          teamId: body.teamId,
+        });
+        try {
+          await assertWorkspaceAllowsIntake(scope);
+        } catch (err) {
+          const e = err as { statusCode?: number; code?: string; message?: string };
+          if (e?.code === "INTAKE_NOT_INCLUDED") {
+            return reply
+              .code(e.statusCode ?? 409)
+              .send({ error: { code: e.code, message: e.message } });
+          }
+          throw err;
+        }
+      }
 
       // Intake-links-e2e Phase 7 — per-user-per-workspace create
       // rate limit. 30/min for a single admin is generous for normal

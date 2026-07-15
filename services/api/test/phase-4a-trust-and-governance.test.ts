@@ -904,7 +904,7 @@ describe("Phase 4A — UI surfaces + nav registry", () => {
     }
   });
 
-  it("nav registry exposes Trust Center + Governance Platform", () => {
+  it("nav registry exposes Governance Platform; the Trust Hub nav was removed", () => {
     const path = fileURLToPath(
       new URL(
         "../src/services/platform-context/navigation-registry.ts",
@@ -912,8 +912,12 @@ describe("Phase 4A — UI surfaces + nav registry", () => {
       ),
     );
     const src = readFileSync(path, "utf8");
-    expect(src).toContain("workspace.trust");
-    expect(src).toContain("/trust");
+    // Trust Hub nav removed 2026-07-15 — no workspace.trust nav entry, no
+    // /trust-hub href. (Regex, not substring: `workspace.trust_center` in
+    // the explanatory comment must not satisfy these.)
+    expect(src).not.toMatch(/id:\s*"workspace\.trust"/);
+    expect(src).not.toMatch(/href:\s*"\/trust-hub"/);
+    // Governance Platform nav remains.
     expect(src).toContain("workspace.governance_platform");
     expect(src).toContain("/governance-platform");
   });

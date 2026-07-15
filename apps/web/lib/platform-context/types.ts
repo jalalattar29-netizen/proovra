@@ -16,6 +16,52 @@
  *   3. The envelope shape is identical to the backend response.
  */
 
+export type PlatformContextPlanFeatures = {
+  reportsIncluded: boolean;
+  verificationPackageIncluded: boolean;
+  intakeIncluded: boolean;
+  casesIncluded: boolean;
+  reviewerOperationsIncluded: boolean;
+  reviewQueuesIncluded: boolean;
+  /** Team ownership included (maxOwnedTeams > 0). */
+  teamCollaborationIncluded: boolean;
+};
+
+/**
+ * Operational eligibility — canonical, backend-derived relevance projection
+ * for the Operations Center + Notification Preferences surfaces. Plan +
+ * workspace type + real role/capability + real participation. Combined on the
+ * client with the aggregation's `scopeSummary.byCategory` actual-item signal
+ * (an authorized item can always reveal its category). See the API-side type
+ * doc for the authoritative contract. UI relevance only — never authorization.
+ */
+export type PlatformContextOperationalEligibility = {
+  collaboration: {
+    hasActiveMembership: boolean;
+    hasPendingInvitation: boolean;
+    canOwnTeams: boolean;
+  };
+  reviews: {
+    canParticipate: boolean;
+    canManage: boolean;
+  };
+  assignments: {
+    hasCaseAssignmentCapability: boolean;
+    hasReviewAssignmentCapability: boolean;
+    hasCollaborationAssignmentCapability: boolean;
+  };
+  deadlines: {
+    hasEligibleSource: boolean;
+  };
+  security: {
+    hasPersonalSurface: boolean;
+    hasAdminSurface: boolean;
+  };
+  governance: {
+    canViewOperational: boolean;
+  };
+};
+
 export const AUTHORITY_SCHEMA_VERSION = 2 as const;
 export const CAPABILITY_SCHEMA_VERSION = 2 as const;
 // Phase B0 / STAGE 1 SCHEMA ALIGNMENT — bumped from 1 → 2 to match the
@@ -437,6 +483,10 @@ export type PlatformContextEnvelope = {
   flags: PlatformContextFlags;
   persona: PlatformContextPersona;
   capabilities: CapabilityMap;
+  planFeatures: PlatformContextPlanFeatures;
+  /** Operational eligibility projection (see type doc). Optional for
+   *  backward compatibility with a degraded / pre-migration envelope. */
+  operationalEligibility?: PlatformContextOperationalEligibility;
   navigation: PlatformContextNavigation;
   /** @deprecated read `personalSpace` + `organizations` instead. */
   availableWorkspaces: ReadonlyArray<PlatformContextAvailableWorkspace>;

@@ -5,7 +5,7 @@ import { TrustCenterSectionList } from "../_section-list";
 
 export default function SecurityCenterPage() {
   return (
-    <PageRouteGate routeId="workspace.trust">
+    <PageRouteGate routeId="workspace.trust_center">
       <TrustCenterSectionList
         kind="SECURITY"
         title="Security Documentation Center"

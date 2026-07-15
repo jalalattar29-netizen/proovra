@@ -227,12 +227,10 @@ function expectedPagePath(href: string): string | null {
 }
 
 const HREF_EXCEPTIONS = new Set<string>([
-  // Phase E5 — workspace.trust href is "/trust" but the canonical
-  // public Trust Center lives at `apps/web/app/trust/page.tsx`
-  // (outside the (app) route group). The (app) group has no own
-  // `/trust/page.tsx` because Next.js refuses two parallel pages that
-  // resolve to the same URL. Authenticated users at /trust land on
-  // the canonical hub via the root segment.
+  // The canonical public Trust Center lives at `apps/web/app/trust/page.tsx`
+  // (outside the (app) route group), so the (app) group has no own
+  // `/trust/page.tsx`. (The authenticated Trust Hub at /trust-hub was removed
+  // 2026-07-15; the /trust-center docs gate resolves to a real (app) page.)
   "/trust",
   // Detail routes consumed only via deep link / sub-route — keep in
   // the registry for backwards-compat with persona/hub machinery.

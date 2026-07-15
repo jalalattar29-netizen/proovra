@@ -46,6 +46,87 @@
  * The value emitted on the wire is `number` (not the `as const`
  * literal) because the server runtime decides v2 vs v3 per request.
  */
+export type PlatformContextPlanFeatures = {
+  reportsIncluded: boolean;
+  verificationPackageIncluded: boolean;
+  intakeIncluded: boolean;
+  casesIncluded: boolean;
+  reviewerOperationsIncluded: boolean;
+  reviewQueuesIncluded: boolean;
+  /** Team ownership included (maxOwnedTeams > 0). */
+  teamCollaborationIncluded: boolean;
+};
+
+/**
+ * Operational eligibility (2026-07-15) — the canonical, backend-derived,
+ * tenant-scoped answer to "which operational surfaces are RELEVANT to this
+ * user right now", combining plan + workspace type + real role/capability +
+ * real participation. It is the single projection consumed by the Operations
+ * Center filters, Notification Preferences groups, and adaptive copy.
+ *
+ * It is NOT authorization — every data decision stays enforced by the
+ * aggregation's per-source membership/role scoping. This block only controls
+ * UI RELEVANCE. Static eligibility is combined on the client with the
+ * aggregation's filter-independent `scopeSummary.byCategory` actual-item
+ * signal, so a real authorized item can always REVEAL its category even when
+ * static eligibility would hide it (an incoming Team invitee, a downgraded
+ * user's historical assignment).
+ */
+export type PlatformContextOperationalEligibility = {
+  collaboration: {
+    /** Active member of ≥1 shared space (organization OR collaboration team) —
+     *  the precondition for receiving mentions / assigned threads /
+     *  collaboration notifications. */
+    hasActiveMembership: boolean;
+    /** A still-actionable incoming invitation exists (organization OR
+     *  collaboration team). Lets Free/PAYG see Invitations legitimately. */
+    hasPendingInvitation: boolean;
+    /** Plan permits OWNING collaboration teams (maxOwnedTeams > 0). Distinct
+     *  from incoming participation. */
+    canOwnTeams: boolean;
+  };
+  reviews: {
+    /** Writer-level reviewer participation in the active review-capable
+     *  workspace (capability REVIEWER_OPS_ACT). Excludes VIEWER and
+     *  non-review-capable scopes — NOT every Team/Enterprise member. */
+    canParticipate: boolean;
+    /** Review oversight / adjudication authority (active-workspace OWNER/ADMIN
+     *  of a review-capable workspace). */
+    canManage: boolean;
+  };
+  assignments: {
+    /** Personal cases can assign work to the user (plan casesIncluded). */
+    hasCaseAssignmentCapability: boolean;
+    /** Reviewer workflows can assign work (reviews.canParticipate). */
+    hasReviewAssignmentCapability: boolean;
+    /** Shared-space participation can assign discussion threads. */
+    hasCollaborationAssignmentCapability: boolean;
+  };
+  deadlines: {
+    /** ≥1 deadline-producing workflow is reachable (intake, personal cases,
+     *  reviews, or shared-space participation). Only 4 categories carry a real
+     *  dueAt, so a scope with no eligible source must not show permanent empty
+     *  Due-soon / Overdue filters. */
+    hasEligibleSource: boolean;
+  };
+  security: {
+    /** Personal/account security — universal; always relevant when real. */
+    hasPersonalSurface: boolean;
+    /** Organization/admin security surface — adjudicator (OWNER/ADMIN) of an
+     *  organization. Ordinary members never receive admin-security items
+     *  (the aggregation scopes them to adjudicator teams). */
+    hasAdminSurface: boolean;
+  };
+  governance: {
+    /** Operational governance queue access (capability GOVERNANCE_VIEW).
+     *  DECISION — Pro Personal = FALSE (Outcome B): Pro "personal-workspace
+     *  governance controls" are Settings/retention configuration, NOT an
+     *  Operations Center governance queue. A real personal-team governance
+     *  item can still reveal the category via the actual-item override. */
+    canViewOperational: boolean;
+  };
+};
+
 export const AUTHORITY_SCHEMA_VERSION: number = 3;
 /** Bumped when CAPABILITY_KEYS is extended or semantics change. */
 export const CAPABILITY_SCHEMA_VERSION = 2 as const;
@@ -642,6 +723,15 @@ export type PlatformContextEnvelope = {
   flags: PlatformContextFlags;
   persona: PlatformContextPersona;
   capabilities: CapabilityMap;
+  /**
+   * Canonical commercial plan feature flags for the active workspace
+   * (projected from PLAN_CAPABILITIES). Entitlement-aware surfaces
+   * (Operations Center, Notification Preferences) read these instead of
+   * importing the billing package.
+   */
+  planFeatures: PlatformContextPlanFeatures;
+  /** Operational eligibility projection (see type doc). */
+  operationalEligibility: PlatformContextOperationalEligibility;
   navigation: PlatformContextNavigation;
   /**
    * @deprecated ENTERPRISE TENANT MODEL — kept for backward compatibility for

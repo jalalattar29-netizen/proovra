@@ -1616,40 +1616,31 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
 
   // ---------------------------------------------------------------------------
-  // Phase 1A — Trust pillar surface. Canonical id `workspace.trust` points
-  // at the real Trust hub page (apps/web/app/(app)/trust-hub/page.tsx) which
-  // composes verification methodology, public-verify,
-  // signers, subprocessors, privacy + retention surfaces.
-  // The in-app hub URL is `/trust-hub` (relocated from `/trust` so the
-  // top-level `/trust` URL can serve the public-facing Trust Center).
+  // Trust documentation gate (2026-07-15). The former authenticated static
+  // Trust Hub (`/trust-hub`, id `workspace.trust`) was removed as redundant —
+  // the public Trust Center (`/trust`) is the canonical customer-facing trust
+  // portal, and trust-related operational controls live in their canonical
+  // Operations/Governance/Evidence homes. This entry is NOT a navigation item
+  // (no sidebar / cmd-K / All Tools presence); it exists only to gate the
+  // in-app `/trust-center/*` documentation article pages (security,
+  // methodology, subprocessors, status, AI disclosure). The `/trust-center`
+  // index itself redirects to the public `/trust`.
   // ---------------------------------------------------------------------------
   {
-    id: "workspace.trust",
-    // Phase R7.3 (F17) — corrected from "/trust" (the PUBLIC marketing Trust
-    // Center) to "/trust-hub" (the authenticated in-app hub this id has
-    // always described, per the comment above). The sidebar + command
-    // palette navigate to `route.href`, so the old value silently sent
-    // authenticated users OUT of the app to the public page.
-    href: "/trust-hub",
-    label: "Trust Center",
+    id: "workspace.trust_center",
+    href: "/trust-center",
+    label: "Trust & Compliance",
     description:
-      "Canonical trust center hub — methodology, verification, security, disclosures, signers, subprocessors, privacy.",
-    // Trust hub renders workspace-anchored content (trust articles + subprocessor
-    // snapshot + verification methodology for THIS workspace). It is a workspace
-    // surface, NOT an account-tier surface, so domain=PERSONAL_WORKSPACE +
-    // requiredActiveSpace=PERSONAL_OR_ORG matches the pattern used by every other
-    // workspace-anchored route (workspace.evidence, workspace.cases, ...). Active
-    // space is required so the trust dashboard knows which workspace's articles
-    // to project — access is not weakened.
+      "In-app trust documentation articles (security, methodology, subprocessors, status, AI disclosure). The canonical trust portal is the public Trust Center at /trust.",
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: [],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "LOAD",
-    workflowTags: ["TRUST_AND_GOVERNANCE"],
+    workflowTags: [],
     advancedByDefault: false,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
-    sidebarEligible: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
   },
 
   // ---------------------------------------------------------------------------

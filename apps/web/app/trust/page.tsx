@@ -5,8 +5,10 @@
  * security reviewers, procurement teams, and compliance evaluators.
  *
  * IA placement: top-level `/trust`. /about/trust is a thin re-export
- * (legacy in-app help link target). /trust-hub is the SEPARATE in-product
- * operator hub and is NOT touched here.
+ * (legacy in-app help link target). This public Trust Center is the SINGLE
+ * canonical trust portal — the former authenticated `/trust-hub` was removed
+ * 2026-07-15 (it now 308s here); in-app `/trust-center/*` articles are a
+ * separate non-navigational documentation surface.
  *
  * Safe-language contract — this file must comply with the public Trust
  * Center brief. The forbidden overclaim tokens and forbidden

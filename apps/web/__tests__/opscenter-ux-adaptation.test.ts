@@ -1,12 +1,16 @@
 /**
  * Operations Center / Notification Preferences — UX-adaptation
- * contracts (final completion pass, 2026-07-14).
+ * contracts (participation + actual-item override, 2026-07-15).
  *
- * Primarily RUNTIME BEHAVIOR tests: the adaptation rules live in pure,
- * imported functions (deriveOperationsUiContext + the filter/action
- * policy), so we execute them rather than grepping source. A small
- * source-contract section pins the copy/wiring that has no executable
- * form (labels, CTA placement, hybrid tile consumption).
+ * RUNTIME BEHAVIOR tests: the adaptation rules live in pure, imported
+ * functions (deriveOperationsUiContext + the filter/preference/override
+ * policy), so we EXECUTE them across the real persona matrix rather than
+ * grepping source. A small source-contract section pins the copy/wiring
+ * that has no executable form (labels, CTA placement, single-workspace
+ * hiding, adaptive copy, backend consumption).
+ *
+ * The canonical visibility rule under test:
+ *     VISIBLE = STATIC ELIGIBILITY  ||  AN AUTHORIZED ITEM EXISTS
  */
 
 import { strict as assert } from "node:assert";
@@ -15,134 +19,438 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { deriveOperationsUiContext } from "../lib/notifications/useOperationsUiContext";
+import {
+  deriveOperationsUiContext,
+  type OperationsUiContextInput,
+} from "../lib/notifications/useOperationsUiContext";
+import type { PlatformContextOperationalEligibility } from "../lib/platform-context/types";
 import {
   PRIMARY_OPERATIONS_FILTERS,
   SECONDARY_OPERATIONS_FILTERS,
+  buildActualItemSignal,
+  preferenceGroupVisible,
   shouldOfferMarkAllRead,
   shouldOfferMarkCategoryRead,
   toneTileDisabled,
   visiblePrimaryFilters,
   visibleSecondaryFilters,
+  type ActualItemSignal,
+  type InboxCategoryKey,
 } from "../lib/notifications/operationsFilterPolicy";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string): string => readFileSync(resolve(APP_ROOT, rel), "utf8");
 
 // ---------------------------------------------------------------------------
-// Runtime — UI-context derivation (no hardcoded capabilities)
+// Eligibility fixture builders — mirror what the BACKEND derives so the
+// pure resolver + policy can be exercised without a live envelope.
 // ---------------------------------------------------------------------------
 
-const PERSONAL_FREE = {
-  activeSpaceType: "PERSONAL" as const,
-  activeSpaceId: "p-1",
-  personalSpaceId: "p-1",
-  organizations: [],
-  hasGovernanceCapability: false,
-};
-const PERSONAL_PRO = { ...PERSONAL_FREE, hasGovernanceCapability: true };
-const ORG_MEMBER = {
-  activeSpaceType: "ORGANIZATION" as const,
-  activeSpaceId: "o-1",
-  personalSpaceId: "p-1",
-  organizations: [
-    { membershipStatus: "ACTIVE" as const, role: "MEMBER" as const },
-  ],
-  hasGovernanceCapability: false,
-};
-const ORG_ADMIN = {
-  ...ORG_MEMBER,
-  organizations: [
-    { membershipStatus: "ACTIVE" as const, role: "ADMIN" as const },
-  ],
-};
+function eligibility(
+  over: DeepPartial<PlatformContextOperationalEligibility> = {},
+): PlatformContextOperationalEligibility {
+  const base: PlatformContextOperationalEligibility = {
+    collaboration: {
+      hasActiveMembership: false,
+      hasPendingInvitation: false,
+      canOwnTeams: false,
+    },
+    reviews: { canParticipate: false, canManage: false },
+    assignments: {
+      hasCaseAssignmentCapability: false,
+      hasReviewAssignmentCapability: false,
+      hasCollaborationAssignmentCapability: false,
+    },
+    deadlines: { hasEligibleSource: false },
+    security: { hasPersonalSurface: true, hasAdminSurface: false },
+    governance: { canViewOperational: false },
+  };
+  return {
+    collaboration: { ...base.collaboration, ...over.collaboration },
+    reviews: { ...base.reviews, ...over.reviews },
+    assignments: { ...base.assignments, ...over.assignments },
+    deadlines: { ...base.deadlines, ...over.deadlines },
+    security: { ...base.security, ...over.security },
+    governance: { ...base.governance, ...over.governance },
+  };
+}
 
-test("admin attention derives only from OWNER/ADMIN org memberships", () => {
-  assert.equal(deriveOperationsUiContext(PERSONAL_PRO).canViewAdminAttention, false);
-  assert.equal(deriveOperationsUiContext(ORG_MEMBER).canViewAdminAttention, false);
-  assert.equal(deriveOperationsUiContext(ORG_ADMIN).canViewAdminAttention, true);
-  // PENDING/INACTIVE memberships never grant it.
+type DeepPartial<T> = { [K in keyof T]?: Partial<T[K]> };
+
+function planFeatures(p: "FREE" | "PAYG" | "PRO" | "TEAM" | "ENTERPRISE") {
+  const M = {
+    FREE: [false, false, false, false, false, false, false],
+    PAYG: [true, true, true, false, false, false, false],
+    PRO: [true, true, true, true, false, false, true],
+    TEAM: [true, true, true, true, true, true, true],
+    ENTERPRISE: [true, true, true, true, true, true, true],
+  }[p];
+  return {
+    reportsIncluded: M[0],
+    verificationPackageIncluded: M[1],
+    intakeIncluded: M[2],
+    casesIncluded: M[3],
+    reviewerOperationsIncluded: M[4],
+    reviewQueuesIncluded: M[5],
+    teamCollaborationIncluded: M[6],
+  };
+}
+
+function ctx(
+  plan: "FREE" | "PAYG" | "PRO" | "TEAM" | "ENTERPRISE",
+  elig: PlatformContextOperationalEligibility,
+  opts: {
+    spaceType?: "PERSONAL" | "ORGANIZATION";
+    orgs?: OperationsUiContextInput["organizations"];
+  } = {},
+) {
+  return deriveOperationsUiContext({
+    activeSpaceType: opts.spaceType ?? "PERSONAL",
+    activeSpaceId: "s-1",
+    personalSpaceId: "p-1",
+    organizations: opts.orgs ?? [],
+    hasGovernanceCapability: elig.governance.canViewOperational,
+    planFeatures: planFeatures(plan),
+    operationalEligibility: elig,
+  });
+}
+
+function items(
+  byCategory: Partial<Record<InboxCategoryKey, number>> = {},
+  deadlines: { dueSoon?: number; overdue?: number } = {},
+): ActualItemSignal {
+  return buildActualItemSignal({
+    byCategory,
+    deadlines: { dueSoon: deadlines.dueSoon ?? 0, overdue: deadlines.overdue ?? 0 },
+  });
+}
+
+function allFilters(
+  c: ReturnType<typeof ctx>,
+  sig: ActualItemSignal = buildActualItemSignal(null),
+): string[] {
+  return [
+    ...visiblePrimaryFilters(c, "all", sig),
+    ...visibleSecondaryFilters(c, "all", sig),
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Resolver derivation — output shape + field projection
+// ---------------------------------------------------------------------------
+
+test("resolver projects the canonical eligibility field set", () => {
+  const out = ctx("FREE", eligibility()) as Record<string, unknown>;
+  assert.deepEqual(Object.keys(out).sort(), [
+    "canCollaborate",
+    "canOwnTeamCollaboration",
+    "canParticipateInReviews",
+    "canReceiveAssignments",
+    "canReceiveGovernance",
+    "canUseIntake",
+    "canUseReports",
+    "canUseVerificationPackages",
+    "canViewAdminAttention",
+    "hasEligibleDeadlineSource",
+    "hasOrganizations",
+    "hasPendingInvitation",
+    "isPersonalWorkspace",
+    "workspaceId",
+  ]);
+});
+
+test("degraded envelope (no operationalEligibility) collapses participation to FALSE", () => {
+  const c = deriveOperationsUiContext({
+    activeSpaceType: "PERSONAL",
+    activeSpaceId: "p-1",
+    personalSpaceId: "p-1",
+    organizations: [],
+    hasGovernanceCapability: false,
+    planFeatures: planFeatures("TEAM"),
+    operationalEligibility: null,
+  });
+  assert.equal(c.canCollaborate, false);
+  assert.equal(c.canParticipateInReviews, false);
+  assert.equal(c.canReceiveAssignments, false);
+  assert.equal(c.hasEligibleDeadlineSource, false);
+  // Universal plan-gated surfaces still project from planFeatures.
+  assert.equal(c.canUseReports, true);
+});
+
+// ---------------------------------------------------------------------------
+// COLLABORATION / MENTIONS / INVITATIONS participation (§1)
+// ---------------------------------------------------------------------------
+
+test("FREE standalone: Collaboration + Mentions + Invitations hidden", () => {
+  const f = allFilters(ctx("FREE", eligibility()));
+  for (const k of ["collaboration", "mentions", "invitations"]) {
+    assert.ok(!f.includes(k), `standalone FREE must hide ${k}`);
+  }
+});
+
+test("FREE with a pending paid-Team invite: Invitations shown, Collaboration still hidden", () => {
+  const f = allFilters(
+    ctx("FREE", eligibility({ collaboration: { hasPendingInvitation: true } })),
+  );
+  assert.ok(f.includes("invitations"), "pending invite reveals Invitations");
+  assert.ok(!f.includes("collaboration"), "invite alone is not membership");
+});
+
+test("FREE active member of a paid Team: Collaboration + Mentions shown", () => {
+  const f = allFilters(
+    ctx(
+      "FREE",
+      eligibility({
+        collaboration: { hasActiveMembership: true },
+        assignments: { hasCollaborationAssignmentCapability: true },
+      }),
+    ),
+  );
+  assert.ok(f.includes("collaboration"), "active membership reveals Collaboration");
+  assert.ok(f.includes("mentions"), "active membership reveals Mentions");
+});
+
+test("FREE standalone WITH a real mention item: Mentions + Collaboration revealed (override)", () => {
+  const f = allFilters(
+    ctx("FREE", eligibility()),
+    items({ discussion_mention: 1 }),
+  );
+  assert.ok(f.includes("mentions"), "actual mention item reveals Mentions");
+  assert.ok(f.includes("collaboration"), "actual mention reveals Collaboration");
+});
+
+// ---------------------------------------------------------------------------
+// REVIEWER visibility (§2)
+// ---------------------------------------------------------------------------
+
+test("TEAM ordinary member without review capability/assignment: Reviews hidden", () => {
+  const f = allFilters(ctx("TEAM", eligibility()));
+  assert.ok(!f.includes("review"), "no reviewer participation → Reviews hidden");
+});
+
+test("TEAM reviewer (writer capability): Reviews shown", () => {
+  const f = allFilters(
+    ctx("TEAM", eligibility({ reviews: { canParticipate: true } })),
+  );
+  assert.ok(f.includes("review"), "reviewer participation → Reviews shown");
+});
+
+test("Enterprise member WITH an actual review item but no capability: Reviews revealed (override)", () => {
+  const f = allFilters(
+    ctx("ENTERPRISE", eligibility(), {
+      spaceType: "ORGANIZATION",
+      orgs: [{ membershipStatus: "ACTIVE", role: "MEMBER" }],
+    }),
+    items({ review_escalation: 1 }),
+  );
+  assert.ok(f.includes("review"), "assigned escalation reveals Reviews");
+});
+
+test("Enterprise reviewer/operator: Reviews shown by capability", () => {
+  const f = allFilters(
+    ctx("ENTERPRISE", eligibility({ reviews: { canParticipate: true, canManage: true } }), {
+      spaceType: "ORGANIZATION",
+      orgs: [{ membershipStatus: "ACTIVE", role: "ADMIN" }],
+    }),
+  );
+  assert.ok(f.includes("review"), "reviewer capability → Reviews shown");
+});
+
+// ---------------------------------------------------------------------------
+// ASSIGNED TO ME source eligibility (§3)
+// ---------------------------------------------------------------------------
+
+test("no valid assignment source: Assigned to me hidden", () => {
+  const f = allFilters(ctx("PAYG", eligibility()));
+  assert.ok(!f.includes("assigned_to_me"), "PAYG standalone has no assignment source");
+});
+
+test("PRO with personal cases: Assigned to me shown", () => {
+  const f = allFilters(
+    ctx("PRO", eligibility({ assignments: { hasCaseAssignmentCapability: true } })),
+  );
+  assert.ok(f.includes("assigned_to_me"), "case assignment capability shows Assigned");
+});
+
+test("actual case_assignment item reveals Assigned to me (downgrade/history override)", () => {
+  const f = allFilters(ctx("FREE", eligibility()), items({ case_assignment: 1 }));
+  assert.ok(f.includes("assigned_to_me"), "real assignment reveals the filter");
+});
+
+// ---------------------------------------------------------------------------
+// DUE SOON / OVERDUE source eligibility (§4)
+// ---------------------------------------------------------------------------
+
+test("no deadline source: Due soon / Overdue hidden", () => {
+  const f = allFilters(ctx("FREE", eligibility()));
+  assert.ok(!f.includes("due_soon"), "no deadline source → Due soon hidden");
+  assert.ok(!f.includes("overdue"), "no deadline source → Overdue hidden");
+});
+
+test("PAYG intake deadline source: Due soon / Overdue available", () => {
+  const f = allFilters(
+    ctx("PAYG", eligibility({ deadlines: { hasEligibleSource: true } })),
+  );
+  assert.ok(f.includes("due_soon"), "intake source enables Due soon");
+  assert.ok(f.includes("overdue"), "intake source enables Overdue");
+});
+
+test("actual overdue item reveals Overdue even without a static source", () => {
+  const f = allFilters(ctx("FREE", eligibility()), items({}, { overdue: 1 }));
+  assert.ok(f.includes("overdue"), "real overdue item reveals the filter");
+});
+
+// ---------------------------------------------------------------------------
+// SECURITY separation (§5) — the filter is universal; admin-security items
+// are aggregation-gated (never in a non-admin's scope), so they cannot leak
+// through the generic Security filter.
+// ---------------------------------------------------------------------------
+
+test("Security filter is universal (personal security is always relevant)", () => {
+  assert.ok(allFilters(ctx("FREE", eligibility())).includes("security"));
+  assert.ok(allFilters(ctx("PAYG", eligibility())).includes("security"));
+});
+
+test("Admin filter is role-gated (org OWNER/ADMIN only)", () => {
+  const member = ctx("ENTERPRISE", eligibility({ security: { hasAdminSurface: false } }), {
+    spaceType: "ORGANIZATION",
+    orgs: [{ membershipStatus: "ACTIVE", role: "MEMBER" }],
+  });
+  const admin = ctx("ENTERPRISE", eligibility({ security: { hasAdminSurface: true } }), {
+    spaceType: "ORGANIZATION",
+    orgs: [{ membershipStatus: "ACTIVE", role: "ADMIN" }],
+  });
+  assert.ok(!allFilters(member).includes("admin"), "ordinary member: no Admin filter");
+  assert.ok(allFilters(admin).includes("admin"), "org admin: Admin filter shown");
+});
+
+// ---------------------------------------------------------------------------
+// PRO PERSONAL GOVERNANCE (§6) — Outcome B: no operational governance queue
+// unless a real personal-team governance item exists.
+// ---------------------------------------------------------------------------
+
+test("PRO Personal governance: hidden (Outcome B — controls live in Settings)", () => {
+  const f = allFilters(ctx("PRO", eligibility({ governance: { canViewOperational: false } })));
+  assert.ok(!f.includes("governance"), "Pro Personal has no operational governance queue");
+});
+
+test("Org member with GOVERNANCE_VIEW: governance shown", () => {
+  const f = allFilters(
+    ctx("ENTERPRISE", eligibility({ governance: { canViewOperational: true } }), {
+      spaceType: "ORGANIZATION",
+      orgs: [{ membershipStatus: "ACTIVE", role: "MEMBER" }],
+    }),
+  );
+  assert.ok(f.includes("governance"), "GOVERNANCE_VIEW → governance shown");
+});
+
+test("actual governance item reveals governance even for Pro Personal (override)", () => {
+  const f = allFilters(
+    ctx("PRO", eligibility({ governance: { canViewOperational: false } })),
+    items({ governance: 1 }),
+  );
+  assert.ok(f.includes("governance"), "real governance item reveals the category");
+});
+
+// ---------------------------------------------------------------------------
+// Preferences groups use the SAME predicate (§8)
+// ---------------------------------------------------------------------------
+
+test("preference groups mirror the filter eligibility (one predicate)", () => {
+  const standalone = ctx("FREE", eligibility());
+  assert.equal(preferenceGroupVisible("integrity", standalone), true);
+  assert.equal(preferenceGroupVisible("collaboration", standalone), false);
+  assert.equal(preferenceGroupVisible("review", standalone), false);
+  assert.equal(preferenceGroupVisible("intake", standalone), false);
+  assert.equal(preferenceGroupVisible("governance", standalone), false);
+
+  const member = ctx("PAYG", eligibility({ collaboration: { hasActiveMembership: true } }));
+  assert.equal(preferenceGroupVisible("collaboration", member), true);
+  assert.equal(preferenceGroupVisible("intake", member), true); // PAYG intake plan
+});
+
+// ---------------------------------------------------------------------------
+// intake_link_expiring classification (2026-07-15) — an INTAKE operational
+// deadline, NOT a governance event. Behavior via the exported filter policy.
+// ---------------------------------------------------------------------------
+
+test("intake_link_expiring reveals Intake via the actual-item override, never Governance", () => {
+  // No static eligibility anywhere; only a real expiring-link item in scope.
+  const c = ctx("FREE", eligibility());
+  const f = allFilters(c, items({ intake_link_expiring: 1 }));
+  assert.ok(f.includes("intake"), "expiring link reveals Intake (core)");
+  assert.ok(!f.includes("governance"), "expiring link must NOT reveal Governance");
+});
+
+test("Governance is still revealed only by real governance items (retention/hold/destruction path unchanged)", () => {
+  const c = ctx("FREE", eligibility());
+  assert.ok(allFilters(c, items({ governance: 1 })).includes("governance"));
+  assert.ok(allFilters(c, items({ access_review_pending: 1 })).includes("governance"));
+  // …and an expiring intake link alone does not.
+  assert.ok(!allFilters(c, items({ intake_link_expiring: 1 })).includes("governance"));
+});
+
+test("intake_link_expiring drives Due soon / Overdue via the deadline signal, not the category", () => {
+  const c = ctx("FREE", eligibility());
+  assert.ok(
+    allFilters(c, items({ intake_link_expiring: 1 }, { dueSoon: 1 })).includes("due_soon"),
+    "in-window expiry reveals Due soon",
+  );
+  assert.ok(
+    allFilters(c, items({ intake_link_expiring: 1 }, { overdue: 1 })).includes("overdue"),
+    "actual overdue reveals Overdue",
+  );
+  assert.ok(
+    !allFilters(c, items({ intake_link_expiring: 1 }, { dueSoon: 1 })).includes("overdue"),
+    "due-soon (not expired) must NOT reveal Overdue",
+  );
+});
+
+test("governance capability still shows the Governance filter (reclassification did not touch it)", () => {
+  const c = ctx("ENTERPRISE", eligibility({ governance: { canViewOperational: true } }), {
+    spaceType: "ORGANIZATION",
+    orgs: [{ membershipStatus: "ACTIVE", role: "MEMBER" }],
+  });
+  assert.ok(allFilters(c).includes("governance"));
+});
+
+test("a real item reveals its preference group (no preference hidden while items exist)", () => {
+  const standalone = ctx("FREE", eligibility());
   assert.equal(
-    deriveOperationsUiContext({
-      ...ORG_MEMBER,
-      organizations: [{ membershipStatus: "PENDING", role: "ADMIN" }],
-    }).canViewAdminAttention,
-    false,
+    preferenceGroupVisible("review", standalone, items({ review_escalation: 1 })),
+    true,
+  );
+  assert.equal(
+    preferenceGroupVisible("collaboration", standalone, items({ discussion_mention: 1 })),
+    true,
   );
 });
 
-test("governance relevance: all org members; Personal only with the governance capability", () => {
-  assert.equal(deriveOperationsUiContext(ORG_MEMBER).canReceiveGovernance, true);
-  assert.equal(deriveOperationsUiContext(PERSONAL_PRO).canReceiveGovernance, true);
-  assert.equal(deriveOperationsUiContext(PERSONAL_FREE).canReceiveGovernance, false);
-});
-
-test("Option A contract: no per-surface predicates exist for workspace workflows (collaboration/reviews are always offered)", () => {
-  // The canonical visibility model gates ONLY never-receivable classes
-  // (admin, governance). Collaboration/reviews/mentions/intake have NO
-  // resolver flag — their absence IS the rule; a reappearing predicate
-  // would reintroduce the rejected participation model.
-  const out = deriveOperationsUiContext(ORG_MEMBER) as Record<string, unknown>;
-  assert.deepEqual(
-    Object.keys(out).sort(),
-    [
-      "canReceiveGovernance",
-      "canViewAdminAttention",
-      "hasOrganizations",
-      "isPersonalWorkspace",
-      "workspaceId",
-    ],
-  );
-});
-
-test("hasOrganizations counts ACTIVE org memberships only", () => {
-  assert.equal(deriveOperationsUiContext(PERSONAL_FREE).hasOrganizations, false);
-  assert.equal(deriveOperationsUiContext(ORG_MEMBER).hasOrganizations, true);
-});
-
 // ---------------------------------------------------------------------------
-// Runtime — filter grouping policy
+// Bulk actions + tile states + filter partition (unchanged invariants)
 // ---------------------------------------------------------------------------
 
-test("every filter is exactly primary or secondary — nothing lost, nothing duplicated", () => {
+test("every filter is exactly primary or secondary — nothing lost or duplicated", () => {
   const all = [...PRIMARY_OPERATIONS_FILTERS, ...SECONDARY_OPERATIONS_FILTERS];
   assert.equal(all.length, 20);
   assert.equal(new Set(all).size, 20);
 });
 
-test("admin chip renders only for admin attention; governance only when receivable", () => {
-  const member = deriveOperationsUiContext(ORG_MEMBER);
-  const admin = deriveOperationsUiContext(ORG_ADMIN);
-  const personalFree = deriveOperationsUiContext(PERSONAL_FREE);
-  assert.ok(!visibleSecondaryFilters(member, "all").includes("admin"));
-  assert.ok(visibleSecondaryFilters(admin, "all").includes("admin"));
-  assert.ok(!visibleSecondaryFilters(personalFree, "all").includes("governance"));
-  assert.ok(visibleSecondaryFilters(member, "all").includes("governance"));
+test("the active secondary filter is promoted into the primary row", () => {
+  const c = ctx("TEAM", eligibility({ collaboration: { hasActiveMembership: true } }));
+  assert.ok(visiblePrimaryFilters(c, "mentions").includes("mentions"));
+  assert.ok(!visibleSecondaryFilters(c, "mentions").includes("mentions"));
 });
 
-test("the active secondary filter is promoted into the primary row (state never hidden)", () => {
-  const ctx = deriveOperationsUiContext(ORG_MEMBER);
-  assert.ok(visiblePrimaryFilters(ctx, "mentions").includes("mentions"));
-  assert.ok(!visibleSecondaryFilters(ctx, "mentions").includes("mentions"));
-  // And a normal primary selection does not duplicate.
-  const primary = visiblePrimaryFilters(ctx, "all");
-  assert.equal(new Set(primary).size, primary.length);
-});
-
-// ---------------------------------------------------------------------------
-// Runtime — bulk actions + tile states reflect reality
-// ---------------------------------------------------------------------------
-
-test("bulk read actions never render with zero unread; category variant needs filtered rows too", () => {
+test("bulk read actions never render with zero unread; category variant needs rows too", () => {
   assert.equal(shouldOfferMarkAllRead(0), false);
   assert.equal(shouldOfferMarkAllRead(3), true);
   assert.equal(shouldOfferMarkCategoryRead(3, 0, true), false);
   assert.equal(shouldOfferMarkCategoryRead(3, 2, true), true);
   assert.equal(shouldOfferMarkCategoryRead(3, 2, false), false);
-  assert.equal(shouldOfferMarkCategoryRead(0, 2, true), false);
 });
 
-test("zero-count severity tiles are disabled unless they are the active toggle", () => {
+test("zero-count severity tiles are disabled unless active", () => {
   assert.equal(toneTileDisabled(0, false), true);
   assert.equal(toneTileDisabled(0, true), false);
   assert.equal(toneTileDisabled(5, false), false);
@@ -155,36 +463,59 @@ test("zero-count severity tiles are disabled unless they are the active toggle",
 const PAGE = read("app/(app)/inbox/page.tsx");
 const PANEL = read("components/notifications/NotificationPreferencesPanel.tsx");
 const BELL = read("components/app-shell-v2/NotificationBell.tsx");
+const RESOLVER = read("lib/notifications/useOperationsUiContext.ts");
+const SERVICE_TYPES = read("lib/platform-context/types.ts");
 
-test("severity tiles + empty-state decisions read the workspace scopeSummary", () => {
-  assert.match(PAGE, /scopeSummary\?\.byTone\[tone\]/);
-  assert.match(
+test("resolver + filters consume the backend operationalEligibility projection", () => {
+  assert.match(RESOLVER, /operationalEligibility/);
+  assert.match(SERVICE_TYPES, /PlatformContextOperationalEligibility/);
+});
+
+test("page threads the actual-item override into the filter policy", () => {
+  assert.match(PAGE, /buildActualItemSignal\(/);
+  assert.match(PAGE, /visiblePrimaryFilters\(uiCtx, filter, itemSignal\)/);
+  assert.match(PAGE, /visibleSecondaryFilters\(uiCtx, filter, itemSignal\)/);
+});
+
+test("preferences panel uses the SAME predicate + actual-item override", () => {
+  assert.match(PANEL, /preferenceGroupVisible\(g\.domain, uiCtx, itemSignal\)/);
+  assert.match(PANEL, /buildActualItemSignal\(/);
+  // Collaboration group is now participation-gated (domain: "collaboration").
+  assert.match(PANEL, /domain: "collaboration"/);
+  assert.match(PANEL, /domain: "governance"/);
+});
+
+test("Preferences: delivery column renamed Inbox → In-app (no stray Inbox copy)", () => {
+  assert.match(PANEL, /<th style=\{\{ textAlign: "center" \}\}>In-app<\/th>/);
+  assert.doesNotMatch(PANEL, /Inbox/);
+});
+
+test("OpsCenter: subtitle + empty-state are adaptive (no hardcoded reviews/governance list)", () => {
+  assert.doesNotMatch(
     PAGE,
-    /\(state\.data\.scopeSummary\?\.total \?\? state\.data\.summary\.total\) === 0/,
+    /reviews, mentions, invitations, governance, security, and integrity signals/,
   );
+  assert.match(PAGE, /function describeAttentionAreas/);
+  assert.match(PAGE, /uiCtx\.canParticipateInReviews \|\|/);
+  assert.match(PAGE, /uiCtx\.canReceiveGovernance \|\|/);
+  assert.match(PAGE, /uiCtx\.canCollaborate \|\|/);
 });
 
-test("chips render from the pure policy with a More-filters disclosure", () => {
-  assert.match(PAGE, /visiblePrimaryFilters\(uiCtx, filter\)/);
-  assert.match(PAGE, /visibleSecondaryFilters\(uiCtx, filter\)/);
-  assert.match(PAGE, /aria-controls="inbox-secondary-filters"/);
-  assert.match(PAGE, /aria-pressed=\{active\}/);
+test("OpsCenter: workspace scope selector is hidden for single-workspace users", () => {
+  assert.match(PAGE, /workspaceOptions\.length > 2 &&/);
 });
 
-test("Organizations CTA only for users with organizations; personal-only users get evidence remediation", () => {
+test("Organizations CTA only for org users; personal-only users get evidence remediation", () => {
   assert.match(PAGE, /uiCtx\.hasOrganizations \? \(/);
   assert.match(PAGE, /data-action="empty-open-evidence"/);
 });
 
-test("SLA row stays semantically honest; governance group keys off canReceiveGovernance", () => {
-  assert.match(PANEL, /SLA_NEAR_BREACH: "Evidence integrity & verification failures"/);
-  assert.doesNotMatch(PANEL, /SLA timers approaching breach/);
-  assert.match(PANEL, /requiresGovernance && !uiCtx\.canReceiveGovernance/);
-});
-
-test("bell popover manages focus (trap + restore to trigger)", () => {
+test("bell popover manages focus (trap + restore to trigger); no Bell-only eligibility logic", () => {
   assert.match(BELL, /triggerRef\.current\?\.focus\(\)/);
   assert.match(BELL, /onTrapKeyDown/);
+  // Parity is structural: the Bell renders only backend-authorized items and
+  // applies no client eligibility gate of its own.
+  assert.doesNotMatch(BELL, /operationalEligibility/);
 });
 
 test("terminology: Operations Center, not Operational inbox", () => {

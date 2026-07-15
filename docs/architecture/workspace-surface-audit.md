@@ -1,6 +1,17 @@
 # PROOVRA — Workspace Surface Audit
 _Status: CLOSED — all tests pass._
 
+> **Update 2026-07-15 — Trust Hub removed.** The former authenticated static
+> Trust Hub (`/trust-hub`, route id `workspace.trust`) was deleted as
+> redundant. The canonical customer-facing trust portal is the **public Trust
+> Center** (`/trust`, reached from the footer); trust-related operational
+> controls live in their canonical **Operations/Governance/Evidence** homes;
+> and **Organization Admin Trust** (`/organizations/[id]/admin/trust`) remains
+> organization-scoped. The in-app `/trust-center/*` articles are now a
+> **non-navigational** documentation surface gated by `workspace.trust_center`
+> (sidebarEligible=false). References below to `workspace.trust` as a sidebar
+> pillar describe the pre-removal state.
+
 ## 1. Executive verdict
 
 The workspace surface is **shippable to PRO users today**. Core Capture / Evidence / Cases / Search / Reports flows are stable, the four discovery surfaces (sidebar, All Tools, Cmd-K, PageGate) are internally consistent, and constitutional rules are honored: PERSONAL + ORGANIZATION are the only workspace kinds, "Team" is never spoken in product UI, no env-var names leak into user-facing copy, and destructive flows do not rely on `window.confirm`.

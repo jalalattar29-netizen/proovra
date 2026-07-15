@@ -50,15 +50,15 @@ const PLATFORM_CONTEXT_TYPES = readSource(
   "../../../services/api/src/services/platform-context/types.ts",
 );
 const NEXT_CONFIG = readSource("../../../apps/web/next.config.js");
-// Phase E5 rebaseline: the in-product workspace Trust hub (with
-// TRUST_CARDS + PageRouteGate routeId="workspace.trust") migrated
-// from `(app)/trust/page.tsx` to `(app)/trust-hub/page.tsx`. The
-// canonical public Trust Center now lives at `app/trust/page.tsx`;
-// Next.js parallel-page rules forbid keeping a second `page.tsx`
-// inside the `(app)` group that resolves to `/trust`. Source-of-truth
-// content checks below now run against the workspace hub at its new
-// canonical location.
-const TRUST_PAGE = readSource("../../../apps/web/app/(app)/trust-hub/page.tsx");
+// 2026-07-15: the authenticated static Trust Hub (`/trust-hub`,
+// id `workspace.trust`) was removed as redundant. The canonical trust
+// portal is the public Trust Center (`/trust`); the in-app
+// `/trust-center/*` article pages are a NON-navigational documentation
+// surface gated by `workspace.trust_center`. Section 5 now pins that
+// truth against a representative trust-center article page.
+const TRUST_ARTICLE = readSource(
+  "../../../apps/web/app/(app)/trust-center/security/page.tsx",
+);
 
 const CANONICAL_PILLAR_ORDER = [
   "HOME",
@@ -204,28 +204,30 @@ describe("Phase 1A — server-side pillar projection", () => {
 // 5 — Trust pillar surface
 // ===========================================================================
 
-describe("Phase 1A — Trust pillar surface", () => {
-  it("workspace.trust is registered in the route registry", () => {
-    expect(ROUTE_REGISTRY).toMatch(/id:\s*"workspace\.trust"/);
-    // Phase R7.3 (F17) — authenticated Trust nav points at /trust-hub.
-    expect(ROUTE_REGISTRY).toMatch(/href:\s*"\/trust-hub"/);
+describe("Phase 1A — Trust pillar surface (Trust Hub removed 2026-07-15)", () => {
+  it("the authenticated Trust Hub route is gone (no workspace.trust / /trust-hub)", () => {
+    // The old hub route id + URL must not remain in the registry.
+    // (`workspace.trust_center` does NOT match `"workspace.trust"` — the
+    // closing quote falls after `trust`, not `trust_center`.)
+    expect(ROUTE_REGISTRY).not.toMatch(/id:\s*"workspace\.trust"/);
+    expect(ROUTE_REGISTRY).not.toMatch(/"\/trust-hub"/);
+  });
+
+  it("the TRUST pillar now classifies the NON-navigational trust-center doc gate", () => {
+    expect(ROUTE_REGISTRY).toMatch(/id:\s*"workspace\.trust_center"/);
     expect(ROUTE_REGISTRY).toMatch(
-      /workspace\.trust[\s\S]*?sidebarEligible:\s*true/,
+      /workspace\.trust_center[\s\S]*?href:\s*"\/trust-center"/,
+    );
+    // No sidebar / cmd-K / All Tools discovery path (not a Trust landing).
+    expect(ROUTE_REGISTRY).toMatch(
+      /workspace\.trust_center[\s\S]*?sidebarEligible:\s*false/,
     );
   });
 
-  it("trust page exists and references operator surfaces", () => {
-    // The trust page must point at REAL operator pages (no placeholders).
-    expect(TRUST_PAGE).toContain("/legal/verification-methodology");
-    expect(TRUST_PAGE).toContain("/verify");
-    expect(TRUST_PAGE).toContain("/operations/signers");
-    expect(TRUST_PAGE).toContain("/subprocessors");
-    expect(TRUST_PAGE).toContain("/privacy");
-    expect(TRUST_PAGE).toContain("/data-retention");
-  });
-
-  it("trust page wraps content in PageRouteGate", () => {
-    expect(TRUST_PAGE).toMatch(/PageRouteGate[\s\S]*?routeId="workspace\.trust"/);
+  it("in-app trust-center article pages gate on workspace.trust_center", () => {
+    expect(TRUST_ARTICLE).toMatch(
+      /PageRouteGate[\s\S]*?routeId="workspace\.trust_center"/,
+    );
   });
 });
 

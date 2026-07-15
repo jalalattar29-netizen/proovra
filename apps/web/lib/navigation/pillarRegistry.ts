@@ -352,9 +352,14 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["workspace.collaboration_team_invite_accept", "ADMIN"],
 
   // -----------------------------------------------------------------
-  // TRUST (in-product trust hub + verification surfaces)
+  // TRUST — the authenticated Trust Hub (`workspace.trust`) was removed
+  // 2026-07-15. The canonical trust portal is the public Trust Center
+  // (`/trust`). The TRUST pillar now classifies only the in-app
+  // `/trust-center/*` documentation gate (`workspace.trust_center`),
+  // which is NON-navigational (sidebarEligible=false) — so the pillar
+  // carries no sidebar entry while the 8-pillar IA stays intact.
   // -----------------------------------------------------------------
-  ["workspace.trust", "TRUST"],
+  ["workspace.trust_center", "TRUST"],
 ]);
 
 /**

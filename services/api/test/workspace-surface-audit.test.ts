@@ -152,14 +152,15 @@ describe("Workspace surface audit — LABEL_CLARIFICATION changes", () => {
     expect(entry).not.toMatch(/label:\s*"Intelligence Platform"/);
   });
 
-  it("workspace.trust label is the canonical 'Trust Center' entry", () => {
-    const entry = sliceRouteEntry("workspace.trust");
-    // Phase R7.3 (F17) — the AUTHENTICATED Trust nav must point at the
-    // in-app hub `/trust-hub`, NOT the public marketing `/trust`. The prior
-    // assertion pinned the bug (sidebar/cmd-K sent authed users to the
-    // public page).
-    expect(entry).toMatch(/href:\s*"\/trust-hub"/);
-    expect(entry).toMatch(/label:\s*"Trust Center"/);
+  it("the Trust Hub was removed; trust docs use a non-navigational gate", () => {
+    // The authenticated static Trust Hub (`workspace.trust` → `/trust-hub`)
+    // was deleted 2026-07-15. The surviving trust-center docs gate is
+    // non-navigational (no sidebar / cmd-K / All Tools presence); the
+    // canonical trust portal is the public Trust Center at /trust.
+    const entry = sliceRouteEntry("workspace.trust_center");
+    expect(entry).toMatch(/href:\s*"\/trust-center"/);
+    expect(entry).toMatch(/label:\s*"Trust & Compliance"/);
+    expect(entry).toMatch(/sidebarEligible:\s*false/);
   });
 });
 

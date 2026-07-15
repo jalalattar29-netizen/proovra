@@ -72,10 +72,10 @@ const STATUS_SERVICE = readRepo(
 const ROUTES = readRepo(
   "services/api/src/routes/trust-and-governance.routes.ts",
 );
-// Phase E5 rebaseline: workspace Trust hub migrated from
-// `(app)/trust/page.tsx` to `(app)/trust-hub/page.tsx`. The canonical
-// public Trust Center now owns `/trust` (Next.js parallel-page rule).
-const TRUST_PAGE = readRepo("apps/web/app/(app)/trust-hub/page.tsx");
+// 2026-07-15: the authenticated static Trust Hub (`/trust-hub`) was removed
+// as redundant. The canonical customer-facing trust portal is the PUBLIC
+// Trust Center at `app/trust/page.tsx` (`/trust`).
+const TRUST_PAGE = readRepo("apps/web/app/trust/page.tsx");
 const REDIRECT_LANDING = readRepo("apps/web/app/(app)/trust-center/page.tsx");
 const METHODOLOGY_PAGE = readRepo(
   "apps/web/app/(app)/trust-center/methodology/page.tsx",
@@ -494,9 +494,8 @@ describe("(18) Trust pages render distinct branches per load state", () => {
     expect(AI_DISCLOSURE_PAGE).toMatch(/TrustCenterSectionList/);
     expect(SECURITY_PAGE).toMatch(/TrustCenterSectionList/);
   });
-  it("canonical /trust renders a real card grid and /trust-center redirects there", () => {
-    expect(TRUST_PAGE).toMatch(/data-trust-section="cards"/);
-    expect(TRUST_PAGE).toMatch(/data-trust-card/);
+  it("canonical public /trust renders trust content and /trust-center redirects there", () => {
+    expect(TRUST_PAGE).toMatch(/data-trust-center-page/);
     expect(REDIRECT_LANDING).toMatch(/redirect\("\/trust"\)/);
   });
 });
@@ -522,24 +521,18 @@ describe("(19) Sentry-batch repair migration is present + allowlisted", () => {
 });
 
 // ===========================================================================
-// BOUNDED GUARD (20) — Canonical /trust page exposes the enterprise card grid
+// BOUNDED GUARD (20) — Public Trust Center is the canonical trust portal
+// (the authenticated Trust Hub card grid was removed 2026-07-15).
 // ===========================================================================
 
-describe("(20) Canonical /trust page exposes the enterprise card grid", () => {
-  it("/trust stays wrapped in the canonical PageRouteGate", () => {
-    expect(TRUST_PAGE).toMatch(/PageRouteGate\s+routeId="workspace\.trust"/);
-  });
-  it("/trust renders a non-empty set of trust cards", () => {
-    const cards = TRUST_PAGE.match(/title:\s*"/g) ?? [];
-    expect(cards.length).toBeGreaterThanOrEqual(12);
-  });
-  it("/trust includes the required enterprise-facing disclosures and operator links", () => {
-    expect(TRUST_PAGE).toMatch(/title:\s*"AI transparency"/);
-    expect(TRUST_PAGE).toMatch(/title:\s*"Security documentation"/);
-    expect(TRUST_PAGE).toMatch(/title:\s*"Subprocessors"/);
-    expect(TRUST_PAGE).toMatch(/title:\s*"Recovery validation"/);
-    expect(TRUST_PAGE).toMatch(/href:\s*"\/trust-center\/ai-disclosure"/);
-    expect(TRUST_PAGE).toMatch(/href:\s*"\/trust-center\/security"/);
+describe("(20) Public /trust is the canonical enterprise trust portal", () => {
+  it("the public Trust Center renders enterprise trust content", () => {
+    expect(TRUST_PAGE).toMatch(/data-trust-center-page/);
+    // Enterprise-facing trust foundations remain on the public center.
+    expect(TRUST_PAGE).toMatch(/AI Transparency/);
+    expect(TRUST_PAGE).toMatch(/Security/);
+    expect(TRUST_PAGE).toMatch(/Subprocessors/);
+    expect(TRUST_PAGE).toMatch(/Verification Methodology/);
   });
 });
 

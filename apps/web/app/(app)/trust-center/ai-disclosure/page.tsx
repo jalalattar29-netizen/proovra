@@ -6,7 +6,7 @@ import { AiCapabilityStatusTable } from "../../../../components/ai-copilot/AiCap
 
 export default function AiDisclosurePage() {
   return (
-    <PageRouteGate routeId="workspace.trust">
+    <PageRouteGate routeId="workspace.trust_center">
       {/* Phase A1 — live, backend-computed capability status (never inferred). */}
       <AiCapabilityStatusTable />
       <TrustCenterSectionList

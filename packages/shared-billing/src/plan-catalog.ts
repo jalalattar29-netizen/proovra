@@ -34,6 +34,25 @@ export type PlanCapabilities = {
   publicVerifyIncluded: boolean;
 
   /**
+   * Operational-workflow commercial flags (Teams Entitlement Alignment
+   * follow-up, 2026-07-15). These encode the EXACT published Pricing
+   * comparison rows so the machine-readable capability table is the one
+   * commercial source of truth for these features (previously the rows
+   * existed only as pricing-page prose). Pricing rows, in plan order
+   * FREE / PAYG / PRO / TEAM / ENTERPRISE:
+   *   - "Intake links" + "Submission requests":
+   *       Not included / Included / Included / Included / Included
+   *   - "Cases & matters":
+   *       Not included / Not included / Personal / Team / Org-wide
+   *   - "Reviewer operations" + "Tasks & review queues":
+   *       Not included / Not included / Not included / Team / Advanced
+   */
+  intakeIncluded: boolean;
+  casesIncluded: boolean;
+  reviewerOperationsIncluded: boolean;
+  reviewQueuesIncluded: boolean;
+
+  /**
    * Lifetime cap on evidence records. `null` = no lifetime cap (the
    * monthly cap may still apply). The enforcement guard checks this
    * via a non-deleted Evidence count on the workspace.
@@ -138,6 +157,10 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     reportsIncluded: false,
     verificationPackageIncluded: false,
     publicVerifyIncluded: true,
+    intakeIncluded: false,
+    casesIncluded: false,
+    reviewerOperationsIncluded: false,
+    reviewQueuesIncluded: false,
     maxEvidenceRecords: 3,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
@@ -160,6 +183,10 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     reportsIncluded: true,
     verificationPackageIncluded: true,
     publicVerifyIncluded: true,
+    intakeIncluded: true,
+    casesIncluded: false,
+    reviewerOperationsIncluded: false,
+    reviewQueuesIncluded: false,
     maxEvidenceRecords: null,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 1,
@@ -182,6 +209,10 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     reportsIncluded: true,
     verificationPackageIncluded: true,
     publicVerifyIncluded: true,
+    intakeIncluded: true,
+    casesIncluded: true,
+    reviewerOperationsIncluded: false,
+    reviewQueuesIncluded: false,
     maxEvidenceRecords: 100,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
@@ -204,6 +235,10 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     reportsIncluded: true,
     verificationPackageIncluded: true,
     publicVerifyIncluded: true,
+    intakeIncluded: true,
+    casesIncluded: true,
+    reviewerOperationsIncluded: true,
+    reviewQueuesIncluded: true,
     maxEvidenceRecords: null,
     maxEvidenceRecordsPerMonth: 500,
     paygCreditsRequiredPerCompletion: 0,
@@ -226,6 +261,10 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     reportsIncluded: true,
     verificationPackageIncluded: true,
     publicVerifyIncluded: true,
+    intakeIncluded: true,
+    casesIncluded: true,
+    reviewerOperationsIncluded: true,
+    reviewQueuesIncluded: true,
     maxEvidenceRecords: null,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,

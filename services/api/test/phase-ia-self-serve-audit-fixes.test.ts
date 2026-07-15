@@ -95,51 +95,12 @@ describe("Phase IA-self-serve-audit-fixes — Search inspector gates", () => {
 });
 
 // ============================================================================
-// 2. Trust — Governance card gate
+// 2. Trust — Governance card gate — REMOVED 2026-07-15
+// The authenticated static Trust Hub (`/trust-hub`, with TRUST_CARDS + the
+// surfaceHref/canAccessSurface governance-card gate) was deleted as redundant.
+// These hub-only assertions were removed with it. Governance remains reachable
+// via its canonical `/governance` home, gated by GOVERNANCE_VIEW.
 // ============================================================================
-
-describe("Phase IA-self-serve-audit-fixes — Trust governance card gate", () => {
-  // Phase E5 rebaseline: workspace Trust hub moved from
-  // `(app)/trust/page.tsx` to `(app)/trust-hub/page.tsx` because the
-  // canonical public Trust Center now owns `/trust` (Next.js parallel-
-  // page rule forbids both). Self-serve gate assertions still apply to
-  // the workspace hub at its new canonical location.
-  const TRUST = readWeb("app/(app)/trust-hub/page.tsx");
-
-  it("file is a client component (hook usage requires it)", () => {
-    expect(TRUST).toMatch(/^[\s\S]{0,800}"use client";/);
-  });
-
-  it("imports canAccessSurface + useSurfaceUserContext", () => {
-    expect(TRUST).toMatch(
-      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/access["']/,
-    );
-    expect(TRUST).toMatch(
-      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
-    );
-  });
-
-  it("TrustCard type adds an optional surfaceHref field", () => {
-    expect(TRUST).toMatch(/surfaceHref\?: string/);
-  });
-
-  it("Governance posture card declares surfaceHref: '/governance'", () => {
-    expect(TRUST).toMatch(
-      /title:\s*"Governance posture"[\s\S]{0,400}surfaceHref:\s*"\/governance"/,
-    );
-  });
-
-  it("Governance card body no longer references 'lifecycle orchestrator'", () => {
-    expect(TRUST).not.toMatch(/Lifecycle orchestrator state/i);
-  });
-
-  it("the render loop filters by canAccessSurface before mapping cards", () => {
-    expect(TRUST).toMatch(
-      /visibleCards\s*=\s*TRUST_CARDS\.filter\([\s\S]{0,300}canAccessSurface\(surfaceUserCtx,\s*card\.surfaceHref\)/,
-    );
-    expect(TRUST).toMatch(/\{visibleCards\.map\(/);
-  });
-});
 
 // ============================================================================
 // 3. Intake Links — copy rewrites
@@ -604,13 +565,8 @@ describe("Phase IA-self-serve-audit-fixes — banned-phrase sweep", () => {
       /Notes &amp; Reviewer Collaboration/,
       ["app/(app)/evidence/[id]/page.tsx"],
     ],
-    [
-      // Phase E5 rebaseline: workspace Trust hub moved to /trust-hub
-      // (canonical /trust is now the public Trust Center).
-      "Trust 'Lifecycle orchestrator state'",
-      /Lifecycle orchestrator state/i,
-      ["app/(app)/trust-hub/page.tsx"],
-    ],
+    // (The Trust Hub 'Lifecycle orchestrator state' banned-copy check was
+    // removed 2026-07-15 with the deletion of the authenticated Trust Hub.)
   ];
 
   for (const [label, re, files] of BANNED) {
@@ -647,9 +603,8 @@ describe("Phase IA-self-serve-audit-fixes — hidden-link sweep", () => {
     { page: "app/(app)/search/page.tsx", href: "/workflows/", allowedIfGate: "canSeeWorkflows" },
     { page: "app/(app)/search/page.tsx", href: "/investigation/", allowedIfGate: "canSeeInvestigation" },
     { page: "app/(app)/search/page.tsx", href: "/integrations", allowedIfGate: "canSeeIntegrations" },
-    // Trust — Governance card gated this phase (Phase E5 rebaseline:
-    // workspace Trust hub moved to /trust-hub).
-    { page: "app/(app)/trust-hub/page.tsx", href: "/governance", allowedIfGate: "canAccessSurface" },
+    // (Trust Hub governance-card hidden-link check removed 2026-07-15 with
+    // the deletion of the authenticated Trust Hub.)
     // Billing — no hidden hrefs at all
     { page: "app/(app)/billing/page.tsx", href: "/workflows", allowedIfGate: null },
     { page: "app/(app)/billing/page.tsx", href: "/governance", allowedIfGate: null },

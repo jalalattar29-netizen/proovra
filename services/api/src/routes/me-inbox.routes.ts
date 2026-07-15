@@ -495,7 +495,12 @@ const FILTER_CATEGORY_MEMBERS: Partial<
     "review_escalation",
     "intake_submission_pending_review",
   ],
-  governance: ["governance", "access_review_pending", "intake_link_expiring"],
+  // intake_link_expiring is an INTAKE operational deadline, NOT a
+  // governance (retention/legal-hold/destruction) event — it lives under
+  // `intake` (core) + `admin` (resolution requires ADMIN: revoke/extend
+  // are requireAdmin in workflow-intake-links.routes.ts) + the dueAt
+  // Due-soon/Overdue lenses. It is deliberately NOT a governance member.
+  governance: ["governance", "access_review_pending"],
   failures: [
     "communication_failure",
     "report_failure",
@@ -2775,6 +2780,18 @@ export async function meInboxRoutes(app: FastifyInstance) {
         }
         return true;
       });
+      // Actual-item override signal (2026-07-15). The filter-independent
+      // per-category presence + deadline posture over the workspace scope.
+      // Every scopeItem is ALREADY membership/role-authorized by the
+      // aggregation, so this set is a backend-authorized, leak-proof,
+      // filter-stable answer to "does an eligible item exist in category
+      // X?" — the frontend uses it to REVEAL a category chip that static
+      // plan/participation eligibility would otherwise hide (e.g. a FREE
+      // user mentioned inside a paid Team, or a downgraded user's
+      // historical assignment). It never hides a category and never adds
+      // an item — visibility only. No second aggregation runs.
+      const scopeCategoryCount = (category: InboxCategory): number =>
+        scopeItems.filter((i) => i.category === category).length;
       const scopeSummary = {
         total: scopeItems.length,
         unread: scopeItems.filter((i) => !i.isRead).length,
@@ -2783,6 +2800,48 @@ export async function meInboxRoutes(app: FastifyInstance) {
           high: scopeItems.filter((i) => i.tone === "high").length,
           warning: scopeItems.filter((i) => i.tone === "warning").length,
           info: scopeItems.filter((i) => i.tone === "info").length,
+        },
+        byCategory: {
+          onboarding: scopeCategoryCount("onboarding"),
+          org_invite: scopeCategoryCount("org_invite"),
+          org_admin: scopeCategoryCount("org_admin"),
+          governance: scopeCategoryCount("governance"),
+          review_decision: scopeCategoryCount("review_decision"),
+          discussion_mention: scopeCategoryCount("discussion_mention"),
+          discussion_assigned: scopeCategoryCount("discussion_assigned"),
+          review_escalation: scopeCategoryCount("review_escalation"),
+          access_review_pending: scopeCategoryCount("access_review_pending"),
+          mfa_recovery_pending: scopeCategoryCount("mfa_recovery_pending"),
+          communication_failure: scopeCategoryCount("communication_failure"),
+          security_event_high: scopeCategoryCount("security_event_high"),
+          report_failure: scopeCategoryCount("report_failure"),
+          verification_package_failure: scopeCategoryCount(
+            "verification_package_failure",
+          ),
+          ots_failure: scopeCategoryCount("ots_failure"),
+          intake_submission_pending_review: scopeCategoryCount(
+            "intake_submission_pending_review",
+          ),
+          intake_required_items_missing: scopeCategoryCount(
+            "intake_required_items_missing",
+          ),
+          intake_link_expiring: scopeCategoryCount("intake_link_expiring"),
+          collaboration: scopeCategoryCount("collaboration"),
+          tsa_failure: scopeCategoryCount("tsa_failure"),
+          case_assignment: scopeCategoryCount("case_assignment"),
+        },
+        // Deadline posture over the scope — powers due_soon / overdue
+        // filter eligibility (only 5 categories carry a real dueAt, so a
+        // scope with none must not show permanent empty deadline filters).
+        deadlines: {
+          dueSoon: scopeItems.filter((i) => {
+            if (!i.dueAt) return false;
+            const due = new Date(i.dueAt).getTime();
+            return due >= nowMs && due <= nowMs + 7 * 24 * 60 * 60 * 1000;
+          }).length,
+          overdue: scopeItems.filter(
+            (i) => i.dueAt != null && new Date(i.dueAt).getTime() < nowMs,
+          ).length,
         },
       };
 

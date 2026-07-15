@@ -202,21 +202,12 @@ const WORKSPACE_GROUP: NavRegistryGroup = {
       badgeKey: null,
       requiresCapability: "DASHBOARD_VIEW",
     },
-    // Phase R7.3 (F17) — the AUTHENTICATED Trust nav points at the in-app
-    // hub `/trust-hub`. `/trust` is the PUBLIC marketing Trust Center and
-    // must not be the target of authenticated navigation; `/trust-center/*`
-    // holds the document surfaces. Kept in sync with the frontend
-    // routeRegistry `workspace.trust` entry (asserted by
-    // phase3-nav-frontend-drift).
-    {
-      id: "workspace.trust",
-      label: "Trust Center",
-      href: "/trust-hub",
-      iconKey: "trust",
-      domain: "WORKSPACE",
-      badgeKey: null,
-      requiresCapability: "DASHBOARD_VIEW",
-    },
+    // Trust nav removed (2026-07-15): the authenticated static Trust Hub
+    // (`/trust-hub`, id `workspace.trust`) was deleted as redundant. The
+    // canonical trust portal is the public Trust Center (`/trust`, reached via
+    // the footer); the in-app `/trust-center/*` articles are a non-nav
+    // documentation surface (frontend gate id `workspace.trust_center`,
+    // sidebarEligible=false) and therefore have no entry in this nav projection.
     // Phase 4A — Governance Platform discoverability. The /governance-platform
     // page is the canonical org governance hub (departments, delegated admin,
     // policies, access reviews, cross-org). Gated by GOVERNANCE_VIEW.

@@ -30,6 +30,8 @@
 import { prisma } from "../../db.js";
 import { isPlatformAdmin as resolveIsPlatformAdmin } from "../platform-admin.service.js";
 import { resolveCapabilities, resolvePersona } from "./capability-registry.js";
+import { getPlanCapabilities } from "../plan-catalog.service.js";
+import { deriveOperationalEligibility } from "./operational-eligibility.js";
 import {
   buildNavigationProjection,
   filterNavigationRegistry,
@@ -429,6 +431,27 @@ export async function buildPlatformContext(
   }
 
   // -------------------------------------------------------------------------
+  // Plan feature flags (2026-07-15) — the CANONICAL commercial capability
+  // values (PLAN_CAPABILITIES) projected onto the active workspace's plan
+  // so the Operations Center + Notification Preferences resolver can be
+  // entitlement-aware WITHOUT the frontend importing the billing package
+  // or duplicating the commercial table. This is the single source of
+  // truth; no parallel entitlement system.
+  // -------------------------------------------------------------------------
+  const planCaps = getPlanCapabilities(
+    (workspace.plan ?? "FREE") as Parameters<typeof getPlanCapabilities>[0],
+  );
+  const planFeatures = {
+    reportsIncluded: planCaps.reportsIncluded,
+    verificationPackageIncluded: planCaps.verificationPackageIncluded,
+    intakeIncluded: planCaps.intakeIncluded,
+    casesIncluded: planCaps.casesIncluded,
+    reviewerOperationsIncluded: planCaps.reviewerOperationsIncluded,
+    reviewQueuesIncluded: planCaps.reviewQueuesIncluded,
+    teamCollaborationIncluded: planCaps.maxOwnedTeams > 0,
+  };
+
+  // -------------------------------------------------------------------------
   // Persona
   // -------------------------------------------------------------------------
   const resolvedPersona = resolvePersona({
@@ -716,6 +739,76 @@ export async function buildPlatformContext(
   });
 
   // -------------------------------------------------------------------------
+  // Operational eligibility (2026-07-15) — the canonical relevance
+  // projection consumed by the Operations Center + Notification
+  // Preferences surfaces. Derived from ALREADY-authorized signals:
+  //   - `organizations` (ACTIVE non-personal TeamMember rows — reused)
+  //   - `capabilities` (resolved capability map — reused)
+  //   - `planFeatures` (canonical PLAN_CAPABILITIES — reused)
+  //   - `workspace.membership.role`
+  // plus TWO minimal tenant-scoped existence checks that the envelope did
+  // not already run (collaboration-team membership + pending invitations).
+  // Every query is user/email-scoped; nothing crosses a tenant boundary.
+  // This block controls UI relevance ONLY — the aggregation still enforces
+  // every data decision by per-source membership/role scoping.
+  // -------------------------------------------------------------------------
+  let collaborationMemberActive = false;
+  let hasPendingInvitation = false;
+  try {
+    const [collabMembers, collabInvites, orgInvites] = await Promise.all([
+      // Active member of ≥1 collaboration team (the org-membership case is
+      // covered separately by `organizations`).
+      prisma.collaborationTeamMember.count({
+        where: { userId: userRow.id, status: "ACTIVE" },
+      }),
+      // Still-actionable incoming collaboration-team invitation (email-matched;
+      // collaboration invites are actioned on the Teams surface and carry no
+      // inbox item, so participation is the only signal for them).
+      userRow.email
+        ? prisma.collaborationTeamInvite.count({
+            where: {
+              email: userRow.email,
+              status: "PENDING",
+              acceptedAtUtc: null,
+              revokedAtUtc: null,
+              expiresAtUtc: { gt: now },
+            },
+          })
+        : Promise.resolve(0),
+      // Still-actionable incoming organization invitation (mirrors the inbox
+      // org_invite query so the Invitations filter is stable pre-item-load).
+      userRow.email
+        ? prisma.organizationInvite.count({
+            where: {
+              email: userRow.email.trim().toLowerCase(),
+              acceptedAt: null,
+              revokedAt: null,
+              expiresAt: { gt: now },
+            },
+          })
+        : Promise.resolve(0),
+    ]);
+    collaborationMemberActive = collabMembers > 0;
+    hasPendingInvitation = collabInvites > 0 || orgInvites > 0;
+  } catch {
+    // Degraded — conservative FALSE (hide plan/participation-gated
+    // surfaces rather than overexpose). Incoming/universal categories are
+    // unaffected; a real item still reveals its category via the override.
+    collaborationMemberActive = false;
+    hasPendingInvitation = false;
+  }
+
+  const operationalEligibility = deriveOperationalEligibility({
+    capabilities,
+    activeRole: workspace.membership.role,
+    isActiveAdmin: workspace.membership.isAdmin === true,
+    organizations,
+    collaborationMemberActive,
+    hasPendingInvitation,
+    planFeatures,
+  });
+
+  // -------------------------------------------------------------------------
   // Envelope
   // -------------------------------------------------------------------------
   //
@@ -755,6 +848,8 @@ export async function buildPlatformContext(
     },
     persona: { resolvedPersona },
     capabilities,
+    planFeatures,
+    operationalEligibility,
     navigation: {
       status: navigationStatus,
       // Legacy `groups` retained for backwards compatibility.

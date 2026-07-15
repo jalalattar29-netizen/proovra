@@ -1418,34 +1418,24 @@ export const ROUTE_REGISTRY = [
         sidebarEligible: false,
     },
     // ---------------------------------------------------------------------------
-    // Phase 1A — Trust pillar surface. Canonical id `workspace.trust` points
-    // at the real Trust hub page (apps/web/app/(app)/trust-hub/page.tsx) which
-    // composes verification methodology, public-verify,
-    // signers, subprocessors, privacy + retention surfaces.
-    // The in-app hub URL is `/trust-hub` (relocated from `/trust` so the
-    // top-level `/trust` URL can serve the public-facing Trust Center).
+    // Trust documentation gate (2026-07-15). The former authenticated static
+    // Trust Hub (`/trust-hub`, id `workspace.trust`) was removed as redundant.
+    // Non-navigational gate id for the in-app `/trust-center/*` article pages.
     // ---------------------------------------------------------------------------
     {
-        id: "workspace.trust",
-        href: "/trust-hub",
-        label: "Trust",
-        description: "Trust center hub — methodology, verification, signers, subprocessors, privacy.",
-        // Trust hub renders workspace-anchored content (trust articles + subprocessor
-        // snapshot + verification methodology for THIS workspace). It is a workspace
-        // surface, NOT an account-tier surface, so domain=PERSONAL_WORKSPACE +
-        // requiredActiveSpace=PERSONAL_OR_ORG matches the pattern used by every other
-        // workspace-anchored route (workspace.evidence, workspace.cases, ...). Active
-        // space is required so the trust dashboard knows which workspace's articles
-        // to project — access is not weakened.
+        id: "workspace.trust_center",
+        href: "/trust-center",
+        label: "Trust & Compliance",
+        description: "In-app trust documentation articles. The canonical trust portal is the public Trust Center at /trust.",
         domain: "PERSONAL_WORKSPACE",
         requiredCapabilities: [],
         requiredActiveSpace: "PERSONAL_OR_ORG",
         fallbackBehavior: "LOAD",
-        workflowTags: ["TRUST_AND_GOVERNANCE"],
+        workflowTags: [],
         advancedByDefault: false,
-        commandPaletteVisible: true,
-        allToolsVisible: true,
-        sidebarEligible: true,
+        commandPaletteVisible: false,
+        allToolsVisible: false,
+        sidebarEligible: false,
     },
     // ---------------------------------------------------------------------------
     // Phase 2A — Reviewer Workspace surfaces. Canonical ids for the new

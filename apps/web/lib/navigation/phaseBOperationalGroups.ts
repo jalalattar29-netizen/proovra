@@ -162,13 +162,17 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "governance.hub",
       "account.organizations",
       "admin.teams",
-      // Phase 1A — Trust hub is the cross-organisation transparency
-      // surface (methodology, verification, signers, subprocessors,
-      // privacy). Lives in GOVERNANCE primary because it's the operator-
-      // facing trust + transparency control.
-      "workspace.trust",
+      // The authenticated Trust Hub (`workspace.trust`) was removed
+      // 2026-07-15 — the public Trust Center (`/trust`) is the canonical
+      // trust portal; no in-app trust nav entry remains here.
     ],
     secondary: [
+      // Trust & Compliance documentation gate (`workspace.trust_center`) —
+      // classified under GOVERNANCE for grouping completeness. It is
+      // NON-navigational (sidebarEligible/commandPaletteVisible/allToolsVisible
+      // all false in the route registry), so this classification creates no
+      // discovery surface; the canonical trust portal is the public /trust.
+      "workspace.trust_center",
       // Phase IA-collapse — `workspace.security_center` (renamed
       // "Identity & Security") demoted from GOVERNANCE/primary to
       // /secondary. Personal account security moved to

@@ -290,7 +290,9 @@ describe("INV-3 — Core personal routes are not ORGANIZATION_ONLY", () => {
       "workspace.cases",
       "workspace.reports",
       "workspace.search",
-      "workspace.trust",
+      // Trust Hub removed 2026-07-15; the surviving personal-reachable trust
+      // route is the non-nav /trust-center docs gate.
+      "workspace.trust_center",
       "account.settings",
       "account.billing",
     ];

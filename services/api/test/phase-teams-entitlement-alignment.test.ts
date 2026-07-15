@@ -68,7 +68,7 @@ import {
   assertCollaborationTeamMemberLimit,
   assertCanInviteCollaborationTeamMember,
   lowestPlanWithTeams,
-  CollaborationTeamBillingError,
+  BillingLimitError,
 } from "../src/services/collaboration-team/billing-guards.js";
 
 beforeEach(() => {
@@ -89,7 +89,7 @@ async function expectBillingError(
     await fn();
     throw new Error(`expected ${code} but the guard allowed the action`);
   } catch (err) {
-    const e = err as CollaborationTeamBillingError;
+    const e = err as BillingLimitError;
     expect(e.code).toBe(code);
     expect(e.httpStatus).toBe(httpStatus);
     return e;

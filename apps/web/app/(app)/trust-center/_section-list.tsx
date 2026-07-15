@@ -125,7 +125,7 @@ export function TrustCenterSectionList({
           {description}
         </p>
         <p style={{ marginTop: 6 }}>
-          <a href="/trust-hub" style={{ fontSize: 12 }}>
+          <a href="/trust" style={{ fontSize: 12 }}>
             ← Back to Trust Center
           </a>
         </p>

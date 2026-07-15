@@ -71,12 +71,11 @@ function readRepo(rel: string): string {
 }
 
 const ROUTES = readRepo("services/api/src/routes/trust-and-governance.routes.ts");
-// Phase E5 rebaseline: workspace Trust hub migrated from
-// `(app)/trust/page.tsx` to `(app)/trust-hub/page.tsx`. The canonical
-// public Trust Center now owns `/trust` (Next.js parallel-page rule
-// forbids both). Empty-state guarantees still apply to the workspace
-// hub at its new canonical location.
-const TRUST_PAGE = readRepo("apps/web/app/(app)/trust-hub/page.tsx");
+// 2026-07-15: the authenticated static Trust Hub (`/trust-hub`) was removed
+// as redundant. The canonical customer-facing trust portal is the PUBLIC
+// Trust Center at `app/trust/page.tsx` (`/trust`); `/trust-center` redirects
+// to it. The public-content guarantees below now run against that page.
+const PUBLIC_TRUST = readRepo("apps/web/app/trust/page.tsx");
 const REDIRECT_LANDING = readRepo("apps/web/app/(app)/trust-center/page.tsx");
 const STATUS = readRepo("apps/web/app/(app)/trust-center/status/page.tsx");
 
@@ -170,19 +169,20 @@ describe("Production fix C — /trust-center now defers to the canonical /trust 
     expect(REDIRECT_LANDING).toMatch(/redirect\("\/trust"\)/);
   });
 
-  it("the canonical /trust page carries the public trust cards instead of an empty article shell", () => {
-    expect(TRUST_PAGE).toMatch(/data-trust-section="cards"/);
-    expect(TRUST_PAGE).toMatch(/title:\s*"AI transparency"/);
-    expect(TRUST_PAGE).toMatch(/title:\s*"Security documentation"/);
-    expect(TRUST_PAGE).toMatch(/title:\s*"Subprocessors"/);
-    expect(TRUST_PAGE).toMatch(/title:\s*"Public verification"/);
+  it("the canonical public /trust page carries the trust content instead of an empty article shell", () => {
+    expect(PUBLIC_TRUST).toMatch(/data-trust-center-page/);
+    expect(PUBLIC_TRUST).toMatch(/AI Transparency/);
+    expect(PUBLIC_TRUST).toMatch(/Security/);
+    expect(PUBLIC_TRUST).toMatch(/Subprocessors/);
+    // Public verification is reachable from the public center.
+    expect(PUBLIC_TRUST).toMatch(/Verification Methodology/);
   });
 
   it("operator vocabulary stays bounded — no env names or stack traces", () => {
     // Negative pin against accidental error-leak regressions.
-    expect(TRUST_PAGE).not.toMatch(/process\.env\./);
-    expect(TRUST_PAGE).not.toMatch(/err\.stack/);
-    expect(TRUST_PAGE).not.toMatch(/console\.error\(.*err/);
+    expect(PUBLIC_TRUST).not.toMatch(/process\.env\./);
+    expect(PUBLIC_TRUST).not.toMatch(/err\.stack/);
+    expect(PUBLIC_TRUST).not.toMatch(/console\.error\(.*err/);
     expect(REDIRECT_LANDING).not.toMatch(/process\.env\./);
     expect(REDIRECT_LANDING).not.toMatch(/err\.stack/);
   });
@@ -230,7 +230,7 @@ describe("Bounded guards — no Trust Center v2, no new pages", () => {
   it("the source contains no `trust-center-v2` references", () => {
     // The fix MUST be applied in-place. Any v2 ladder is a regression.
     expect(ROUTES).not.toMatch(/trust[-_]center[-_]v2/);
-    expect(TRUST_PAGE).not.toMatch(/trust[-_]center[-_]v2/);
+    expect(PUBLIC_TRUST).not.toMatch(/trust[-_]center[-_]v2/);
     expect(REDIRECT_LANDING).not.toMatch(/trust[-_]center[-_]v2/);
     expect(STATUS).not.toMatch(/trust[-_]center[-_]v2/);
   });

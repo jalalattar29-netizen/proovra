@@ -28,6 +28,10 @@ import type {
 } from "fastify";
 import { z } from "zod";
 import {
+  assertWorkspaceAllowsIntake,
+  resolveWorkspaceScopeForUser,
+} from "../services/billing-enforcement.service.js";
+import {
   EVIDENCE_REQUEST_PRIORITIES,
   EVIDENCE_REQUEST_STATUSES,
   EvidenceRequestInputSchema,
@@ -148,6 +152,27 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const body = EvidenceRequestInputSchema.parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId);
       if (!ok) return;
+
+      // Secure-intake plan gate (2026-07-15) — submission requests are
+      // excluded from FREE per the Pricing contract. Enforced before any
+      // DB write; a known plan restriction, never a generic failure.
+      {
+        const scope = await resolveWorkspaceScopeForUser({
+          ownerUserId: ok.userId,
+          teamId: body.teamId,
+        });
+        try {
+          await assertWorkspaceAllowsIntake(scope);
+        } catch (err) {
+          const e = err as { statusCode?: number; code?: string; message?: string };
+          if (e?.code === "INTAKE_NOT_INCLUDED") {
+            return reply
+              .code(e.statusCode ?? 409)
+              .send({ error: { code: e.code, message: e.message } });
+          }
+          throw err;
+        }
+      }
 
       try {
         const result = await createEvidenceRequest(body, {

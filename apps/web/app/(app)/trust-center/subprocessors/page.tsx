@@ -14,7 +14,7 @@ import { formatUserDate } from "../../../../lib/date";
 
 export default function SubprocessorsPage() {
   return (
-    <PageRouteGate routeId="workspace.trust">
+    <PageRouteGate routeId="workspace.trust_center">
       <Shell />
     </PageRouteGate>
   );
@@ -101,7 +101,7 @@ function Shell() {
           Every entry is versioned; every change writes an audit row.
         </p>
         <p>
-          <a href="/trust-hub" style={{ fontSize: 12 }}>
+          <a href="/trust" style={{ fontSize: 12 }}>
             ← Back to Trust Center
           </a>
         </p>

@@ -323,6 +323,18 @@ const nextConfig = {
         destination: "/trust",
         permanent: true,
       },
+      // Trust Hub removal (2026-07-15) — the authenticated static Trust Hub
+      // (`/trust-hub`, id `workspace.trust`) was deleted as redundant. It was
+      // shipped (sidebar + org-admin deep link), so durable authenticated
+      // bookmarks may exist; this TEMPORARY compatibility redirect resolves
+      // them to the canonical public Trust Center. No query params are
+      // preserved (the hub carried none). SUNSET: remove this redirect once
+      // one release cycle has elapsed with no `/trust-hub` hits in access logs.
+      {
+        source: "/trust-hub",
+        destination: "/trust",
+        permanent: false,
+      },
       // Phase 2 (dead-code deletion) — the `/security/trust-center/*`
       // page tree was a byte-identical duplicate of the canonical
       // `/trust-center/*` surface. The duplicate pages were deleted;

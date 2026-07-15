@@ -11,7 +11,8 @@ export const PROOVRA_PRODUCT_FACTS = {
   routes: [
     "Home (/home)", "Capture (/capture)", "Evidence library (/evidence)",
     "Evidence detail (/evidence/:id)", "Cases (/cases)", "Reports", "Search (/search)",
-    "Reviewer console (/review)", "Operations (/operations)", "Trust Hub (/trust-hub)",
+    "Reviewer console (/review)", "Operations (/operations)",
+    "Public Trust Center (/trust — public trust/security/compliance portal)",
     "Public Verify (/verify and /verify/:token)", "Billing/Pricing", "Settings",
   ],
   roles: [

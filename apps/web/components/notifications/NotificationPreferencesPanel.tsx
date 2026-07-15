@@ -26,6 +26,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 import { useOperationsUiContext } from "../../lib/notifications/useOperationsUiContext";
+import {
+  buildActualItemSignal,
+  preferenceGroupVisible,
+  type ActualItemSignal,
+  type PreferenceGroupDomain,
+} from "../../lib/notifications/operationsFilterPolicy";
 
 type PreferenceType =
   | "MENTION"
@@ -91,18 +97,38 @@ const FREQUENCY_RANK: Record<Frequency, number> = {
 const PREFERENCE_GROUPS: ReadonlyArray<{
   title: string;
   types: ReadonlyArray<PreferenceType>;
-  /** Rendered only when the caller can actually receive governance
-   * events (canReceiveGovernance from the canonical UI-context
-   * resolver: all org members; Personal only with the governance
-   * capability, i.e. the plan tier that can create retention/legal-
-   * hold sources in the first place). */
-  requiresGovernance?: boolean;
+  /** Operational domain — the group renders when the SAME canonical
+   * visibility predicate (`preferenceGroupVisible`) that gates the
+   * Operations Center filters allows this domain: static eligibility
+   * (plan + participation + role/capability) OR a real authorized item
+   * in scope. `integrity` is universal (mandatory evidence signals). */
+  domain: PreferenceGroupDomain;
 }> = [
-  { title: "Evidence integrity & verification", types: ["SLA_NEAR_BREACH"] },
-  { title: "Reviews & quality", types: ["REVIEWER_ASSIGNMENT", "ESCALATION"] },
-  { title: "Secure intake", types: ["EVIDENCE_REQUEST_UPDATE"] },
-  { title: "Collaboration", types: ["MENTION", "ASSIGNED_THREAD"] },
-  { title: "Governance & retention", types: ["GOVERNANCE_UPDATE"], requiresGovernance: true },
+  {
+    title: "Evidence integrity & verification",
+    types: ["SLA_NEAR_BREACH"],
+    domain: "integrity",
+  },
+  {
+    title: "Reviews & quality",
+    types: ["REVIEWER_ASSIGNMENT", "ESCALATION"],
+    domain: "review",
+  },
+  {
+    title: "Secure intake",
+    types: ["EVIDENCE_REQUEST_UPDATE"],
+    domain: "intake",
+  },
+  {
+    title: "Collaboration",
+    types: ["MENTION", "ASSIGNED_THREAD"],
+    domain: "collaboration",
+  },
+  {
+    title: "Governance & retention",
+    types: ["GOVERNANCE_UPDATE"],
+    domain: "governance",
+  },
 ];
 
 const TYPE_LABEL: Record<PreferenceType, string> = {
@@ -139,14 +165,14 @@ function inAppLockReason(type: PreferenceType): string {
 
 const TYPE_HELP: Record<PreferenceType, string> = {
   MENTION:
-    "Inbox + topbar surface when a reviewer @-mentions you in a workspace discussion.",
+    "In-app + topbar surface when a reviewer @-mentions you in a workspace discussion.",
   ASSIGNED_THREAD:
-    "Inbox + topbar surface when a discussion thread is assigned to you.",
+    "In-app + topbar surface when a discussion thread is assigned to you.",
   REVIEWER_ASSIGNMENT:
     "Notified when a reviewer-ops workflow is assigned to you.",
   ESCALATION: "Notified when an escalation is routed to you.",
   SLA_NEAR_BREACH:
-    "Failed trusted timestamps (TSA/OTS), report generation failures, and verification-package failures on records you can access. Always shown in the app; email delivery is your choice.",
+    "Evidence-integrity failures on records you can access — failed trusted timestamps (TSA/OTS), and, where your plan includes them, report generation and verification-package failures. Always shown in the app; email delivery is your choice.",
   EVIDENCE_REQUEST_UPDATE:
     "Notified when an evidence request you own has new activity.",
   GOVERNANCE_UPDATE:
@@ -165,6 +191,14 @@ export function NotificationPreferencesPanel({
   // Canonical UI-context — group relevance only; the backend enforces
   // every preference write regardless of what renders here.
   const uiCtx = useOperationsUiContext();
+  // Actual-item override signal — a group also renders when a real,
+  // authorized item exists in scope, not only on static eligibility, so a
+  // preference is never hidden while genuine incoming items arrive. Sourced
+  // from the SAME aggregation scopeSummary the Operations Center uses (one
+  // pipeline); a degraded/absent fetch falls back to eligibility-only.
+  const [itemSignal, setItemSignal] = useState<ActualItemSignal>(
+    buildActualItemSignal(null),
+  );
 
   const load = useCallback(async () => {
     if (!teamId) {
@@ -190,6 +224,30 @@ export function NotificationPreferencesPanel({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Fetch the aggregation's filter-independent scope summary (byCategory +
+  // deadlines) so group visibility applies the identical eligibility-OR-item
+  // predicate as the Operations Center filters. Best-effort: a failure
+  // leaves the eligibility-only default.
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = (await apiFetch("/v1/me/inbox?pageSize=1")) as {
+          scopeSummary?: {
+            byCategory?: Record<string, number>;
+            deadlines?: { dueSoon?: number; overdue?: number };
+          };
+        };
+        if (alive) setItemSignal(buildActualItemSignal(res.scopeSummary));
+      } catch {
+        /* eligibility-only fallback */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const toggle = useCallback(
     async (preferenceType: PreferenceType, channel: Channel, next: boolean) => {
@@ -315,7 +373,7 @@ export function NotificationPreferencesPanel({
       <header style={{ marginBottom: 12 }}>
         <strong className="ops-panel__title">Notification preferences</strong>
         <p className="ops-muted" style={{ margin: "2px 0 0" }}>
-          Operational notifications for this workspace. Inbox is enabled by
+          Operational notifications for this workspace. In-app delivery is enabled by
           default; email is opt-in. Toggling here is audited.
         </p>
       </header>
@@ -352,13 +410,13 @@ export function NotificationPreferencesPanel({
         <thead>
           <tr>
             <th>Preference</th>
-            <th style={{ textAlign: "center" }}>Inbox</th>
+            <th style={{ textAlign: "center" }}>In-app</th>
             <th style={{ textAlign: "center" }}>Email</th>
           </tr>
         </thead>
         <tbody>
-          {PREFERENCE_GROUPS.filter(
-            (g) => !(g.requiresGovernance && !uiCtx.canReceiveGovernance),
+          {PREFERENCE_GROUPS.filter((g) =>
+            preferenceGroupVisible(g.domain, uiCtx, itemSignal),
           ).flatMap((g) => [
             <tr
               key={`group-${g.title}`}

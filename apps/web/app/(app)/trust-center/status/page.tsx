@@ -14,7 +14,7 @@ import { formatUserDateTime } from "../../../../lib/date";
 
 export default function StatusPage() {
   return (
-    <PageRouteGate routeId="workspace.trust">
+    <PageRouteGate routeId="workspace.trust_center">
       <Shell />
     </PageRouteGate>
   );
@@ -110,7 +110,7 @@ function Shell() {
           ) : null}
         </p>
         <p>
-          <a href="/trust-hub" style={{ fontSize: 12 }}>← Back to Trust Center</a>
+          <a href="/trust" style={{ fontSize: 12 }}>← Back to Trust Center</a>
         </p>
       </header>
 
