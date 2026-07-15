@@ -4,9 +4,15 @@
  * Route: `/collaboration-teams/invites/[token]/accept`
  *
  * This is the landing page a user reaches by clicking the secure
- * invite URL from email / SMS / link. The page reads the token from
+ * invite URL from the invitation email (invitations are EMAIL-ONLY —
+ * Entitlement Alignment, 2026-07-14). The page reads the token from
  * the URL path, POSTs it to the backend, and redirects to the team
  * detail on success.
+ *
+ * Error classification is by STABLE backend codes only (INVITE_EXPIRED,
+ * INVITE_REVOKED, WORKSPACE_MEMBERSHIP_REQUIRED, TEAM_MEMBER_LIMIT_REACHED,
+ * TEAM_INVITES_NOT_INCLUDED) — never by regex over the error message.
+ * Already-member is a SUCCESS shape (`{ alreadyMember: true }`).
  *
  * Security:
  *   - The token is in the URL path; we POST it to the accept endpoint
@@ -37,6 +43,7 @@ type Status =
   | "checking"
   | "accepting"
   | "success"
+  | "already_member"
   | "invalid"
   | "expired"
   | "revoked"
@@ -44,6 +51,7 @@ type Status =
   | "workspace_required"
   | "rate_limited"
   | "at_capacity"
+  | "plan_restricted"
   | "error";
 
 /**
@@ -80,13 +88,16 @@ function AcceptTeamInvite() {
   const [status, setStatus] = useState<Status>("checking");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [requestId, setRequestId] = useState<string | undefined>();
-  // Phase 10 — pre-acceptance capacity probe. Populated from the server's
+  // Pre-acceptance capacity probe. Populated from the server's
   // `TEAM_MEMBER_LIMIT_REACHED` details payload; counts are NEVER
   // fabricated client-side. The cap-guard runs before the membership
   // write, so observing this error means the invitee was not added.
   const [capacityProbe, setCapacityProbe] = useState<CapacityProbe | null>(
     null,
   );
+  // Already-member SUCCESS shape carries the team id so the panel can
+  // link straight to the team.
+  const [teamId, setTeamId] = useState<string | null>(null);
   const startedRef = useRef(false);
 
   useEffect(() => {
@@ -105,9 +116,17 @@ function AcceptTeamInvite() {
     setStatus("accepting");
     try {
       const result = await acceptInvite(rawToken);
-      setStatus("success");
       // We never keep the raw token in component state — accept() takes
-      // it once, returns the team id, and we redirect immediately.
+      // it once and returns the team id.
+      setTeamId(result.teamId ?? null);
+      if (result.alreadyMember === true) {
+        // SUCCESS shape — the caller is already an active member. No new
+        // membership row was written; show a calm confirmation with a
+        // link to the team instead of a redirect race.
+        setStatus("already_member");
+        return;
+      }
+      setStatus("success");
       addToast("You've joined the team.", "success");
       setTimeout(() => {
         router.replace(`/collaboration-teams/${result.teamId}`);
@@ -116,31 +135,25 @@ function AcceptTeamInvite() {
       if (err instanceof ApiError) {
         setRequestId(err.requestId);
         setErrorMessage(toSafeUserError(err).message);
-        // Map backend codes to safe surface states. We DO NOT show team
-        // metadata for invalid tokens — only a generic safe message.
+        // Map STABLE backend codes to safe surface states — never regex
+        // over the error message. We DO NOT show team metadata for
+        // invalid tokens — only a generic safe message.
         if (err.statusCode === 401) setStatus("auth_required");
         else if (err.code === "TEAM_MEMBER_LIMIT_REACHED") {
-          // Phase 10 — pre-acceptance capacity gate. The server's
-          // billing guard runs BEFORE the membership write, so seeing
-          // this code guarantees the invitee was NOT added. Surface a
-          // bounded, friendly blocking message with the authoritative
-          // counts from the error details (never fabricated).
+          // Pre-acceptance capacity gate. The server's billing guard
+          // runs BEFORE the membership write, so seeing this code
+          // guarantees the invitee was NOT added. Surface a bounded,
+          // friendly blocking message with the authoritative counts
+          // from the error details (never fabricated).
           setCapacityProbe(extractCapacityProbe(err.details));
           setStatus("at_capacity");
-        } else if (
-          err.code === "team_invalid" &&
-          /expired/i.test(err.message)
-        )
-          setStatus("expired");
-        else if (
-          err.code === "team_invalid" &&
-          /revoked/i.test(err.message)
-        )
-          setStatus("revoked");
-        else if (
-          err.code === "team_invalid" &&
-          /workspace/i.test(err.message)
-        )
+        } else if (err.code === "TEAM_INVITES_NOT_INCLUDED")
+          // Entitlement Alignment — the Team is grandfathered on a plan
+          // with zero Teams; all membership growth is locked.
+          setStatus("plan_restricted");
+        else if (err.code === "INVITE_EXPIRED") setStatus("expired");
+        else if (err.code === "INVITE_REVOKED") setStatus("revoked");
+        else if (err.code === "WORKSPACE_MEMBERSHIP_REQUIRED")
           setStatus("workspace_required");
         else if (err.statusCode === 429) setStatus("rate_limited");
         else if (err.statusCode === 404) setStatus("invalid");
@@ -164,6 +177,7 @@ function AcceptTeamInvite() {
         errorMessage,
         requestId,
         capacityProbe,
+        teamId,
         onSignIn: () => {
           // Send the user to sign-in and bounce back here after auth.
           const here = `/collaboration-teams/invites/${encodeURIComponent(rawToken)}/accept`;
@@ -207,12 +221,14 @@ function renderStateContent({
   errorMessage,
   requestId,
   capacityProbe,
+  teamId,
   onSignIn,
 }: {
   status: Status;
   errorMessage: string;
   requestId?: string;
   capacityProbe: CapacityProbe | null;
+  teamId: string | null;
   onSignIn: () => void;
 }) {
   switch (status) {
@@ -233,6 +249,30 @@ function renderStateContent({
           title="You're in!"
           body="Redirecting you to the team…"
           tone="success"
+        />
+      );
+    case "already_member":
+      // SUCCESS shape ({ alreadyMember: true }) — not an error. The
+      // caller is already an active member of the team.
+      return (
+        <Panel
+          kicker="Team invite"
+          title="You are already a member of this Team."
+          body="This invitation doesn't need to be accepted again — your membership is active."
+          tone="success"
+          actions={
+            <Link
+              href={
+                teamId
+                  ? `/collaboration-teams/${teamId}`
+                  : "/collaboration-teams"
+              }
+              className="app-primary-action"
+              data-testid="accept-invite-open-team"
+            >
+              Open the team
+            </Link>
+          }
         />
       );
     case "invalid":
@@ -362,6 +402,39 @@ function renderStateContent({
         />
       );
     }
+    case "plan_restricted":
+      // Entitlement Alignment — TEAM_INVITES_NOT_INCLUDED (402). The
+      // Team exists (grandfathered) but the owner's current plan
+      // includes no Teams, so membership growth is locked. The OWNER is
+      // the one who must upgrade; routing the invitee to /billing
+      // mirrors the other billing surfaces.
+      return (
+        <Panel
+          kicker="Team invite"
+          title="This invitation is unavailable"
+          body="The Team owner's current plan no longer supports this invitation."
+          tone="warn"
+          requestId={requestId}
+          actions={
+            <>
+              <Link
+                href={COLLABORATION_TEAM_BILLING_UPGRADE_CTA}
+                className="app-primary-action"
+                data-testid="accept-invite-plan-restricted-billing-cta"
+                aria-label="View billing and upgrade options"
+              >
+                View billing
+              </Link>
+              <Link
+                href="/collaboration-teams"
+                className="app-secondary-action"
+              >
+                Back to Teams
+              </Link>
+            </>
+          }
+        />
+      );
     case "error":
     default:
       return (

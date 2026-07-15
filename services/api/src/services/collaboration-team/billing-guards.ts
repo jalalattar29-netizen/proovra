@@ -158,6 +158,43 @@ async function resolveCollaborationTeamOwnerUserId(
 }
 
 // =============================================================================
+// 0b. Teams-feature eligibility (commercial contract, 2026-07-14)
+// =============================================================================
+
+/** Lowest self-service plan whose contract includes Teams — derived
+ *  from the canonical limits so pricing/UI never hardcode it. */
+export function lowestPlanWithTeams(): PlanType {
+  for (const p of ["PRO", "TEAM", "ENTERPRISE"] as const) {
+    if (getCollaborationTeamPlanLimits(p).maxTeams > 0) return p as PlanType;
+  }
+  return "ENTERPRISE" as PlanType;
+}
+
+function planDisplayName(plan: PlanType): string {
+  return plan === "PAYG"
+    ? "Pay-Per-Evidence"
+    : plan.charAt(0) + plan.slice(1).toLowerCase();
+}
+
+/**
+ * Grandfathered-team growth lock. Existing Teams owned by accounts
+ * whose CURRENT plan includes zero Teams stay readable (data is never
+ * deleted or hidden), but every membership-growth path — member adds,
+ * every invite channel, and invite ACCEPTANCE — is locked with one
+ * stable code until the owner upgrades.
+ */
+export function assertTeamsFeatureIncluded(plan: PlanType): void {
+  const limits = getCollaborationTeamPlanLimits(plan);
+  if (limits.maxTeams > 0) return;
+  throwBillingError({
+    code: "TEAM_INVITES_NOT_INCLUDED",
+    message:
+      "The Team owner's current plan does not include Teams. Existing data remains accessible; upgrading restores Team membership and invitations.",
+    details: { plan, requiredPlan: lowestPlanWithTeams() },
+  });
+}
+
+// =============================================================================
 // 1. assertCanCreateCollaborationTeam
 // =============================================================================
 
@@ -196,18 +233,28 @@ export async function assertCanCreateCollaborationTeam(
   });
 
   if (maxTeams <= 0) {
+    // Commercial contract (2026-07-14): FREE and PAYG include ZERO
+    // Teams. This is a plan feature, not capacity — 402 with the
+    // lowest plan that includes Teams so the UI can render the
+    // upgrade target without hardcoding it.
     throwBillingError({
-      code: "TEAM_LIMIT_REACHED",
-      message: `Your current plan (${plan}) does not allow collaboration team creation.`,
-      details: { plan, maxTeams, ownedTeamCount, ownerUserId },
+      code: "TEAM_PLAN_REQUIRED",
+      message: "Teams are available on Pro, Team, and Enterprise plans.",
+      details: {
+        plan,
+        maxTeams,
+        ownedTeamCount,
+        ownerUserId,
+        requiredPlan: lowestPlanWithTeams(),
+      },
     });
   }
 
   if (ownedTeamCount >= maxTeams) {
     throwBillingError({
       code: "TEAM_LIMIT_REACHED",
-      message: `Plan ${plan} allows up to ${maxTeams} active collaboration team(s). Archive or upgrade to add more.`,
-      details: { plan, maxTeams, ownedTeamCount, ownerUserId },
+      message: `Your ${planDisplayName(plan)} plan includes up to ${maxTeams} Team${maxTeams === 1 ? "" : "s"}. Upgrade to create another Team.`,
+      details: { plan, maxTeams, ownedTeamCount, ownerUserId, limit: maxTeams, usage: ownedTeamCount },
     });
   }
 
@@ -250,6 +297,10 @@ export async function assertCollaborationTeamMemberLimit(
   const safeAdding = Math.max(1, Math.floor(addingCount));
   const ownerUserId = await resolveCollaborationTeamOwnerUserId(client, teamId);
   const plan = await resolveUserPlan(client, ownerUserId);
+  // Commercial contract: a plan with ZERO Teams locks ALL membership
+  // growth on grandfathered Teams (adds, every invite channel, and
+  // acceptance) — data stays readable, growth requires an upgrade.
+  assertTeamsFeatureIncluded(plan);
   const limits = getCollaborationTeamPlanLimits(plan);
   const maxMembersPerTeam = Math.max(0, limits.maxMembersPerTeam);
 
@@ -312,11 +363,11 @@ export async function assertCollaborationTeamMemberLimit(
  */
 export async function assertCanInviteCollaborationTeamMember(
   teamId: string,
-  channel: "EMAIL" | "SMS" | "LINK",
+  channel: "EMAIL",
   client: PrismaClient = defaultPrisma,
 ): Promise<{
   plan: PlanType;
-  channel: "EMAIL" | "SMS" | "LINK";
+  channel: "EMAIL";
   pendingInvites: number;
   sentLast24h: number;
   maxPendingPerTeam: number;
@@ -326,21 +377,11 @@ export async function assertCanInviteCollaborationTeamMember(
   const plan = await resolveUserPlan(client, ownerUserId);
   const limits = getCollaborationTeamPlanLimits(plan);
 
-  // -------- channel gate --------
-  if (channel === "SMS" && !limits.smsInvitesEnabled) {
-    throwBillingError({
-      code: "SMS_INVITE_NOT_INCLUDED",
-      message: `Plan ${plan} does not include SMS invites.`,
-      details: { plan, teamId, channel },
-    });
-  }
-  if (channel === "LINK" && !limits.linkInvitesEnabled) {
-    throwBillingError({
-      code: "LINK_INVITE_NOT_INCLUDED",
-      message: `Plan ${plan} does not include invite links.`,
-      details: { plan, teamId, channel },
-    });
-  }
+  // Invitations are EMAIL-ONLY (Teams Entitlement Alignment,
+  // 2026-07-14): SMS invites and shareable invite links were never
+  // published by Pricing/Billing and their code paths are deleted.
+  // A plan with ZERO Teams cannot grow membership at all.
+  assertTeamsFeatureIncluded(plan);
 
   // -------- pending-per-team gate --------
   const pendingInvites = await client.collaborationTeamInvite.count({
@@ -391,70 +432,6 @@ export async function assertCanInviteCollaborationTeamMember(
   };
 }
 
-// =============================================================================
-// 4. assertCanCreateGuest
-// =============================================================================
-
-/**
- * Plan-gates the /collaboration-teams/:teamId/collaboration guests
- * surface.
- *
- * The Phase 5/7 `COLLABORATION_TEAM_PLAN_LIMITS` does not (yet) expose
- * an explicit `guestsAllowed` or `maxGuests` field. The canonical
- * derivation rule (Phase 10):
- *
- *   - FREE / PAYG    → guests NOT allowed (gate at 402 GUEST_LIMIT_REACHED).
- *   - PRO / TEAM / ENTERPRISE → guests allowed; maxGuests derives from
- *     `maxMembersPerTeam` (guests count toward the same per-team cap).
- *
- * Note: per the Phase 10 plan, this helper lands canonical-first; the
- * /v1 guest mutation endpoint may not exist yet. Wiring will be added
- * by the route surface only when a guest mutation endpoint exists.
- */
-export async function assertCanCreateGuest(
-  teamId: string,
-  client: PrismaClient = defaultPrisma,
-): Promise<{
-  plan: PlanType;
-  guestsAllowed: boolean;
-  currentGuestCount: number;
-  maxGuests: number;
-}> {
-  const ownerUserId = await resolveCollaborationTeamOwnerUserId(client, teamId);
-  const plan = await resolveUserPlan(client, ownerUserId);
-  const limits = getCollaborationTeamPlanLimits(plan);
-
-  // Bounded plan-tier derivation. PRO+ unlocks the guest surface.
-  const guestsAllowed =
-    plan === prismaPkg.PlanType.PRO || plan === prismaPkg.PlanType.TEAM;
-  const maxGuests = guestsAllowed ? limits.maxMembersPerTeam : 0;
-
-  // Current guest count — non-revoked, non-expired rows count.
-  const currentGuestCount = await client.collaborationTeamGuest.count({
-    where: {
-      teamId,
-      status: { in: ["PENDING", "ACCEPTED"] },
-    },
-  });
-
-  if (!guestsAllowed) {
-    throwBillingError({
-      code: "GUEST_LIMIT_REACHED",
-      message: `Plan ${plan} does not include collaboration team guests.`,
-      details: { plan, teamId, guestsAllowed, currentGuestCount, maxGuests },
-    });
-  }
-
-  if (currentGuestCount >= maxGuests) {
-    throwBillingError({
-      code: "GUEST_LIMIT_REACHED",
-      message: `This team has reached its guest limit (${maxGuests}) on plan ${plan}.`,
-      details: { plan, teamId, guestsAllowed, currentGuestCount, maxGuests },
-    });
-  }
-
-  return { plan, guestsAllowed, currentGuestCount, maxGuests };
-}
 
 // =============================================================================
 // 5. assertSubscriptionActiveOrGraceAllowed

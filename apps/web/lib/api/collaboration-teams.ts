@@ -1,8 +1,10 @@
 /**
  * PROOVRA Phase 6 — Collaboration Teams API client.
  *
- * Thin typed wrapper over `apiFetch` for the Phase 5 backend mounted
- * at `/v1/collaboration-teams`. Every function:
+ * Thin typed wrapper over `apiFetch` for the backend mounted at
+ * `/v1/collaboration-teams`. Invitations are EMAIL-ONLY (Entitlement
+ * Alignment, 2026-07-14 — the SMS and shareable-link invite endpoints
+ * were deleted product-wide). Every function:
  *
  *   - Returns a typed result (the route's response shape).
  *   - Throws an `ApiError` carrying `requestId` on non-2xx responses.
@@ -119,20 +121,6 @@ export type CollaborationTeamAssignment = {
   createdAt: string;
   updatedAt: string;
   completedAtUtc: string | null;
-};
-
-/**
- * Returned ONLY by the link-invite create call. The `rawToken` +
- * `acceptUrl` appear exactly once in the create response and are
- * never re-exposed by the API after that.
- */
-export type CollaborationTeamLinkInviteSecret = {
-  id: string;
-  channel: "LINK";
-  expiresAtUtc: string;
-  maxUses: number;
-  rawToken: string;
-  acceptUrl: string;
 };
 
 // =============================================================================
@@ -254,50 +242,6 @@ export async function inviteByEmail(
   return res.invite;
 }
 
-export async function inviteBySms(
-  teamId: string,
-  input: {
-    phone: string;
-    role?: CollaborationTeamRole;
-    expiresInDays?: number;
-  },
-): Promise<{ id: string; channel: "SMS"; expiresAtUtc: string }> {
-  const res = (await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/invites/sms`,
-    {
-      method: "POST",
-      body: JSON.stringify(input),
-    },
-  )) as {
-    invite: { id: string; channel: "SMS"; expiresAtUtc: string };
-  };
-  return res.invite;
-}
-
-/**
- * Create a sharable link invite. The returned object contains the
- * `rawToken` + `acceptUrl` — these appear ONCE here and are never
- * re-exposed by the API. The caller MUST surface these to the operator
- * for copy-to-clipboard and then drop them from memory.
- */
-export async function createInviteLink(
-  teamId: string,
-  input: {
-    role?: CollaborationTeamRole;
-    maxUses?: number;
-    expiresInDays?: number;
-  },
-): Promise<CollaborationTeamLinkInviteSecret> {
-  const res = (await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/invites/link`,
-    {
-      method: "POST",
-      body: JSON.stringify(input),
-    },
-  )) as { invite: CollaborationTeamLinkInviteSecret };
-  return res.invite;
-}
-
 export async function revokeInvite(
   teamId: string,
   inviteId: string,
@@ -309,17 +253,32 @@ export async function revokeInvite(
 }
 
 /**
+ * Result of accepting an invite token.
+ *
+ * Entitlement Alignment (2026-07-14): when the caller is ALREADY an
+ * active member of the team the endpoint returns a SUCCESS shape with
+ * `alreadyMember: true` (no new membership row; `memberId` may be
+ * absent). Fresh joins return `alreadyMember` absent/false plus the
+ * new `memberId`.
+ */
+export type CollaborationTeamInviteAcceptResult = {
+  teamId: string;
+  memberId?: string;
+  alreadyMember?: boolean;
+};
+
+/**
  * Accept an invite token. The token is sent in the URL path and is
- * never logged client-side. On success returns the team + member id
- * for redirect.
+ * never logged client-side. On success returns the team id (plus the
+ * member id for fresh joins) for redirect.
  */
 export async function acceptInvite(
   rawToken: string,
-): Promise<{ teamId: string; memberId: string }> {
+): Promise<CollaborationTeamInviteAcceptResult> {
   return (await apiFetch(
     `/v1/collaboration-team-invites/${encodeURIComponent(rawToken)}/accept`,
     { method: "POST" },
-  )) as { teamId: string; memberId: string };
+  )) as CollaborationTeamInviteAcceptResult;
 }
 
 export async function listActivity(

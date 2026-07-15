@@ -37,6 +37,10 @@ const ROUTES_PATH = resolve(
   API_ROOT,
   "src/routes/collaboration-teams.routes.ts",
 );
+const SERVICE_PATH = resolve(
+  API_ROOT,
+  "src/services/collaboration-team/collaboration-team.service.ts",
+);
 const SHARED_INDEX_PATH = resolve(
   REPO_ROOT,
   "packages/shared/src/index.ts",
@@ -71,8 +75,16 @@ describe("Phase 10 — collaboration-team billing-guards exports", () => {
     );
   });
 
-  it("exports assertCanCreateGuest", () => {
-    expect(src).toMatch(/export\s+async\s+function\s+assertCanCreateGuest\b/);
+  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
+  // invitation channels and external guests were removed from the product
+  // (never published by Pricing/Billing); invitations are EMAIL-only;
+  // FREE/PAYG include zero Teams. `assertCanCreateGuest` is DELETED;
+  // the feature-eligibility surface is assertTeamsFeatureIncluded +
+  // lowestPlanWithTeams.
+  it("exports assertTeamsFeatureIncluded + lowestPlanWithTeams; assertCanCreateGuest is deleted", () => {
+    expect(src).toMatch(/export\s+function\s+assertTeamsFeatureIncluded\b/);
+    expect(src).toMatch(/export\s+function\s+lowestPlanWithTeams\b/);
+    expect(src).not.toMatch(/assertCanCreateGuest/);
   });
 
   it("exports assertSubscriptionActiveOrGraceAllowed", () => {
@@ -100,14 +112,19 @@ describe("Phase 10 — shared error-code vocabulary is canonical + re-exported",
     expect(idx).toMatch(/CollaborationTeamBillingErrorCode/);
   });
 
-  it("the six Phase 10 codes are present in the canonical list", () => {
+  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
+  // invitation channels and external guests were removed from the product
+  // (never published by Pricing/Billing); invitations are EMAIL-only;
+  // FREE/PAYG include zero Teams. SMS_INVITE_NOT_INCLUDED /
+  // LINK_INVITE_NOT_INCLUDED / GUEST_LIMIT_REACHED are DELETED.
+  it("the six canonical Teams billing codes are present; the three deleted codes are absent", () => {
     const codesSrc = readFileSync(SHARED_CODES_PATH, "utf8");
     const expected = [
+      "TEAM_PLAN_REQUIRED",
+      "TEAM_INVITES_NOT_INCLUDED",
       "TEAM_LIMIT_REACHED",
       "TEAM_MEMBER_LIMIT_REACHED",
       "TEAM_INVITE_LIMIT_REACHED",
-      "SMS_INVITE_NOT_INCLUDED",
-      "GUEST_LIMIT_REACHED",
       "SUBSCRIPTION_INACTIVE",
     ];
     for (const code of expected) {
@@ -115,6 +132,23 @@ describe("Phase 10 — shared error-code vocabulary is canonical + re-exported",
         new RegExp(`["']${code}["']`),
       );
     }
+    const deleted = [
+      "SMS_INVITE_NOT_INCLUDED",
+      "LINK_INVITE_NOT_INCLUDED",
+      "GUEST_LIMIT_REACHED",
+    ];
+    for (const code of deleted) {
+      expect(codesSrc, `deleted code ${code} must be absent`).not.toMatch(
+        new RegExp(`["']${code}["']`),
+      );
+    }
+    // Canonical HTTP-status mapping for the six live codes.
+    expect(codesSrc).toMatch(/TEAM_PLAN_REQUIRED:\s*402/);
+    expect(codesSrc).toMatch(/TEAM_INVITES_NOT_INCLUDED:\s*402/);
+    expect(codesSrc).toMatch(/TEAM_LIMIT_REACHED:\s*409/);
+    expect(codesSrc).toMatch(/TEAM_MEMBER_LIMIT_REACHED:\s*409/);
+    expect(codesSrc).toMatch(/TEAM_INVITE_LIMIT_REACHED:\s*429/);
+    expect(codesSrc).toMatch(/SUBSCRIPTION_INACTIVE:\s*402/);
   });
 });
 
@@ -164,27 +198,46 @@ describe("Phase 10 — /v1/collaboration-teams handlers call the canonical guard
     ).toMatch(/assertCollaborationTeamMemberLimit\s*\(/);
   });
 
-  it("POST /v1/collaboration-teams/:teamId/invites/sms calls assertCanInviteCollaborationTeamMember with 'SMS'", () => {
-    const smsSection = routes.split(
-      '"/v1/collaboration-teams/:teamId/invites/sms"',
+  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
+  // invitation channels and external guests were removed from the product
+  // (never published by Pricing/Billing); invitations are EMAIL-only;
+  // FREE/PAYG include zero Teams. The /invites/sms and /invites/link
+  // endpoints are DELETED (email invite + revoke + accept remain).
+  it("registers NO invites/sms or invites/link routes; email-invite handler passes 'EMAIL' to the invite gate", () => {
+    expect(routes).not.toContain("invites/sms");
+    expect(routes).not.toContain("invites/link");
+    const emailSection = routes.split(
+      '"/v1/collaboration-teams/:teamId/invites/email"',
     )[1] ?? "";
-    // Bounded: the handler MUST invoke the invite gate AND pass the
-    // literal "SMS" channel argument.
     expect(
-      smsSection,
-      "expected assertCanInviteCollaborationTeamMember(... 'SMS' ...) in SMS-invite handler",
+      emailSection,
+      "expected assertCanInviteCollaborationTeamMember(... 'EMAIL' ...) in email-invite handler",
     ).toMatch(
-      /assertCanInviteCollaborationTeamMember\s*\([\s\S]{0,200}["']SMS["']/,
+      /assertCanInviteCollaborationTeamMember\s*\([\s\S]{0,200}["']EMAIL["']/,
     );
   });
 
-  it("POST /v1/collaboration-team-invites/:token/accept calls assertCollaborationTeamMemberLimit", () => {
+  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
+  // invitation channels and external guests were removed from the product
+  // (never published by Pricing/Billing); invitations are EMAIL-only;
+  // FREE/PAYG include zero Teams. The capacity gate on ACCEPT now lives
+  // inside the service `acceptInvite` (after the already-a-member
+  // success short-circuit, before the membership write) — the route
+  // handler delegates and translates BillingLimitError.
+  it("accept: route delegates to acceptInvite; service acceptInvite calls assertCollaborationTeamMemberLimit", () => {
     const acceptSection = routes.split(
       '"/v1/collaboration-team-invites/:token/accept"',
     )[1] ?? "";
     expect(
       acceptSection,
-      "expected assertCollaborationTeamMemberLimit in invite-accept handler",
+      "expected the accept route to delegate to the service acceptInvite",
+    ).toMatch(/acceptInvite\s*\(/);
+    const svc = readFileSync(SERVICE_PATH, "utf8");
+    const svcAccept =
+      svc.split("export async function acceptInvite")[1] ?? "";
+    expect(
+      svcAccept,
+      "expected assertCollaborationTeamMemberLimit inside service acceptInvite",
     ).toMatch(/assertCollaborationTeamMemberLimit\s*\(/);
   });
 });

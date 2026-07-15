@@ -41,6 +41,10 @@ import { AppStatusBadge } from "../../../components/app-primitives/AppStatusBadg
 import { PlanLimitBadge } from "../../../components/billing/PlanLimitBadge";
 import { ApiError } from "../../../lib/api";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
+import {
+  TEAMS_PLAN_LOCKED_COPY,
+  formatTeamLimitReachedMessage,
+} from "../../../lib/feedback/team-entitlement-copy";
 import { formatUserDate } from "../../../lib/date";
 import {
   createTeam,
@@ -81,6 +85,11 @@ const TEAM_TYPE_LABELS: Record<CollaborationTeamType, string> = {
   COMPLIANCE: "Compliance",
 };
 
+// Entitlement Alignment (2026-07-14) — honest plan-locked copy. FREE and
+// PAYG include zero Teams; the shared sentence is the single source for
+// the landing, the empty state, and the disabled affordances.
+const PLAN_LOCKED_COPY = TEAMS_PLAN_LOCKED_COPY;
+
 function TeamsOverview() {
   const router = useRouter();
   const { addToast } = useToast();
@@ -120,14 +129,21 @@ function TeamsOverview() {
   );
   const maxTeams = planLimits.maxTeams;
   const planContextReady = planForCapacity !== null;
-  const atCapacity = planContextReady && ownedTeamCount >= maxTeams;
+  // Entitlement Alignment (2026-07-14): FREE/PAYG include ZERO Teams.
+  // When the resolved plan grants no Teams at all the page renders a
+  // plan-locked landing (no Create button, honest copy, upgrade CTA);
+  // grandfathered Teams are still listed with a restriction notice.
+  const planLocked = planContextReady && maxTeams === 0;
+  const atCapacity = planContextReady && !planLocked && ownedTeamCount >= maxTeams;
   const createDisabledReason: string | null = !planContextReady
     ? null
-    : atCapacity
-      ? `Your ${planForCapacity} plan allows up to ${maxTeams} active Team${
-          maxTeams === 1 ? "" : "s"
-        }. Upgrade to add more.`
-      : null;
+    : planLocked
+      ? PLAN_LOCKED_COPY
+      : atCapacity
+        ? `Your ${planForCapacity} plan allows up to ${maxTeams} active Team${
+            maxTeams === 1 ? "" : "s"
+          }. Upgrade to add more.`
+        : null;
 
   const refresh = async () => {
     setLoading(true);
@@ -205,40 +221,57 @@ function TeamsOverview() {
         </div>
       </div>
       <div className="app-page-header__actions">
-        {planForCapacity !== null && !loading && !error ? (
-          <PlanLimitBadge
-            kind="TEAMS_USED"
-            current={ownedTeamCount}
-            max={maxTeams}
-            planLabel={planForCapacity}
-          />
-        ) : null}
-        {atCapacity && planForCapacity !== null ? (
-          <UpgradeCTA
-            ownedTeamCount={ownedTeamCount}
-            maxTeams={maxTeams}
-            plan={planForCapacity}
-          />
-        ) : null}
-        <button
-          type="button"
-          className="app-primary-action"
-          data-testid="create-team-button"
-          onClick={() => setCreateOpen(true)}
-          disabled={atCapacity}
-          aria-disabled={atCapacity || undefined}
-          aria-label={
-            createDisabledReason
-              ? `Create Team — ${createDisabledReason}`
-              : "Create Team"
-          }
-          title={createDisabledReason ?? undefined}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          <span>Create team</span>
-        </button>
+        {planLocked ? (
+          // Plan-locked landing: NO Create button at all — a fillable /
+          // clickable create affordance that is known to 402 would be
+          // dishonest. Only the honest state + upgrade CTA render.
+          <Link
+            href="/billing"
+            className="app-primary-action"
+            data-testid="teams-plan-locked-upgrade-cta"
+            aria-label={`Upgrade plan — ${PLAN_LOCKED_COPY}`}
+            title={PLAN_LOCKED_COPY}
+          >
+            Upgrade plan
+          </Link>
+        ) : (
+          <>
+            {planForCapacity !== null && !loading && !error ? (
+              <PlanLimitBadge
+                kind="TEAMS_USED"
+                current={ownedTeamCount}
+                max={maxTeams}
+                planLabel={planForCapacity}
+              />
+            ) : null}
+            {atCapacity && planForCapacity !== null ? (
+              <UpgradeCTA
+                ownedTeamCount={ownedTeamCount}
+                maxTeams={maxTeams}
+                plan={planForCapacity}
+              />
+            ) : null}
+            <button
+              type="button"
+              className="app-primary-action"
+              data-testid="create-team-button"
+              onClick={() => setCreateOpen(true)}
+              disabled={atCapacity}
+              aria-disabled={atCapacity || undefined}
+              aria-label={
+                createDisabledReason
+                  ? `Create Team — ${createDisabledReason}`
+                  : "Create Team"
+              }
+              title={createDisabledReason ?? undefined}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <span>Create team</span>
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -256,12 +289,12 @@ function TeamsOverview() {
       ) : teams.length === 0 ? (
         <TeamsEmptyState
           onCreate={() => setCreateOpen(true)}
-          requiresUpgrade={planContextReady && maxTeams === 0}
+          requiresUpgrade={planLocked}
           plan={planForCapacity}
-          createDisabledReason={createDisabledReason}
         />
       ) : (
         <>
+          {planLocked ? <PlanRestrictedNotice /> : null}
           <TeamsToolbar
             search={search}
             onSearch={setSearch}
@@ -721,30 +754,55 @@ function UpgradeCTA({
 // Empty / loading / error
 // =============================================================================
 
+/**
+ * Entitlement Alignment (2026-07-14) — restriction notice rendered above
+ * the grandfathered-Teams list when the active plan includes zero Teams.
+ * Existing Teams remain readable; all membership growth is locked.
+ */
+function PlanRestrictedNotice() {
+  return (
+    <div
+      data-testid="teams-plan-restricted-notice"
+      role="status"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        flexWrap: "wrap",
+        margin: "0 0 12px",
+      }}
+    >
+      <AppStatusBadge tone="amber" dot>
+        <span data-testid="teams-plan-restricted-chip">
+          Plan-restricted — read-only membership
+        </span>
+      </AppStatusBadge>
+      <span style={{ color: "#667085", fontSize: 13 }}>
+        {PLAN_LOCKED_COPY} Existing Teams and their data remain accessible.
+      </span>
+      <Link href="/billing" className="app-secondary-action">
+        Upgrade plan
+      </Link>
+    </div>
+  );
+}
+
 function TeamsEmptyState({
   onCreate,
   requiresUpgrade = false,
   plan = null,
-  createDisabledReason = null,
 }: {
   onCreate: () => void;
   /**
-   * PROOVRA Phase 10 — when true, the active plan grants zero Team
-   * capacity. The FREE plan in COLLABORATION_TEAM_PLAN_LIMITS allows 1
-   * Team, so this branch is reached primarily by downgraded or inactive
-   * subscriptions. We surface an UpgradeCTA card pointing at /billing
-   * (the canonical billing surface) instead of letting the Create CTA
-   * silently dead-end.
+   * Entitlement Alignment (2026-07-14) — when true, the active plan
+   * (FREE/PAYG) includes ZERO Teams. The empty state renders the honest
+   * plan-locked landing: no Create-Team affordance at all, just the
+   * canonical copy + upgrade CTA pointing at /billing.
    */
   requiresUpgrade?: boolean;
   plan?: WorkspacePlan | null;
-  createDisabledReason?: string | null;
 }) {
   if (requiresUpgrade) {
-    const planLabel = plan ?? "current";
-    const reason =
-      createDisabledReason ??
-      `Your ${planLabel} plan doesn't include Teams. Upgrade to create one.`;
     return (
       <div
         className="app-empty"
@@ -754,10 +812,11 @@ function TeamsEmptyState({
         <span className="app-empty__icon" aria-hidden="true">
           <TeamsGlyph />
         </span>
-        <strong>Collaboration Teams are part of a paid plan</strong>
+        <strong>{PLAN_LOCKED_COPY}</strong>
         <p>
-          {reason} Teams give you shared assignments, member invites, and
-          collaborative review on cases and evidence.
+          {plan ? `Your ${plan} plan doesn't include Teams. ` : ""}
+          Teams give you shared assignments, member invites, and
+          collaborative review on cases and evidence. Upgrade to create one.
         </p>
         <div
           style={{
@@ -772,21 +831,10 @@ function TeamsEmptyState({
             href="/billing"
             className="app-primary-action"
             data-testid="teams-empty-upgrade-cta"
-            aria-label={`Upgrade plan — ${reason}`}
+            aria-label={`Upgrade plan — ${PLAN_LOCKED_COPY}`}
           >
             Upgrade plan
           </Link>
-          <button
-            type="button"
-            className="app-secondary-action"
-            onClick={onCreate}
-            disabled
-            aria-disabled="true"
-            aria-label={`Create Team — ${reason}`}
-            title={reason}
-          >
-            Create team
-          </button>
         </div>
       </div>
     );
@@ -967,9 +1015,18 @@ function CreateTeamModal({
       const safe = toSafeUserError(err, {
         message: "We couldn't create the team. Please try again.",
       });
-      setError({ message: safe.message, requestId: safe.supportReference });
+      // Entitlement Alignment (2026-07-14): TEAM_LIMIT_REACHED carries the
+      // authoritative cap in `details` — surface the exact plan + limit
+      // ("Your Pro plan includes up to 2 Teams. Upgrade to create another
+      // Team.") instead of the generic sentence. Numbers are NEVER
+      // fabricated: when details are missing we keep the safe generic copy.
+      const message =
+        err instanceof ApiError && err.code === "TEAM_LIMIT_REACHED"
+          ? formatTeamLimitReachedMessage(err.details) ?? safe.message
+          : safe.message;
+      setError({ message, requestId: safe.supportReference });
       addToast(
-        safe.message,
+        message,
         safe.severity,
         undefined,
         safe.supportReference ? { supportReference: safe.supportReference } : undefined,

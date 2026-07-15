@@ -16,10 +16,7 @@ import { formatUserDate } from "../../../../../lib/date";
 import {
   type CollaborationTeamDetail,
   type CollaborationTeamInvite,
-  type CollaborationTeamLinkInviteSecret,
-  createInviteLink,
   inviteByEmail,
-  inviteBySms,
   revokeInvite,
 } from "../../../../../lib/api/collaboration-teams";
 import {
@@ -35,29 +32,25 @@ import {
   usePersonalSpace,
 } from "../../../../../lib/platform-context";
 import type { WorkspacePlan } from "../../../../../lib/platform-context/types";
-import { useBillingSummary } from "../../../../../lib/api/billing-summary";
 import {
   PlanGateBadge,
   type PlanTier,
 } from "../../../../../components/billing/PlanGateBadge";
 
 // =============================================================================
-// Invites tab
+// Invites tab — EMAIL-ONLY (Teams Entitlement Alignment, 2026-07-14).
 //
-// VISUAL redesign — migrated onto the neutral `app-*` internal-product design
-// system (Home/Cases visual language). The three former stacked cards (email /
-// SMS / sharable link) are consolidated under ONE unified invite workflow: an
-// invite-method segmented control (`.app-tabs`/`.app-tab`) selects which
-// method's form is shown; only the selected form renders at a time. The
-// pending/recent list is now an `.app-table[data-responsive]` with
-// `AppStatusBadge` semantics. Native <select>s (Role / Expiry) are replaced by
-// `AppListbox`, each carrying a hidden mirror input so pre-existing testids
-// still resolve the selected value. No data-fetching, permission, billing-limit,
-// route or behaviour changes — every data-testid, data-*, field name, submit
-// handler, and the plan-gating logic are preserved verbatim.
+// Invitations are email-only product-wide: the SMS and shareable-link invite
+// channels were deleted from the product (backend endpoints are GONE), so this
+// tab renders exactly ONE invite form (email) plus the pending/recent invite
+// list. Historic SMS/LINK invite rows may still appear in the list — display
+// is honest, but no new non-email invites can be issued.
+//
+// Plan lock: when the resolved plan grants ZERO Teams (`maxTeams === 0` —
+// FREE/PAYG owning a grandfathered Team), the ENTIRE invite surface is
+// replaced by a single upgrade panel. We never render a fillable form that is
+// known to fail (the backend answers 402 TEAM_INVITES_NOT_INCLUDED).
 // =============================================================================
-
-type InviteMethod = "email" | "sms" | "link";
 
 function InvitesTab({
   team,
@@ -69,18 +62,65 @@ function InvitesTab({
   canInvite: boolean;
 }) {
   const { addToast } = useToast();
-  const [linkSecret, setLinkSecret] =
-    useState<CollaborationTeamLinkInviteSecret | null>(null);
-  const [method, setMethod] = useState<InviteMethod>("email");
+  const limits = useResolvedCollaborationTeamPlanLimits();
+  const currentPlan = useResolvedActivePlanTier();
 
   const onError = (err: { message: string; requestId?: string }) =>
     notifyApiError(addToast, err);
 
-  const methods: ReadonlyArray<{ id: InviteMethod; label: string }> = [
-    { id: "email", label: "Email" },
-    { id: "sms", label: "SMS" },
-    { id: "link", label: "Shareable link" },
-  ];
+  // Plan lock — resolved plan includes zero Teams. Replace the whole invite
+  // surface (form + caps badge) with one honest upgrade panel. While the
+  // envelope is still loading (limits === null) we keep the normal surface;
+  // the backend guards remain the source of truth.
+  const planLocked = limits !== null && limits.maxTeams === 0;
+
+  if (planLocked) {
+    return (
+      <section data-testid="tab-invites-content">
+        <div className="app-panel" data-testid="invites-plan-locked">
+          <div className="app-panel__head">
+            <h2 className="app-panel__title">Invitations are locked</h2>
+          </div>
+          <div className="app-panel__body">
+            <p
+              style={{
+                color: "#475569",
+                margin: "0 0 12px",
+                fontSize: 13.5,
+                lineHeight: 1.55,
+                maxWidth: "60ch",
+              }}
+            >
+              The Team owner&apos;s current plan does not include Teams.
+              Existing data remains accessible. Upgrade to invite members.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <Link
+                href="/billing"
+                className="app-primary-action"
+                data-testid="invites-plan-locked-upgrade-cta"
+              >
+                View billing
+              </Link>
+              <PlanGateBadge
+                feature="Teams"
+                requiredPlan="PRO"
+                currentPlan={currentPlan}
+                upgradeCtaHref="/billing"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section data-testid="tab-invites-content">
@@ -96,69 +136,24 @@ function InvitesTab({
                 fontSize: 13,
               }}
             >
-              Invite collaborators by email, SMS, or a shareable link.
-              Invitees must also join the parent workspace to accept.
+              Invite collaborators by email. Invitees must also join the
+              parent workspace to accept.
             </p>
           </div>
         </div>
 
         <div className="app-panel__body">
           {canInvite ? (
-            <>
-              <div
-                className="app-tabs"
-                role="tablist"
-                aria-label="Invite method"
-                style={{ marginBottom: "1rem", width: "fit-content", maxWidth: "100%" }}
-              >
-                {methods.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={method === m.id}
-                    className={`app-tab${method === m.id ? " is-active" : ""}`}
-                    onClick={() => setMethod(m.id)}
-                    data-testid={`invite-method-${m.id}`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="app-inner-surface" style={{ padding: "1.1rem" }}>
-                {method === "email" ? (
-                  <EmailInviteCard
-                    teamId={team.id}
-                    onSent={() => {
-                      addToast("Email invite sent.", "success");
-                      void onRefresh();
-                    }}
-                    onError={onError}
-                  />
-                ) : null}
-                {method === "sms" ? (
-                  <SmsInviteCard
-                    teamId={team.id}
-                    onSent={() => {
-                      addToast("SMS invite sent.", "success");
-                      void onRefresh();
-                    }}
-                    onError={onError}
-                  />
-                ) : null}
-                {method === "link" ? (
-                  <LinkInviteCard
-                    teamId={team.id}
-                    onCreated={(secret) => {
-                      setLinkSecret(secret);
-                      void onRefresh();
-                    }}
-                    onError={onError}
-                  />
-                ) : null}
-              </div>
-            </>
+            <div className="app-inner-surface" style={{ padding: "1.1rem" }}>
+              <EmailInviteCard
+                teamId={team.id}
+                onSent={() => {
+                  addToast("Email invite sent.", "success");
+                  void onRefresh();
+                }}
+                onError={onError}
+              />
+            </div>
           ) : (
             <p
               style={{
@@ -176,14 +171,7 @@ function InvitesTab({
             </p>
           )}
 
-          {linkSecret ? (
-            <LinkInviteResult
-              secret={linkSecret}
-              onClose={() => setLinkSecret(null)}
-            />
-          ) : null}
-
-          <PendingInvitesBadge invites={team.invites} />
+          <PendingInvitesBadge invites={team.invites} limits={limits} />
         </div>
       </div>
 
@@ -324,302 +312,6 @@ function EmailInviteCard({
   );
 }
 
-function SmsInviteCard({
-  teamId,
-  onSent,
-  onError,
-}: {
-  teamId: string;
-  onSent: () => void;
-  onError: (err: { message: string; requestId?: string }) => void;
-}) {
-  const [phone, setPhone] = useState("");
-  const [role, setRole] = useState<CollaborationTeamRole>("MEMBER");
-  const [days, setDays] = useState(7);
-  const [busy, setBusy] = useState(false);
-  // PROOVRA Phase 10 — read SMS gating from the canonical plan limits
-  // derived from `/v1/platform-context` (no fabricated counts). When
-  // limits is still null (envelope loading) we leave the form active —
-  // the backend `billing-guards` remain the source of truth.
-  const limits = useResolvedCollaborationTeamPlanLimits();
-  const currentPlan = useResolvedActivePlanTier();
-  const smsGated = limits !== null && limits.smsInvitesEnabled === false;
-  const disabledTitle = smsGated
-    ? "SMS invites are not included in your current plan — upgrade to PAYG or above to enable this channel."
-    : undefined;
-  return (
-    <form
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (smsGated || !phone || busy) return;
-        setBusy(true);
-        try {
-          await inviteBySms(teamId, { phone, role, expiresInDays: days });
-          setPhone("");
-          onSent();
-        } catch (err) {
-          if (err instanceof ApiError) {
-            onError({ message: err.message, requestId: err.requestId });
-          } else {
-            onError({ message: "Couldn't send SMS invite." });
-          }
-        } finally {
-          setBusy(false);
-        }
-      }}
-      data-testid="sms-invite-form"
-      data-plan-gated={smsGated ? "true" : "false"}
-      aria-disabled={smsGated ? true : undefined}
-      style={{ ...formGridStyle, opacity: smsGated ? 0.62 : 1 }}
-    >
-      <div style={fieldWideStyle}>
-        <label className="app-field-label" htmlFor="sms-invite-phone">
-          Phone (E.164)
-        </label>
-        <input
-          id="sms-invite-phone"
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          required={!smsGated}
-          disabled={smsGated}
-          placeholder="+12025550100"
-          pattern="^\+[1-9]\d{7,14}$"
-          data-testid="sms-invite-phone"
-          aria-label={smsGated ? disabledTitle : undefined}
-          className="app-form-input"
-        />
-      </div>
-      <RoleSelect value={role} onChange={setRole} data-testid-prefix="sms" />
-      <ExpirySelect value={days} onChange={setDays} />
-      <div style={fieldWideStyle}>
-        <SmsStatusChip smsIncluded={!smsGated} />
-      </div>
-      <div style={actionRowStyle}>
-        <button
-          type="submit"
-          disabled={smsGated || !phone || busy}
-          className="app-primary-action"
-          data-testid="sms-invite-submit"
-          title={disabledTitle}
-          aria-label={smsGated ? disabledTitle : undefined}
-        >
-          {busy ? "Sending…" : "Send SMS invite"}
-        </button>
-      </div>
-      <div style={fieldWideStyle}>
-        {smsGated ? (
-          <PlanGateBadge
-            feature="SMS invites"
-            requiredPlan="PAYG"
-            currentPlan={currentPlan}
-            upgradeCtaHref="/billing"
-          />
-        ) : (
-          <p style={{ fontSize: "0.78rem", color: "#667085", margin: 0 }}>
-            SMS invites are available on PAYG and above.
-          </p>
-        )}
-      </div>
-    </form>
-  );
-}
-
-/**
- * PROOVRA Phase 10 — additive small SMS_STATUS chip rendered above the
- * SmsInviteCard submit button. Single source of truth: derives from the
- * canonical billing summary. Renders bounded copy ("Included in Team
- * plan" / "Upgrade to Team plan for SMS"). Never replaces the
- * pre-existing PlanGateBadge — strictly additive.
- */
-function SmsStatusChip({ smsIncluded }: { smsIncluded: boolean }): JSX.Element | null {
-  const summary = useBillingSummary();
-  if (!summary) return null;
-  const planLabel = summary.plan;
-  const label = smsIncluded
-    ? `Included in ${planLabel} plan`
-    : "Upgrade to Team plan for SMS";
-  return (
-    <AppStatusBadge
-      tone={smsIncluded ? "green" : "slate"}
-      title={label}
-      className="cc-sms-status-chip"
-    >
-      <span data-testid="sms-status-chip" data-included={smsIncluded ? "true" : "false"}>
-        {label}
-      </span>
-    </AppStatusBadge>
-  );
-}
-
-function LinkInviteCard({
-  teamId,
-  onCreated,
-  onError,
-}: {
-  teamId: string;
-  onCreated: (s: CollaborationTeamLinkInviteSecret) => void;
-  onError: (err: { message: string; requestId?: string }) => void;
-}) {
-  const [role, setRole] = useState<CollaborationTeamRole>("MEMBER");
-  const [maxUses, setMaxUses] = useState(1);
-  const [days, setDays] = useState(7);
-  const [busy, setBusy] = useState(false);
-  // PROOVRA Phase 10 — link-invite gating mirrors the SMS gate above.
-  // The backend `billing-guards` are authoritative; this is UX-only.
-  const limits = useResolvedCollaborationTeamPlanLimits();
-  const currentPlan = useResolvedActivePlanTier();
-  const linkGated = limits !== null && limits.linkInvitesEnabled === false;
-  const disabledTitle = linkGated
-    ? "Sharable invite links are not included in your current plan — upgrade to enable this channel."
-    : undefined;
-  return (
-    <form
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (linkGated || busy) return;
-        setBusy(true);
-        try {
-          const secret = await createInviteLink(teamId, {
-            role,
-            maxUses,
-            expiresInDays: days,
-          });
-          onCreated(secret);
-        } catch (err) {
-          if (err instanceof ApiError) {
-            onError({ message: err.message, requestId: err.requestId });
-          } else {
-            onError({ message: "Couldn't generate invite link." });
-          }
-        } finally {
-          setBusy(false);
-        }
-      }}
-      data-testid="link-invite-form"
-      data-plan-gated={linkGated ? "true" : "false"}
-      aria-disabled={linkGated ? true : undefined}
-      style={{ ...formGridStyle, opacity: linkGated ? 0.62 : 1 }}
-    >
-      <RoleSelect value={role} onChange={setRole} data-testid-prefix="link" />
-      <div>
-        <label className="app-field-label" htmlFor="link-invite-max-uses">
-          Max uses
-        </label>
-        <input
-          id="link-invite-max-uses"
-          type="number"
-          min={1}
-          max={1000}
-          value={maxUses}
-          onChange={(e) => setMaxUses(parseInt(e.target.value || "1", 10))}
-          disabled={linkGated}
-          data-testid="link-invite-max-uses"
-          aria-label={linkGated ? disabledTitle : undefined}
-          className="app-form-input"
-        />
-      </div>
-      <ExpirySelect value={days} onChange={setDays} />
-      <div style={actionRowStyle}>
-        <button
-          type="submit"
-          disabled={linkGated || busy}
-          className="app-primary-action"
-          data-testid="link-invite-submit"
-          title={disabledTitle}
-          aria-label={linkGated ? disabledTitle : undefined}
-        >
-          {busy ? "Generating…" : "Generate link"}
-        </button>
-      </div>
-      <div style={fieldWideStyle}>
-        {linkGated ? (
-          <PlanGateBadge
-            feature="Sharable invite links"
-            requiredPlan="PAYG"
-            currentPlan={currentPlan}
-            upgradeCtaHref="/billing"
-          />
-        ) : (
-          <p style={{ fontSize: "0.78rem", color: "#667085", margin: 0 }}>
-            The link is shown ONCE — copy it before closing the panel.
-          </p>
-        )}
-      </div>
-    </form>
-  );
-}
-
-function LinkInviteResult({
-  secret,
-  onClose,
-}: {
-  secret: CollaborationTeamLinkInviteSecret;
-  onClose: () => void;
-}) {
-  const { addToast } = useToast();
-  const [copied, setCopied] = useState(false);
-  const onCopy = async () => {
-    try {
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(secret.acceptUrl);
-        setCopied(true);
-        addToast("Invite link copied.", "success");
-        setTimeout(() => setCopied(false), 2000);
-      }
-    } catch {
-      addToast("Couldn't copy. Select the link manually.", "error");
-    }
-  };
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      data-testid="link-invite-result"
-      className="app-inner-surface"
-      style={{ marginTop: "1rem", padding: "1.25rem" }}
-    >
-      <h4 style={{ margin: 0, color: "#172033", fontSize: 15, fontWeight: 700 }}>
-        Your invite link (visible once)
-      </h4>
-      <p style={{ color: "#667085", marginTop: 6, fontSize: "0.9rem" }}>
-        Copy this link and share it with the people you want to invite.
-        It expires {new Date(secret.expiresAtUtc).toUTCString()} and
-        accepts up to {secret.maxUses} use{secret.maxUses === 1 ? "" : "s"}.
-      </p>
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          marginTop: "0.75rem",
-          alignItems: "center",
-        }}
-      >
-        <input
-          readOnly
-          value={secret.acceptUrl}
-          data-testid="link-invite-url"
-          className="app-form-input"
-          style={{ fontFamily: "monospace", fontSize: "0.85rem" }}
-        />
-        <button
-          type="button"
-          onClick={() => void onCopy()}
-          className="app-secondary-action"
-          data-testid="link-invite-copy"
-        >
-          {copied ? "Copied!" : "Copy"}
-        </button>
-      </div>
-      <div style={{ marginTop: "0.75rem" }}>
-        <button type="button" onClick={onClose} className="app-ghost-action">
-          Done
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // Map an invite status to the app semantic tone contract.
 function inviteStatusTone(status: string): AppTone {
   switch (status) {
@@ -652,10 +344,9 @@ function InviteRow({
   const { addToast } = useToast();
   const { confirm } = useConfirmAction();
   const [busy, setBusy] = useState(false);
-  const recipient =
-    invite.email ??
-    invite.phone ??
-    (invite.channel === "LINK" ? `link · ${invite.useCount}/${invite.maxUses}` : "—");
+  // Historic rows: SMS/LINK invites issued before the email-only
+  // alignment may still exist — display them honestly.
+  const recipient = invite.email ?? invite.phone ?? "—";
   const onRevoke = async () => {
     const ok = await confirm({
       title: "Revoke this invite?",
@@ -747,28 +438,25 @@ function InviteRow({
 }
 
 // -----------------------------------------------------------------------------
-// PendingInvitesBadge — Phase 10 UX addition.
-//
-// Surfaces the per-team invite caps (`maxPendingInvitesPerTeam`,
-// `maxInvitesPer24h`) BEFORE the user hits the 429 rate-limit from
-// `assertCanInviteCollaborationTeamMember` (services/api/.../billing-guards.ts).
+// PendingInvitesBadge — surfaces the per-team invite caps
+// (`maxPendingInvitesPerTeam`, `maxInvitesPer24h`) BEFORE the user hits the
+// 429 rate-limit from the backend billing guards.
 //
 // Data sources (NO new endpoint):
 //   - Counts are derived from `team.invites` already on the detail payload.
 //   - Caps are resolved from the canonical `getCollaborationTeamPlanLimits`
-//     against the plan exposed by /v1/platform-context (account /
-//     personal-space / organization), via the canonical tenant-model hooks.
+//     via `useResolvedCollaborationTeamPlanLimits` (passed in by the tab).
 //     We do NOT fabricate caps and we do NOT re-fetch billing.
 //
 // Upgrade CTA points at the canonical billing surface (/billing).
 // -----------------------------------------------------------------------------
 function PendingInvitesBadge({
   invites,
+  limits,
 }: {
   invites: ReadonlyArray<CollaborationTeamInvite>;
+  limits: CollaborationTeamPlanLimits | null;
 }) {
-  const limits = useResolvedCollaborationTeamPlanLimits();
-
   const pending = useMemo(
     () => invites.filter((i) => i.status === "PENDING").length,
     [invites],
@@ -833,7 +521,7 @@ function PendingInvitesBadge({
           title={
             rateAtCap
               ? "24h invite rate limit reached. Wait for the window to reset or upgrade your plan."
-              : "Invites sent in the last 24 hours, all channels combined."
+              : "Invites sent in the last 24 hours."
           }
           aria-label={rateLabel}
         >
@@ -861,8 +549,8 @@ function PendingInvitesBadge({
 /**
  * Resolve the active-space plan from the canonical envelope hooks and
  * return the matching `CollaborationTeamPlanLimits`. Returns `null` while
- * the envelope is still loading so the badge does not show a fabricated
- * denominator.
+ * the envelope is still loading so consumers do not show a fabricated
+ * denominator (or a fabricated plan lock).
  *
  * Plan-resolution order (matches the backend `resolveCollaborationTeamOwnerUserId`
  * → `resolveUserPlan` chain):
@@ -892,11 +580,11 @@ function useResolvedCollaborationTeamPlanLimits():
 }
 
 /**
- * Phase 10 — sibling hook returning the resolved active plan tier as
- * the canonical {@link PlanTier} vocabulary used by `PlanGateBadge`.
- * `null` indicates the envelope hasn't resolved a plan yet (degraded
- * billing context) — call sites must render an "unknown" gate state
- * rather than fabricating FREE.
+ * Sibling hook returning the resolved active plan tier as the canonical
+ * {@link PlanTier} vocabulary used by `PlanGateBadge`. `null` indicates
+ * the envelope hasn't resolved a plan yet (degraded billing context) —
+ * call sites must render an "unknown" gate state rather than
+ * fabricating FREE.
  */
 function useResolvedActivePlanTier(): PlanTier | null {
   const account = useAccount();
@@ -915,8 +603,8 @@ function useResolvedActivePlanTier(): PlanTier | null {
       plan = personalSpace?.plan ?? account?.accountPlan ?? null;
     }
     if (plan === null) return null;
-    // WorkspacePlan vocabulary ("FREE" | "PAYG" | "PRO" | "TEAM") is a
-    // strict subset of PlanTier — no ENTERPRISE today. Narrow safely.
+    // WorkspacePlan vocabulary is a strict subset of PlanTier — narrow
+    // safely.
     return plan as PlanTier;
   }, [account, activeSpace, organizations, personalSpace]);
 }
@@ -1005,7 +693,7 @@ function roleHelp(r: CollaborationTeamRole): string {
 // Invites-tab-private layout styles
 //
 // LAYOUT only — colour, border, background, and focus come from the canonical
-// `app-*` classes applied on each field. The unified form uses a responsive
+// `app-*` classes applied on each field. The form uses a responsive
 // two-column grid; recipient/status/badge rows span full width.
 // =============================================================================
 

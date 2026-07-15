@@ -28,21 +28,24 @@
  *                                  past the plan's `maxMembersPerTeam`.
  * - TEAM_INVITE_LIMIT_REACHED   → invite gated by pending-per-team or
  *                                  24h rate window.
- * - SMS_INVITE_NOT_INCLUDED     → invite channel SMS not available on plan.
- * - LINK_INVITE_NOT_INCLUDED    → invite channel LINK not available on plan.
- * - GUEST_LIMIT_REACHED         → guest creation when the plan does not
- *                                  permit guests OR the cap is reached.
+ * - TEAM_PLAN_REQUIRED          → the plan includes ZERO Teams (FREE /
+ *                                  PAYG): creation is a plan feature,
+ *                                  not a capacity problem.
+ * - TEAM_INVITES_NOT_INCLUDED   → the Team exists (grandfathered) but
+ *                                  the owner's current plan includes no
+ *                                  Teams, so ALL membership growth
+ *                                  (invites of every channel, member
+ *                                  adds, accepts) is locked.
  * - SUBSCRIPTION_INACTIVE       → universal pre-mutation gate: plan
  *                                  exists but the subscription is
  *                                  cancelled / unpaid / past grace.
  */
 export const COLLABORATION_TEAM_BILLING_ERROR_CODES = [
+  "TEAM_PLAN_REQUIRED",
+  "TEAM_INVITES_NOT_INCLUDED",
   "TEAM_LIMIT_REACHED",
   "TEAM_MEMBER_LIMIT_REACHED",
   "TEAM_INVITE_LIMIT_REACHED",
-  "SMS_INVITE_NOT_INCLUDED",
-  "LINK_INVITE_NOT_INCLUDED",
-  "GUEST_LIMIT_REACHED",
   "SUBSCRIPTION_INACTIVE",
   "EVIDENCE_RECORD_LIMIT_REACHED",
   "EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED",
@@ -65,12 +68,11 @@ export const COLLABORATION_TEAM_BILLING_ERROR_HTTP_STATUS: Record<
   CollaborationTeamBillingErrorCode,
   402 | 409 | 429
 > = {
+  TEAM_PLAN_REQUIRED: 402,
+  TEAM_INVITES_NOT_INCLUDED: 402,
   TEAM_LIMIT_REACHED: 409,
   TEAM_MEMBER_LIMIT_REACHED: 409,
   TEAM_INVITE_LIMIT_REACHED: 429,
-  SMS_INVITE_NOT_INCLUDED: 402,
-  LINK_INVITE_NOT_INCLUDED: 402,
-  GUEST_LIMIT_REACHED: 409,
   SUBSCRIPTION_INACTIVE: 402,
   EVIDENCE_RECORD_LIMIT_REACHED: 409,
   EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED: 409,

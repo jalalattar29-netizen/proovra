@@ -47,10 +47,6 @@ export interface BillingSummary {
   teamsMax: number | "unlimited";
   /** Max members per team, or "unlimited". */
   membersMax: number | "unlimited";
-  /** Whether SMS invites are included at the active plan tier. */
-  smsInvitesIncluded: boolean;
-  /** Whether guest collaborators are unlocked at the active plan tier. */
-  guestsAllowed: boolean;
 }
 
 /**
@@ -75,18 +71,15 @@ function projectFromLimits(
   limits: CollaborationTeamPlanLimits,
   teamsUsed: number,
 ): BillingSummary {
-  // Guests are unlocked on PRO, TEAM, and ENTERPRISE (matches the
-  // backend rule in services/api/src/services/collaboration-team/
-  // billing-guards.ts — `assertCanCreateGuest`).
-  const guestsAllowed =
-    plan === "PRO" || plan === "TEAM" || plan === "ENTERPRISE";
+  // Entitlement Alignment (2026-07-14): SMS invites, shareable invite
+  // links and external guests were removed from the product entirely, so
+  // the summary no longer projects those flags — only the canonical
+  // Teams capacity numbers remain.
   return {
     plan,
     teamsUsed,
     teamsMax: projectMax(plan, limits.maxTeams),
     membersMax: projectMax(plan, limits.maxMembersPerTeam),
-    smsInvitesIncluded: limits.smsInvitesEnabled,
-    guestsAllowed,
   };
 }
 

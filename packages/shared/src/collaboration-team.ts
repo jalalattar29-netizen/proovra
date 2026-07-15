@@ -197,66 +197,65 @@ export type CollaborationTeamPlanLimits = {
   maxTeams: number;
   /** Max ACTIVE members per team (the OWNER counts as 1). */
   maxMembersPerTeam: number;
-  /** Max pending invites per team. */
+  /** Max pending invites per team (operational abuse rail). */
   maxPendingInvitesPerTeam: number;
-  /** Max invites a single user can issue per 24h window. */
+  /** Max invites a single user can issue per 24h window (abuse rail). */
   maxInvitesPer24h: number;
-  /** Whether SMS invites are enabled at this plan tier. */
-  smsInvitesEnabled: boolean;
-  /** Whether link invites are enabled at this plan tier. */
-  linkInvitesEnabled: boolean;
-  /** Max use count allowed on a single invite link. */
-  maxInviteLinkUses: number;
 };
 
+/**
+ * THE canonical commercial Teams contract (Entitlement Alignment,
+ * 2026-07-14). These values ARE the published product: the public
+ * Pricing page, the authenticated Billing page, the frontend gates,
+ * and the backend guards all read THIS table — no other Teams limit
+ * table may exist.
+ *
+ *   - FREE / PAYG include ZERO Teams (creation → 402
+ *     TEAM_PLAN_REQUIRED; existing grandfathered Teams stay readable
+ *     but all membership growth is locked → TEAM_INVITES_NOT_INCLUDED).
+ *   - Invitations are EMAIL-ONLY. SMS invites, shareable invite links
+ *     and external guests were never published by Pricing or Billing
+ *     and were removed from self-service entirely (their code paths
+ *     are deleted, not disabled).
+ *   - "Up to N members" means members PER TEAM, everywhere.
+ *   - ENTERPRISE numbers are a provisioned ceiling; the commercial
+ *     contract is custom provisioning, and pricing shows "Custom".
+ *   - Pending/24h caps are operational abuse rails, not commercial
+ *     promises.
+ */
 export const COLLABORATION_TEAM_PLAN_LIMITS: Record<
   "FREE" | "PAYG" | "PRO" | "TEAM" | "ENTERPRISE",
   CollaborationTeamPlanLimits
 > = {
   FREE: {
-    maxTeams: 1,
-    maxMembersPerTeam: 3,
-    maxPendingInvitesPerTeam: 3,
-    maxInvitesPer24h: 10,
-    smsInvitesEnabled: false,
-    linkInvitesEnabled: true,
-    maxInviteLinkUses: 3,
+    maxTeams: 0,
+    maxMembersPerTeam: 0,
+    maxPendingInvitesPerTeam: 0,
+    maxInvitesPer24h: 0,
   },
   PAYG: {
-    maxTeams: 3,
-    maxMembersPerTeam: 5,
-    maxPendingInvitesPerTeam: 10,
-    maxInvitesPer24h: 30,
-    smsInvitesEnabled: true,
-    linkInvitesEnabled: true,
-    maxInviteLinkUses: 10,
+    maxTeams: 0,
+    maxMembersPerTeam: 0,
+    maxPendingInvitesPerTeam: 0,
+    maxInvitesPer24h: 0,
   },
   PRO: {
-    maxTeams: 10,
-    maxMembersPerTeam: 10,
-    maxPendingInvitesPerTeam: 25,
-    maxInvitesPer24h: 100,
-    smsInvitesEnabled: true,
-    linkInvitesEnabled: true,
-    maxInviteLinkUses: 25,
+    maxTeams: 2,
+    maxMembersPerTeam: 5,
+    maxPendingInvitesPerTeam: 10,
+    maxInvitesPer24h: 50,
   },
   TEAM: {
-    maxTeams: 50,
-    maxMembersPerTeam: 50,
-    maxPendingInvitesPerTeam: 100,
-    maxInvitesPer24h: 500,
-    smsInvitesEnabled: true,
-    linkInvitesEnabled: true,
-    maxInviteLinkUses: 100,
+    maxTeams: 5,
+    maxMembersPerTeam: 5,
+    maxPendingInvitesPerTeam: 25,
+    maxInvitesPer24h: 100,
   },
   ENTERPRISE: {
     maxTeams: 1000,
     maxMembersPerTeam: 500,
     maxPendingInvitesPerTeam: 1000,
     maxInvitesPer24h: 5000,
-    smsInvitesEnabled: true,
-    linkInvitesEnabled: true,
-    maxInviteLinkUses: 1000,
   },
 };
 

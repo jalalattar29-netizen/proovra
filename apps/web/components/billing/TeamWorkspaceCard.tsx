@@ -176,10 +176,16 @@ export function TeamWorkspaceCard({
         <div className="cases-inner mt-4 px-4 py-4 text-[0.88rem] leading-[1.75] text-[#475569]">
           {planExplanation}
           <br />
-          PRO can support owned organization workspaces. TEAM is the higher
-          subscription tier for owners who need a larger owned-organization
-          limit. Each single workspace still has a hard cap of
-          <strong>5 actual members</strong>.
+          {/* Teams Entitlement Alignment 2026-07-14 — canonical
+              vocabulary: Organization Workspace (never "Team
+              Workspace" / "owned organization workspaces"). No
+              hardcoded member cap here: the Members tile below shows
+              the server-provided seat limit for this workspace. */}
+          PRO can support Organization Workspaces. TEAM is the higher
+          subscription tier for owners who need more Organization
+          Workspaces. The member limit for this workspace is shown
+          below and applies to <strong>accepted members</strong>, not
+          pending invitations.
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">

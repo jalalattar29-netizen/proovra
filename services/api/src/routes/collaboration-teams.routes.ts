@@ -12,12 +12,11 @@
  *   - Every mutation goes through the canonical service module.
  *   - Every successful mutation emits an audit event via
  *     `appendPlatformAuditLog`.
- *   - Raw invite tokens are returned ONCE in the create-invite
- *     response (so the operator can copy a link) and otherwise NEVER
- *     re-exposed (the database stores sha256 hash only).
+ *   - Invitations are EMAIL-ONLY (Teams Entitlement Alignment,
+ *     2026-07-14). Raw invite tokens are NEVER returned by the API —
+ *     the token is delivered out-of-band via the invite email and the
+ *     database stores the sha256 hash only.
  */
-
-import { createHash } from "node:crypto";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -36,8 +35,6 @@ import {
   createAssignment,
   createCollaborationTeam,
   createEmailInvite,
-  createLinkInvite,
-  createSmsInvite,
   getCollaborationTeamDetail,
   listAssignments,
   listCollaborationTeams,
@@ -48,10 +45,7 @@ import {
   updateAssignment,
   updateCollaborationTeam,
 } from "../services/collaboration-team/collaboration-team.service.js";
-import {
-  sendCollaborationTeamInviteEmail,
-  sendCollaborationTeamInviteSms,
-} from "../services/collaboration-team/collaboration-team-delivery.service.js";
+import { sendCollaborationTeamInviteEmail } from "../services/collaboration-team/collaboration-team-delivery.service.js";
 import {
   BillingLimitError,
   assertCanCreateCollaborationTeam,
@@ -72,6 +66,7 @@ import {
  *   {
  *     code:        <CollaborationTeamBillingErrorCode>,
  *     message:     <operator-readable string>,
+ *     details:     <machine-readable context: plan/limit/usage/...>,
  *     upgradeHref: "/billing",
  *     requestId:   <existing request id | null>,
  *   }
@@ -89,6 +84,7 @@ function handleBillingError(
     void reply.code(err.httpStatus).send({
       code: err.code,
       message: err.message,
+      details: err.details,
       upgradeHref: err.upgradeCta,
       requestId,
     });
@@ -124,7 +120,11 @@ function handleServiceError(
     return;
   }
   if (err instanceof CollaborationTeamError) {
+    // `code` is the stable machine code (INVITE_EXPIRED, INVITE_REVOKED,
+    // WORKSPACE_MEMBERSHIP_REQUIRED, ...). `error` mirrors it for
+    // backwards compatibility with older consumers.
     void reply.code(err.httpStatus).send({
+      code: err.code,
       error: err.code,
       message: err.message,
       requestId,
@@ -197,21 +197,12 @@ const UpdateMemberBody = z.object({
   reason: z.string().max(400).optional().nullable(),
 });
 
+// Invitations are EMAIL-ONLY (Teams Entitlement Alignment, 2026-07-14).
+// The SMS and shareable-link invitation methods were removed product-wide
+// — their endpoints are deleted, not disabled (requests now 404).
 const EmailInviteBody = z.object({
   email: z.string().email().max(320),
   role: z.enum(["LEAD", "ADMIN", "MEMBER", "VIEWER", "EXTERNAL"]).optional(),
-  expiresInDays: z.number().int().min(1).max(30).optional(),
-});
-
-const SmsInviteBody = z.object({
-  phone: z.string().min(8).max(20),
-  role: z.enum(["LEAD", "ADMIN", "MEMBER", "VIEWER", "EXTERNAL"]).optional(),
-  expiresInDays: z.number().int().min(1).max(30).optional(),
-});
-
-const LinkInviteBody = z.object({
-  role: z.enum(["LEAD", "ADMIN", "MEMBER", "VIEWER", "EXTERNAL"]).optional(),
-  maxUses: z.number().int().min(1).max(1000).optional(),
   expiresInDays: z.number().int().min(1).max(30).optional(),
 });
 
@@ -582,13 +573,14 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
               ? parsed.data.expiresInDays * 24 * 60 * 60 * 1000
               : undefined,
           });
-          // Deliver the email (fire-and-forget on error; the invite
-          // row carries the delivery result for the dashboard).
+          // Deliver the email. The send is awaited so the 201 response
+          // can carry the actual delivery outcome; the invite row also
+          // persists the result for the dashboard (resend / inspect).
           const teamInfo = await getInviteContext({
             teamId: req.params.teamId,
             inviterUserId: ctx.userId,
           });
-          await sendCollaborationTeamInviteEmail({
+          const delivered = await sendCollaborationTeamInviteEmail({
             invite,
             teamId: req.params.teamId,
             workspaceId: ctx.workspaceId,
@@ -607,155 +599,28 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             resourceId: invite.id,
             outcome: "success",
             requestId: req.id ?? null,
-            metadata: { teamId: req.params.teamId, channel: "EMAIL" },
+            metadata: {
+              teamId: req.params.teamId,
+              channel: "EMAIL",
+              delivery: delivered ? "SENT" : "FAILED",
+            },
           });
           // NOTE: the raw token is intentionally NOT returned by the
           // email route — the token is delivered out-of-band via the
           // email itself. The dashboard manages the invite by
           // inviteId (resend / revoke / inspect delivery status).
+          //
+          // PARTIAL SUCCESS: the invite row is created even when the
+          // email could not be delivered — `delivery: "FAILED"` tells
+          // the operator to resend rather than silently pretending the
+          // email went out.
           return reply.code(201).send({
             invite: {
               id: invite.id,
               channel: invite.channel,
               expiresAtUtc: invite.expiresAtUtc,
             },
-          });
-        } catch (err) {
-          return handleServiceError(reply, err, req.id ?? null);
-        }
-      },
-    },
-  );
-
-  // ---------------------------------------------------------------------------
-  // POST /v1/collaboration-teams/:teamId/invites/sms
-  // ---------------------------------------------------------------------------
-  app.post<{ Params: { teamId: string } }>(
-    "/v1/collaboration-teams/:teamId/invites/sms",
-    {
-      preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
-        const parsed = SmsInviteBody.safeParse(req.body);
-        if (!parsed.success)
-          return reply
-            .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
-        try {
-          // Phase 10 — billing guards (pre-mutation).
-          await assertSubscriptionActiveOrGraceAllowed(ctx.userId);
-          await assertCanInviteCollaborationTeamMember(
-            req.params.teamId,
-            "SMS",
-          );
-          await assertCollaborationTeamMemberLimit(req.params.teamId, 1);
-          const invite = await createSmsInvite({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-            phone: parsed.data.phone,
-            role: parsed.data.role,
-            expiresInMs: parsed.data.expiresInDays
-              ? parsed.data.expiresInDays * 24 * 60 * 60 * 1000
-              : undefined,
-          });
-          const teamInfo = await getInviteContext({
-            teamId: req.params.teamId,
-            inviterUserId: ctx.userId,
-          });
-          await sendCollaborationTeamInviteSms({
-            invite,
-            teamId: req.params.teamId,
-            workspaceId: ctx.workspaceId,
-            teamName: teamInfo.teamName,
-            workspaceName: teamInfo.workspaceName,
-            inviterDisplay: teamInfo.inviterDisplay,
-            inviterEmail: teamInfo.inviterEmail,
-            inviterUserId: ctx.userId,
-            phone: parsed.data.phone,
-          });
-          await auditEvent({
-            userId: ctx.userId,
-            workspaceId: ctx.workspaceId,
-            action: "collaboration_team.invite.sms.created",
-            resourceType: "collaboration_team_invite",
-            resourceId: invite.id,
-            outcome: "success",
-            requestId: req.id ?? null,
-            metadata: { teamId: req.params.teamId, channel: "SMS" },
-          });
-          return reply.code(201).send({
-            invite: {
-              id: invite.id,
-              channel: invite.channel,
-              expiresAtUtc: invite.expiresAtUtc,
-            },
-          });
-        } catch (err) {
-          return handleServiceError(reply, err, req.id ?? null);
-        }
-      },
-    },
-  );
-
-  // ---------------------------------------------------------------------------
-  // POST /v1/collaboration-teams/:teamId/invites/link
-  // ---------------------------------------------------------------------------
-  app.post<{ Params: { teamId: string } }>(
-    "/v1/collaboration-teams/:teamId/invites/link",
-    {
-      preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const ctx = await requireWorkspaceMembership(req, reply);
-        if (!ctx) return;
-        const parsed = LinkInviteBody.safeParse(req.body);
-        if (!parsed.success)
-          return reply
-            .code(400)
-            .send({ error: "invalid_body", message: parsed.error.message });
-        try {
-          // Phase 10 — billing guards (pre-mutation).
-          await assertSubscriptionActiveOrGraceAllowed(ctx.userId);
-          await assertCanInviteCollaborationTeamMember(
-            req.params.teamId,
-            "LINK",
-          );
-          await assertCollaborationTeamMemberLimit(req.params.teamId, 1);
-          const invite = await createLinkInvite({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-            role: parsed.data.role,
-            maxUses: parsed.data.maxUses,
-            expiresInMs: parsed.data.expiresInDays
-              ? parsed.data.expiresInDays * 24 * 60 * 60 * 1000
-              : undefined,
-          });
-          await auditEvent({
-            userId: ctx.userId,
-            workspaceId: ctx.workspaceId,
-            action: "collaboration_team.invite.link.created",
-            resourceType: "collaboration_team_invite",
-            resourceId: invite.id,
-            outcome: "success",
-            requestId: req.id ?? null,
-            metadata: {
-              teamId: req.params.teamId,
-              channel: "LINK",
-              maxUses: invite.maxUses,
-            },
-          });
-          // LINK invites return the rawToken + acceptUrl ONCE so the
-          // operator can copy it. Subsequent GETs only expose the
-          // delivery status + role + expiry.
-          return reply.code(201).send({
-            invite: {
-              id: invite.id,
-              channel: invite.channel,
-              expiresAtUtc: invite.expiresAtUtc,
-              maxUses: invite.maxUses,
-              rawToken: invite.rawToken,
-              acceptUrl: invite.acceptUrl,
-            },
+            delivery: delivered ? "SENT" : "FAILED",
           });
         } catch (err) {
           return handleServiceError(reply, err, req.id ?? null);
@@ -809,25 +674,17 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         if (!userId)
           return reply.code(401).send({ error: "auth_required" });
         try {
-          // Phase 10 — pre-flight member-limit gate. No subscription
-          // gate here: acceptance is by the invitee, not the team owner.
-          // The owner's plan controls the per-team cap; the invitee can
-          // be on any plan. We resolve the teamId from the raw token so
-          // we can gate before the service performs the membership
-          // write (which is what creates the cap-violating row). If the
-          // invite is missing/expired/already-accepted the service
-          // surfaces the canonical CollaborationTeamError; we do not
-          // short-circuit that here.
-          const inviteTokenHash = createHash("sha256")
-            .update(req.params.token)
-            .digest("hex");
-          const inviteRow = await prisma.collaborationTeamInvite.findFirst({
-            where: { tokenHash: inviteTokenHash, status: "PENDING" },
-            select: { teamId: true },
-          });
-          if (inviteRow) {
-            await assertCollaborationTeamMemberLimit(inviteRow.teamId, 1);
-          }
+          // No subscription gate here: acceptance is by the invitee,
+          // not the team owner. The owner's plan controls the per-team
+          // cap — the service calls the canonical
+          // `assertCollaborationTeamMemberLimit` guard AFTER the
+          // already-a-member short-circuit and BEFORE the membership
+          // write, so:
+          //   - already-member re-accepts succeed even on a full team,
+          //   - capacity / plan-restriction failures propagate with
+          //     their stable billing codes (TEAM_MEMBER_LIMIT_REACHED /
+          //     TEAM_INVITES_NOT_INCLUDED) + details via
+          //     handleServiceError → handleBillingError.
           const result = await acceptInvite({
             rawToken: req.params.token,
             actorUserId: userId,
@@ -840,11 +697,15 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             resourceId: result.memberId,
             outcome: "success",
             requestId: req.id ?? null,
-            metadata: { teamId: result.teamId },
+            metadata: {
+              teamId: result.teamId,
+              alreadyMember: result.alreadyMember,
+            },
           });
           return reply.send({
             teamId: result.teamId,
             memberId: result.memberId,
+            alreadyMember: result.alreadyMember,
           });
         } catch (err) {
           return handleServiceError(reply, err, req.id ?? null);

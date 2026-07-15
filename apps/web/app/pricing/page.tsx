@@ -283,7 +283,7 @@ export default function MarketingPricingPage() {
         `${catalog?.team?.storageLabel ?? "500 GB"} storage`,
         `AI assistance: ${catalog?.team?.aiAdvisoryMonthlyOperations ?? 500} operations / month`,
         "Shared workspace, review assignments, team governance",
-        `Up to ${catalog?.team?.maxMembersPerTeam ?? 5} members per team`,
+        `Up to ${catalog?.team?.maxMembersPerTeam ?? 5} members per Team`,
       ],
     },
     {
@@ -463,8 +463,8 @@ export default function MarketingPricingPage() {
       values: [
         "Personal only",
         "Personal only",
-        "Personal + team support",
-        "Team-first workspace support",
+        "Personal Workspace + Teams",
+        "Organization Workspace",
         "Organization deployment",
       ],
     },
@@ -598,16 +598,33 @@ export default function MarketingPricingPage() {
       ],
     },
     {
-      label: "Owned teams allowed",
-      values: ["0", "0", "2", "5", "Custom"],
+      // Teams Entitlement Alignment 2026-07-14 — source of truth is
+      // COLLABORATION_TEAM_PLAN_LIMITS in
+      // packages/shared/src/collaboration-team.ts (FREE 0 / PAYG 0 /
+      // PRO 2 / TEAM 5 / ENTERPRISE Custom). The served catalog
+      // mirrors those values via maxOwnedTeams; the static fallbacks
+      // below MUST equal the canonical table (pinned by
+      // apps/web/__tests__/pricing-teams-entitlement-consistency.test.ts).
+      label: "Teams",
+      values: [
+        "Not included",
+        "Not included",
+        `Up to ${catalog?.pro?.maxOwnedTeams ?? 2}`,
+        `Up to ${catalog?.team?.maxOwnedTeams ?? 5}`,
+        "Custom",
+      ],
     },
     {
+      // Teams Entitlement Alignment 2026-07-14 — "Up to N members"
+      // ALWAYS means members per Team. Canonical values come from
+      // COLLABORATION_TEAM_PLAN_LIMITS (PRO 5 / TEAM 5), mirrored by
+      // the served catalog's maxMembersPerTeam.
       label: "Team members",
       values: [
-        "0",
-        "0",
-        `Up to ${catalog?.pro?.maxMembersPerTeam ?? 5}`,
-        `Up to ${catalog?.team?.maxMembersPerTeam ?? 5} per team`,
+        "Not included",
+        "Not included",
+        `Up to ${catalog?.pro?.maxMembersPerTeam ?? 5} per Team`,
+        `Up to ${catalog?.team?.maxMembersPerTeam ?? 5} per Team`,
         "Custom",
       ],
     },

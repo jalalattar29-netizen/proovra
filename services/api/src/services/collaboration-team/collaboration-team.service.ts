@@ -31,15 +31,11 @@ import {
   COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES,
   COLLABORATION_TEAM_ASSIGNMENT_STATUSES,
   COLLABORATION_TEAM_ASSIGNMENT_TARGETS,
-  COLLABORATION_TEAM_INVITE_CHANNELS,
   COLLABORATION_TEAM_INVITE_TOKEN_PREFIX,
   COLLABORATION_TEAM_INVITE_TOKEN_RANDOM_BYTES,
-  COLLABORATION_TEAM_MANAGE_ROLES,
   COLLABORATION_TEAM_ROLES,
-  COLLABORATION_TEAM_TRANSFER_LEAD_ROLES,
   COLLABORATION_TEAM_TYPES,
   collaborationTeamRoleHasPermission,
-  getCollaborationTeamPlanLimits,
   type CollaborationTeamActivityEventType,
   type CollaborationTeamAssignmentPriority,
   type CollaborationTeamAssignmentStatus,
@@ -51,6 +47,11 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import {
+  assertCanCreateCollaborationTeam,
+  assertCanInviteCollaborationTeamMember,
+  assertCollaborationTeamMemberLimit,
+} from "./billing-guards.js";
 
 // =============================================================================
 // Errors
@@ -80,10 +81,47 @@ const E = {
     new CollaborationTeamError("team_invalid", msg, 400),
   conflict: (msg: string) =>
     new CollaborationTeamError("team_conflict", msg, 409),
-  rateLimited: (msg: string) =>
-    new CollaborationTeamError("team_rate_limited", msg, 429),
-  planLimit: (msg: string) =>
-    new CollaborationTeamError("team_plan_limit", msg, 402),
+
+  // ---------------------------------------------------------------------------
+  // Stable invite-accept codes (Teams Entitlement Alignment, 2026-07-14).
+  //
+  // Every KNOWN accept failure carries a machine code so the accept page
+  // can render a specific state instead of parsing message text. The
+  // route serialises these as `{ code, error, message, requestId }`.
+  // Capacity / plan-restriction failures are NOT here — they propagate
+  // from the canonical billing guards as BillingLimitError with
+  // TEAM_MEMBER_LIMIT_REACHED / TEAM_INVITES_NOT_INCLUDED (+ details).
+  // ---------------------------------------------------------------------------
+  inviteNotFound: () =>
+    new CollaborationTeamError(
+      "INVITE_NOT_FOUND",
+      "This invite does not exist. Ask the team to send a new one.",
+      404,
+    ),
+  inviteExpired: () =>
+    new CollaborationTeamError(
+      "INVITE_EXPIRED",
+      "This invite has expired. Ask the team to send a new one.",
+      410,
+    ),
+  inviteRevoked: () =>
+    new CollaborationTeamError(
+      "INVITE_REVOKED",
+      "This invite has been revoked.",
+      410,
+    ),
+  inviteAlreadyUsed: () =>
+    new CollaborationTeamError(
+      "INVITE_ALREADY_USED",
+      "This invite has already been used. Ask the team to send a new one.",
+      409,
+    ),
+  workspaceMembershipRequired: () =>
+    new CollaborationTeamError(
+      "WORKSPACE_MEMBERSHIP_REQUIRED",
+      "Join the parent workspace first; the team invite cannot be accepted standalone.",
+      403,
+    ),
 };
 
 // =============================================================================
@@ -162,14 +200,6 @@ function validateRole(r: string | null | undefined): CollaborationTeamRole {
   throw E.invalid(`role must be one of ${COLLABORATION_TEAM_ROLES.join(", ")}.`);
 }
 
-function validateChannel(
-  c: string | null | undefined,
-): CollaborationTeamInviteChannel {
-  if (!c || !(COLLABORATION_TEAM_INVITE_CHANNELS as ReadonlyArray<string>).includes(c))
-    throw E.invalid("channel must be EMAIL, SMS, or LINK.");
-  return c as CollaborationTeamInviteChannel;
-}
-
 function validateAssignmentTarget(
   t: string | null | undefined,
 ): CollaborationTeamAssignmentTarget {
@@ -214,14 +244,6 @@ function validateEmail(e: string | null | undefined): string {
   if (!e || typeof e !== "string" || !EMAIL_RE.test(e))
     throw E.invalid("A valid email address is required.");
   return e.toLowerCase();
-}
-
-function validatePhone(p: string | null | undefined): string {
-  if (!p || typeof p !== "string") throw E.invalid("Phone is required.");
-  // Lazy E.164 check; consumer should normalise upstream via shared helper.
-  if (!/^\+[1-9]\d{7,14}$/.test(p))
-    throw E.invalid("Phone must be E.164 (e.g. +12025551234).");
-  return p;
 }
 
 // =============================================================================
@@ -282,25 +304,14 @@ async function requireMemberWithPermission(
 // =============================================================================
 // Plan-limit enforcement
 // =============================================================================
-
-type WorkspacePlanForLimits =
-  | "FREE"
-  | "PAYG"
-  | "PRO"
-  | "TEAM"
-  | "ENTERPRISE"
-  | string;
-
-async function resolveWorkspacePlan(
-  client: PrismaClient,
-  workspaceId: string,
-): Promise<WorkspacePlanForLimits> {
-  const ws = await client.team.findUnique({
-    where: { id: workspaceId },
-    select: { billingPlan: true },
-  });
-  return (ws?.billingPlan ?? "FREE") as WorkspacePlanForLimits;
-}
+//
+// Teams Entitlement Alignment (2026-07-14): the legacy inline checks
+// that read `Team.billingPlan` were DELETED. Every capacity / plan gate
+// now goes through the canonical entitlement-based billing guards in
+// ./billing-guards.ts (assertCanCreateCollaborationTeam /
+// assertCollaborationTeamMemberLimit /
+// assertCanInviteCollaborationTeamMember) so the service and the route
+// layer can never disagree about the commercial contract.
 
 // =============================================================================
 // Public API
@@ -324,17 +335,15 @@ export async function createCollaborationTeam(
   const description = validateDescription(input.description);
   const teamType = validateTeamType(input.teamType);
 
-  // Plan limit: maxTeams.
-  const plan = await resolveWorkspacePlan(client, input.workspaceId);
-  const limits = getCollaborationTeamPlanLimits(plan);
-  const existingActive = await client.collaborationTeam.count({
-    where: { workspaceId: input.workspaceId, status: "ACTIVE" },
+  // Plan gate — canonical entitlement-based guard (billing identity is
+  // the parent workspace's owner). Throws TEAM_PLAN_REQUIRED (402) on
+  // zero-team plans (FREE / PAYG) and TEAM_LIMIT_REACHED (409) at-cap.
+  const ws = await client.team.findUnique({
+    where: { id: input.workspaceId },
+    select: { ownerUserId: true },
   });
-  if (existingActive >= limits.maxTeams) {
-    throw E.planLimit(
-      `Plan ${plan} allows up to ${limits.maxTeams} active team(s). Archive or upgrade to add more.`,
-    );
-  }
+  if (!ws) throw E.notFound("Workspace");
+  await assertCanCreateCollaborationTeam(ws.ownerUserId, client);
 
   const result = await client.$transaction(async (tx) => {
     const team = await tx.collaborationTeam.create({
@@ -654,16 +663,11 @@ export async function addExistingMember(
       "Target user is not an active member of the parent workspace.",
     );
 
-  // Plan limit: maxMembersPerTeam.
-  const plan = await resolveWorkspacePlan(client, team.workspaceId);
-  const limits = getCollaborationTeamPlanLimits(plan);
-  const activeCount = await client.collaborationTeamMember.count({
-    where: { teamId: input.teamId, status: "ACTIVE" },
-  });
-  if (activeCount >= limits.maxMembersPerTeam)
-    throw E.planLimit(
-      `Plan ${plan} allows up to ${limits.maxMembersPerTeam} active members per team.`,
-    );
+  // Plan gate — canonical entitlement-based member-limit guard. Throws
+  // TEAM_INVITES_NOT_INCLUDED (402) when the owner's plan includes zero
+  // Teams (grandfathered growth lock) and TEAM_MEMBER_LIMIT_REACHED
+  // (409, with details) at seat capacity.
+  await assertCollaborationTeamMemberLimit(input.teamId, 1, client);
 
   // Upsert — a previously removed member can be reinstated.
   const existing = await client.collaborationTeamMember.findUnique({
@@ -901,33 +905,6 @@ function buildAcceptUrl(rawToken: string): string {
   return `${base}/collaboration-teams/invites/${encodeURIComponent(rawToken)}/accept`;
 }
 
-async function enforceInviteLimits(
-  client: PrismaClient,
-  args: { teamId: string; workspaceId: string; actorUserId: string; channel: CollaborationTeamInviteChannel },
-): Promise<void> {
-  const plan = await resolveWorkspacePlan(client, args.workspaceId);
-  const limits = getCollaborationTeamPlanLimits(plan);
-  if (args.channel === "SMS" && !limits.smsInvitesEnabled)
-    throw E.planLimit(`Plan ${plan} does not include SMS invites.`);
-  if (args.channel === "LINK" && !limits.linkInvitesEnabled)
-    throw E.planLimit(`Plan ${plan} does not include invite links.`);
-  const pending = await client.collaborationTeamInvite.count({
-    where: { teamId: args.teamId, status: "PENDING" },
-  });
-  if (pending >= limits.maxPendingInvitesPerTeam)
-    throw E.planLimit(
-      `Plan ${plan} allows up to ${limits.maxPendingInvitesPerTeam} pending invites per team.`,
-    );
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const recent = await client.collaborationTeamInvite.count({
-    where: { createdByUserId: args.actorUserId, createdAt: { gte: since } },
-  });
-  if (recent >= limits.maxInvitesPer24h)
-    throw E.rateLimited(
-      `You've issued ${recent} invites in the last 24h. Plan limit: ${limits.maxInvitesPer24h}.`,
-    );
-}
-
 export async function createEmailInvite(
   input: {
     teamId: string;
@@ -946,12 +923,10 @@ export async function createEmailInvite(
   );
   const email = validateEmail(input.email);
   const role = validateRole(input.role);
-  await enforceInviteLimits(client, {
-    teamId: input.teamId,
-    workspaceId: team.workspaceId,
-    actorUserId: input.actorUserId,
-    channel: "EMAIL",
-  });
+  // Canonical invite gate (EMAIL is the ONLY invitation channel):
+  //   - TEAM_INVITES_NOT_INCLUDED (402) on zero-team plans,
+  //   - TEAM_INVITE_LIMIT_REACHED (429) on pending-per-team / 24h caps.
+  await assertCanInviteCollaborationTeamMember(input.teamId, "EMAIL", client);
 
   const { raw, hash } = generateInviteToken();
   const expiresAtUtc = new Date(
@@ -992,150 +967,6 @@ export async function createEmailInvite(
     rawToken: raw,
     acceptUrl: buildAcceptUrl(raw),
     expiresAtUtc: invite.expiresAtUtc,
-  };
-}
-
-export async function createSmsInvite(
-  input: {
-    teamId: string;
-    actorUserId: string;
-    phone: string;
-    role?: string;
-    expiresInMs?: number;
-  },
-  client: PrismaClient = defaultPrisma,
-): Promise<CreatedInvite> {
-  const { team } = await requireMemberWithPermission(
-    client,
-    input.teamId,
-    input.actorUserId,
-    "team.member.invite",
-  );
-  const phone = validatePhone(input.phone);
-  const role = validateRole(input.role);
-  await enforceInviteLimits(client, {
-    teamId: input.teamId,
-    workspaceId: team.workspaceId,
-    actorUserId: input.actorUserId,
-    channel: "SMS",
-  });
-
-  const { raw, hash } = generateInviteToken();
-  const expiresAtUtc = new Date(
-    Date.now() + (input.expiresInMs ?? DEFAULT_INVITE_TTL_MS),
-  );
-
-  const invite = await client.$transaction(async (tx) => {
-    const created = await tx.collaborationTeamInvite.create({
-      data: {
-        teamId: input.teamId,
-        workspaceId: team.workspaceId,
-        channel: "SMS",
-        phone,
-        tokenHash: hash,
-        role,
-        status: "PENDING",
-        expiresAtUtc,
-        maxUses: 1,
-        createdByUserId: input.actorUserId,
-      },
-      select: { id: true, expiresAtUtc: true },
-    });
-    await recordActivity(tx, {
-      teamId: input.teamId,
-      workspaceId: team.workspaceId,
-      actorUserId: input.actorUserId,
-      eventType: "MEMBER_INVITED",
-      targetType: "INVITE",
-      targetId: created.id,
-      metadata: { channel: "SMS", role, phoneMasked: maskPhone(phone) },
-    });
-    return created;
-  });
-
-  return {
-    id: invite.id,
-    channel: "SMS",
-    rawToken: raw,
-    acceptUrl: buildAcceptUrl(raw),
-    expiresAtUtc: invite.expiresAtUtc,
-  };
-}
-
-export async function createLinkInvite(
-  input: {
-    teamId: string;
-    actorUserId: string;
-    role?: string;
-    maxUses?: number;
-    expiresInMs?: number;
-  },
-  client: PrismaClient = defaultPrisma,
-): Promise<CreatedInvite & { maxUses: number }> {
-  const { team } = await requireMemberWithPermission(
-    client,
-    input.teamId,
-    input.actorUserId,
-    "team.member.invite",
-  );
-  const role = validateRole(input.role);
-  const plan = await resolveWorkspacePlan(client, team.workspaceId);
-  const limits = getCollaborationTeamPlanLimits(plan);
-  if (!limits.linkInvitesEnabled)
-    throw E.planLimit(`Plan ${plan} does not include invite links.`);
-
-  const requestedUses = Math.max(1, input.maxUses ?? 1);
-  const maxUses = Math.min(requestedUses, limits.maxInviteLinkUses);
-
-  await enforceInviteLimits(client, {
-    teamId: input.teamId,
-    workspaceId: team.workspaceId,
-    actorUserId: input.actorUserId,
-    channel: "LINK",
-  });
-
-  const { raw, hash } = generateInviteToken();
-  const expiresAtUtc = new Date(
-    Date.now() + (input.expiresInMs ?? DEFAULT_INVITE_TTL_MS),
-  );
-
-  const invite = await client.$transaction(async (tx) => {
-    const created = await tx.collaborationTeamInvite.create({
-      data: {
-        teamId: input.teamId,
-        workspaceId: team.workspaceId,
-        channel: "LINK",
-        tokenHash: hash,
-        role,
-        status: "PENDING",
-        expiresAtUtc,
-        maxUses,
-        createdByUserId: input.actorUserId,
-        // Link invites don't have email/phone delivery, mark as DELIVERED
-        // immediately so the dashboard shows a clean state.
-        deliveryStatus: "DELIVERED",
-      },
-      select: { id: true, expiresAtUtc: true },
-    });
-    await recordActivity(tx, {
-      teamId: input.teamId,
-      workspaceId: team.workspaceId,
-      actorUserId: input.actorUserId,
-      eventType: "MEMBER_INVITED",
-      targetType: "INVITE",
-      targetId: created.id,
-      metadata: { channel: "LINK", role, maxUses },
-    });
-    return created;
-  });
-
-  return {
-    id: invite.id,
-    channel: "LINK",
-    rawToken: raw,
-    acceptUrl: buildAcceptUrl(raw),
-    expiresAtUtc: invite.expiresAtUtc,
-    maxUses,
   };
 }
 
@@ -1193,13 +1024,30 @@ export async function recordInviteDeliveryResult(
 }
 
 /**
- * Accept an invite. Idempotent on the (token, userId) pair — calling
- * twice with the same accepted invite is a no-op return.
+ * Accept an invite. Idempotent — if the accepting user is ALREADY an
+ * active member of the team (via this invite, another invite, or a
+ * direct add), the call succeeds with `{ alreadyMember: true }` so the
+ * UI can render "You are already a member" with a team link instead of
+ * an error page. This short-circuit runs BEFORE the expiry / revoked /
+ * capacity checks: an existing member re-clicking a stale invite link
+ * must not see a failure.
+ *
+ * Stable failure codes (CollaborationTeamError.code):
+ *   - INVITE_NOT_FOUND               (404)
+ *   - INVITE_REVOKED                 (410)
+ *   - INVITE_EXPIRED                 (410)
+ *   - INVITE_ALREADY_USED            (409)
+ *   - WORKSPACE_MEMBERSHIP_REQUIRED  (403)
+ *
+ * Capacity / plan-restriction failures propagate from the canonical
+ * billing guard as BillingLimitError:
+ *   - TEAM_INVITES_NOT_INCLUDED      (402, zero-team owner plan)
+ *   - TEAM_MEMBER_LIMIT_REACHED      (409, with details)
  */
 export async function acceptInvite(
   input: { rawToken: string; actorUserId: string },
   client: PrismaClient = defaultPrisma,
-): Promise<{ teamId: string; memberId: string }> {
+): Promise<{ teamId: string; memberId: string; alreadyMember: boolean }> {
   const hash = hashInviteToken(input.rawToken);
   const invite = await client.collaborationTeamInvite.findUnique({
     where: { tokenHash: hash },
@@ -1215,35 +1063,45 @@ export async function acceptInvite(
       acceptedByUserId: true,
     },
   });
-  if (!invite) throw E.notFound("Invite");
+  if (!invite) throw E.inviteNotFound();
 
-  if (invite.status === "REVOKED")
-    throw E.invalid("This invite has been revoked.");
+  // Already-a-member SUCCESS short-circuit (mandated UX): an active
+  // member re-accepting any invite to their team gets a success
+  // response with the team link, never an error.
+  const activeMembership = await client.collaborationTeamMember.findFirst({
+    where: {
+      teamId: invite.teamId,
+      userId: input.actorUserId,
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  });
+  if (activeMembership) {
+    return {
+      teamId: invite.teamId,
+      memberId: activeMembership.id,
+      alreadyMember: true,
+    };
+  }
+
+  if (invite.status === "REVOKED") throw E.inviteRevoked();
   if (invite.expiresAtUtc.getTime() < Date.now()) {
     await client.collaborationTeamInvite.update({
       where: { id: invite.id },
       data: { status: "EXPIRED" },
     });
-    throw E.invalid("This invite has expired.");
+    throw E.inviteExpired();
   }
-  if (
-    invite.status === "ACCEPTED" &&
-    invite.acceptedByUserId === input.actorUserId
-  ) {
-    const existing = await client.collaborationTeamMember.findFirst({
-      where: { teamId: invite.teamId, userId: input.actorUserId },
-      select: { id: true },
-    });
-    if (existing) return { teamId: invite.teamId, memberId: existing.id };
-  }
-  if (invite.useCount >= invite.maxUses)
-    throw E.invalid("This invite has reached its max uses.");
+  if (invite.status === "EXPIRED") throw E.inviteExpired();
+  // Consumed by someone else (or by this user before their membership
+  // was removed) — invites are single-use (maxUses is always written 1).
+  if (invite.status === "ACCEPTED" || invite.useCount >= invite.maxUses)
+    throw E.inviteAlreadyUsed();
 
   // Confirm the accepting user is also a member of the parent workspace.
-  // If they aren't, we can't add them to a collaboration team because
-  // the constitutional rule is: collaboration teams live inside a
-  // workspace, and only workspace members may join its teams. The
-  // caller should redirect to a workspace-join flow.
+  // Constitutional rule: collaboration teams live inside a workspace,
+  // and only workspace members may join its teams. The caller should
+  // redirect to a workspace-join flow.
   const wsMembership = await client.teamMember.findFirst({
     where: {
       teamId: invite.workspaceId,
@@ -1252,21 +1110,13 @@ export async function acceptInvite(
     },
     select: { id: true },
   });
-  if (!wsMembership)
-    throw E.invalid(
-      "Join the parent workspace first; the team invite cannot be accepted standalone.",
-    );
+  if (!wsMembership) throw E.workspaceMembershipRequired();
 
-  // Plan limit on members.
-  const plan = await resolveWorkspacePlan(client, invite.workspaceId);
-  const limits = getCollaborationTeamPlanLimits(plan);
-  const activeCount = await client.collaborationTeamMember.count({
-    where: { teamId: invite.teamId, status: "ACTIVE" },
-  });
-  if (activeCount >= limits.maxMembersPerTeam)
-    throw E.planLimit(
-      `This team has reached its member limit (${limits.maxMembersPerTeam}).`,
-    );
+  // Canonical capacity + plan gate (owner entitlement). Runs AFTER the
+  // already-member short-circuit so it only fires when the accept would
+  // actually add a seat. Propagates TEAM_MEMBER_LIMIT_REACHED /
+  // TEAM_INVITES_NOT_INCLUDED with details.
+  await assertCollaborationTeamMemberLimit(invite.teamId, 1, client);
 
   const role = validateRole(invite.role);
   const result = await client.$transaction(async (tx) => {
@@ -1331,7 +1181,7 @@ export async function acceptInvite(
       targetId: invite.id,
       metadata: { role },
     });
-    return { teamId: invite.teamId, memberId };
+    return { teamId: invite.teamId, memberId, alreadyMember: false };
   });
 
   return result;

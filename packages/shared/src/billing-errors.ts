@@ -39,9 +39,6 @@
  * - TEAM_MEMBER_LIMIT_REACHED   → adding a member past `maxMembersPerTeam`.
  * - TEAM_INVITE_LIMIT_REACHED   → invite gated by pending-per-team
  *                                 OR 24h rate window.
- * - SMS_INVITE_NOT_INCLUDED     → SMS invite channel not on this plan.
- * - GUEST_LIMIT_REACHED         → guest creation when the plan does not
- *                                 permit guests OR the cap is reached.
  * - SUBSCRIPTION_INACTIVE       → universal pre-mutation gate: plan
  *                                 exists but the subscription is
  *                                 cancelled / unpaid / past grace.
@@ -53,8 +50,6 @@ export const BILLING_ERROR_CODES = [
   "TEAM_LIMIT_REACHED",
   "TEAM_MEMBER_LIMIT_REACHED",
   "TEAM_INVITE_LIMIT_REACHED",
-  "SMS_INVITE_NOT_INCLUDED",
-  "GUEST_LIMIT_REACHED",
   "SUBSCRIPTION_INACTIVE",
   "UPGRADE_REQUIRED",
 ] as const;
@@ -77,8 +72,6 @@ export const BILLING_ERROR_HTTP_STATUS: Record<
   TEAM_LIMIT_REACHED: 409,
   TEAM_MEMBER_LIMIT_REACHED: 409,
   TEAM_INVITE_LIMIT_REACHED: 429,
-  SMS_INVITE_NOT_INCLUDED: 402,
-  GUEST_LIMIT_REACHED: 409,
   SUBSCRIPTION_INACTIVE: 402,
   UPGRADE_REQUIRED: 402,
 };

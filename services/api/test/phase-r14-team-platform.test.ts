@@ -220,13 +220,38 @@ describe("Phase R14 — Stage 5: role permissions", () => {
 // =============================================================================
 
 describe("Phase R14 — Stage 11: plan limits", () => {
-  it("ships limits for every plan tier", () => {
-    for (const tier of ["FREE", "PAYG", "PRO", "TEAM", "ENTERPRISE"] as const) {
-      const limits = COLLABORATION_TEAM_PLAN_LIMITS[tier];
-      expect(limits.maxTeams).toBeGreaterThan(0);
-      expect(limits.maxMembersPerTeam).toBeGreaterThan(0);
-      expect(limits.maxInvitesPer24h).toBeGreaterThan(0);
-    }
+  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
+  // invitation channels and external guests were removed from the product
+  // (never published by Pricing/Billing); invitations are EMAIL-only;
+  // FREE/PAYG include zero Teams. The limits type carries NO sms/link
+  // fields — `toEqual` pins the exact key set per tier.
+  it("ships the exact 2026-07-14 limits table for every plan tier", () => {
+    const zero = {
+      maxTeams: 0,
+      maxMembersPerTeam: 0,
+      maxPendingInvitesPerTeam: 0,
+      maxInvitesPer24h: 0,
+    };
+    expect(COLLABORATION_TEAM_PLAN_LIMITS.FREE).toEqual(zero);
+    expect(COLLABORATION_TEAM_PLAN_LIMITS.PAYG).toEqual(zero);
+    expect(COLLABORATION_TEAM_PLAN_LIMITS.PRO).toEqual({
+      maxTeams: 2,
+      maxMembersPerTeam: 5,
+      maxPendingInvitesPerTeam: 10,
+      maxInvitesPer24h: 50,
+    });
+    expect(COLLABORATION_TEAM_PLAN_LIMITS.TEAM).toEqual({
+      maxTeams: 5,
+      maxMembersPerTeam: 5,
+      maxPendingInvitesPerTeam: 25,
+      maxInvitesPer24h: 100,
+    });
+    expect(COLLABORATION_TEAM_PLAN_LIMITS.ENTERPRISE).toEqual({
+      maxTeams: 1000,
+      maxMembersPerTeam: 500,
+      maxPendingInvitesPerTeam: 1000,
+      maxInvitesPer24h: 5000,
+    });
   });
 
   it("plan tiers are monotonically increasing in capacity", () => {
@@ -241,11 +266,24 @@ describe("Phase R14 — Stage 11: plan limits", () => {
     expect(pro.maxMembersPerTeam).toBeLessThanOrEqual(team.maxMembersPerTeam);
   });
 
-  it("FREE plan disables SMS invites; PRO+ enables them", () => {
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.FREE.smsInvitesEnabled).toBe(false);
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.PRO.smsInvitesEnabled).toBe(true);
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.TEAM.smsInvitesEnabled).toBe(true);
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.ENTERPRISE.smsInvitesEnabled).toBe(true);
+  it("commercial contract 2026-07-14: FREE/PAYG zero Teams, PRO 2x5, TEAM 5x5 (email-only invites)", () => {
+    // SMS + shareable-link invitation channels were removed from the
+    // product entirely — the limits type carries no channel flags.
+    expect(COLLABORATION_TEAM_PLAN_LIMITS.FREE.maxTeams).toBe(0);
+    expect(COLLABORATION_TEAM_PLAN_LIMITS.FREE.maxMembersPerTeam).toBe(0);
+    expect(COLLABORATION_TEAM_PLAN_LIMITS.PAYG.maxTeams).toBe(0);
+    expect(COLLABORATION_TEAM_PLAN_LIMITS.PRO.maxTeams).toBe(2);
+    expect(COLLABORATION_TEAM_PLAN_LIMITS.PRO.maxMembersPerTeam).toBe(5);
+    expect(COLLABORATION_TEAM_PLAN_LIMITS.TEAM.maxTeams).toBe(5);
+    expect(COLLABORATION_TEAM_PLAN_LIMITS.TEAM.maxMembersPerTeam).toBe(5);
+    expect(
+      Object.keys(COLLABORATION_TEAM_PLAN_LIMITS.FREE).sort(),
+    ).toEqual([
+      "maxInvitesPer24h",
+      "maxMembersPerTeam",
+      "maxPendingInvitesPerTeam",
+      "maxTeams",
+    ]);
   });
 
   it("getCollaborationTeamPlanLimits falls back to FREE for unknown plans", () => {
@@ -355,7 +393,12 @@ describe("Phase R14 — Stage 3: service module public surface", () => {
     "services/api/src/services/collaboration-team/collaboration-team.service.ts",
   );
 
-  it("exports the canonical functions for CRUD + members + invites + activity + assignments", () => {
+  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
+  // invitation channels and external guests were removed from the product
+  // (never published by Pricing/Billing); invitations are EMAIL-only;
+  // FREE/PAYG include zero Teams. `createSmsInvite` / `createLinkInvite`
+  // are DELETED from the service surface.
+  it("exports the canonical functions for CRUD + members + invites (EMAIL-only) + activity + assignments", () => {
     const requiredExports = [
       "createCollaborationTeam",
       "listCollaborationTeams",
@@ -367,8 +410,6 @@ describe("Phase R14 — Stage 3: service module public surface", () => {
       "suspendMember",
       "removeMember",
       "createEmailInvite",
-      "createSmsInvite",
-      "createLinkInvite",
       "revokeInvite",
       "acceptInvite",
       "listTeamActivity",
@@ -380,6 +421,11 @@ describe("Phase R14 — Stage 3: service module public surface", () => {
     for (const sym of requiredExports) {
       expect(svc, `missing export ${sym}`).toMatch(
         new RegExp(`export (async function|function|const) ${sym}\\b`),
+      );
+    }
+    for (const gone of ["createSmsInvite", "createLinkInvite"]) {
+      expect(svc, `deleted export ${gone} must be absent`).not.toContain(
+        gone,
       );
     }
   });
@@ -407,7 +453,12 @@ describe("Phase R14 — Stage 4: API routes", () => {
   const routes = read("services/api/src/routes/collaboration-teams.routes.ts");
   const server = read("services/api/src/server.ts");
 
-  it("registers all required endpoints under /v1/collaboration-teams", () => {
+  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
+  // invitation channels and external guests were removed from the product
+  // (never published by Pricing/Billing); invitations are EMAIL-only;
+  // FREE/PAYG include zero Teams. The /invites/sms and /invites/link
+  // endpoints are DELETED (email invite + revoke + accept remain).
+  it("registers all required endpoints under /v1/collaboration-teams (no sms/link invite routes)", () => {
     // Just check the route paths exist as quoted strings — the
     // Fastify generic shape (`<{ Params: { teamId: string } }>`) has
     // nested braces that are awkward to regex; the route path string
@@ -419,8 +470,6 @@ describe("Phase R14 — Stage 4: API routes", () => {
       '"/v1/collaboration-teams/:teamId/members"',
       '"/v1/collaboration-teams/:teamId/members/:memberId"',
       '"/v1/collaboration-teams/:teamId/invites/email"',
-      '"/v1/collaboration-teams/:teamId/invites/sms"',
-      '"/v1/collaboration-teams/:teamId/invites/link"',
       '"/v1/collaboration-teams/:teamId/invites/:inviteId/revoke"',
       '"/v1/collaboration-team-invites/:token/accept"',
       '"/v1/collaboration-teams/:teamId/activity"',
@@ -430,6 +479,8 @@ describe("Phase R14 — Stage 4: API routes", () => {
     for (const path of requiredPaths) {
       expect(routes, `missing route ${path}`).toContain(path);
     }
+    expect(routes).not.toContain("invites/sms");
+    expect(routes).not.toContain("invites/link");
   });
 
   it("routes are wired into the Fastify app via server.ts", () => {
@@ -447,31 +498,29 @@ describe("Phase R14 — Stage 4: API routes", () => {
     expect(routes).toMatch(/resolveActiveOperationalWorkspace/);
   });
 
-  it("LINK-invite response returns rawToken + acceptUrl once; EMAIL/SMS never does", () => {
-    // Slice tight blocks for each invite route by bounding at the
-    // NEXT route's quoted path. EMAIL → SMS → LINK is the file order.
-    const emailIdx = routes.indexOf(
-      '"/v1/collaboration-teams/:teamId/invites/email"',
+  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
+  // invitation channels and external guests were removed from the product
+  // (never published by Pricing/Billing); invitations are EMAIL-only;
+  // FREE/PAYG include zero Teams. There is no LINK invite; the raw
+  // token now NEVER crosses the HTTP surface — the service returns it
+  // once (rawToken + acceptUrl) solely so the delivery wrapper can
+  // embed the accept link in the invite EMAIL.
+  it("raw invite token never crosses the HTTP surface; service returns it once for email delivery only", () => {
+    // The routes file never SERIALISES the raw token — the email-invite
+    // response carries { id, channel, expiresAtUtc } + delivery only.
+    // The single rawToken occurrence is the accept route CONSUMING the
+    // path token (`rawToken: req.params.token`), never a response field.
+    const routeHits = routes.match(/rawToken/g) ?? [];
+    expect(routeHits.length).toBe(1);
+    expect(routes).toMatch(/rawToken:\s*req\.params\.token/);
+    // The service-level CreatedInvite still carries rawToken + acceptUrl
+    // (out-of-band delivery input), produced exactly once each.
+    const svc = read(
+      "services/api/src/services/collaboration-team/collaboration-team.service.ts",
     );
-    const smsIdx = routes.indexOf(
-      '"/v1/collaboration-teams/:teamId/invites/sms"',
-    );
-    const linkIdx = routes.indexOf(
-      '"/v1/collaboration-teams/:teamId/invites/link"',
-    );
-    const revokeIdx = routes.indexOf(
-      '"/v1/collaboration-teams/:teamId/invites/:inviteId/revoke"',
-    );
-    expect(emailIdx).toBeGreaterThan(0);
-    expect(smsIdx).toBeGreaterThan(emailIdx);
-    expect(linkIdx).toBeGreaterThan(smsIdx);
-    expect(revokeIdx).toBeGreaterThan(linkIdx);
-    const emailBlock = routes.slice(emailIdx, smsIdx);
-    const smsBlock = routes.slice(smsIdx, linkIdx);
-    const linkBlock = routes.slice(linkIdx, revokeIdx);
-    expect(linkBlock).toContain("rawToken");
-    expect(emailBlock).not.toContain("rawToken");
-    expect(smsBlock).not.toContain("rawToken");
+    expect(svc).toMatch(/rawToken:\s*raw\b/);
+    expect(svc).toMatch(/acceptUrl:\s*buildAcceptUrl\(raw\)/);
+    expect(svc.match(/rawToken:\s*raw\b/g)?.length).toBe(1);
   });
 });
 

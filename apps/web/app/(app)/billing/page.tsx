@@ -7,6 +7,8 @@ import { useSearchParams } from "next/navigation";
 import { useToast, Skeleton, PageShell, PageHeader, PageSection } from "../../../components/ui";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 import { apiFetch } from "../../../lib/api";
+import { useBillingSummary } from "../../../lib/api/billing-summary";
+import { listTeams } from "../../../lib/api/collaboration-teams";
 import { captureException } from "../../../lib/sentry";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { PersonalWorkspaceCard } from "../../../components/billing/PersonalWorkspaceCard";
@@ -64,6 +66,29 @@ function BillingPageInner() {
 
   const [cancelBusyTeamId, setCancelBusyTeamId] = useState<string | null>(null);
   const [cancelBusyAddonId, setCancelBusyAddonId] = useState<string | null>(null);
+
+  // Teams Entitlement Alignment 2026-07-14 — the Teams section reads
+  // the canonical billing summary (plan / teamsUsed / teamsMax /
+  // membersMax, sourced from COLLABORATION_TEAM_PLAN_LIMITS). The
+  // used-count comes from the Collaboration Teams list; a fetch
+  // failure keeps the count at 0 rather than blocking the page.
+  const [collabTeamsUsed, setCollabTeamsUsed] = useState<number>(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    listTeams()
+      .then((collabTeams) => {
+        if (!cancelled) setCollabTeamsUsed(collabTeams.length);
+      })
+      .catch(() => {
+        // Teams list unavailable (e.g. plan without Teams) — keep 0.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const teamsSummary = useBillingSummary(collabTeamsUsed);
 
   const initialTargetType = useMemo(
     () => readInitialWorkspace(searchParams.get("workspace")),
@@ -362,6 +387,95 @@ function BillingPageInner() {
               ))}
             </div>
           </PageSection>
+
+          {/* Teams Entitlement Alignment 2026-07-14 — canonical Teams
+              entitlement section. Values mirror
+              COLLABORATION_TEAM_PLAN_LIMITS via useBillingSummary:
+              FREE/PAYG 0 Teams, PRO 2, TEAM 5, ENTERPRISE Custom.
+              Invitations are email-only. */}
+          {teamsSummary ? (
+            <PageSection data-billing-teams>
+              <div className="cases-panel" style={{ padding: "20px 22px" }}>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5F6878]">
+                  Teams
+                </div>
+                {(() => {
+                  const numericTeamsMax =
+                    teamsSummary.teamsMax === "unlimited"
+                      ? null
+                      : teamsSummary.teamsMax;
+                  const teamsMaxLabel =
+                    numericTeamsMax === null
+                      ? "Custom"
+                      : String(numericTeamsMax);
+                  const membersLabel =
+                    teamsSummary.membersMax === "unlimited"
+                      ? "Custom"
+                      : `up to ${teamsSummary.membersMax}`;
+                  const grandfathered =
+                    numericTeamsMax !== null &&
+                    teamsSummary.teamsUsed > numericTeamsMax;
+                  const teamsIncluded =
+                    numericTeamsMax === null || numericTeamsMax > 0;
+
+                  if (grandfathered) {
+                    return (
+                      <div
+                        className="mt-2 text-[0.92rem] leading-[1.7] text-[#475569]"
+                        data-billing-teams-grandfathered
+                      >
+                        <div className="text-[1.05rem] font-semibold text-[#172033]">
+                          {teamsSummary.teamsUsed} Teams ·{" "}
+                          {numericTeamsMax} included in your plan
+                        </div>
+                        <p className="mt-1">
+                          Plan-restricted — existing Teams stay
+                          accessible; upgrading restores invitations and
+                          member management.
+                        </p>
+                        <Link
+                          href="/pricing#plan-pro"
+                          className="app-header-primary-action mt-3 inline-flex"
+                          data-billing-teams-upgrade
+                        >
+                          <span>Upgrade to Pro</span>
+                        </Link>
+                      </div>
+                    );
+                  }
+
+                  if (!teamsIncluded) {
+                    return (
+                      <div
+                        className="mt-2 text-[0.92rem] leading-[1.7] text-[#475569]"
+                        data-billing-teams-not-included
+                      >
+                        <p>Teams are not included in your current plan.</p>
+                        <Link
+                          href="/pricing#plan-pro"
+                          className="app-header-primary-action mt-3 inline-flex"
+                          data-billing-teams-upgrade
+                        >
+                          <span>Upgrade to Pro</span>
+                        </Link>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      className="mt-2 text-[0.92rem] leading-[1.7] text-[#475569]"
+                      data-billing-teams-included
+                    >
+                      Teams — Current usage: {teamsSummary.teamsUsed} of{" "}
+                      {teamsMaxLabel} · Members per Team: {membersLabel} ·
+                      Email invitations: Included
+                    </div>
+                  );
+                })()}
+              </div>
+            </PageSection>
+          ) : null}
 
           <PageSection>
             <CheckoutPanel

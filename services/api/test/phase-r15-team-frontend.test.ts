@@ -9,16 +9,16 @@
  * What's pinned:
  *
  *   - The 3 pages exist on disk (overview, detail, accept).
- *   - The API client module exports the 20+ canonical functions.
+ *   - The API client module exports the canonical EMAIL-only functions.
  *   - The 3 new route ids exist in routeRegistry.ts with the right
  *     metadata (requiredActiveSpace, capabilities, fallback).
  *   - Personal users can see the Teams overview (no
  *     ORGANIZATION_ONLY gate on `workspace.collaboration_teams`).
  *   - No forbidden "Team Workspace" string in the new files.
  *   - The 3 routes are not page-missing (R13 page-existence rule).
- *   - The link-invite UI shows the raw token only via the in-page
- *     LinkInviteResult panel — no other component receives the raw
- *     token in props.
+ *   - Invitations are EMAIL-only (Teams Entitlement Alignment,
+ *     2026-07-14): no SMS/link invite forms, no LinkInviteResult,
+ *     no raw-token surface anywhere in the detail experience.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -65,7 +65,12 @@ function exists(rel: string): boolean {
 describe("Phase R15 — Stage 2: API client", () => {
   const client = read("apps/web/lib/api/collaboration-teams.ts");
 
-  it("exports the canonical 17+ API functions", () => {
+  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
+  // invitation channels and external guests were removed from the product
+  // (never published by Pricing/Billing); invitations are EMAIL-only;
+  // FREE/PAYG include zero Teams. `inviteBySms` / `createInviteLink`
+  // are DELETED from the client surface.
+  it("exports the canonical 15 API functions (EMAIL-only invite surface)", () => {
     const required = [
       "listTeams",
       "createTeam",
@@ -76,8 +81,6 @@ describe("Phase R15 — Stage 2: API client", () => {
       "updateMember",
       "removeMember",
       "inviteByEmail",
-      "inviteBySms",
-      "createInviteLink",
       "revokeInvite",
       "acceptInvite",
       "listActivity",
@@ -88,6 +91,11 @@ describe("Phase R15 — Stage 2: API client", () => {
     for (const fn of required) {
       expect(client).toMatch(
         new RegExp(`export async function ${fn}\\b`),
+      );
+    }
+    for (const gone of ["inviteBySms", "createInviteLink"]) {
+      expect(client, `deleted export ${gone} must be absent`).not.toContain(
+        gone,
       );
     }
   });
@@ -102,32 +110,30 @@ describe("Phase R15 — Stage 2: API client", () => {
     expect(client).toMatch(/apiFetch/);
   });
 
-  it("link-invite is the only function whose RETURN type carries rawToken", () => {
-    // Only `createInviteLink` may type-return `rawToken` — every other
-    // function's return type omits it. (The `acceptInvite` PARAMETER
-    // is named `rawToken` legitimately — it consumes the token; that's
-    // not the same as exposing one.)
-    const linkBlock = (() => {
-      const idx = client.indexOf("export async function createInviteLink");
-      if (idx < 0) return "";
-      const end = client.indexOf("\nexport ", idx + 10);
-      return client.slice(idx, end > 0 ? end : client.length);
-    })();
-    expect(linkBlock).toMatch(/CollaborationTeamLinkInviteSecret/);
-    // No other exported async function declares a return type that
-    // contains `rawToken`. We pin this by looking only at the
-    // `Promise<...>` annotation slice, not the full body or parameter
-    // list.
-    const otherFns = client
-      .split("export async function ")
-      .slice(1)
-      .filter((s) => !s.startsWith("createInviteLink"));
-    for (const block of otherFns) {
+  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
+  // invitation channels and external guests were removed from the product
+  // (never published by Pricing/Billing); invitations are EMAIL-only;
+  // FREE/PAYG include zero Teams. There is no LinkInviteResult and no
+  // function whose RETURN type carries rawToken — the raw token is only
+  // ever CONSUMED, as acceptInvite's parameter.
+  it("no exported function's RETURN type carries rawToken; no link-invite secret types remain", () => {
+    expect(client).not.toContain("CollaborationTeamLinkInviteSecret");
+    expect(client).not.toContain("LinkInviteResult");
+    // No exported async function declares a return type that contains
+    // `rawToken`. We pin this by looking only at the `Promise<...>`
+    // annotation slice, not the full body or parameter list.
+    const fns = client.split("export async function ").slice(1);
+    for (const block of fns) {
       // The return type is `Promise<...>` immediately before `{`.
       const m = /\)\s*:\s*(Promise<[\s\S]*?>)\s*\{/.exec(block);
       const ret = m?.[1] ?? "";
       expect(ret).not.toMatch(/rawToken/);
     }
+    // The `acceptInvite` PARAMETER is named `rawToken` legitimately —
+    // it consumes the token; that's not the same as exposing one.
+    expect(client).toMatch(
+      /export async function acceptInvite\(\s*rawToken: string/,
+    );
   });
 });
 
@@ -274,19 +280,36 @@ describe("Phase R15 — Stages 4-12: page content", () => {
     expect(detail).toMatch(/member-remove-/);
   });
 
-  it("detail page Invites tab has email + SMS + link forms", () => {
+  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
+  // invitation channels and external guests were removed from the product
+  // (never published by Pricing/Billing); invitations are EMAIL-only;
+  // FREE/PAYG include zero Teams. The Invites tab renders exactly ONE
+  // form (email) and swaps the entire invite surface for an upgrade
+  // panel when the resolved plan includes zero Teams.
+  it("detail page Invites tab is EMAIL-only with a plan-locked upgrade state", () => {
     expect(detail).toMatch(/data-testid="email-invite-form"/);
-    expect(detail).toMatch(/data-testid="sms-invite-form"/);
-    expect(detail).toMatch(/data-testid="link-invite-form"/);
-    expect(detail).toMatch(/data-testid="link-invite-copy"/);
-    expect(detail).toMatch(/data-testid="link-invite-url"/);
+    expect(detail).toMatch(/data-testid="email-invite-submit"/);
+    expect(detail).not.toMatch(/data-testid="sms-invite-form"/);
+    expect(detail).not.toMatch(/data-testid="link-invite-form"/);
+    expect(detail).not.toMatch(/link-invite-copy|link-invite-url/);
+    // Plan lock: zero-Teams plans (FREE/PAYG owning a grandfathered
+    // Team) replace the form with an honest upgrade panel instead of a
+    // fillable form that would 402 (TEAM_INVITES_NOT_INCLUDED).
+    expect(detail).toMatch(/data-testid="invites-plan-locked"/);
+    expect(detail).toMatch(/data-testid="invites-plan-locked-upgrade-cta"/);
+    expect(detail).toMatch(/limits\.maxTeams === 0/);
+    expect(detail).toMatch(/does not include Teams/);
   });
 
-  it("detail page Invites tab shows link invite secret ONLY in LinkInviteResult", () => {
-    // Only one component reads the link-invite secret state. We just
-    // assert the local state variable is gated to the result panel.
-    expect(detail).toMatch(/LinkInviteResult/);
-    expect(detail).toMatch(/visible once/);
+  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
+  // invitation channels and external guests were removed from the product
+  // (never published by Pricing/Billing); invitations are EMAIL-only;
+  // FREE/PAYG include zero Teams. There is no LinkInviteResult panel and
+  // no raw-token secret surface anywhere in the detail experience.
+  it("detail page exposes no invite-link secret surface (no LinkInviteResult / rawToken)", () => {
+    expect(detail).not.toMatch(/LinkInviteResult/);
+    expect(detail).not.toMatch(/rawToken/);
+    expect(detail).not.toMatch(/inviteBySms|createInviteLink/);
   });
 
   it("detail page Assignments tab has create + status filter + complete", () => {
