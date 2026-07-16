@@ -469,8 +469,14 @@ function SecurityCenterPageInner() {
                   ) : null}
                   {!myMfa.hasMfa ? (
                     <p style={{ ...mutedStyle, marginBottom: 0 }}>
-                      Enroll an authenticator from the operator menu (Account →
-                      Two-factor) to satisfy organization policy.
+                      Enroll an authenticator under{" "}
+                      <Link
+                        href="/settings/security"
+                        style={{ color: "inherit", textDecoration: "underline" }}
+                      >
+                        Settings → Account security
+                      </Link>{" "}
+                      to satisfy organization policy.
                     </p>
                   ) : null}
                 </>

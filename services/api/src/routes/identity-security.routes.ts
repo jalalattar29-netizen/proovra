@@ -76,6 +76,10 @@ import {
   revokeTrustedDevice,
 } from "../services/identity-security/trusted-device.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import {
+  verifyAccountStepUp,
+  type AccountStepUpProof,
+} from "../services/identity-security/account-step-up.service.js";
 import { denyTeamIfNotEnterprise as denyIfTeamNotEnterprise } from "../services/enterprise-gate-resolvers.service.js";
 import {
   changePasswordForUser,
@@ -777,6 +781,20 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = getAuthUserId(req);
+      // Step-up (2026-07-16): terminating every other session is a
+      // sensitive account mutation — backend-enforced re-auth required
+      // (password / current MFA code / recent OAuth sign-in).
+      const stepUpBody = (req.body ?? {}) as { stepUp?: AccountStepUpProof };
+      const stepUp = await verifyAccountStepUp({
+        req,
+        reply,
+        userId,
+        action: "sessions_revoke_others",
+        proof: stepUpBody.stepUp,
+      });
+      if (!stepUp.ok) {
+        return reply.code(stepUp.denial.status).send(stepUp.denial.body);
+      }
       const currentHash =
         (req as unknown as { sessionIdHash?: string }).sessionIdHash ?? null;
       const where: {

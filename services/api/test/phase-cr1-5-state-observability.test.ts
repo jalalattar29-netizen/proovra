@@ -221,10 +221,19 @@ describe("CR1.5 Test 7 — bounded /v1/users/me self-fetcher allow-list", () => 
       reason:
         "Bootstrap layer — runs before PlatformContextProvider mounts.",
     },
+    // Settings IA remediation (2026-07-16) — the /settings overview no
+    // longer mutates the profile; the PATCH self-fetch moved to the
+    // dedicated Profile and Preferences pages. Both pair the mutation
+    // with ctx.refresh() (R1 Part 4 contract, re-pinned there).
     {
-      path: "app/(app)/settings/page.tsx",
+      path: "app/(app)/settings/profile/page.tsx",
       reason:
-        "Profile PATCH mutation against the only /v1/users/me write endpoint. R1 Part 4 pairs it with ctx.refresh(); CR1.6 confirmed the refresh remains in place. Not a stale-read self-fetch.",
+        "Profile PATCH mutation (displayName) against the only /v1/users/me write endpoint, paired with ctx.refresh(). Not a stale-read self-fetch.",
+    },
+    {
+      path: "app/(app)/settings/preferences/page.tsx",
+      reason:
+        "Preferences PATCH mutation (locale/timezone) against the only /v1/users/me write endpoint, paired with ctx.refresh(). Not a stale-read self-fetch.",
     },
     // CR1.6 Part 4 — `teams/[id]/page.tsx` migrated off the legacy
     // /v1/users/me self-fetch. Current user id now sourced from the

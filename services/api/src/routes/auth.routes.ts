@@ -753,6 +753,15 @@ export async function authRoutes(app: FastifyInstance) {
         },
       });
 
+      // Session-inventory parity (2026-07-16). OAuth logins previously
+      // set the session cookie WITHOUT writing an AuthenticatedSession
+      // row, so `/settings/security` showed "No active sessions found"
+      // for Google users while they were signed in. Recording happens
+      // AFTER the MFA gate (an mfa-required response returns early
+      // above, so an incomplete login never creates a session row) and
+      // uses the SAME canonical helper as the email-password + guest
+      // paths — one session model for every provider.
+      await recordSessionFromSignedToken(req, user, token);
       maybeSetWebCookie(req, reply, token);
       return reply.code(200).send({ token, user });
     } catch (err) {
@@ -840,6 +849,10 @@ export async function authRoutes(app: FastifyInstance) {
         },
       });
 
+      // Session-inventory parity (2026-07-16) — same rationale as the
+      // Google path above: record via the canonical helper after the MFA
+      // gate so Apple sessions appear in the user's session inventory.
+      await recordSessionFromSignedToken(req, user, token);
       maybeSetWebCookie(req, reply, token);
       return reply.code(200).send({ token, user });
     } catch (err) {
@@ -1527,6 +1540,13 @@ export async function authRoutes(app: FastifyInstance) {
     // atomically above, so any replay attempt is rejected by the
     // database before any side effect can occur.
     void consume; // keep var alive for telemetry diff in followups
+    // Session-inventory parity (2026-07-16). This is the completion path
+    // for EVERY MFA-enrolled login (any provider): the primary-credential
+    // handlers return early at their MFA gate, so this handler is where
+    // the real session is issued. It previously set the cookie without
+    // writing an AuthenticatedSession row, leaving MFA users with an
+    // empty session list. Same canonical helper as every other path.
+    await recordSessionFromSignedToken(req, user, token);
     clearMfaPendingCookie(req, reply);
     maybeSetWebCookie(req, reply, token);
     return reply.code(200).send({ token, user });

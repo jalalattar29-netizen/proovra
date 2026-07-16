@@ -49,7 +49,10 @@ function readRepo(rel: string): string {
 
 const PROVIDER = readWeb("lib/platform-context/PlatformContextProvider.tsx");
 const TEAMS_DETAIL = readWeb("app/(app)/teams/[id]/page.tsx");
-const SETTINGS = readWeb("app/(app)/settings/page.tsx");
+// Settings IA remediation (2026-07-16): profile editing (the PATCH
+// /v1/users/me + platformCtx.refresh() contract pinned below) moved from
+// the /settings overview to the dedicated /settings/profile page.
+const SETTINGS = readWeb("app/(app)/settings/profile/page.tsx");
 const WORKSPACE_ADMIN = readWeb(
   "components/workspace-admin/WorkspaceAdminPanel.tsx",
 );

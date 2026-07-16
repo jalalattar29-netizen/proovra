@@ -293,7 +293,9 @@ describe("R8 Part 5 — canonical identity files preserved in size", () => {
       // unaudited growth, not the historical R8 baseline). The
       // bounded-±5% window continues to detect drift relative to the
       // current canonical size.
-      expectedBytes: 30979,
+      // Rebaselined 2026-07-16: account step-up enforcement added to
+      // revoke-others (verifyAccountStepUp wiring) — sanctioned growth.
+      expectedBytes: 32956,
     },
     // Pricing-hardening rebaseline (was 11446). The bounded growth is
     // a single 5-line Enterprise-feature gate at the top of

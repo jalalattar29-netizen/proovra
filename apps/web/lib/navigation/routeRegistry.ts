@@ -125,6 +125,57 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: false,
   },
+  // Settings IA remediation (2026-07-16) — dedicated child pages behind the
+  // compact /settings overview. ACCOUNT-domain, capability-free, NONE
+  // active-space: universal personal account surfaces are never plan- or
+  // workspace-gated. Discoverable via the overview + cmd-K + All Tools;
+  // deliberately not sidebar pillars.
+  {
+    id: "account.profile",
+    href: "/settings/profile",
+    label: "Profile & identity",
+    description: "Display name, avatar, email, and login method.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.preferences",
+    href: "/settings/preferences",
+    label: "Preferences",
+    description: "UI language and account timezone.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "account.privacy",
+    href: "/settings/privacy",
+    label: "Privacy & legal records",
+    description:
+      "Cookie preferences, policy acceptance history, and privacy requests.",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
   {
     id: "account.billing",
     href: "/billing",

@@ -319,6 +319,10 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   // Phase C — workflow templates administration; moved from CAPTURE.
   ["workspace.workflows", "ADMIN"],
   ["account.settings", "ADMIN"],
+  // Settings IA remediation (2026-07-16) — dedicated child pages.
+  ["account.profile", "ADMIN"],
+  ["account.preferences", "ADMIN"],
+  ["account.privacy", "ADMIN"],
   // Phase IA-collapse — Account security personal home at
   // /settings/security.
   ["account.security", "ADMIN"],

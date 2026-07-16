@@ -320,12 +320,31 @@ export async function runDigestScheduler(
 
     // 4. Quiet hours (recipient-local). Deferred digests keep their
     //    bucket un-claimed so they send after the window ends.
+    //
+    // TIMEZONE PRECEDENCE (2026-07-16, single source of truth):
+    //   1. explicit per-workspace notification-schedule override
+    //   2. the account timezone (User.timezone — the canonical account
+    //      default edited in /settings/preferences)
+    //   3. UTC
+    // Previously the account timezone was stored but NEVER consulted, so
+    // the profile field silently disagreed with digest delivery. The user
+    // row is queried only when no explicit override exists. Evidence /
+    // custody / audit source timestamps are untouched — this affects
+    // recipient-local scheduling presentation only.
+    const accountTz = sched?.timezone
+      ? null
+      : ((
+          await prisma.user.findUnique({
+            where: { id: group.userId },
+            select: { timezone: true },
+          })
+        )?.timezone ?? null);
     const schedule = {
       quietHoursEnabled: sched?.quietHoursEnabled ?? false,
       quietStartMinute: sched?.quietStartMinute ?? 1320,
       quietEndMinute: sched?.quietEndMinute ?? 420,
       quietCriticalOverride: sched?.quietCriticalOverride ?? true,
-      timezone: sched?.timezone ?? "UTC",
+      timezone: sched?.timezone ?? accountTz ?? "UTC",
     };
     // Critical override is governed by BOTH the user's schedule AND the
     // ORGANIZATION policy for the categories involved: a critical item

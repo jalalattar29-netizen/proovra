@@ -40,7 +40,10 @@ function readWeb(rel: string): string {
 const CC = readWeb("components/command-center/CommandCenter.tsx");
 const PERSONA = readWeb("app/(app)/settings/persona/page.tsx");
 const PROVIDER = readWeb("lib/platform-context/PlatformContextProvider.tsx");
-const SETTINGS = readWeb("app/(app)/settings/page.tsx");
+// Settings IA remediation (2026-07-16): profile editing (the PATCH
+// /v1/users/me + platformCtx.refresh() contract pinned below) moved from
+// the /settings overview to the dedicated /settings/profile page.
+const SETTINGS = readWeb("app/(app)/settings/profile/page.tsx");
 const RUNTIME_INDICATOR = readWeb(
   "components/operational/GlobalRuntimeIndicator.tsx",
 );
@@ -234,9 +237,13 @@ describe("R1 Part 7 — self-fetcher allow-list unchanged (no new drift)", () =>
     //   - providers.tsx              (bootstrap; retained intentionally)
     //   - settings/page.tsx          (PATCH mutation; not a stale-read)
     //   - teams/[id]/page.tsx        REMOVED — migrated to envelope.user.id
+    // Settings IA remediation (2026-07-16): the PATCH self-fetch moved
+    // from the /settings overview to the dedicated Profile + Preferences
+    // pages (both pair it with ctx.refresh()).
     const EXPECTED_FILES = new Set([
       "/app/providers.tsx",
-      "/app/(app)/settings/page.tsx",
+      "/app/(app)/settings/profile/page.tsx",
+      "/app/(app)/settings/preferences/page.tsx",
     ]);
     const root = webPath(".");
     const all = listAllTsxFiles(root);

@@ -39,6 +39,10 @@ import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
+import {
+  verifyAccountStepUp,
+  type AccountStepUpProof,
+} from "../services/identity-security/account-step-up.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
   beginTotpEnrollment,
@@ -205,6 +209,35 @@ export async function mfaRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const params = FactorIdParams.parse(req.params);
+      // Step-up (2026-07-16): removing a VERIFIED (ACTIVE) factor is a
+      // sensitive account mutation and requires backend-enforced re-auth.
+      // Deleting the caller's own ENROLLING factor is the enrollment
+      // CANCEL path — the factor was never verified, is inert, and needs
+      // no step-up. The status check is scoped to the CALLER's factor, so
+      // the cancel route can never touch another user's row or silently
+      // downgrade a verified factor.
+      const target = await prisma.mfaFactor.findFirst({
+        where: { id: params.id, userId },
+        select: { status: true },
+      });
+      if (!target) {
+        reply.code(404);
+        return { error: "factor_not_found" };
+      }
+      if (target.status === "ACTIVE") {
+        const body = (req.body ?? {}) as { stepUp?: AccountStepUpProof };
+        const stepUp = await verifyAccountStepUp({
+          req,
+          reply,
+          userId,
+          action: "mfa_factor_remove",
+          proof: body.stepUp,
+        });
+        if (!stepUp.ok) {
+          reply.code(stepUp.denial.status);
+          return stepUp.denial.body;
+        }
+      }
       const result = await revokeFactor({
         userId,
         factorId: params.id,
@@ -224,9 +257,24 @@ export async function mfaRoutes(app: FastifyInstance) {
   app.post(
     "/v1/identity/mfa/recovery-codes/regenerate",
     { preHandler: requireAuth },
-    async (req: FastifyRequest, _reply: FastifyReply) => {
+    async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = getAuthUserId(req);
       if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
+      // Step-up (2026-07-16): regeneration invalidates every existing
+      // recovery code — a sensitive account mutation requiring
+      // backend-enforced re-auth (never just a confirmation dialog).
+      const body = (req.body ?? {}) as { stepUp?: AccountStepUpProof };
+      const stepUp = await verifyAccountStepUp({
+        req,
+        reply,
+        userId,
+        action: "mfa_recovery_codes_regenerate",
+        proof: body.stepUp,
+      });
+      if (!stepUp.ok) {
+        reply.code(stepUp.denial.status);
+        return stepUp.denial.body;
+      }
       const result = await regenerateRecoveryBatch({ userId });
       // Recovery codes returned ONCE here.
       return { recoveryCodes: result.recoveryCodes };

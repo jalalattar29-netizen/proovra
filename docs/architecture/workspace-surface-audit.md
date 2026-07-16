@@ -1,6 +1,30 @@
 # PROOVRA — Workspace Surface Audit
 _Status: CLOSED — all tests pass._
 
+> **Update 2026-07-16 — Settings architecture + account security model.**
+> `/settings` is a compact navigational overview; editing lives on dedicated
+> child pages: `/settings/profile` (display-name-only identity),
+> `/settings/security` (password · personal MFA enrollment/recovery-codes ·
+> sessions · security activity), `/settings/preferences` (language + the
+> canonical account timezone; digest precedence = schedule override →
+> `User.timezone` → UTC), `/settings/privacy` (cookie consent + typed
+> acceptance records). Personal MFA enrollment lives at **Settings →
+> Account security** for every plan and provider. **Sensitive account
+> mutations (ACTIVE-factor removal, recovery-code regeneration,
+> revoke-other-sessions) require backend-enforced step-up re-auth**
+> (`account-step-up.service.ts`: current password / current MFA code /
+> OAuth recent-auth session window) — a confirmation dialog alone is NOT
+> sufficient re-auth; password change keeps its own current-password gate.
+> Session inventory: every successful login path (email-password, guest,
+> Google, Apple, MFA completion) records an `AuthenticatedSession` row via
+> one canonical helper; logout/revoke-others mutate it; OAuth sessions ARE
+> inventoried. Billing context on the overview is resolver-derived
+> (personal / organization / enterprise-contract) — display only; backend
+> authorization protects billing data. The Notifications overview card is
+> the deliberate Option-B navigation-only contract. Organization identity
+> governance (SSO/SCIM/MFA policy) remains in `/security-center` +
+> `/admin/identity`; account settings never embed it.
+
 > **Update 2026-07-15 — Trust Hub removed.** The former authenticated static
 > Trust Hub (`/trust-hub`, route id `workspace.trust`) was deleted as
 > redundant. The canonical customer-facing trust portal is the **public Trust

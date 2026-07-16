@@ -267,7 +267,9 @@ describe("R8.1 Part 7 — bounded surface area (R8.1.1-aware)", () => {
         // canonical size (was 18952; the file grew across post-R8
         // hardening phases not attributable to R8.1). Continues to
         // pin further drift relative to the new canonical size.
-        expectedBytes: 30979,
+        // Rebaselined 2026-07-16: account step-up enforcement added to
+      // revoke-others (verifyAccountStepUp wiring) — sanctioned growth.
+      expectedBytes: 32956,
       },
       // Pricing-hardening rebaseline (was 11446) — mirrors the parallel
       // pin in phase-r8-enterprise-identity-security.test.ts. The +500-byte

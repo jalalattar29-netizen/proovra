@@ -214,7 +214,9 @@ describe("R8.1.1 Part 4 — recovery codes surfaced only at issuance", () => {
 
   it("regenerate endpoint returns recoveryCodes (one-time)", () => {
     expect(ROUTES_SRC).toMatch(
-      /recovery-codes\/regenerate[\s\S]{0,800}recoveryCodes:\s*\w+\.recoveryCodes/,
+      // Window widened 2026-07-16: the step-up enforcement block now sits
+      // between the route path and the one-time return (contract unchanged).
+      /recovery-codes\/regenerate[\s\S]{0,1800}recoveryCodes:\s*\w+\.recoveryCodes/,
     );
   });
 
@@ -358,7 +360,8 @@ describe("R8.1.1 Part 8 — step-up uses the same factor model", () => {
     // The growth is post-R8.1.1 bounded step-up + recovery-flow
     // additions, NOT a parallel step-up surface. The pin still
     // detects further drift relative to the new canonical size.
-    const expected = 30979;
+    // Rebaselined 2026-07-16: account step-up enforcement (revoke-others).
+    const expected = 32956;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);

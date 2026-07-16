@@ -276,6 +276,11 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
     hint: "Preferences + transparency. Solo-user safe.",
     primary: [
       "account.settings",
+      // Settings IA remediation (2026-07-16) — dedicated child pages
+      // behind the compact /settings overview.
+      "account.profile",
+      "account.preferences",
+      "account.privacy",
       // Phase IA-collapse — Account security personal home at
       // /settings/security. ACCOUNT-tier, NONE active space; always
       // loads. Lives in SYSTEM primary alongside account.settings
