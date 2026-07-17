@@ -36,12 +36,10 @@ import {
   useActiveWorkspaceId,
   usePlatformContext,
 } from "../../../../lib/platform-context";
-import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
 import { AiCapabilityStatusTable } from "../../../../components/ai-copilot/AiCapabilityStatusTable";
-import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   LAUNCHED_PERSONAL_AI_FEATURES,
   deriveAiSettingsMode,
@@ -118,15 +116,7 @@ function resetDateLabel(monthUtc: string): string | null {
   }
 }
 
-export default function AiSettingsPage() {
-  return (
-    <PageRouteGate routeId="workspace.ai_settings">
-      <AiSettingsPageInner />
-    </PageRouteGate>
-  );
-}
-
-function AiSettingsPageInner() {
+export function AiSection() {
   const teamId = useActiveWorkspaceId();
   const { envelope } = usePlatformContext();
 
@@ -229,13 +219,7 @@ function AiSettingsPageInner() {
   }, [teamId, draft, envelopeState, dirty]);
 
   if (!teamId) {
-    return (
-      <PageShell
-        header={<PageHeader eyebrow="Workspace" title="AI assistance" />}
-      >
-        <p style={muted}>Select a workspace to manage its AI settings.</p>
-      </PageShell>
-    );
+    return <p style={muted}>Select a workspace to manage its AI settings.</p>;
   }
 
   // ---------------------------------------------------------------------
@@ -243,35 +227,25 @@ function AiSettingsPageInner() {
   // ---------------------------------------------------------------------
   if (mode === "personal-not-included") {
     return (
-      <PageShell
-        header={
-          <PageHeader
-            eyebrow="Workspace"
-            title="AI assistance"
-            subtitle="AI-assisted features for your Personal Space."
-          />
-        }
+      <Card
+        variant="admin"
+        padding="comfortable"
+        data-cc-ai-not-included
+        style={{ maxWidth: 640 }}
       >
-        <Card
-          variant="admin"
-          padding="comfortable"
-          data-cc-ai-not-included
-          style={{ maxWidth: 640 }}
-        >
-          <p style={muted}>
-            AI assistance is not included in your plan. Plans with AI
-            assistance include a monthly operation allowance for advisory
-            features like the support assistant and capture assistance.
-          </p>
-          <div className="mt-4">
-            <Link href="/billing">
-              <Button variant="secondary" size="sm">
-                See plans
-              </Button>
-            </Link>
-          </div>
-        </Card>
-      </PageShell>
+        <p style={muted}>
+          AI assistance is not included in your plan. Plans with AI
+          assistance include a monthly operation allowance for advisory
+          features like the support assistant and capture assistance.
+        </p>
+        <div className="mt-4">
+          <Link href="/billing">
+            <Button variant="secondary" size="sm">
+              See plans
+            </Button>
+          </Link>
+        </div>
+      </Card>
     );
   }
 
@@ -302,16 +276,12 @@ function AiSettingsPageInner() {
   const reset = usage ? resetDateLabel(usage.monthUtc) : null;
 
   return (
-    <PageShell
-      header={
-        <PageHeader
-          eyebrow="Workspace"
-          title="AI assistance"
-          subtitle="Control the AI-assisted features available in your Personal Space. AI provides advisory support only and never determines truth, authenticity, or admissibility."
-        />
-      }
-    >
-      <div style={{ display: "grid", gap: 14, maxWidth: 720 }} data-cc-ai-personal>
+    <div style={{ display: "grid", gap: 14, maxWidth: 720 }} data-cc-ai-personal>
+        <p style={{ ...muted, maxWidth: 680 }}>
+          Control the AI-assisted features available in your Personal Space.
+          AI provides advisory support only and never determines truth,
+          authenticity, or admissibility.
+        </p>
         {message ? (
           <div
             role="status"
@@ -544,8 +514,7 @@ function AiSettingsPageInner() {
             Save changes
           </Button>
         </div>
-      </div>
-    </PageShell>
+    </div>
   );
 }
 
@@ -594,23 +563,15 @@ function OrgAiView({
   const usd = (micros: string) => `$${(Number(micros) / 1_000_000).toFixed(2)}`;
 
   return (
-    <PageShell
-      header={
-        <PageHeader
-          eyebrow="Organization"
-          title="AI governance"
-          subtitle={
-            canEdit
-              ? "Organization-level AI policy for this workspace. Disabling a capability immediately prevents backend provider calls — enforcement is server-side. AI stays advisory: it never determines truth, authenticity, or admissibility."
-              : "Your organization's AI policy for this workspace. These settings are managed by your organization's workspace admins."
-          }
-        />
-      }
-    >
       <div
         style={{ display: "grid", gap: 14, maxWidth: 860 }}
         data-cc-ai-org={mode}
       >
+        <p style={{ ...muted, maxWidth: 720 }}>
+          {canEdit
+            ? "Organization-level AI policy for this workspace. Disabling a capability immediately prevents backend provider calls — enforcement is server-side. AI stays advisory: it never determines truth, authenticity, or admissibility."
+            : "Your organization's AI policy for this workspace. These settings are managed by your organization's workspace admins."}
+        </p>
         {message ? (
           <div
             role="status"
@@ -810,6 +771,5 @@ function OrgAiView({
           </Link>
         </div>
       </div>
-    </PageShell>
   );
 }

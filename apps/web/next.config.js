@@ -171,6 +171,41 @@ const nextConfig = {
         destination: "/admin/identity/scim",
         permanent: true,
       },
+      // Settings IA refactor (2026-07-17) — the six Settings child pages
+      // were merged into the SINGLE unified /settings workspace. Old
+      // deep links land on the matching section anchor. `/settings/
+      // security/{scim,audit,saml}` keep their earlier canonical
+      // redirects (exact-match sources; unaffected).
+      {
+        source: "/settings/profile",
+        destination: "/settings#overview",
+        permanent: true,
+      },
+      {
+        source: "/settings/security",
+        destination: "/settings#security",
+        permanent: true,
+      },
+      {
+        source: "/settings/preferences",
+        destination: "/settings#preferences",
+        permanent: true,
+      },
+      {
+        source: "/settings/privacy",
+        destination: "/settings#privacy",
+        permanent: true,
+      },
+      {
+        source: "/settings/notifications",
+        destination: "/settings#notifications",
+        permanent: true,
+      },
+      {
+        source: "/settings/ai",
+        destination: "/settings#ai",
+        permanent: true,
+      },
       {
         source: "/settings/security/audit",
         destination: "/admin/identity/timeline",

@@ -24,6 +24,8 @@ export type AccountSecuritySummary = {
   mfaConfigured: boolean | null;
   /** null while loading/failed. */
   activeSessions: number | null;
+  /** ISO timestamp the CURRENT session was signed in; null when unknown. */
+  lastLoginAtUtc: string | null;
 };
 
 export function useAccountSecuritySummary(enabled: boolean): AccountSecuritySummary {
@@ -31,6 +33,7 @@ export function useAccountSecuritySummary(enabled: boolean): AccountSecuritySumm
     loginMethods: null,
     mfaConfigured: null,
     activeSessions: null,
+    lastLoginAtUtc: null,
   });
 
   useEffect(() => {
@@ -45,14 +48,21 @@ export function useAccountSecuritySummary(enabled: boolean): AccountSecuritySumm
           .then((r) => r as { hasMfa?: boolean })
           .catch(() => null),
         apiFetch("/v1/identity-security/my-sessions")
-          .then((r) => r as { sessions?: unknown[] })
+          .then(
+            (r) =>
+              r as {
+                sessions?: Array<{ isCurrent?: boolean; issuedAtUtc?: string }>;
+              },
+          )
           .catch(() => null),
       ]);
       if (!alive) return;
+      const current = sessions?.sessions?.find((s) => s.isCurrent) ?? null;
       setSummary({
         loginMethods: links ? summarizeLoginMethods(links) : null,
         mfaConfigured: mfa ? Boolean(mfa.hasMfa) : null,
         activeSessions: sessions?.sessions ? sessions.sessions.length : null,
+        lastLoginAtUtc: current?.issuedAtUtc ?? null,
       });
     })();
     return () => {

@@ -598,7 +598,7 @@ describe("Phase IA-self-serve-audit-fixes — hidden-link sweep", () => {
   const CHECKS: Check[] = [
     // Settings tree — was already gated this session
     { page: "app/(app)/settings/page.tsx", href: "/security-center", allowedIfGate: "canSeeWorkspaceSecurity" },
-    { page: "app/(app)/settings/security/page.tsx", href: "/security-center", allowedIfGate: "canSeeWorkspaceSecurity" },
+    { page: "app/(app)/settings/page.tsx", href: "/security-center", allowedIfGate: "canSeeWorkspaceSecurity" },
     // Search — gated this phase
     { page: "app/(app)/search/page.tsx", href: "/workflows/", allowedIfGate: "canSeeWorkflows" },
     { page: "app/(app)/search/page.tsx", href: "/investigation/", allowedIfGate: "canSeeInvestigation" },

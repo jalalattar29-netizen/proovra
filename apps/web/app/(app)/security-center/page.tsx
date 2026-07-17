@@ -365,7 +365,7 @@ function SecurityCenterPageInner() {
               never cached client-side beyond the page lifecycle. For personal
               account controls (password, your sessions, security events),
               open{" "}
-              <Link href="/settings/security" style={linkStyle}>
+              <Link href="/settings#security" style={linkStyle}>
                 Account security
               </Link>
               .
@@ -471,10 +471,10 @@ function SecurityCenterPageInner() {
                     <p style={{ ...mutedStyle, marginBottom: 0 }}>
                       Enroll an authenticator under{" "}
                       <Link
-                        href="/settings/security"
+                        href="/settings#security"
                         style={{ color: "inherit", textDecoration: "underline" }}
                       >
-                        Settings → Account security
+                        Settings → Security
                       </Link>{" "}
                       to satisfy organization policy.
                     </p>

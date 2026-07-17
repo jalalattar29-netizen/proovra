@@ -12,8 +12,10 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// 2026-07-17 IA refactor — the privacy page became the Privacy SECTION of
+// the unified /settings workspace; the implementation is unchanged.
 const PAGE = readFileSync(
-  resolve(APP_ROOT, "app/(app)/settings/privacy/page.tsx"),
+  resolve(APP_ROOT, "app/(app)/settings/_sections/PrivacySection.tsx"),
   "utf8",
 );
 

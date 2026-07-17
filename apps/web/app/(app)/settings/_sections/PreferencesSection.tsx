@@ -1,0 +1,232 @@
+"use client";
+
+/**
+ * Preferences section (Settings IA refactor 2026-07-17).
+ *
+ * Former `/settings/preferences` page body, unchanged in behavior:
+ *   - UI language (canonical PATCH /v1/users/me `locale`; partial
+ *     translations are labeled, never presented as finished).
+ *   - Account timezone — THE account-level timezone source of truth
+ *     (`User.timezone`); digests/quiet hours inherit it unless a
+ *     per-workspace notification-schedule override exists (precedence:
+ *     override → account timezone → UTC). Evidence/custody/audit
+ *     timestamps stay canonical UTC.
+ * Save is change-gated with loading/success feedback.
+ */
+
+import { useEffect, useState } from "react";
+
+import { supportedLocales, type Locale } from "@proovra/shared";
+import { useToast, Input } from "../../../../components/ui";
+import { Button } from "../../../../components/ui/Button";
+import { apiFetch } from "../../../../lib/api";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { useAuth, useLocale } from "../../../providers";
+import { usePlatformContext } from "../../../../lib/platform-context";
+
+// Translation completeness (packages/shared/src/i18n.ts): en/ar/de carry
+// real translations; the others are English-fallback stubs and are labeled
+// as partial — we do not pretend stub translations are complete.
+const COMPLETE_LOCALES: ReadonlySet<string> = new Set(["en", "ar", "de"]);
+
+const LOCALE_NAMES: Record<string, string> = {
+  en: "English",
+  ar: "العربية",
+  de: "Deutsch",
+  fr: "Français",
+  es: "Español",
+  tr: "Türkçe",
+  ru: "Русский",
+};
+
+function localeLabel(lc: string): string {
+  const base = LOCALE_NAMES[lc] ?? lc.toUpperCase();
+  return COMPLETE_LOCALES.has(lc) ? base : `${base} (partial translation)`;
+}
+
+const fieldLabel: React.CSSProperties = {
+  margin: "0 0 6px",
+  fontSize: 13,
+  fontWeight: 700,
+  color: "var(--ink-primary, #0f172a)",
+};
+
+const muted: React.CSSProperties = {
+  margin: 0,
+  fontSize: 13,
+  color: "var(--ink-secondary, #475569)",
+};
+
+export function PreferencesSection() {
+  const { locale, setLocale } = useLocale();
+  const { user, updateUser } = useAuth();
+  const platformCtx = usePlatformContext();
+  const { addToast } = useToast();
+
+  const [selectedLocale, setSelectedLocale] = useState<Locale>(
+    supportedLocales.includes(locale as Locale) ? (locale as Locale) : "en",
+  );
+  const [timezone, setTimezone] = useState(user?.timezone ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTimezone(user?.timezone ?? "");
+  }, [user?.timezone]);
+  useEffect(() => {
+    if (supportedLocales.includes(locale as Locale)) {
+      setSelectedLocale(locale as Locale);
+    }
+  }, [locale]);
+
+  // §6.1 — Save is disabled until something actually changed; the busy
+  // flag prevents duplicate submissions.
+  const savedLocale = supportedLocales.includes(locale as Locale)
+    ? (locale as Locale)
+    : "en";
+  const savedTimezone = user?.timezone ?? "";
+  const dirty =
+    selectedLocale !== savedLocale || timezone.trim() !== savedTimezone.trim();
+
+  const detectTimezone = () => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) setTimezone(tz);
+    } catch {
+      /* detection unavailable — manual entry stays */
+    }
+  };
+
+  const save = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const res = (await apiFetch("/v1/users/me", {
+        method: "PATCH",
+        body: JSON.stringify({
+          locale: selectedLocale,
+          timezone: timezone.trim() || null,
+        }),
+      })) as {
+        user?: { id: string; provider: string; locale?: string | null };
+      };
+      if (res.user && typeof res.user.id === "string") {
+        updateUser(res.user);
+        if (res.user.locale) setLocale(res.user.locale as Locale);
+      } else {
+        setLocale(selectedLocale);
+      }
+      try {
+        await platformCtx.refresh();
+      } catch {
+        /* non-fatal — local update already applied */
+      }
+      addToast("Preferences saved", "success");
+    } catch (err) {
+      setError(
+        toSafeUserError(err, {
+          message: "Could not save preferences. Please try again.",
+        }).message,
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 18, maxWidth: 640 }} data-cc-preferences>
+      <div data-cc-preferences-language>
+        <h3 style={fieldLabel}>Language</h3>
+        <p style={muted}>
+          Languages marked &ldquo;partial translation&rdquo; fall back to
+          English for untranslated text.
+        </p>
+        <select
+          aria-label="UI language"
+          className="mt-2"
+          value={selectedLocale}
+          onChange={(e) => setSelectedLocale(e.target.value as Locale)}
+          data-cc-preferences-locale-select
+          style={{
+            width: "100%",
+            minHeight: 40,
+            padding: "0 12px",
+            borderRadius: 10,
+            border: "1px solid var(--border-default, rgba(15,23,42,0.12))",
+            background: "var(--surface-card, #ffffff)",
+            color: "var(--ink-primary, #0f172a)",
+            fontSize: 13,
+          }}
+        >
+          {supportedLocales.map((lc) => (
+            <option key={lc} value={lc}>
+              {localeLabel(lc)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div data-cc-preferences-timezone>
+        <h3 style={fieldLabel}>Account timezone</h3>
+        <p style={muted}>
+          IANA timezone (e.g. Europe/Berlin). Used as the default for
+          notification digests and quiet hours. Evidence and audit record
+          timestamps stay in canonical UTC.
+        </p>
+        {timezone.trim() === "" ? (
+          <p
+            style={{ ...muted, marginTop: 6, fontWeight: 600 }}
+            data-cc-preferences-tz-fallback
+          >
+            Not set — UTC is currently used as the fallback.
+          </p>
+        ) : null}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <Input
+              className="cases-form-input"
+              value={timezone}
+              onChange={setTimezone}
+              placeholder="e.g. Europe/Berlin"
+              maxLength={64}
+            />
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={detectTimezone}
+            data-cc-preferences-detect-tz
+          >
+            Use my current timezone
+          </Button>
+        </div>
+      </div>
+
+      {error ? (
+        <div
+          role="alert"
+          className="rounded-lg border px-3 py-2 text-[12px]"
+          style={{
+            borderColor: "rgba(179,38,30,0.35)",
+            background: "rgba(179,38,30,0.06)",
+            color: "#8f1d16",
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+
+      <div>
+        <Button
+          variant="secondary"
+          onClick={() => void save()}
+          loading={busy}
+          disabled={busy || !dirty}
+          data-cc-preferences-save
+        >
+          Save preferences
+        </Button>
+      </div>
+    </div>
+  );
+}

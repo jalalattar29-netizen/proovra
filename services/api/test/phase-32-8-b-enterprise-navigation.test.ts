@@ -280,7 +280,13 @@ describe("Phase 32.8B — no-regression invariants", () => {
   it.skip("Platform Admin entry requires platform admin (removed with navigation-config)", () => {});
 
   it("no #anchor href on any nav item (Phase 32.5 anchor-link cleanup preserved)", () => {
-    const anchors = NAV_CONFIG.match(/href:\s*"[^"]*#[^"]*"/g) ?? [];
+    // Settings IA refactor (2026-07-17): the unified /settings workspace
+    // deliberately uses SECTION anchors for its merged child routes —
+    // those are real in-page destinations with scrollspy navigation, not
+    // the Phase 32.5 dead-anchor problem. Everything else stays banned.
+    const anchors = (NAV_CONFIG.match(/href:\s*"[^"]*#[^"]*"/g) ?? []).filter(
+      (a) => !a.includes('"/settings#'),
+    );
     expect(anchors.length).toBe(0);
   });
 

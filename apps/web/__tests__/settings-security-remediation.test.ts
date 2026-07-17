@@ -109,6 +109,8 @@ test("password-capable accounts still get the change-password form", () => {
 test("the fake hardcoded 'Session: Active' status is gone from /settings", () => {
   assert.doesNotMatch(SETTINGS, /font-semibold text-\[#2f7d5b\]">Active</);
   assert.doesNotMatch(SETTINGS, /<span className="text-\[#5F6B7D\]">Session<\/span>/);
-  // Login method (real backend field) is retained.
-  assert.match(SETTINGS, /Login method/);
+  // Login-method state (real backend data) is retained — the unified
+  // workspace mounts the Security section, whose Login methods card is
+  // the single home for sign-in state.
+  assert.match(SETTINGS, /PersonalSecuritySections/);
 });

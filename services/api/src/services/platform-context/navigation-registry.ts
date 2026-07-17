@@ -641,7 +641,9 @@ const ACCOUNT_GROUP: NavRegistryGroup = {
     {
       id: "account.notifications",
       label: "Notification preferences",
-      href: "/settings/notifications",
+      // Settings IA refactor (2026-07-17) — the notifications page merged
+      // into the unified /settings workspace; deep-link to its section.
+      href: "/settings#notifications",
       iconKey: "notifications",
       domain: "ACCOUNT",
       badgeKey: null,

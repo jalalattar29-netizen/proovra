@@ -253,14 +253,16 @@ test("launched personal AI features are exactly the three shipped products", () 
 // Source contracts
 // ---------------------------------------------------------------------------
 
+// 2026-07-17 IA refactor — the former child pages live on as SECTIONS of
+// the unified /settings workspace (implementation unchanged).
 const SECURITY = read(
   "app/(app)/security-center/components/PersonalSecuritySections.tsx",
 );
 const OVERVIEW = read("app/(app)/settings/page.tsx");
-const PROFILE = read("app/(app)/settings/profile/page.tsx");
-const PRIVACY = read("app/(app)/settings/privacy/page.tsx");
-const PREFERENCES = read("app/(app)/settings/preferences/page.tsx");
-const AI_PAGE = read("app/(app)/settings/ai/page.tsx");
+const PROFILE = read("app/(app)/settings/_sections/OverviewSection.tsx");
+const PRIVACY = read("app/(app)/settings/_sections/PrivacySection.tsx");
+const PREFERENCES = read("app/(app)/settings/_sections/PreferencesSection.tsx");
+const AI_PAGE = read("app/(app)/settings/_sections/AiSection.tsx");
 const NOTIF_PANEL = read("components/notifications/NotificationPreferencesPanel.tsx");
 
 test("§3 — unified login-method rows via the canonical presentation module", () => {
@@ -294,21 +296,25 @@ test("§5 — MFA copy carries no pricing-style language", () => {
   assert.doesNotMatch(SECURITY, /Available on every plan/);
 });
 
-test("§1.1 — overview security card shows a real backend-derived summary", () => {
+test("§1.1 — the Overview section shows real backend-derived account facts", () => {
+  // IA refactor: the summary lives on the Account Overview section of the
+  // unified workspace (login-method/session detail stays in the Security
+  // section below — no duplicate summary cards).
   assert.match(OVERVIEW, /useAccountSecuritySummary/);
-  assert.match(OVERVIEW, /security\.loginMethods/);
-  assert.match(OVERVIEW, /security\.activeSessions/);
+  assert.match(PROFILE, /security\.lastLoginAtUtc/);
+  assert.match(PROFILE, /security\.mfaConfigured/);
 });
 
-test("§1.2 — overview privacy summary is compact (no raw version/timestamp)", () => {
-  assert.match(OVERVIEW, /Cookie preferences/);
-  assert.match(OVERVIEW, /Policy records/);
-  assert.doesNotMatch(OVERVIEW, /v\$\{latestCookieConsent\.consentVersion\}/);
+test("§1.2 — consent versions/timestamps render only inside the Privacy section", () => {
+  assert.doesNotMatch(OVERVIEW, /consentVersion/);
+  assert.match(PRIVACY, /Consent version/);
 });
 
-test("§1.3 — overview AI card uses Personal-Space assistance copy", () => {
-  assert.match(OVERVIEW, /Manage the AI-assisted features available in your Personal Space/);
-  assert.match(OVERVIEW, /showAiOverviewCard/);
+test("§1.3 — the AI section uses Personal-Space assistance copy", () => {
+  assert.match(
+    AI_PAGE,
+    /Control the AI-assisted features available in your Personal Space/,
+  );
 });
 
 test("§2 — profile no longer duplicates the login method", () => {

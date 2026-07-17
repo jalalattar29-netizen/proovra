@@ -192,27 +192,29 @@ describe("Phase IA-self-serve-completion — Settings tree gates /security-cente
     // 2026-07-17 Settings remediation: the card is now the shared
     // OverviewCard with a real security summary, so the link renders via
     // the href prop rather than an inline <Link>.
-    expect(SETTINGS).toMatch(/href="\/settings\/security"/);
-    expect(SETTINGS).toMatch(/data-cc-account-security-link-card/);
+    // Settings IA refactor (2026-07-17): personal account security is the
+    // in-page Security SECTION of the unified workspace.
+    expect(SETTINGS).toMatch(/id="security"/);
+    expect(SETTINGS).toMatch(/PersonalSecuritySections/);
   });
 });
 
-describe("Phase IA-self-serve-completion — /settings/security gates inline link", () => {
-  const SEC = readWeb("app/(app)/settings/security/page.tsx");
+describe("Phase IA-self-serve-completion — unified /settings gates the /security-center link", () => {
+  const SEC = readWeb("app/(app)/settings/page.tsx");
 
   it("imports canAccessSurface + useSurfaceUserContext", () => {
     expect(SEC).toMatch(
-      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/\.\.\/lib\/surface\/access["']/,
+      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/access["']/,
     );
     expect(SEC).toMatch(
-      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
+      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
     );
   });
 
-  it("computes canSeeWorkspaceSecurity inside AccountSecurityPageInner", () => {
+  it("computes canSeeWorkspaceSecurity inside the gated workspace component", () => {
     // The compute MUST live INSIDE the inner component so the hook fires
     // under the PageRouteGate (not at module scope).
-    const innerIdx = SEC.indexOf("function AccountSecurityPageInner");
+    const innerIdx = SEC.indexOf("function SettingsWorkspace");
     const computeIdx = SEC.indexOf("const canSeeWorkspaceSecurity");
     expect(innerIdx).toBeGreaterThan(-1);
     expect(computeIdx).toBeGreaterThan(innerIdx);
@@ -222,7 +224,7 @@ describe("Phase IA-self-serve-completion — /settings/security gates inline lin
     // Pin the conditional. Self-serve users see the personal copy with
     // NO mention of the workspace surface.
     expect(SEC).toMatch(
-      /\{canSeeWorkspaceSecurity \?\s*\([\s\S]{0,800}<Link href="\/security-center"[\s\S]{0,400}Identity &amp; Security/,
+      /\{canSeeWorkspaceSecurity \?\s*\([\s\S]{0,800}href="\/security-center"[\s\S]{0,600}Identity &amp; Security/,
     );
     expect(SEC).toMatch(/\) : null\}/);
   });

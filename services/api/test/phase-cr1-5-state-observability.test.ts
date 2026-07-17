@@ -226,12 +226,12 @@ describe("CR1.5 Test 7 — bounded /v1/users/me self-fetcher allow-list", () => 
     // dedicated Profile and Preferences pages. Both pair the mutation
     // with ctx.refresh() (R1 Part 4 contract, re-pinned there).
     {
-      path: "app/(app)/settings/profile/page.tsx",
+      path: "app/(app)/settings/_sections/OverviewSection.tsx",
       reason:
         "Profile PATCH mutation (displayName) against the only /v1/users/me write endpoint, paired with ctx.refresh(). Not a stale-read self-fetch.",
     },
     {
-      path: "app/(app)/settings/preferences/page.tsx",
+      path: "app/(app)/settings/_sections/PreferencesSection.tsx",
       reason:
         "Preferences PATCH mutation (locale/timezone) against the only /v1/users/me write endpoint, paired with ctx.refresh(). Not a stale-read self-fetch.",
     },

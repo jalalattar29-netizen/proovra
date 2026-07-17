@@ -122,18 +122,22 @@ describe("Phase P1 — Identity operations canonical hub", () => {
 // 1A. Phase IA-collapse — Account Security home at /settings/security
 // ---------------------------------------------------------------------------
 
-describe("Phase IA-collapse — /settings/security is the Account Security home", () => {
+describe("Phase IA-collapse — Account Security home (unified /settings Security section)", () => {
+  // Settings IA refactor (2026-07-17): the standalone /settings/security
+  // page merged into the SINGLE unified /settings workspace; personal
+  // account security is its Security section (same components, same
+  // gating; /settings/security 308-redirects to /settings#security).
   const ACCOUNT_SECURITY = readSource(
-    "../../../apps/web/app/(app)/settings/security/page.tsx",
+    "../../../apps/web/app/(app)/settings/page.tsx",
   );
 
-  it("is gated behind PageRouteGate(account.security)", () => {
+  it("is gated behind PageRouteGate(account.settings)", () => {
     expect(ACCOUNT_SECURITY).toContain("PageRouteGate");
-    expect(ACCOUNT_SECURITY).toContain('routeId="account.security"');
+    expect(ACCOUNT_SECURITY).toContain('routeId="account.settings"');
   });
 
-  it("renders the Account security title and mounts PersonalSecuritySections", () => {
-    expect(ACCOUNT_SECURITY).toContain("Account security");
+  it("renders the Security section and mounts PersonalSecuritySections", () => {
+    expect(ACCOUNT_SECURITY).toContain('id="security"');
     expect(ACCOUNT_SECURITY).toContain("PersonalSecuritySections");
   });
 
@@ -143,7 +147,7 @@ describe("Phase IA-collapse — /settings/security is the Account Security home"
   });
 
   it("carries a stable E2E mount marker", () => {
-    expect(ACCOUNT_SECURITY).toContain('data-testid="account-security-page"');
+    expect(ACCOUNT_SECURITY).toContain('data-testid="account-settings-page"');
   });
 });
 
@@ -216,7 +220,9 @@ describe("Phase IA-collapse — Communications + Security Center demoted from si
     expect(registry).toMatch(/id:\s*"account\.security"/);
     const idx = registry.indexOf('id: "account.security"');
     const block = registry.slice(idx, idx + 3000);
-    expect(block).toMatch(/href:\s*"\/settings\/security"/);
+    // Settings IA refactor (2026-07-17): the entry deep-links to the
+    // Security section of the unified /settings workspace.
+    expect(block).toMatch(/href:\s*"\/settings#security"/);
     expect(block).toMatch(/domain:\s*"ACCOUNT"/);
     expect(block).toMatch(/requiredActiveSpace:\s*"NONE"/);
   });

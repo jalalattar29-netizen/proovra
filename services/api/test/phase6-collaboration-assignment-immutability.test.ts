@@ -157,9 +157,13 @@ describe("SCOPE E — Operations Center ships per-user state without developer-f
 
   it("the formerly-deferred notification preferences UI now EXISTS as a real page", () => {
     const prefsPage = readSrc(
-      "../../../apps/web/app/(app)/settings/notifications/page.tsx",
+      "../../../apps/web/app/(app)/settings/_sections/NotificationsSection.tsx",
     );
     expect(prefsPage).toContain("NotificationPreferencesPanel");
-    expect(prefsPage).toContain("account.notification_settings");
+    // Settings IA refactor (2026-07-17): the standalone page became the
+    // Notifications SECTION of the unified /settings workspace; the
+    // workspace itself mounts it (route gating happens at /settings).
+    const settingsPage = readSrc("../../../apps/web/app/(app)/settings/page.tsx");
+    expect(settingsPage).toContain("NotificationsSection");
   });
 });

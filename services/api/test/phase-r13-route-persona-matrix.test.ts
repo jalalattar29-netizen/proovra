@@ -219,7 +219,11 @@ describe("Phase R13 — Stage 7: page-missing routes are hidden everywhere", () 
  *
  * Returns `null` when the href is genuinely external or non-app-routed.
  */
-function expectedPagePath(href: string): string | null {
+function expectedPagePath(rawHref: string): string | null {
+  // Settings IA refactor (2026-07-17): registry hrefs may target a
+  // SECTION ANCHOR on a real page (e.g. /settings#security). The
+  // page-on-disk check applies to the path only.
+  const href = rawHref.split("#")[0]!;
   if (!href.startsWith("/")) return null;
   const rel = href.slice(1);
   if (rel.length === 0) return null;

@@ -97,10 +97,11 @@ describe("Phase Final-D5-PT2 — AccountSecurityCard deleted, /settings links to
       /^import[^\n]*\bAccountSecurityCard\b/m,
     );
     expect(file).not.toMatch(/<AccountSecurityCard/);
-    // The replacement Security Center link card must be present.
+    // The replacement gated Security Center link survives the 2026-07-17
+    // IA refactor as the sentence under the unified Security section.
     expect(file).toMatch(/data-cc-security-link-card/);
-    expect(file).toMatch(/Open Security Center/);
     expect(file).toMatch(/\/security-center/);
+    expect(file).toMatch(/Identity &amp; Security/);
   });
 
   it("no apps/web source file calls the retired /v1/users/me legacy endpoints", () => {

@@ -102,8 +102,11 @@ test("/settings renders through the shared PageShell (no bespoke silver-card her
     /className="app-hero app-hero-full"/,
     "settings index must not render the raw marketing hero",
   );
-  // Phase Final-D5-PT2 contract — the security link-card markers survive.
-  assert.match(src, /data-cc-account-security-link-card/);
+  // Phase Final-D5-PT2 contract, updated for the 2026-07-17 IA refactor:
+  // personal account security is now the in-page Security SECTION (the
+  // old link-card became the section anchor); the gated workspace
+  // Identity & Security link keeps its marker.
+  assert.match(src, /id="security"/);
   assert.match(src, /data-cc-security-link-card/);
 });
 
@@ -204,7 +207,9 @@ test("migrated internal pages import the shared design-system shell", () => {
     "app/(app)/operations/readiness/page.tsx",
     "app/(app)/capture/page.tsx",
     "app/(app)/evidence/page.tsx",
-    "app/(app)/settings/security/page.tsx",
+    // 2026-07-17 IA refactor — /settings/security merged into the
+    // unified /settings workspace (same shared shell).
+    "app/(app)/settings/page.tsx",
     "components/reports-experience/ReportsIndex.tsx",
   ];
   for (const rel of shellUsers) {

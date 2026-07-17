@@ -134,7 +134,7 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // CORE alias for the canonical `/trust-center` URL — pinned by the
   // surface-tier wiring test (Phase IA-surface-tier-wiring).
   { pathPrefix: "/trust-center", tier: "CORE", directAccessPolicy: "allow", reason: "trust center" },
-  { pathPrefix: "/settings", tier: "CORE", directAccessPolicy: "allow", reason: "account settings (incl. /settings/security)" },
+  { pathPrefix: "/settings", tier: "CORE", directAccessPolicy: "allow", reason: "unified account settings workspace (/settings — incl. the Security section)" },
   { pathPrefix: "/billing", tier: "CORE", directAccessPolicy: "allow", reason: "billing" },
   // Phase IA-surface-tier-finishing — these surfaces were CORE in the
   // first pass; the GTM brief explicitly excluded them from the
@@ -226,7 +226,7 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   { pathPrefix: "/admin/identity", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "admin identity hub" },
   { pathPrefix: "/admin", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "admin surface (org admin / platform admin entry)" },
   { pathPrefix: "/organization-admin", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "organization admin (ENTERPRISE_ONLY)" },
-  { pathPrefix: "/security-center", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "security center (admin form). /settings/security remains CORE" },
+  { pathPrefix: "/security-center", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "security center (admin form). Personal security lives in /settings#security (CORE)" },
   { pathPrefix: "/identity-security", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "identity security ops" },
 
   // Enterprise Analytics / Ops

@@ -132,7 +132,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // deliberately not sidebar pillars.
   {
     id: "account.profile",
-    href: "/settings/profile",
+    href: "/settings#overview",
     label: "Profile & identity",
     description: "Display name, avatar, email, and login method.",
     domain: "ACCOUNT",
@@ -147,7 +147,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "account.preferences",
-    href: "/settings/preferences",
+    href: "/settings#preferences",
     label: "Preferences",
     description: "UI language and account timezone.",
     domain: "ACCOUNT",
@@ -162,7 +162,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   },
   {
     id: "account.privacy",
-    href: "/settings/privacy",
+    href: "/settings#privacy",
     label: "Privacy & legal records",
     description:
       "Cookie preferences, policy acceptance history, and privacy requests.",
@@ -434,7 +434,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // notification preference model. Distinct from the Operations Center
     // (where items are worked) and the delivery log (admin debugging).
     id: "account.notification_settings",
-    href: "/settings/notifications",
+    href: "/settings#notifications",
     label: "Notification preferences",
     description:
       "Per-workspace notification preferences — which operational categories reach you in-app and by email.",
@@ -1864,7 +1864,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // (the contained surfaces are user-scoped, not workspace-scoped).
   {
     id: "account.security",
-    href: "/settings/security",
+    href: "/settings#security",
     label: "Account security",
     description:
       "Personal account security — password, sessions, security events.",
@@ -1885,7 +1885,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   // the enforcement point.
   {
     id: "workspace.ai_settings",
-    href: "/settings/ai",
+    href: "/settings#ai",
     label: "AI & Automation",
     description:
       "Workspace AI governance — enable/disable AI capabilities, data-class limits, and truthful capability disclosure.",

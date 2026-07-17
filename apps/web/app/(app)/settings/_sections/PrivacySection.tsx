@@ -1,6 +1,10 @@
 "use client";
 
 /**
+ * Privacy section (Settings IA refactor 2026-07-17) — former
+ * `/settings/privacy` page body, mounted inside the unified Settings
+ * workspace. Behavior unchanged.
+ *
  * Privacy & Legal Records (2026-07-16 Settings IA remediation).
  *
  * Account-relevant privacy content ONLY:
@@ -27,7 +31,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
@@ -35,7 +38,6 @@ import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { openCookiePreferences } from "../../../../lib/consent";
 import { useAuth } from "../../../providers";
-import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import {
   StepUpVerify,
@@ -733,17 +735,7 @@ function AccountClosureCard() {
   );
 }
 
-export default function PrivacyPage() {
-  return (
-    <div data-testid="account-privacy-page">
-      <PageRouteGate routeId="account.privacy">
-        <PrivacyInner />
-      </PageRouteGate>
-    </div>
-  );
-}
-
-function PrivacyInner() {
+export function PrivacySection() {
   const { user } = useAuth();
   const [acceptances, setAcceptances] = useState<LegalAcceptanceItem[] | null>(null);
   const [cookieConsent, setCookieConsent] = useState<CookieConsentRecord | null>(null);
@@ -777,16 +769,7 @@ function PrivacyInner() {
     : null;
 
   return (
-    <PageShell
-      header={
-        <PageHeader
-          eyebrow="Account"
-          title="Privacy & legal records"
-          subtitle="Your cookie preferences and recorded policy acceptances. Consent, contract acceptance, and acknowledgements are recorded — and shown — as distinct record types."
-        />
-      }
-    >
-      <div style={{ display: "grid", gap: 14, maxWidth: 720 }}>
+    <div style={{ display: "grid", gap: 14, maxWidth: 720 }} data-cc-privacy>
         {/* A. Cookie preferences */}
         <Card variant="admin" padding="comfortable" data-cc-privacy-cookies>
           <h2 style={sectionTitle}>Cookie preferences</h2>
@@ -914,7 +897,6 @@ function PrivacyInner() {
             and the site footer.
           </p>
         </Card>
-      </div>
-    </PageShell>
+    </div>
   );
 }

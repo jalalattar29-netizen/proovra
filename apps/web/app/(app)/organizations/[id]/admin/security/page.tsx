@@ -62,7 +62,7 @@ const READINESS_ROWS: ReadonlyArray<ReadinessRow> = [
     description:
       "Org-wide MFA enforcement (TOTP / WebAuthn / passkey requirement).",
     configured: false,
-    configureHref: "/settings/security",
+    configureHref: "/settings#security",
   },
   {
     testId: "security-row-sso",
@@ -207,7 +207,7 @@ function SecurityTab() {
             testId="sec-deep-link-settings"
             label="Settings · Security"
             description="Per-user MFA, recovery, security keys."
-            href="/settings/security"
+            href="/settings#security"
           />
           <DeepLink
             testId="sec-deep-link-security-center"

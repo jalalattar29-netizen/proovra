@@ -196,8 +196,10 @@ describe("Phase 8 — /admin/security 'Configure' actions deep-link OUT to canon
     "app/(app)/organizations/[id]/admin/security/page.tsx",
   );
 
-  it("MFA row deep-links to /settings/security", () => {
-    expect(security).toMatch(/configureHref:\s*"\/settings\/security"/);
+  it("MFA row deep-links to the Settings Security section", () => {
+    // Settings IA refactor (2026-07-17): /settings/security merged into
+    // the unified workspace; the deep link targets its section anchor.
+    expect(security).toMatch(/configureHref:\s*"\/settings#security"/);
   });
 
   it("SSO row deep-links to /admin/identity", () => {

@@ -77,7 +77,7 @@ export const ROUTE_REGISTRY = [
     // the compact /settings overview.
     {
         id: "account.profile",
-        href: "/settings/profile",
+        href: "/settings#overview",
         label: "Profile & identity",
         description: "Display name, avatar, email, and login method.",
         domain: "ACCOUNT",
@@ -92,7 +92,7 @@ export const ROUTE_REGISTRY = [
     },
     {
         id: "account.preferences",
-        href: "/settings/preferences",
+        href: "/settings#preferences",
         label: "Preferences",
         description: "UI language and account timezone.",
         domain: "ACCOUNT",
@@ -107,7 +107,7 @@ export const ROUTE_REGISTRY = [
     },
     {
         id: "account.privacy",
-        href: "/settings/privacy",
+        href: "/settings#privacy",
         label: "Privacy & legal records",
         description: "Cookie preferences, policy acceptance history, and privacy requests.",
         domain: "ACCOUNT",
@@ -1614,7 +1614,7 @@ export const ROUTE_REGISTRY = [
     // routeRegistry.ts for full context.
     {
         id: "account.security",
-        href: "/settings/security",
+        href: "/settings#security",
         label: "Account security",
         description: "Personal account security — password, sessions, security events.",
         domain: "ACCOUNT",
@@ -1629,7 +1629,7 @@ export const ROUTE_REGISTRY = [
     },
     {
         id: "account.notification_settings",
-        href: "/settings/notifications",
+        href: "/settings#notifications",
         label: "Notification preferences",
         description: "Per-workspace notification preferences — which operational categories reach you in-app and by email.",
         domain: "ACCOUNT",

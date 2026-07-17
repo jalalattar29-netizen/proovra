@@ -184,30 +184,45 @@ const OVERVIEW = read("app/(app)/settings/page.tsx");
 const SECURITY = read("app/(app)/security-center/components/PersonalSecuritySections.tsx");
 const REGISTRY = read("lib/navigation/routeRegistry.ts");
 
-test("overview has no always-open profile form (editing lives on /settings/profile)", () => {
-  assert.doesNotMatch(OVERVIEW, /handleSaveProfile/);
-  assert.doesNotMatch(OVERVIEW, /method:\s*"PATCH"/);
-  assert.match(OVERVIEW, /href="\/settings\/profile"/);
+// 2026-07-17 IA refactor — /settings is now the SINGLE unified settings
+// workspace: the former child pages are in-page SECTIONS reached by
+// anchors + a scrollspy sidebar; the old summary/link cards are gone.
+
+test("unified workspace mounts every section with anchor + scrollspy navigation", () => {
+  for (const id of [
+    "overview",
+    "security",
+    "preferences",
+    "notifications",
+    "ai",
+    "privacy",
+    "billing",
+  ]) {
+    assert.match(OVERVIEW, new RegExp(`id="${id}"`), `section ${id} mounted`);
+  }
+  assert.match(OVERVIEW, /data-cc-settings-nav/);
+  assert.match(OVERVIEW, /IntersectionObserver/);
+  assert.match(OVERVIEW, /scrollIntoView\(\{ behavior: "smooth"/);
+  // Quick actions are shortcuts that scroll, not navigations.
+  assert.match(OVERVIEW, /data-cc-settings-quick-actions/);
+  assert.doesNotMatch(OVERVIEW, /href="\/settings\/profile"/);
+  assert.doesNotMatch(OVERVIEW, /href="\/settings\/security"/);
 });
 
-test("overview has no legal-document dump and no fake session status", () => {
+test("workspace has no legal-document dump and no fake session status", () => {
   assert.doesNotMatch(OVERVIEW, /LEGAL_LINKS/);
   assert.doesNotMatch(OVERVIEW, /data-retention/);
   assert.doesNotMatch(OVERVIEW, /Abuse reporting/i);
   assert.doesNotMatch(OVERVIEW, />Active</);
-  // Privacy is now a dedicated child page.
-  assert.match(OVERVIEW, /href="\/settings\/privacy"/);
 });
 
-test("notification preferences are discoverable from the Settings overview", () => {
-  assert.match(OVERVIEW, /href="\/settings\/notifications"/);
-  assert.match(OVERVIEW, /data-cc-overview-notifications/);
-});
-
-test("billing card is context-aware (resolver-driven), not a hardcoded personal plan", () => {
+test("billing summary is context-aware (resolver-driven), not a hardcoded personal plan", () => {
+  const BILLING_SECTION = read("app/(app)/settings/_sections/BillingSection.tsx");
   assert.match(OVERVIEW, /deriveSettingsUiContext/);
-  assert.match(OVERVIEW, /data-cc-billing-context=\{ui\.billing\.contextType\}/);
-  assert.doesNotMatch(OVERVIEW, /\/v1\/billing\/status/);
+  assert.match(BILLING_SECTION, /data-cc-billing-context=\{ui\.billing\.contextType\}/);
+  assert.doesNotMatch(BILLING_SECTION, /\/v1\/billing\/status/);
+  // Managing billing stays on /billing via the explicit action.
+  assert.match(BILLING_SECTION, /data-cc-open-billing/);
 });
 
 // ---------------------------------------------------------------------------
@@ -241,7 +256,9 @@ test("factor removal and code regeneration require confirmation", () => {
 test("the dead 'Account → Two-factor' instruction is gone repo-wide", () => {
   const securityCenter = read("app/(app)/security-center/page.tsx");
   assert.doesNotMatch(securityCenter, /Account →\s*\n?\s*Two-factor\)/);
-  assert.match(securityCenter, /Settings → Account security/);
+  // 2026-07-17 IA refactor — personal security is the Security section
+  // of the unified Settings workspace.
+  assert.match(securityCenter, /Settings → Security/);
 });
 
 // ---------------------------------------------------------------------------
@@ -293,14 +310,13 @@ test("OAuth-only step-up path instructs re-sign-in (no unusable password prompt)
 // Notification card contract — Option B (navigation-only), documented
 // ---------------------------------------------------------------------------
 
-test("notification overview card is the explicit Option-B navigation contract", () => {
-  assert.match(OVERVIEW, /PRODUCT CONTRACT \(Option B/);
-  assert.match(
-    OVERVIEW,
-    /Manage in-app, email, digest and quiet-hour preferences/,
-  );
-  // No fake digest/quiet-hours values are surfaced on the card.
-  assert.doesNotMatch(OVERVIEW, /Quiet hours.*value/);
+test("notifications render as a full in-page section (Option-B nav card superseded)", () => {
+  // 2026-07-17 IA refactor — the navigation-only Option-B card is gone;
+  // the REAL preference matrix + schedule mount inside the workspace.
+  const SECTION = read("app/(app)/settings/_sections/NotificationsSection.tsx");
+  assert.match(SECTION, /NotificationPreferencesPanel/);
+  assert.match(SECTION, /NotificationScheduleCard/);
+  assert.match(OVERVIEW, /NotificationsSection/);
 });
 
 // ---------------------------------------------------------------------------

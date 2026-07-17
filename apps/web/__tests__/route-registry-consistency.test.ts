@@ -37,7 +37,11 @@ const ALLOWED_DANGLING: ReadonlyMap<string, string> = new Map([
   ],
 ]);
 
-function hrefHasPage(href: string): boolean {
+function hrefHasPage(rawHref: string): boolean {
+  // Settings IA refactor (2026-07-17): registry entries may target a
+  // SECTION ANCHOR on a real page (e.g. /settings#security). The page
+  // check applies to the path only.
+  const href = rawHref.split("#")[0]!;
   // Normalise `:param` (registry style) to `[param]` (Next file style).
   const seg = href.replace(/:([A-Za-z0-9_]+)/g, "[$1]");
   return (
