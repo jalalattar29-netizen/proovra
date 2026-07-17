@@ -69,6 +69,9 @@ export type AccountStepUpAction =
   | "mfa_factor_remove"
   | "mfa_recovery_codes_regenerate"
   | "sessions_revoke_others"
+  // Settings remediation (2026-07-17) — revoke ONE of the caller's own
+  // other sessions from the session inventory.
+  | "session_revoke"
   // Lifecycle Phase 3 — connected accounts / login methods.
   | "login_method_link"
   | "login_method_unlink"

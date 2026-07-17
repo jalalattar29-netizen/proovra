@@ -68,6 +68,11 @@ export type SettingsUiContextInput = {
   /** Canonical plan feature flags from envelope.planFeatures. */
   planFeatures?: {
     reviewerOperationsIncluded: boolean;
+    /**
+     * Monthly AI-assistance allowance (0 = not included, n>0 = cap,
+     * null = custom/Enterprise, undefined = envelope predates the field).
+     */
+    aiAssistanceMonthlyOperations?: number | null;
   } | null;
 };
 
@@ -133,11 +138,17 @@ export function deriveSettingsUiContext(
     showNotifications: true,
     activeWorkspaceName: isOrg ? orgName : "Personal Space",
     isPersonalWorkspace: !isOrg,
-    // AI governance is a real per-workspace surface for personal AND org
-    // workspaces (route workspace.ai_settings; API enforces owner/admin
-    // on write). Reviewer criteria only means anything where reviewer
-    // operations are commercially included.
-    showAiSettings: true,
+    // AI assistance/governance is a real per-workspace surface for
+    // personal AND org workspaces (route workspace.ai_settings; API
+    // enforces owner/admin on write) — EXCEPT a personal plan whose AI
+    // allowance is 0 (FREE): no AI is included, so no card renders
+    // (2026-07-17 remediation §10; the page itself shows an honest
+    // "not included" surface if reached directly). Reviewer criteria
+    // only means anything where reviewer operations are commercially
+    // included.
+    showAiSettings: !(
+      !isOrg && input.planFeatures?.aiAssistanceMonthlyOperations === 0
+    ),
     showReviewerCriteria: input.planFeatures?.reviewerOperationsIncluded === true,
     billing,
     showOrgAdminLinks: isActiveOrgAdmin,

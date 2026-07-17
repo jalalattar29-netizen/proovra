@@ -295,7 +295,9 @@ describe("R8 Part 5 — canonical identity files preserved in size", () => {
       // current canonical size.
       // Rebaselined 2026-07-16: account step-up enforcement added to
       // revoke-others (verifyAccountStepUp wiring) — sanctioned growth.
-      expectedBytes: 32956,
+    // Rebaselined 2026-07-17 (Settings remediation): +single own-session
+    // revoke route (step-up session_revoke) added to the canonical file.
+      expectedBytes: 35440,
     },
     // Pricing-hardening rebaseline (was 11446). The bounded growth is
     // a single 5-line Enterprise-feature gate at the top of

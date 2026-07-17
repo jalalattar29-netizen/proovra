@@ -829,6 +829,72 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
     },
   );
 
+  // POST /v1/identity-security/my-sessions/:id/revoke
+  //
+  // Settings remediation (2026-07-17) — revoke ONE of the caller's OWN
+  // other sessions. Strictly user-bound; the CURRENT session is never
+  // revocable through this route (sign-out is the product action for
+  // that). Step-up enforced like every sensitive session mutation.
+  app.post<{ Params: { id: string } }>(
+    "/v1/identity-security/my-sessions/:id/revoke",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const params = z.object({ id: z.string().uuid() }).parse(req.params);
+      const stepUpBody = (req.body ?? {}) as { stepUp?: AccountStepUpProof };
+      const stepUp = await verifyAccountStepUp({
+        req,
+        reply,
+        userId,
+        action: "session_revoke",
+        proof: stepUpBody.stepUp,
+      });
+      if (!stepUp.ok) {
+        return reply.code(stepUp.denial.status).send(stepUp.denial.body);
+      }
+      const currentHash =
+        (req as unknown as { sessionIdHash?: string }).sessionIdHash ?? null;
+      const target = await prisma.authenticatedSession.findFirst({
+        where: { id: params.id, userId, revokedAtUtc: null },
+        select: { id: true, sessionIdHash: true },
+      });
+      if (!target) {
+        return reply.code(404).send({ error: { code: "session_not_found" } });
+      }
+      if (currentHash !== null && target.sessionIdHash === currentHash) {
+        return reply.code(409).send({
+          error: {
+            code: "current_session_not_revocable",
+            message: "Sign out to end your current session.",
+          },
+        });
+      }
+      await prisma.authenticatedSession.update({
+        where: { id: target.id },
+        data: {
+          revokedAtUtc: new Date(),
+          revokedByUserId: userId,
+          revokedReason: "SELF_REVOKE_SINGLE",
+        },
+      });
+      await appendPlatformAuditLog({
+        userId,
+        action: "identity_security.self_revoke_session",
+        category: "identity_security",
+        severity: "info",
+        source: "api_identity_security",
+        outcome: "success",
+        resourceType: "authenticated_session",
+        resourceId: target.id,
+        requestId: req.id,
+        metadata: {},
+        ipAddress: requestIp(req),
+        userAgent: requestUa(req),
+      }).catch(() => null);
+      return reply.code(200).send({ revoked: 1 });
+    },
+  );
+
   app.get(
     "/v1/identity-security/security-events",
     { preHandler: requireAuth },

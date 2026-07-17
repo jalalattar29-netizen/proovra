@@ -18,6 +18,11 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import { resolveAiCapabilityDisclosure } from "../services/ai/ai-capability-disclosure.service.js";
+import { getWorkspaceAiUsageThisMonth } from "../services/billing-enforcement.service.js";
+import {
+  getPersonalWorkspaceScope,
+  getTeamWorkspaceScope,
+} from "../services/workspace-billing.service.js";
 import {
   DEFAULT_WORKSPACE_AI_POLICY,
   WorkspaceAiPolicyVersionConflictError,
@@ -100,6 +105,40 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
       const now = new Date();
       const day = now.toISOString().slice(0, 10);
       const month = now.toISOString().slice(0, 7);
+
+      // Plan allowance (2026-07-17 Settings remediation) — resolved from
+      // the SAME scope model the AI cost guard enforces: a personal
+      // workspace carries the account entitlement plan; a team/org
+      // workspace carries its billing plan. `consumed` comes from the
+      // enforcement ledger (EntitlementUsage), so what the user sees is
+      // exactly what the guard counts.
+      let allowance: {
+        plan: string;
+        monthlyOperations: number | null;
+        consumed: number;
+        remaining: number | null;
+      } | null = null;
+      try {
+        const team = await prisma.team.findUnique({
+          where: { id: query.teamId },
+          select: { isPersonal: true, ownerUserId: true },
+        });
+        if (team) {
+          const scope = team.isPersonal
+            ? await getPersonalWorkspaceScope(team.ownerUserId)
+            : await getTeamWorkspaceScope(query.teamId);
+          const { consumed, cap } = await getWorkspaceAiUsageThisMonth(scope);
+          allowance = {
+            plan: String(scope.plan),
+            monthlyOperations: cap,
+            consumed,
+            remaining: cap === null ? null : Math.max(0, cap - consumed),
+          };
+        }
+      } catch {
+        // Allowance is display-only; enforcement stays on the guard.
+      }
+
       try {
         const [daily, monthly, recentRuns, blockedRuns] = await Promise.all([
           prisma.aiUsageDaily.findUnique({ where: { workspaceId_dayUtc: { workspaceId: query.teamId, dayUtc: day } } }),
@@ -110,6 +149,7 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
         return reply.code(200).send({
           dayUtc: day,
           monthUtc: month,
+          allowance,
           daily: { operations: daily?.operations ?? 0, costUsdMicros: String(daily?.costUsdMicros ?? 0n) },
           monthly: { operations: monthly?.operations ?? 0, costUsdMicros: String(monthly?.costUsdMicros ?? 0n) },
           copilotRuns: recentRuns,
@@ -119,6 +159,7 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
         // Ledger tables not applied on this environment — honest empty state.
         return reply.code(200).send({
           dayUtc: day, monthUtc: month,
+          allowance,
           daily: { operations: 0, costUsdMicros: "0" },
           monthly: { operations: 0, costUsdMicros: "0" },
           copilotRuns: 0, blockedProhibitedClaims: 0,

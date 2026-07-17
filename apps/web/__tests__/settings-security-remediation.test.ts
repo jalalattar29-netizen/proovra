@@ -88,21 +88,22 @@ test("forensic detail is preserved behind a technical-details disclosure", () =>
   assert.match(SECTIONS, /Event key: \{ev\.action\}/);
 });
 
-test("OAuth-only accounts do not get an unusable change-password form", () => {
-  // Provider comes from backend account data, not UI copy.
-  assert.match(SECTIONS, /const providerKey = \(user\?\.provider \?\? ""\)\.toLowerCase\(\)/);
-  assert.match(SECTIONS, /data-cc-password-oauth-only=\{providerKey\}/);
-  // …and we do NOT invent an account-linking "Set a password" flow. This
-  // targets rendered JSX copy (a control offered to the user), not prose in
-  // a code comment explaining why the flow is deliberately absent.
+test("accounts without a password never get an unusable change-password form", () => {
+  // 2026-07-17 remediation: the card renders ONLY when a password is
+  // actually configured (backend links data), and the old duplicate
+  // OAuth-only "Login method" explanatory card is deleted — the unified
+  // Login methods card is the single home for sign-in state.
+  assert.match(SECTIONS, /if \(passwordConfigured !== true\) return null;/);
+  assert.doesNotMatch(SECTIONS, /data-cc-password-oauth-only/);
+  assert.doesNotMatch(SECTIONS, /so there is no PROOVRA\s*\n?\s*password to change here/);
+  // …and we do NOT invent an account-linking "Set a password" flow (the
+  // real, backend-enforced flow is "Add password" on the unified card).
   assert.doesNotMatch(SECTIONS, />\s*Set a password\s*</);
 });
 
 test("password-capable accounts still get the change-password form", () => {
-  // The OAuth branch is keyed to a known provider allowlist, so unknown /
-  // email accounts keep the form (no regression for password users).
-  assert.match(SECTIONS, /OAUTH_PROVIDER_LABELS/);
   assert.match(SECTIONS, /data-cc-password-current/);
+  assert.match(SECTIONS, /passwordConfigured=\{loginMethods\?\.passwordConfigured \?\? null\}/);
 });
 
 test("the fake hardcoded 'Session: Active' status is gone from /settings", () => {

@@ -1,6 +1,33 @@
 # PROOVRA — Workspace Surface Audit
 _Status: CLOSED — all tests pass._
 
+> **Update 2026-07-17 (b) — Settings UX/product-logic/entitlement
+> remediation.** The Settings system was remediated end-to-end without
+> changing its architecture: overview cards now show REAL backend-derived
+> summaries (security: login methods/MFA/sessions via
+> `useAccountSecuritySummary`; privacy: compact configured/record-count;
+> AI: Personal-Space assistance copy + monthly allowance); login methods
+> render as uniform rows through `lib/security/loginMethodsSummary.ts`
+> with client-side last-usable-method protection mirroring the backend
+> guard (the duplicate OAuth "Login method" card was deleted); sessions
+> show friendly device labels (`lib/security/sessionPresentation.ts`),
+> "Location unavailable" instead of `??`/private-network IPs, per-session
+> technical-details disclosures, and individual own-session revocation
+> (`POST /v1/identity-security/my-sessions/:id/revoke`, step-up
+> `session_revoke`); the activity timeline uses View-more instead of a
+> nested scrollbar; notification timezone is an EXPLICIT inheritance
+> choice (schedule `timezone` is now nullable — null inherits the account
+> timezone → UTC; migration 20270923000000); privacy dropped pricing-style
+> copy and maps every closure blocker to a direct resolution action;
+> `/settings/ai` was split by the canonical `lib/ai/aiAssistanceView.ts`
+> resolver into personal-assistance (allowance X of N, master control,
+> the three launched features, data-use summary, transparency link — no
+> stubs/diagnostics/dollar costs), personal-not-included (FREE),
+> org-governance (Admin/Owner: full policy + data classes + runtime
+> disclosure + cost), and org-readonly (member summary). The plan's AI
+> allowance ships in `envelope.planFeatures.aiAssistanceMonthlyOperations`
+> and on `/v1/workspaces/ai-usage` from the enforcement ledger.
+
 > **Update 2026-07-17 — Account / workspace / organization lifecycle
 > families (Phases 1–8).** Five capability families shipped end-to-end:
 >

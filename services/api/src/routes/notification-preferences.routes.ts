@@ -142,7 +142,9 @@ const PutBody = z.object({
 
 const SchedulePutBody = z.object({
   teamId: z.string().uuid(),
-  timezone: z.string().min(1).max(64),
+  // null = NO explicit workspace override; the digest scheduler inherits
+  // the account timezone (User.timezone) → UTC.
+  timezone: z.string().min(1).max(64).nullable(),
   quietHoursEnabled: z.boolean(),
   quietStartMinute: z.number().int().min(0).max(1439),
   quietEndMinute: z.number().int().min(0).max(1439),
@@ -393,7 +395,7 @@ export async function notificationPreferencesRoutes(app: FastifyInstance) {
       const body = SchedulePutBody.parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId);
       if (!ok) return;
-      if (!isValidTimezone(body.timezone)) {
+      if (body.timezone !== null && !isValidTimezone(body.timezone)) {
         return reply.code(400).send({
           error: {
             code: "invalid_timezone",

@@ -840,6 +840,10 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Lifecycle Phase 7 (2026-07-17) — workspace closure requests
       // (additive table, no backfill).
       "20270922000000_workspace_closure_requests",
+      // Settings remediation (2026-07-17) — notification-schedule timezone
+      // becomes nullable (NULL = inherit account timezone); constraint
+      // relaxation + restrictive idempotent backfill only.
+      "20270923000000_notification_schedule_timezone_inherit",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

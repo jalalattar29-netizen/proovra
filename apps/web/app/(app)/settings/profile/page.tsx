@@ -43,11 +43,6 @@ import { useAuth } from "../../../providers";
 import { usePlatformContext } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
-const OAUTH_PROVIDER_LABELS: Record<string, string> = {
-  google: "Google",
-  apple: "Apple",
-};
-
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
@@ -117,10 +112,6 @@ function ProfileInner() {
     return a ? a[0]?.toUpperCase() : "?";
   }, [user?.displayName, user?.email]);
 
-  const providerKey = (user?.provider ?? "").toLowerCase();
-  const providerLabel =
-    OAUTH_PROVIDER_LABELS[providerKey] ?? (providerKey ? "Email & password" : "—");
-
   const save = async () => {
     const trimmed = displayName.trim();
     if (trimmed.length === 0) {
@@ -179,9 +170,18 @@ function ProfileInner() {
         />
       }
     >
-      <Card variant="admin" padding="comfortable" data-cc-profile-card>
-        <div className="mb-5 flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(79,70,229,0.16)] bg-[linear-gradient(180deg,rgba(243,240,255,0.9)_0%,rgba(255,255,255,0.56)_100%)] text-[1.35rem] font-bold text-[#4F46E5]">
+      {/* §2 — intentionally compact: avatar/initial (read-only — avatar
+          upload is not a supported flow, so no fake edit control), display
+          name, email, and the explicit Edit action. Login methods live
+          only in /settings/security. */}
+      <Card
+        variant="admin"
+        padding="comfortable"
+        data-cc-profile-card
+        style={{ maxWidth: 640 }}
+      >
+        <div className="mb-4 flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(79,70,229,0.16)] bg-[linear-gradient(180deg,rgba(243,240,255,0.9)_0%,rgba(255,255,255,0.56)_100%)] text-[1.1rem] font-bold text-[#4F46E5]">
             {user?.avatarUrl ? (
               <img
                 src={user.avatarUrl}
@@ -220,13 +220,9 @@ function ProfileInner() {
                   {user?.displayName || "Not set"}
                 </span>
               </div>
-              <div className="flex items-center justify-between gap-4 border-b border-[rgba(15,23,42,0.06)] pb-3 text-[13px]">
+              <div className="flex items-center justify-between gap-4 text-[13px]">
                 <span style={{ color: "var(--ink-secondary, #475569)" }}>Email</span>
                 <span style={{ color: "var(--ink-primary, #0f172a)" }}>{user?.email ?? "—"}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4 text-[13px]">
-                <span style={{ color: "var(--ink-secondary, #475569)" }}>Login method</span>
-                <span style={{ color: "var(--ink-primary, #0f172a)" }}>{providerLabel}</span>
               </div>
             </div>
             <div className="mt-5">

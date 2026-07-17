@@ -55,6 +55,13 @@ export type PlatformContextPlanFeatures = {
   reviewQueuesIncluded: boolean;
   /** Team ownership included (maxOwnedTeams > 0). */
   teamCollaborationIncluded: boolean;
+  /**
+   * Monthly AI-assistance operation allowance for the active plan
+   * (2026-07-17 Settings remediation): 0 = AI not included (FREE),
+   * n>0 = monthly cap, null = custom/contract (ENTERPRISE). UI-relevance
+   * only — the AI cost guard enforces the cap server-side on every call.
+   */
+  aiAssistanceMonthlyOperations: number | null;
 };
 
 /**

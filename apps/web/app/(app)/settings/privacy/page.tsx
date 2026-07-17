@@ -238,7 +238,6 @@ function DataExportCard() {
         methods, preferences, consent records, account activity, sessions,
         and organization memberships. Evidence and organization records are
         excluded and remain available through their own authorized surfaces.
-        Available on every plan.
       </p>
 
       {rows === null ? (
@@ -266,10 +265,24 @@ function DataExportCard() {
                 {EXPORT_STATUS_LABEL[r.status] ?? r.status}
                 <span style={{ ...muted, display: "inline", marginLeft: 8 }}>
                   requested {formatUserDateTime(r.requestedAtUtc)}
+                  {r.status === "READY" && r.completedAtUtc
+                    ? ` · created ${formatUserDateTime(r.completedAtUtc)}`
+                    : ""}
                   {r.status === "READY" && r.expiresAtUtc
                     ? ` · expires ${formatUserDateTime(r.expiresAtUtc)}`
                     : ""}
                 </span>
+                {r.status === "READY" && r.packageSha256 ? (
+                  <span style={{ ...muted, display: "block", marginTop: 2 }}>
+                    Checksum (SHA-256): {r.packageSha256.slice(0, 16)}…
+                  </span>
+                ) : null}
+                {r.status === "FAILED" ? (
+                  <span style={{ ...muted, display: "block", marginTop: 2 }}>
+                    The export could not be generated. You can request a new
+                    one below.
+                  </span>
+                ) : null}
               </span>
               {r.status === "READY" ? (
                 <Button
@@ -379,6 +392,23 @@ const CLOSURE_STATUS_LABEL: Record<string, string> = {
 };
 
 const CLOSURE_CANCELLABLE = ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED"];
+
+/**
+ * §7.2 — every stable blocker code maps to a DIRECT resolution action.
+ * A blocker is never shown without a path to resolve it.
+ */
+const CLOSURE_BLOCKER_ACTION: Record<string, { label: string; href: string }> = {
+  BILLING_SUBSCRIPTION_ACTIVE: { label: "Go to Billing", href: "/billing" },
+  ORGANIZATION_OWNERSHIP_TRANSFER_REQUIRED: {
+    label: "Transfer ownership",
+    href: "/organizations",
+  },
+  WORKSPACE_MEMBERS_ACTIVE: {
+    label: "Manage workspace members",
+    href: "/teams",
+  },
+  LEGAL_HOLD_ACTIVE: { label: "Review evidence holds", href: "/evidence" },
+};
 
 function AccountClosureCard() {
   const [state, setState] = useState<{
@@ -509,7 +539,7 @@ function AccountClosureCard() {
         methods, and anonymizes your personal details after a{" "}
         {state?.coolingOffDays ?? 7}-day cancellation window. Evidence is
         never deleted by account closure — it stays governed by retention
-        and legal-hold rules. Available on every plan.
+        and legal-hold rules.
       </p>
 
       {open && req ? (
@@ -522,9 +552,26 @@ function AccountClosureCard() {
           </p>
           {req.status === "BLOCKED" && req.blockersJson ? (
             <ul style={{ ...muted, margin: "6px 0 0", paddingLeft: 18 }}>
-              {(JSON.parse(req.blockersJson) as ClosureBlocker[]).map((b) => (
-                <li key={b.code}>{b.message}</li>
-              ))}
+              {(JSON.parse(req.blockersJson) as ClosureBlocker[]).map((b) => {
+                const action = CLOSURE_BLOCKER_ACTION[b.code];
+                return (
+                  <li key={b.code}>
+                    {b.message}{" "}
+                    {action ? (
+                      <Link
+                        href={action.href}
+                        style={{
+                          color: "var(--ink-primary, #0f172a)",
+                          fontWeight: 600,
+                          textDecoration: "underline",
+                        }}
+                      >
+                        {action.label} →
+                      </Link>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           ) : null}
           {CLOSURE_CANCELLABLE.includes(req.status) ? (
@@ -550,14 +597,51 @@ function AccountClosureCard() {
                 These must be resolved before your account can close:
               </p>
               <ul style={{ ...muted, margin: "6px 0 0", paddingLeft: 18 }}>
-                {blockers.map((b) => (
-                  <li key={b.code}>{b.message}</li>
-                ))}
+                {blockers.map((b) => {
+                  const action = CLOSURE_BLOCKER_ACTION[b.code];
+                  return (
+                    <li key={b.code} data-cc-closure-blocker={b.code}>
+                      {b.message}{" "}
+                      {action ? (
+                        <Link
+                          href={action.href}
+                          style={{
+                            color: "var(--ink-primary, #0f172a)",
+                            fontWeight: 600,
+                            textDecoration: "underline",
+                          }}
+                          data-cc-closure-blocker-action={b.code}
+                        >
+                          {action.label} →
+                        </Link>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ) : null}
 
-          {!showForm ? (
+          {blockers.length > 0 ? (
+            // §7.2 — the UI never starts a closure request it already
+            // knows the backend must refuse. The action stays visible but
+            // disabled, with the reason right next to it.
+            <div className="mt-4">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled
+                aria-disabled="true"
+                title="Resolve the items above first."
+                data-cc-closure-open-blocked
+              >
+                Close my account…
+              </Button>
+              <p style={{ ...muted, marginTop: 6 }}>
+                Resolve the items above to enable account closure.
+              </p>
+            </div>
+          ) : !showForm ? (
             <div className="mt-4">
               <Button
                 variant="secondary"
@@ -820,7 +904,14 @@ function PrivacyInner() {
           </div>
           <p style={{ ...muted, marginTop: 10 }}>
             The full legal library (DPA, subprocessors, retention, disclosure
-            policies, …) lives in the public Trust Center and site footer.
+            policies, …) lives in the{" "}
+            <Link
+              href="/trust"
+              style={{ color: "var(--ink-secondary, #475569)", textDecoration: "underline" }}
+            >
+              public Trust Center
+            </Link>{" "}
+            and the site footer.
           </p>
         </Card>
       </div>

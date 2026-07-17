@@ -486,7 +486,12 @@ test("preferences panel uses the SAME predicate + actual-item override", () => {
 });
 
 test("Preferences: delivery column renamed Inbox → In-app (no stray Inbox copy)", () => {
-  assert.match(PANEL, /<th style=\{\{ textAlign: "center" \}\}>In-app<\/th>/);
+  // 2026-07-17 remediation §8.4 — the header additionally pins nowrap so
+  // the narrow column can never hyphen-break "In-app".
+  assert.match(
+    PANEL,
+    /<th style=\{\{ textAlign: "center", whiteSpace: "nowrap" \}\}>In-app<\/th>/,
+  );
   assert.doesNotMatch(PANEL, /Inbox/);
 });
 

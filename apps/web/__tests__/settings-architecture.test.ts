@@ -26,13 +26,25 @@ const read = (rel: string): string => readFileSync(resolve(APP_ROOT, rel), "utf8
 // Persona fixtures
 // ---------------------------------------------------------------------------
 
+// Canonical AI allowances per plan (mirrors PLAN_CAPABILITIES).
+const AI_OPS: Record<string, number | null> = {
+  FREE: 0,
+  PAYG: 50,
+  PRO: 100,
+  TEAM: 500,
+  ENTERPRISE: null,
+};
+
 function personal(plan: string): SettingsUiContextInput {
   return {
     activeSpace: { type: "PERSONAL", id: "p-1", displayName: "Personal Space" },
     workspacePlan: plan,
     accountPlan: plan,
     organizations: [],
-    planFeatures: { reviewerOperationsIncluded: false },
+    planFeatures: {
+      reviewerOperationsIncluded: false,
+      aiAssistanceMonthlyOperations: AI_OPS[plan] ?? 0,
+    },
   };
 }
 
@@ -54,7 +66,10 @@ function orgMember(
         plan,
       },
     ],
-    planFeatures: { reviewerOperationsIncluded: opts.reviewer ?? true },
+    planFeatures: {
+      reviewerOperationsIncluded: opts.reviewer ?? true,
+      aiAssistanceMonthlyOperations: AI_OPS[plan] ?? null,
+    },
   };
 }
 
@@ -143,12 +158,22 @@ test("org admin links show only for ACTIVE org OWNER/ADMIN of the active org", (
   assert.equal(owner.showOrgAdminLinks, true);
 });
 
-test("reviewer-criteria card is entitlement-gated; AI settings are workspace-universal", () => {
+test("reviewer-criteria card is entitlement-gated; AI card follows the plan allowance", () => {
+  // 2026-07-17 remediation §10 — a personal FREE plan includes NO AI
+  // assistance (allowance 0), so no AI card renders. Included plans and
+  // every organization workspace keep the surface.
   const free = deriveSettingsUiContext(personal("FREE"));
   assert.equal(free.showReviewerCriteria, false);
-  assert.equal(free.showAiSettings, true);
+  assert.equal(free.showAiSettings, false);
+  assert.equal(deriveSettingsUiContext(personal("PAYG")).showAiSettings, true);
+  assert.equal(deriveSettingsUiContext(personal("PRO")).showAiSettings, true);
   const team = deriveSettingsUiContext(orgMember("TEAM", "MEMBER", { reviewer: true }));
   assert.equal(team.showReviewerCriteria, true);
+  assert.equal(team.showAiSettings, true);
+  assert.equal(
+    deriveSettingsUiContext(orgMember("ENTERPRISE", "MEMBER")).showAiSettings,
+    true,
+  );
 });
 
 // ---------------------------------------------------------------------------

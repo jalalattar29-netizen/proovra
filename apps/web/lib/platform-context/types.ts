@@ -25,6 +25,12 @@ export type PlatformContextPlanFeatures = {
   reviewQueuesIncluded: boolean;
   /** Team ownership included (maxOwnedTeams > 0). */
   teamCollaborationIncluded: boolean;
+  /**
+   * Monthly AI-assistance operation allowance (2026-07-17): 0 = AI not
+   * included (FREE), n>0 = monthly cap, null = custom (Enterprise).
+   * Optional so envelopes emitted before the field existed still parse.
+   */
+  aiAssistanceMonthlyOperations?: number | null;
 };
 
 /**

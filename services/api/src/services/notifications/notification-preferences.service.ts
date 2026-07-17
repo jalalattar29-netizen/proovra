@@ -222,7 +222,13 @@ export async function isPreferenceEnabled(
 
 export type NotificationScheduleProjection = {
   teamId: string;
-  timezone: string;
+  /**
+   * Explicit per-workspace timezone OVERRIDE. `null` = no override — the
+   * digest scheduler inherits the account timezone (`User.timezone`),
+   * falling back to UTC. The UI renders this as an explicit inheritance
+   * choice, never as a silently-diverging second timezone value.
+   */
+  timezone: string | null;
   quietHoursEnabled: boolean;
   quietStartMinute: number;
   quietEndMinute: number;
@@ -231,7 +237,8 @@ export type NotificationScheduleProjection = {
 };
 
 const SCHEDULE_DEFAULTS = {
-  timezone: "UTC",
+  // No explicit override by default — inherit account timezone → UTC.
+  timezone: null,
   quietHoursEnabled: false,
   quietStartMinute: 22 * 60,
   quietEndMinute: 7 * 60,
@@ -263,7 +270,8 @@ export async function upsertNotificationSchedule(
   input: {
     userId: string;
     teamId: string;
-    timezone: string;
+    /** Explicit override, or null = inherit the account timezone. */
+    timezone: string | null;
     quietHoursEnabled: boolean;
     quietStartMinute: number;
     quietEndMinute: number;
@@ -271,7 +279,7 @@ export async function upsertNotificationSchedule(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<NotificationScheduleProjection> {
-  if (!isValidTimezone(input.timezone)) {
+  if (input.timezone !== null && !isValidTimezone(input.timezone)) {
     throw new Error("INVALID_TIMEZONE");
   }
   const data = {
@@ -314,7 +322,9 @@ export function isWithinQuietHours(
   let minute = now.getUTCMinutes();
   try {
     const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: schedule.timezone,
+      // Callers pass the EFFECTIVE timezone (override → account → UTC);
+      // a null override falls back to UTC here as well.
+      timeZone: schedule.timezone ?? "UTC",
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,

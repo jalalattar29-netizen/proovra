@@ -269,7 +269,9 @@ describe("R8.1 Part 7 — bounded surface area (R8.1.1-aware)", () => {
         // pin further drift relative to the new canonical size.
         // Rebaselined 2026-07-16: account step-up enforcement added to
       // revoke-others (verifyAccountStepUp wiring) — sanctioned growth.
-      expectedBytes: 32956,
+    // Rebaselined 2026-07-17 (Settings remediation): +single own-session
+    // revoke route (step-up session_revoke) added to the canonical file.
+      expectedBytes: 35440,
       },
       // Pricing-hardening rebaseline (was 11446) — mirrors the parallel
       // pin in phase-r8-enterprise-identity-security.test.ts. The +500-byte

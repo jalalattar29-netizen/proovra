@@ -47,6 +47,15 @@ import {
   presentOutcome,
   presentSecurityEvent,
 } from "../../../../lib/security/securityEventLabels";
+import {
+  describeUserAgent,
+  presentLocation,
+} from "../../../../lib/security/sessionPresentation";
+import {
+  presentLoginMethods,
+  summarizeLoginMethods,
+  type LoginMethodsState,
+} from "../../../../lib/security/loginMethodsSummary";
 import { useAuth } from "../../../providers";
 
 // -----------------------------------------------------------------------------
@@ -147,6 +156,27 @@ function useSecurityData() {
   const [mfaError, setMfaError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<MySession[] | null>(null);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [loginMethods, setLoginMethods] = useState<LoginMethodsState | null>(
+    null,
+  );
+  const [loginMethodsError, setLoginMethodsError] = useState<string | null>(
+    null,
+  );
+
+  const reloadLoginMethods = useCallback(async () => {
+    setLoginMethodsError(null);
+    try {
+      const res = (await apiFetch("/v1/identity/links", {
+        method: "GET",
+      })) as LoginMethodsState;
+      setLoginMethods(res);
+    } catch (err) {
+      setLoginMethodsError(
+        toSafeUserError(err, { message: "Could not load login methods." })
+          .message,
+      );
+    }
+  }, []);
 
   const reloadMfa = useCallback(async () => {
     setMfaError(null);
@@ -184,7 +214,8 @@ function useSecurityData() {
   useEffect(() => {
     void reloadMfa();
     void reloadSessions();
-  }, [reloadMfa, reloadSessions]);
+    void reloadLoginMethods();
+  }, [reloadMfa, reloadSessions, reloadLoginMethods]);
 
   return {
     mfa,
@@ -193,6 +224,9 @@ function useSecurityData() {
     sessions,
     sessionsError,
     reloadSessions,
+    loginMethods,
+    loginMethodsError,
+    reloadLoginMethods,
   };
 }
 
@@ -208,15 +242,22 @@ const OAUTH_PROVIDER_LABELS: Record<string, string> = {
 function SummaryStrip({
   mfa,
   sessions,
+  loginMethods,
 }: {
   mfa: MfaStatus | null;
   sessions: MySession[] | null;
+  loginMethods: LoginMethodsState | null;
 }) {
   const { user } = useAuth();
   const providerKey = (user?.provider ?? "").toLowerCase();
-  const providerLabel =
+  // Real linked-method data wins; the account provider is the fallback
+  // while the links call is in flight.
+  const fallbackLabel =
     OAUTH_PROVIDER_LABELS[providerKey] ??
     (providerKey ? "Email & password" : "—");
+  const providerLabel = loginMethods
+    ? summarizeLoginMethods(loginMethods)
+    : fallbackLabel;
 
   const items: Array<{ label: string; value: string }> = [
     { label: "Login method", value: providerLabel },
@@ -291,16 +332,16 @@ const ERROR_MESSAGES: Record<string, string> = {
     "Use at least 12 characters with upper- and lower-case letters and a number.",
 };
 
-function PasswordChangeCard() {
-  // §5 — OAuth-only accounts previously saw the full change-password form and
-  // then got a server rejection (`sso_user_password_unsupported`). The account's
-  // real login provider decides what renders. We do NOT offer "Set a password":
-  // the backend has no secure account-linking flow, and this remediation does
-  // not invent one.
-  const { user } = useAuth();
-  const providerKey = (user?.provider ?? "").toLowerCase();
-  const oauthProviderLabel = OAUTH_PROVIDER_LABELS[providerKey] ?? null;
-
+function PasswordChangeCard({
+  passwordConfigured,
+}: {
+  passwordConfigured: boolean | null;
+}) {
+  // 2026-07-17 remediation — this card exists ONLY for accounts that
+  // actually have a password to change. Accounts without one manage all
+  // sign-in methods (including "Add password") in the unified Login
+  // methods card above; the old OAuth-only explanatory card duplicated
+  // that state and is deleted.
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -360,29 +401,10 @@ function PasswordChangeCard() {
     }
   }, [currentPassword, newPassword, confirmPassword, revokeOthers]);
 
-  // OAuth-only account: show the real login method instead of a form the
-  // backend will always reject.
-  if (oauthProviderLabel) {
-    return (
-      <Card
-        variant="admin"
-        style={{ marginBottom: 14 }}
-        data-cc-password-change-card
-        data-cc-password-oauth-only={providerKey}
-      >
-        <h2 style={sectionTitleStyle}>Login method</h2>
-        <p style={mutedStyle}>
-          You sign in to PROOVRA with {oauthProviderLabel}. Your password is
-          managed in your {oauthProviderLabel} account, so there is no PROOVRA
-          password to change here.
-        </p>
-        <p style={{ ...mutedStyle, marginTop: 8 }}>
-          Two-factor authentication for your PROOVRA account is managed below
-          and applies regardless of how you sign in.
-        </p>
-      </Card>
-    );
-  }
+  // No configured password → nothing to change; the Login methods card
+  // owns the add-password flow. (While the links call is loading we also
+  // render nothing rather than flash a form that may not apply.)
+  if (passwordConfigured !== true) return null;
 
   return (
     <Card variant="admin" style={{ marginBottom: 14 }} data-cc-password-change-card>
@@ -627,21 +649,15 @@ export function StepUpVerify({
 // Organization SSO/SAML is NOT a personal method and never appears here.
 // -----------------------------------------------------------------------------
 
-interface LoginMethodsState {
-  passwordConfigured: boolean;
-  links: Array<{
-    id: string;
-    provider: string;
-    normalizedEmail: string | null;
-    linkedAtUtc: string;
-    lastUsedAtUtc: string | null;
-  }>;
-  legacyProvider: string | null;
-  usableMethods: number;
-}
-
-function LoginMethodsCard() {
-  const [state, setState] = useState<LoginMethodsState | null>(null);
+function LoginMethodsCard({
+  state,
+  stateError,
+  reload,
+}: {
+  state: LoginMethodsState | null;
+  stateError: string | null;
+  reload: () => Promise<void>;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -657,24 +673,7 @@ function LoginMethodsCard() {
   const [stepUpMethods, setStepUpMethods] = useState<StepUpMethods>(["reauth"]);
   const [stepUpMsg, setStepUpMsg] = useState("");
   const { confirm } = useConfirmAction();
-
-  const reload = useCallback(async () => {
-    setError(null);
-    try {
-      const res = (await apiFetch("/v1/identity/links", {
-        method: "GET",
-      })) as LoginMethodsState;
-      setState(res);
-    } catch (err) {
-      setError(
-        toSafeUserError(err, { message: "Could not load login methods." })
-          .message,
-      );
-    }
-  }, []);
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  const { user } = useAuth();
 
   const surfaceOrStepUp = useCallback(
     (
@@ -867,125 +866,119 @@ function LoginMethodsCard() {
     [confirm, reload, surfaceOrStepUp],
   );
 
-  const providerLabel = (p: string) =>
-    p === "GOOGLE" ? "Google" : p === "APPLE" ? "Apple" : p;
-  const connected = new Set([
-    ...(state?.links.map((l) => l.provider) ?? []),
-    ...(state?.legacyProvider ? [state.legacyProvider] : []),
-  ]);
+  // Unified presentation — every personal method renders as ONE row shape
+  // (Method | Status | Last used | Action) through the canonical pure
+  // derivation. Apple is a normal row, never a stray standalone button.
+  const rows = state ? presentLoginMethods(state) : null;
+
+  const rowStyle: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+    padding: "10px 2px",
+    borderBottom: "1px solid var(--border-default, rgba(15,23,42,0.07))",
+    fontSize: 13,
+    color: "var(--ink-primary, #0f172a)",
+  };
+
+  const oauthProviderLabel =
+    OAUTH_PROVIDER_LABELS[(user?.provider ?? "").toLowerCase()] ?? null;
 
   return (
     <Card variant="admin" style={{ marginBottom: 14 }} data-cc-login-methods-card>
       <h2 style={sectionTitleStyle}>Login methods</h2>
       <p style={mutedStyle}>
-        The ways you can sign in to this account. Organization single sign-on
-        is managed by your organization and never appears here.
+        The ways you can sign in to this account.
+        {oauthProviderLabel && state && !state.passwordConfigured
+          ? ` Your ${oauthProviderLabel} password is managed in your ${oauthProviderLabel} account; add a PROOVRA password below if you also want to sign in with email.`
+          : ""}{" "}
+        Organization single sign-on is managed by your organization and never
+        appears here.
       </p>
 
       {state === null ? (
-        <p style={mutedStyle}>Loading…</p>
+        <p style={mutedStyle} aria-live="polite">
+          {stateError ?? "Loading…"}
+        </p>
       ) : (
         <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0 }}>
-          <li
-            data-cc-login-method="password"
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 10,
-              padding: "8px 2px",
-              borderBottom: "1px solid var(--border-default, rgba(15,23,42,0.07))",
-              fontSize: 13,
-              color: "var(--ink-primary, #0f172a)",
-            }}
-          >
-            <span>
-              Email &amp; password{" "}
-              <Badge tone={state.passwordConfigured ? "verified" : "neutral"} subtle style={{ marginLeft: 6 }}>
-                {state.passwordConfigured ? "Configured" : "Not configured"}
-              </Badge>
-            </span>
-            {!state.passwordConfigured ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setAddPwOpen((v) => !v)}
-                data-cc-add-password-toggle
-              >
-                Add password
-              </Button>
-            ) : null}
-          </li>
-          {state.links.map((l) => (
-            <li
-              key={l.id}
-              data-cc-login-method={l.provider.toLowerCase()}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 10,
-                padding: "8px 2px",
-                borderBottom: "1px solid var(--border-default, rgba(15,23,42,0.07))",
-                fontSize: 13,
-                color: "var(--ink-primary, #0f172a)",
-              }}
-            >
-              <span>
-                {providerLabel(l.provider)}{" "}
-                <Badge tone="verified" subtle style={{ marginLeft: 6 }}>
-                  Connected
+          {rows!.map((row) => (
+            <li key={row.key} data-cc-login-method={row.key} style={rowStyle}>
+              <span style={{ minWidth: 0 }}>
+                {row.label}{" "}
+                <Badge
+                  tone={row.status === "not_connected" ? "neutral" : "verified"}
+                  subtle
+                  style={{ marginLeft: 6 }}
+                >
+                  {row.status === "configured"
+                    ? "Configured"
+                    : row.status === "connected"
+                      ? "Connected"
+                      : row.key === "password"
+                        ? "Not configured"
+                        : "Not connected"}
                 </Badge>
-                <span style={{ ...mutedStyle, display: "inline", marginLeft: 8 }}>
-                  {l.lastUsedAtUtc ? `last used ${fmt(l.lastUsedAtUtc)}` : `linked ${fmt(l.linkedAtUtc)}`}
-                </span>
+                {row.lastUsedAtUtc ? (
+                  <span style={{ ...mutedStyle, display: "inline", marginLeft: 8 }}>
+                    last used {fmt(row.lastUsedAtUtc)}
+                  </span>
+                ) : null}
+                {row.disconnectBlocked && row.blockedReason ? (
+                  <span
+                    style={{ ...mutedStyle, display: "block", marginTop: 2 }}
+                    data-cc-login-method-blocked={row.key}
+                  >
+                    {row.blockedReason}
+                  </span>
+                ) : null}
               </span>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void unlink(l.id, l.provider)}
-                disabled={busy}
-                data-cc-unlink={l.id}
-              >
-                Disconnect
-              </Button>
+              {row.action === "add_password" ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setAddPwOpen((v) => !v)}
+                  data-cc-add-password-toggle
+                >
+                  Add password
+                </Button>
+              ) : row.action === "connect" ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    row.key === "google"
+                      ? void connectGoogle()
+                      : void connectApple()
+                  }
+                  disabled={busy}
+                  data-cc-connect-google={row.key === "google" ? "true" : undefined}
+                  data-cc-connect-apple={row.key === "apple" ? "true" : undefined}
+                >
+                  Connect
+                </Button>
+              ) : row.action === "disconnect" ? (
+                // The final usable method never offers an ENABLED disconnect
+                // — the UI mirrors the backend `last_login_method_protected`
+                // guard instead of submitting a known-invalid request.
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    row.linkId ? void unlink(row.linkId, row.label) : undefined
+                  }
+                  disabled={busy || row.disconnectBlocked}
+                  aria-disabled={row.disconnectBlocked || undefined}
+                  title={row.blockedReason ?? undefined}
+                  data-cc-unlink={row.linkId ?? "blocked"}
+                >
+                  Disconnect
+                </Button>
+              ) : null}
             </li>
           ))}
-          {state.legacyProvider ? (
-            <li
-              data-cc-login-method-legacy={state.legacyProvider.toLowerCase()}
-              style={{ ...mutedStyle, padding: "8px 2px" }}
-            >
-              {providerLabel(state.legacyProvider)} — connected (original
-              sign-in method).
-            </li>
-          ) : null}
-          {!connected.has("GOOGLE") ? (
-            <li style={{ padding: "8px 2px" }}>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void connectGoogle()}
-                disabled={busy}
-                data-cc-connect-google
-              >
-                Connect Google
-              </Button>
-            </li>
-          ) : null}
-          {!connected.has("APPLE") ? (
-            <li style={{ padding: "8px 2px" }}>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void connectApple()}
-                disabled={busy}
-                data-cc-connect-apple
-              >
-                Connect Apple
-              </Button>
-            </li>
-          ) : null}
         </ul>
       )}
 
@@ -1307,7 +1300,7 @@ function MfaCard({
             <p style={mutedStyle}>
               Protect your account with an authenticator app. After setup,
               sign-ins require a 6-digit code in addition to your login
-              method. Available on every plan and for every sign-in provider.
+              method — however you sign in.
             </p>
             <div style={{ marginTop: 12 }}>
               <Button
@@ -1576,6 +1569,10 @@ function ActiveSessionsCard({
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stepUpOpen, setStepUpOpen] = useState(false);
+  const [singleStepUp, setSingleStepUp] = useState<null | {
+    sessionId: string;
+    deviceLabel: string;
+  }>(null);
   const [stepUpMethods, setStepUpMethods] = useState<StepUpMethods>(["reauth"]);
   const [stepUpMsg, setStepUpMsg] = useState("");
   const { confirm } = useConfirmAction();
@@ -1627,46 +1624,137 @@ function ActiveSessionsCard({
     [confirm, others.length, reloadSessions],
   );
 
-  const sessionRow = (s: MySession) => (
-    <li
-      key={s.id}
-      data-cc-session-row={s.id}
-      data-cc-session-current={s.isCurrent ? "true" : "false"}
-      style={{
-        padding: "10px 12px",
-        marginBottom: 6,
-        borderRadius: 10,
-        border: s.isCurrent
-          ? "1px solid rgba(47,125,91,0.45)"
-          : "1px solid var(--border-default, rgba(15,23,42,0.09))",
-        background: s.isCurrent
-          ? "rgba(47,125,91,0.06)"
-          : "var(--surface-card, #ffffff)",
-        fontSize: 12,
-      }}
-    >
-      <div style={{ fontWeight: 700, color: "var(--ink-primary, #0f172a)" }}>
-        {s.isCurrent ? "This device" : s.uaPreview ?? "Unknown device"}
-        {s.isCurrent ? (
-          <Badge tone="verified" subtle style={{ marginLeft: 8 }}>
-            Current session
-          </Badge>
-        ) : null}
-        {s.quarantined ? (
-          <Badge tone="pending" subtle style={{ marginLeft: 8 }}>
-            QUARANTINED
-          </Badge>
-        ) : null}
-      </div>
-      <div style={mutedStyle}>
-        {s.ipPreview ?? "IP unknown"} · {s.countryCode ?? "??"} · last seen{" "}
-        {fmt(s.lastSeenAtUtc)}
-      </div>
-      <div style={{ ...mutedStyle, marginTop: 2 }}>
-        Issued {fmt(s.issuedAtUtc)} · expires {fmt(s.expiresAtUtc)}
-      </div>
-    </li>
+  const revokeSingle = useCallback(
+    async (sessionId: string, deviceLabel: string, proof?: StepUpProof) => {
+      if (!proof) {
+        const ok = await confirm({
+          title: `Sign out ${deviceLabel}?`,
+          description:
+            "That session ends immediately. You stay signed in on this device.",
+          confirmLabel: "Sign out session",
+          tone: "warning",
+          testId: "security-revoke-single-session",
+        });
+        if (!ok) return;
+      }
+      setBusy(true);
+      setNotice(null);
+      setError(null);
+      try {
+        await apiFetch(`/v1/identity-security/my-sessions/${sessionId}/revoke`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(proof ? { stepUp: proof } : {}),
+        });
+        setSingleStepUp(null);
+        setNotice("Session signed out.");
+        await reloadSessions();
+      } catch (err) {
+        const su = extractStepUp(err);
+        if (su) {
+          setSingleStepUp({ sessionId, deviceLabel });
+          setStepUpMethods(su.methods);
+          setStepUpMsg(su.message);
+          return;
+        }
+        setError(
+          toSafeUserError(err, { message: "Could not sign out that session." })
+            .message,
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [confirm, reloadSessions],
   );
+
+  const sessionRow = (s: MySession) => {
+    // Presentation (2026-07-17): a raw user agent or a private/container
+    // network address is never primary content. Friendly device/browser +
+    // reliable location only; the forensic detail stays available behind
+    // the per-session Technical details disclosure.
+    const device = describeUserAgent(s.uaPreview);
+    const location = presentLocation(s.countryCode, s.ipPreview);
+    return (
+      <li
+        key={s.id}
+        data-cc-session-row={s.id}
+        data-cc-session-current={s.isCurrent ? "true" : "false"}
+        style={{
+          padding: "10px 12px",
+          marginBottom: 6,
+          borderRadius: 10,
+          border: s.isCurrent
+            ? "1px solid rgba(47,125,91,0.45)"
+            : "1px solid var(--border-default, rgba(15,23,42,0.09))",
+          background: s.isCurrent
+            ? "rgba(47,125,91,0.06)"
+            : "var(--surface-card, #ffffff)",
+          fontSize: 12,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ fontWeight: 700, color: "var(--ink-primary, #0f172a)" }}>
+            {device}
+            {s.isCurrent ? (
+              <Badge tone="verified" subtle style={{ marginLeft: 8 }}>
+                Current session
+              </Badge>
+            ) : null}
+            {s.quarantined ? (
+              <Badge tone="pending" subtle style={{ marginLeft: 8 }}>
+                Restricted
+              </Badge>
+            ) : null}
+          </div>
+          {/* The current session carries no individual revoke — signing out
+              of THIS device is the product sign-out action, not a session
+              mutation. */}
+          {!s.isCurrent ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void revokeSingle(s.id, device)}
+              disabled={busy}
+              data-cc-revoke-session={s.id}
+            >
+              Sign out
+            </Button>
+          ) : null}
+        </div>
+        <div style={mutedStyle} data-cc-session-meta={s.id}>
+          {location ?? "Location unavailable"} · last active {fmt(s.lastSeenAtUtc)}
+        </div>
+        <div style={{ ...mutedStyle, marginTop: 2 }}>
+          Signed in {fmt(s.issuedAtUtc)}
+        </div>
+        <details style={{ marginTop: 4 }}>
+          <summary
+            style={{ ...mutedStyle, cursor: "pointer" }}
+            data-cc-session-details={s.id}
+          >
+            Technical details
+          </summary>
+          <div style={{ ...mutedStyle, marginTop: 4 }}>
+            {s.uaPreview ? <div>User agent: {s.uaPreview}</div> : null}
+            {s.ipPreview ? <div>IP (masked): {s.ipPreview}</div> : null}
+            <div>Session reference: {s.id}</div>
+            <div>
+              Issued {fmt(s.issuedAtUtc)} · expires {fmt(s.expiresAtUtc)}
+            </div>
+          </div>
+        </details>
+      </li>
+    );
+  };
 
   return (
     <Card variant="admin" style={{ marginBottom: 14 }} data-cc-active-sessions-card>
@@ -1737,6 +1825,21 @@ function ActiveSessionsCard({
           }}
         />
       ) : null}
+      {singleStepUp ? (
+        <StepUpVerify
+          title={`Confirm signing out ${singleStepUp.deviceLabel}.`}
+          methods={stepUpMethods}
+          initialError={stepUpMsg}
+          busy={busy}
+          onSubmit={(proof) =>
+            void revokeSingle(singleStepUp.sessionId, singleStepUp.deviceLabel, proof)
+          }
+          onCancel={() => {
+            setSingleStepUp(null);
+            setStepUpMsg("");
+          }}
+        />
+      ) : null}
 
       {(error ?? sessionsError) ? (
         <div style={errorBox}>{error ?? sessionsError}</div>
@@ -1780,9 +1883,14 @@ function severityDot(sev: string | null): React.CSSProperties {
   };
 }
 
+const EVENTS_PAGE = 8;
+
 function SecurityEventsCard() {
   const [events, setEvents] = useState<SecurityEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Progressive disclosure (2026-07-17): latest N events render in the
+  // page flow (no nested scrollbar); "View more" extends the list.
+  const [visibleCount, setVisibleCount] = useState(EVENTS_PAGE);
 
   useEffect(() => {
     void (async () => {
@@ -1828,11 +1936,9 @@ function SecurityEventsCard() {
             margin: 0,
             padding: 0,
             marginTop: 10,
-            maxHeight: 320,
-            overflowY: "auto",
           }}
         >
-          {rows.map((ev) => (
+          {rows.slice(0, visibleCount).map((ev) => (
             <li
               key={ev.id}
               data-cc-security-event-row={ev.id}
@@ -1886,6 +1992,19 @@ function SecurityEventsCard() {
           ))}
         </ul>
       )}
+
+      {events !== null && rows.length > visibleCount ? (
+        <div style={{ marginTop: 10 }}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setVisibleCount((v) => v + EVENTS_PAGE)}
+            data-cc-security-events-more
+          >
+            View more ({rows.length - visibleCount} older)
+          </Button>
+        </div>
+      ) : null}
     </Card>
   );
 }
@@ -1902,13 +2021,22 @@ export function PersonalSecuritySections() {
     sessions,
     sessionsError,
     reloadSessions,
+    loginMethods,
+    loginMethodsError,
+    reloadLoginMethods,
   } = useSecurityData();
 
   return (
     <>
-      <SummaryStrip mfa={mfa} sessions={sessions} />
-      <LoginMethodsCard />
-      <PasswordChangeCard />
+      <SummaryStrip mfa={mfa} sessions={sessions} loginMethods={loginMethods} />
+      <LoginMethodsCard
+        state={loginMethods}
+        stateError={loginMethodsError}
+        reload={reloadLoginMethods}
+      />
+      <PasswordChangeCard
+        passwordConfigured={loginMethods?.passwordConfigured ?? null}
+      />
       <MfaCard mfa={mfa} mfaError={mfaError} reloadMfa={reloadMfa} />
       <ActiveSessionsCard
         sessions={sessions}

@@ -25,6 +25,8 @@ import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { useAuth } from "../../app/providers";
+import { resolveEffectiveTimezone } from "../../lib/notifications/effectiveTimezone";
 import { useOperationsUiContext } from "../../lib/notifications/useOperationsUiContext";
 import {
   buildActualItemSignal,
@@ -340,6 +342,12 @@ export function NotificationPreferencesPanel({
   const lockedTypes = new Set(responseData.lockedTypes ?? []);
   const emailLockedTypes = new Set(responseData.emailLockedTypes ?? []);
   const minFrequencyByType = responseData.minimumFrequencyByType ?? {};
+  // A REAL organization-policy lock exists (beyond the platform's own
+  // always-on evidence-integrity/governance in-app locks).
+  const hasOrgPolicyLocks =
+    emailLockedTypes.size > 0 ||
+    Object.keys(minFrequencyByType).length > 0 ||
+    [...lockedTypes].some((t) => !(t in IN_APP_LOCK_REASON));
   const frequencies: ReadonlyArray<Frequency> =
     responseData.catalog.frequencies ?? ["IMMEDIATE", "HOURLY", "DAILY", "WEEKLY", "OFF"];
 
@@ -388,16 +396,21 @@ export function NotificationPreferencesPanel({
           Center.
         </p>
         <p>
-          <strong>Email</strong> — digest delivery on your chosen cadence.
+          <strong>Email</strong> — choose immediate delivery or an hourly,
+          daily, or weekly digest per category.
         </p>
         <p>
-          <strong>Locked</strong> items are critical evidence-integrity or
-          governance alerts that always appear in-app.
+          Critical evidence-integrity alerts always remain enabled in-app.
         </p>
-        <p>
-          <strong>&ldquo;Managed by your organization&rdquo;</strong> means
-          your organization&rsquo;s policy controls that setting.
-        </p>
+        {/* §8.2 — organization-policy explanation renders ONLY when a real
+            organization policy actually locks something here. Personal
+            workspaces never see organization-governance terminology. */}
+        {!responseData.isPersonalWorkspace && hasOrgPolicyLocks ? (
+          <p data-notification-org-policy-legend>
+            <strong>&ldquo;Managed by your organization&rdquo;</strong> means
+            your organization&rsquo;s policy controls that setting.
+          </p>
+        ) : null}
       </div>
 
       {error ? (
@@ -410,8 +423,10 @@ export function NotificationPreferencesPanel({
         <thead>
           <tr>
             <th>Preference</th>
-            <th style={{ textAlign: "center" }}>In-app</th>
-            <th style={{ textAlign: "center" }}>Email</th>
+            {/* §8.4 — channel headers render on ONE line; the narrow
+                column must not hyphen-break the label. */}
+            <th style={{ textAlign: "center", whiteSpace: "nowrap" }}>In-app</th>
+            <th style={{ textAlign: "center", whiteSpace: "nowrap" }}>Email</th>
           </tr>
         </thead>
         <tbody>
@@ -698,7 +713,12 @@ function OrgNotificationPolicyManager({ orgId }: { orgId: string }) {
 type ScheduleResponse = {
   schedule: {
     teamId: string;
-    timezone: string;
+    /**
+     * Explicit per-workspace override, or null = inherit the account
+     * timezone (Settings → Preferences) → UTC fallback. The digest
+     * scheduler applies exactly this precedence server-side.
+     */
+    timezone: string | null;
     quietHoursEnabled: boolean;
     quietStartMinute: number;
     quietEndMinute: number;
@@ -743,6 +763,9 @@ export function NotificationScheduleCard({ teamId }: { teamId: string | null }) 
   const [schedule, setSchedule] = useState<ScheduleResponse["schedule"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Account timezone — the inherited default (Settings → Preferences).
+  const { user } = useAuth();
+  const accountTimezone = user?.timezone?.trim() ? user.timezone : null;
   // Environment honesty — true when the backend answers 503
   // `notification_schedule_unavailable` (schedule migration not applied).
   // We never render defaults as if they were saved in that state.
@@ -861,27 +884,84 @@ export function NotificationScheduleCard({ teamId }: { teamId: string | null }) 
         </div>
       ) : null}
       <div className="ops-form">
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span className="ops-field-label">Timezone</span>
-          <select
-            data-notification-schedule-timezone
-            value={schedule.timezone}
-            disabled={saving}
-            aria-label="Timezone"
-            onChange={(e) => void save({ ...schedule, timezone: e.target.value })}
-            className="ops-select"
-            style={{ maxWidth: 320 }}
+        {/* §6.2 — EXPLICIT timezone inheritance. Two states, never a
+            silently-diverging second timezone value:
+              inherit  → account timezone (or the UTC fallback when unset)
+              override → an explicit IANA zone for THIS workspace only. */}
+        <fieldset
+          data-notification-schedule-timezone-mode
+          style={{ border: 0, margin: 0, padding: 0 }}
+        >
+          <legend className="ops-field-label" style={{ padding: 0 }}>
+            Notification timezone
+          </legend>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="radio"
+              name="notification-timezone-mode"
+              checked={schedule.timezone === null}
+              disabled={saving}
+              onChange={() => void save({ ...schedule, timezone: null })}
+              data-notification-schedule-tz-inherit
+            />
+            <span className="ops-muted">
+              Use account timezone —{" "}
+              {accountTimezone
+                ? accountTimezone
+                : "not set, so UTC fallback applies"}
+            </span>
+          </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+            <input
+              type="radio"
+              name="notification-timezone-mode"
+              checked={schedule.timezone !== null}
+              disabled={saving}
+              onChange={() =>
+                void save({
+                  ...schedule,
+                  timezone:
+                    schedule.timezone ?? accountTimezone ?? "UTC",
+                })
+              }
+              data-notification-schedule-tz-override
+            />
+            <span className="ops-muted">Override for this workspace</span>
+          </label>
+          {schedule.timezone !== null ? (
+            <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+              <span className="ops-field-label">Workspace timezone</span>
+              <select
+                data-notification-schedule-timezone
+                value={schedule.timezone}
+                disabled={saving}
+                aria-label="Workspace timezone override"
+                onChange={(e) => void save({ ...schedule, timezone: e.target.value })}
+                className="ops-select"
+                style={{ maxWidth: 320 }}
+              >
+                {!timezones.includes(schedule.timezone) ? (
+                  <option value={schedule.timezone}>{schedule.timezone}</option>
+                ) : null}
+                {timezones.map((tz) => (
+                  <option key={tz} value={tz}>
+                    {tz}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <p
+            className="ops-muted"
+            style={{ margin: "6px 0 0" }}
+            data-notification-schedule-effective-tz
           >
-            {!timezones.includes(schedule.timezone) ? (
-              <option value={schedule.timezone}>{schedule.timezone}</option>
-            ) : null}
-            {timezones.map((tz) => (
-              <option key={tz} value={tz}>
-                {tz}
-              </option>
-            ))}
-          </select>
-        </label>
+            Digests and quiet hours use:{" "}
+            <strong>
+              {resolveEffectiveTimezone(schedule.timezone, accountTimezone)}
+            </strong>
+          </p>
+        </fieldset>
         <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span className="ops-field-label">Quiet hours</span>
           <input

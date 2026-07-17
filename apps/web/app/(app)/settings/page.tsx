@@ -33,7 +33,6 @@ import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
-import { formatUserDateTime } from "../../../lib/date";
 // Phase IA-self-serve-simplification — gate the workspace-level
 // Identity & Security card on /security-center eligibility. Self-
 // serve users see only Account Security (/settings/security).
@@ -43,6 +42,14 @@ import { useAuth, useLocale } from "../../providers";
 import { usePlatformContext } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { deriveSettingsUiContext } from "../../../lib/settings/settingsUiContext";
+import { useAccountSecuritySummary } from "../../../lib/security/useAccountSecuritySummary";
+import { useActiveWorkspaceId } from "../../../lib/platform-context";
+import {
+  deriveAiSettingsMode,
+  enabledPersonalFeatureCount,
+  showAiOverviewCard,
+  type PersonalAiPolicySlice,
+} from "../../../lib/ai/aiAssistanceView";
 
 type CookieConsentLatest = {
   record?: {
@@ -50,11 +57,6 @@ type CookieConsentLatest = {
     consentVersion: string;
     createdAt: string;
   } | null;
-};
-
-const OAUTH_PROVIDER_LABELS: Record<string, string> = {
-  google: "Google",
-  apple: "Apple",
 };
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
@@ -200,16 +202,58 @@ function SettingsOverview() {
 
   const [latestCookieConsent, setLatestCookieConsent] =
     useState<CookieConsentLatest["record"]>(null);
+  const [policyRecordCount, setPolicyRecordCount] = useState<number | null>(null);
   useEffect(() => {
     if (!user?.id) return;
     apiFetch("/v1/users/cookie-consent/latest")
       .then((data: CookieConsentLatest) => setLatestCookieConsent(data.record ?? null))
       .catch(() => setLatestCookieConsent(null));
+    apiFetch("/v1/users/legal-acceptance")
+      .then((data: { items?: unknown[] }) =>
+        setPolicyRecordCount(Array.isArray(data.items) ? data.items.length : null),
+      )
+      .catch(() => setPolicyRecordCount(null));
   }, [user?.id]);
 
-  const providerKey = (user?.provider ?? "").toLowerCase();
-  const providerLabel =
-    OAUTH_PROVIDER_LABELS[providerKey] ?? (providerKey ? "Email & password" : "—");
+  // §1.1 — the Account Security card shows a REAL summary from the same
+  // canonical security APIs the security page consumes. Never hardcoded.
+  const security = useAccountSecuritySummary(Boolean(user?.id));
+
+  // §1.3 — AI card mode + summary. The card renders only when the plan
+  // actually includes AI assistance (or the workspace is an organization).
+  const activeWorkspaceId = useActiveWorkspaceId();
+  const aiMode = deriveAiSettingsMode({
+    workspaceKind: ui.isPersonalWorkspace ? "PERSONAL" : "ORGANIZATION",
+    monthlyAllowance: envelope?.planFeatures?.aiAssistanceMonthlyOperations,
+    orgRole: null, // overview card copy does not depend on the org role
+  });
+  const [aiPolicy, setAiPolicy] = useState<PersonalAiPolicySlice | null>(null);
+  const [aiAllowance, setAiAllowance] = useState<{
+    monthlyOperations: number | null;
+    consumed: number;
+  } | null>(null);
+  useEffect(() => {
+    if (!activeWorkspaceId || !ui.showAiSettings || !ui.isPersonalWorkspace) return;
+    let alive = true;
+    apiFetch(`/v1/workspaces/ai-policy?teamId=${activeWorkspaceId}`)
+      .then((r) => {
+        if (alive) setAiPolicy((r as { policy: PersonalAiPolicySlice }).policy ?? null);
+      })
+      .catch(() => undefined);
+    apiFetch(`/v1/workspaces/ai-usage?teamId=${activeWorkspaceId}`)
+      .then((r) => {
+        const a = (r as {
+          allowance?: { monthlyOperations: number | null; consumed: number } | null;
+        }).allowance;
+        if (alive && a) setAiAllowance(a);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [activeWorkspaceId, ui.showAiSettings, ui.isPersonalWorkspace]);
+
+  const enabledAiFeatures = enabledPersonalFeatureCount(aiPolicy);
 
   return (
     <PageShell
@@ -228,7 +272,9 @@ function SettingsOverview() {
         />
       }
     >
-      <div style={{ display: "grid", gap: 14 }}>
+      {/* §1.4 — bounded content width + balanced card grid so the lower
+          half of the page never reads as an unfinished empty region. */}
+      <div style={{ display: "grid", gap: 14, maxWidth: 1080 }}>
         <SectionHeading>Account</SectionHeading>
         <div
           style={{
@@ -240,62 +286,45 @@ function SettingsOverview() {
           <OverviewCard
             icon={<Icons.Dashboard />}
             title="Profile & identity"
-            description="Your display name, avatar, and account identity used across evidence reviews, reports, and invitations."
+            description="Your display name and account identity used across evidence reviews, reports, and invitations."
             values={[
               { label: "Name", value: user?.displayName || user?.email || "—" },
               { label: "Email", value: user?.email ?? "—" },
-              { label: "Login method", value: providerLabel },
             ]}
             actionLabel="Open profile"
             href="/settings/profile"
             marker={{ "data-cc-overview-profile": "true" }}
           />
-          <Card
-            variant="admin"
-            padding="comfortable"
-            data-cc-account-security-link-card
-          >
-            <div className="mb-4 flex items-center gap-3">
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 38,
-                  height: 38,
-                  borderRadius: 12,
-                  background: "var(--surface-card, #ffffff)",
-                  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-                  color: "var(--ink-secondary, #475569)",
-                }}
-              >
-                <Icons.Security />
-              </span>
-              <div
-                style={{
-                  fontSize: 15,
-                  fontWeight: 650,
-                  color: "var(--ink-primary, #0f172a)",
-                }}
-              >
-                Account security
-              </div>
-            </div>
-            <p
-              className="m-0 text-[13px]"
-              style={{ color: "var(--ink-secondary, #475569)" }}
-            >
-              Password, two-factor authentication, active sessions, and your
-              recent security activity.
-            </p>
-            <div className="mt-4">
-              <Link href="/settings/security">
-                <Button variant="secondary" size="sm">
-                  Open Account security
-                </Button>
-              </Link>
-            </div>
-          </Card>
+          <OverviewCard
+            icon={<Icons.Security />}
+            title="Account security"
+            description="Login methods, two-factor authentication, active sessions, and your recent security activity."
+            values={[
+              {
+                label: "Login method",
+                value: security.loginMethods ?? "…",
+              },
+              {
+                label: "Two-factor",
+                value:
+                  security.mfaConfigured === null
+                    ? "…"
+                    : security.mfaConfigured
+                      ? "Enabled"
+                      : "Not configured",
+              },
+              {
+                label: "Active sessions",
+                value:
+                  security.activeSessions === null
+                    ? "…"
+                    : String(security.activeSessions),
+              },
+            ]}
+            actionLabel="Open Account security"
+            href="/settings/security"
+            marker={{ "data-cc-account-security-link-card": "true" }}
+          />
           <OverviewCard
             icon={<Icons.Settings />}
             title="Preferences"
@@ -311,17 +340,16 @@ function SettingsOverview() {
           <OverviewCard
             icon={<Icons.Security />}
             title="Privacy & legal records"
-            description="Cookie preferences and your recorded policy acceptances — consent, contract acceptance, and acknowledgements, kept distinct."
-            values={
-              latestCookieConsent
-                ? [
-                    {
-                      label: "Cookie consent",
-                      value: `v${latestCookieConsent.consentVersion} · ${formatUserDateTime(latestCookieConsent.createdAt)}`,
-                    },
-                  ]
-                : undefined
-            }
+            description="Cookie preferences, recorded policy acceptances, your personal data export, and account closure."
+            values={[
+              {
+                label: "Cookie preferences",
+                value: latestCookieConsent ? "Configured" : "Not configured",
+              },
+              ...(policyRecordCount !== null
+                ? [{ label: "Policy records", value: String(policyRecordCount) }]
+                : []),
+            ]}
             actionLabel="Open privacy"
             href="/settings/privacy"
             marker={{ "data-cc-overview-privacy": "true" }}
@@ -354,14 +382,48 @@ function SettingsOverview() {
               marker={{ "data-cc-overview-notifications": "true" }}
             />
           ) : null}
-          {ui.showAiSettings ? (
-            <OverviewCard
-              icon={<Icons.Settings />}
-              title="AI & automation"
-              description="Workspace AI governance — enable or disable AI capabilities and data-class limits."
-              actionLabel="Open AI settings"
-              href="/settings/ai"
-            />
+          {ui.showAiSettings && showAiOverviewCard(aiMode) ? (
+            ui.isPersonalWorkspace ? (
+              <OverviewCard
+                icon={<Icons.Settings />}
+                title="AI assistance"
+                description="Manage the AI-assisted features available in your Personal Space and review your monthly usage."
+                values={[
+                  ...(aiPolicy
+                    ? [
+                        {
+                          label: "AI assistance",
+                          value: aiPolicy.aiEnabled ? "On" : "Off",
+                        },
+                        {
+                          label: "Enabled features",
+                          value: String(enabledAiFeatures ?? 0),
+                        },
+                      ]
+                    : []),
+                  ...(aiAllowance && aiAllowance.monthlyOperations !== null
+                    ? [
+                        {
+                          label: "Monthly usage",
+                          value: `${aiAllowance.consumed} of ${aiAllowance.monthlyOperations} operations`,
+                        },
+                      ]
+                    : []),
+                ]}
+                actionLabel="Open AI assistance"
+                href="/settings/ai"
+                marker={{ "data-cc-overview-ai": "personal" }}
+              />
+            ) : (
+              <OverviewCard
+                icon={<Icons.Settings />}
+                title="AI & automation"
+                description="Organization AI governance — capability policy, data-class controls, and usage."
+                actionLabel="Open AI settings"
+                href="/settings/ai"
+                marker={{ "data-cc-overview-ai": "organization" }}
+              />
+            )
           ) : null}
           {ui.showReviewerCriteria ? (
             <OverviewCard

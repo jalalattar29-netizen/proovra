@@ -75,6 +75,15 @@ function PreferencesInner() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // §6.1 — the Save action is disabled until something actually changed,
+  // and double submissions are prevented by the busy flag.
+  const savedLocale = supportedLocales.includes(locale as Locale)
+    ? (locale as Locale)
+    : "en";
+  const savedTimezone = user?.timezone ?? "";
+  const dirty =
+    selectedLocale !== savedLocale || timezone.trim() !== savedTimezone.trim();
+
   useEffect(() => {
     setTimezone(user?.timezone ?? "");
   }, [user?.timezone]);
@@ -202,6 +211,15 @@ function PreferencesInner() {
             notification digests and quiet hours. Evidence and audit record
             timestamps stay in canonical UTC.
           </p>
+          {timezone.trim() === "" ? (
+            <p
+              className="m-0 mt-2 text-[13px]"
+              style={{ color: "var(--ink-secondary, #475569)", fontWeight: 600 }}
+              data-cc-preferences-tz-fallback
+            >
+              Not set — UTC is currently used as the fallback.
+            </p>
+          ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <div style={{ flex: 1, minWidth: 220 }}>
               <Input
@@ -242,7 +260,7 @@ function PreferencesInner() {
             variant="secondary"
             onClick={() => void save()}
             loading={busy}
-            disabled={busy}
+            disabled={busy || !dirty}
             data-cc-preferences-save
           >
             Save preferences

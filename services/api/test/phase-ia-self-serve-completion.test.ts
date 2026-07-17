@@ -189,7 +189,11 @@ describe("Phase IA-self-serve-completion — Settings tree gates /security-cente
     );
     // Self-serve account security remains available via the dedicated
     // "Account security" card (an ACCOUNT-tier surface for every user).
-    expect(SETTINGS).toMatch(/<Link href="\/settings\/security">/);
+    // 2026-07-17 Settings remediation: the card is now the shared
+    // OverviewCard with a real security summary, so the link renders via
+    // the href prop rather than an inline <Link>.
+    expect(SETTINGS).toMatch(/href="\/settings\/security"/);
+    expect(SETTINGS).toMatch(/data-cc-account-security-link-card/);
   });
 });
 

@@ -361,7 +361,9 @@ describe("R8.1.1 Part 8 — step-up uses the same factor model", () => {
     // additions, NOT a parallel step-up surface. The pin still
     // detects further drift relative to the new canonical size.
     // Rebaselined 2026-07-16: account step-up enforcement (revoke-others).
-    const expected = 32956;
+    // Rebaselined 2026-07-17 (Settings remediation): +single own-session
+    // revoke route (step-up session_revoke) added to the canonical file.
+    const expected = 35440;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);

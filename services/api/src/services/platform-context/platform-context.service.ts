@@ -449,6 +449,7 @@ export async function buildPlatformContext(
     reviewerOperationsIncluded: planCaps.reviewerOperationsIncluded,
     reviewQueuesIncluded: planCaps.reviewQueuesIncluded,
     teamCollaborationIncluded: planCaps.maxOwnedTeams > 0,
+    aiAssistanceMonthlyOperations: planCaps.aiAdvisoryMonthlyOperations,
   };
 
   // -------------------------------------------------------------------------

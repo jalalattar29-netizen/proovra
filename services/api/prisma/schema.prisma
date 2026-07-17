@@ -6475,7 +6475,11 @@ model NotificationScheduleSetting {
   teamId String @map("team_id") @db.Uuid
 
   /// IANA timezone name, validated at the application layer.
-  timezone String @default("UTC") @db.VarChar(64)
+  /// NULL (2026-07-17 Settings remediation) = NO explicit workspace
+  /// override — the digest scheduler inherits the account timezone
+  /// (`User.timezone`), falling back to UTC. A non-null value is an
+  /// EXPLICIT per-workspace override chosen by the user.
+  timezone String? @db.VarChar(64)
 
   quietHoursEnabled Boolean @default(false) @map("quiet_hours_enabled")
   /// Minutes after local midnight (0..1439).
