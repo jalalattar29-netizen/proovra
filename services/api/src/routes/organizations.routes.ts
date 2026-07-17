@@ -48,6 +48,17 @@ import { getAuthUserId } from "../auth.js";
 import { checkOrgAccess } from "../services/organization/org-access.js";
 // Phase 2.7X Stage 4 — audit emitter (writes inside the mutation tx).
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import {
+  verifyAccountStepUp,
+  type AccountStepUpProof,
+} from "../services/identity-security/account-step-up.service.js";
+import { evaluateOrganizationClosurePreflight } from "../services/identity/account-lifecycle-preflight.service.js";
+import {
+  ACTIVE_ORG_CLOSURE_STATUSES,
+  CANCELLABLE_ORG_CLOSURE_STATUSES,
+  ORG_CLOSURE_COOLING_OFF_MS,
+} from "../services/organization/org-closure.service.js";
 // Phase 2 Blocker 1 — brand-new-owner enterprise auto-completion. Runs
 // inside the accept tx after the ORG_OWNER membership is created; a no-op
 // for every non-enterprise accept (guarded on pendingEnterpriseSeats).
@@ -1536,6 +1547,605 @@ export async function organizationsRoutes(app: FastifyInstance) {
             .code(200)
             .send({ membershipId: result.membershipId, removed: true });
       }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // POST /v1/orgs/:id/leave
+  //
+  // Self-service leave-organization (2026-07-16, lifecycle Phase 1).
+  //
+  //   - Any ACTIVE member below ORG_OWNER may leave their own membership.
+  //   - ORG_OWNER is BLOCKED (stable code OWNERSHIP_TRANSFER_REQUIRED):
+  //     an owner must transfer ownership or close the organization first —
+  //     an organization can never be left ownerless.
+  //   - One transaction: (a) delete the OrganizationMembership row (the
+  //     repo's canonical removal semantics — attribution is preserved in
+  //     the immutable org audit event, mirroring the admin-removal route
+  //     above); (b) set the caller's TeamMember rows INACTIVE on every
+  //     workspace Team belonging to this organization (workspace access
+  //     revocation — TeamMember rows are retained INACTIVE, never erased,
+  //     so historical actor attribution on evidence/custody stays intact);
+  //     (c) clear the caller's currentWorkspaceId if it points at one of
+  //     those teams (the platform-context bootstrap then falls back to the
+  //     personal workspace on next load — proven recovery path).
+  //   - Access/session invalidation: org access is authorized per-request
+  //     from OrganizationMembership + ACTIVE TeamMember rows (the JWT
+  //     carries no org claims), so revocation is effective immediately on
+  //     the next request; account-level sessions are intentionally NOT
+  //     revoked (leaving an org does not sign you out of your account).
+  //   - Audited twice: ORG_MEMBER_LEFT in the org audit stream (visible to
+  //     org admins/owners on the existing audit surface) and an
+  //     identity.organization_left platform audit event (visible in the
+  //     user's own Account & Security Activity timeline).
+  //   - Idempotent-safe: a second call after leaving returns 404
+  //     membership_not_found (no destructive re-execution).
+  // -------------------------------------------------------------------------
+  app.post(
+    "/v1/orgs/:id/leave",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const orgId = UuidParam.parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+
+      const result = await prisma.$transaction(async (tx) => {
+        const membership = await tx.organizationMembership.findFirst({
+          where: { organizationId: orgId, userId },
+          select: { id: true, role: true },
+        });
+        if (!membership) {
+          return { kind: "not_found" as const };
+        }
+        if (membership.role === "ORG_OWNER") {
+          return { kind: "ownership_transfer_required" as const };
+        }
+
+        // (a) governance membership — delete (canonical removal semantics).
+        await tx.organizationMembership.delete({
+          where: { id: membership.id },
+        });
+
+        // (b) workspace layer — deactivate, never erase. Scoped to teams
+        // OWNED by this organization only; personal + other-org teams are
+        // untouched.
+        const orgTeams = await tx.team.findMany({
+          where: { organizationId: orgId, isPersonal: false },
+          select: { id: true },
+        });
+        const orgTeamIds = orgTeams.map((t) => t.id);
+        let workspacesDeactivated = 0;
+        if (orgTeamIds.length > 0) {
+          // TeamMemberStatus has no INACTIVE — REVOKED is the canonical
+          // access-revocation state (the platform envelope projects any
+          // non-ACTIVE status as an INACTIVE membership).
+          const upd = await tx.teamMember.updateMany({
+            where: {
+              userId,
+              teamId: { in: orgTeamIds },
+              status: "ACTIVE",
+            },
+            data: { status: "REVOKED" },
+          });
+          workspacesDeactivated = upd.count;
+        }
+
+        // (c) active-workspace fallback — clear a now-inaccessible pointer;
+        // the platform-context bootstrap restores the personal workspace.
+        const me = await tx.user.findUnique({
+          where: { id: userId },
+          select: { currentWorkspaceId: true },
+        });
+        let workspaceFallback = false;
+        if (
+          me?.currentWorkspaceId &&
+          orgTeamIds.includes(me.currentWorkspaceId)
+        ) {
+          await tx.user.update({
+            where: { id: userId },
+            data: { currentWorkspaceId: null },
+          });
+          workspaceFallback = true;
+        }
+
+        await emitOrgAuditEvent(tx, {
+          organizationId: orgId,
+          actorUserId: userId,
+          eventType: "ORG_MEMBER_LEFT",
+          targetType: "organization_membership",
+          targetId: membership.id,
+          metadata: {
+            membershipId: membership.id,
+            formerRole: membership.role,
+            workspacesDeactivated,
+            workspaceFallback,
+          },
+        });
+
+        return {
+          kind: "ok" as const,
+          formerRole: membership.role,
+          workspacesDeactivated,
+          workspaceFallback,
+        };
+      });
+
+      switch (result.kind) {
+        case "not_found":
+          return reply
+            .code(404)
+            .send({ error: { code: "membership_not_found" } });
+        case "ownership_transfer_required":
+          return reply.code(409).send({
+            error: {
+              code: "OWNERSHIP_TRANSFER_REQUIRED",
+              message:
+                "You are the organization owner. Transfer ownership or close the organization before leaving.",
+            },
+          });
+        case "ok": {
+          // Personal Account & Security Activity timeline (best-effort;
+          // the org audit event above is the durable record).
+          await appendPlatformAuditLog({
+            userId,
+            action: "identity.organization_left",
+            category: "identity",
+            severity: "info",
+            source: "api_organizations",
+            outcome: "success",
+            resourceType: "organization",
+            resourceId: orgId,
+            requestId: req.id,
+            metadata: {
+              formerRole: result.formerRole,
+              workspacesDeactivated: result.workspacesDeactivated,
+            },
+            ipAddress: null,
+            userAgent: null,
+          }).catch(() => null);
+          return reply.code(200).send({
+            left: true,
+            formerRole: result.formerRole,
+            workspacesDeactivated: result.workspacesDeactivated,
+            workspaceFallback: result.workspaceFallback,
+          });
+        }
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // POST /v1/orgs/:id/transfer-ownership   (lifecycle Phase 6, 2026-07-17)
+  //
+  // ORG_OWNER-only, step-up-gated, ATOMIC ownership transfer:
+  //   - target must be an EXISTING member of this org (never an outsider);
+  //   - one transaction: target → ORG_OWNER, caller → ORG_ADMIN — the org
+  //     is never observable with zero or two owners;
+  //   - org-level billing ownership follows the owner when it pointed at
+  //     the caller;
+  //   - audited in the org stream (ORG_OWNERSHIP_TRANSFERRED) and on BOTH
+  //     parties' personal activity timelines.
+  // This completes the owner path out of an organization: transfer, then
+  // the (now non-owner) caller may use POST /v1/orgs/:id/leave.
+  // -------------------------------------------------------------------------
+  app.post(
+    "/v1/orgs/:id/transfer-ownership",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const orgId = UuidParam.parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+      const body = z
+        .object({
+          targetUserId: z.string().uuid(),
+          stepUp: z
+            .object({
+              method: z.enum(["password", "mfa"]).optional(),
+              currentPassword: z.string().optional(),
+              code: z.string().optional(),
+            })
+            .optional(),
+        })
+        .parse(req.body ?? {});
+
+      const access = await checkOrgAccess(prisma, {
+        orgId,
+        userId,
+        minRole: "ORG_OWNER",
+      });
+      if (access.kind !== "ok") {
+        return reply.code(403).send({ error: { code: "owner_required" } });
+      }
+      if (body.targetUserId === userId) {
+        return reply
+          .code(400)
+          .send({ error: { code: "transfer_to_self" } });
+      }
+
+      const stepUp = await verifyAccountStepUp({
+        req,
+        reply,
+        userId,
+        action: "org_ownership_transfer",
+        proof: body.stepUp,
+      });
+      if (!stepUp.ok) {
+        return reply.code(stepUp.denial.status).send(stepUp.denial.body);
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        const caller = await tx.organizationMembership.findFirst({
+          where: { organizationId: orgId, userId, role: "ORG_OWNER" },
+          select: { id: true },
+        });
+        if (!caller) return { kind: "owner_required" as const };
+        const target = await tx.organizationMembership.findFirst({
+          where: { organizationId: orgId, userId: body.targetUserId },
+          select: { id: true, role: true },
+        });
+        if (!target) return { kind: "target_not_member" as const };
+
+        // Atomic swap — never zero owners, never two.
+        await tx.organizationMembership.update({
+          where: { id: target.id },
+          data: { role: "ORG_OWNER" },
+        });
+        await tx.organizationMembership.update({
+          where: { id: caller.id },
+          data: { role: "ORG_ADMIN" },
+        });
+
+        // Billing ownership follows the owner when it pointed at the
+        // outgoing owner.
+        const org = await tx.organization.findUnique({
+          where: { id: orgId },
+          select: { billingOwnerUserId: true },
+        });
+        let billingOwnerTransferred = false;
+        if (org?.billingOwnerUserId === userId) {
+          await tx.organization.update({
+            where: { id: orgId },
+            data: { billingOwnerUserId: body.targetUserId },
+          });
+          billingOwnerTransferred = true;
+        }
+
+        await emitOrgAuditEvent(tx, {
+          organizationId: orgId,
+          actorUserId: userId,
+          eventType: "ORG_OWNERSHIP_TRANSFERRED",
+          targetType: "organization_membership",
+          targetId: target.id,
+          metadata: {
+            fromUserId: userId,
+            toUserId: body.targetUserId,
+            previousTargetRole: target.role,
+            billingOwnerTransferred,
+          },
+        });
+        return { kind: "ok" as const, billingOwnerTransferred };
+      });
+
+      if (result.kind === "owner_required") {
+        return reply.code(403).send({ error: { code: "owner_required" } });
+      }
+      if (result.kind === "target_not_member") {
+        return reply
+          .code(404)
+          .send({ error: { code: "target_not_member" } });
+      }
+
+      // Both parties see the transfer on their own activity timelines.
+      for (const [party, role] of [
+        [userId, "previous_owner"],
+        [body.targetUserId, "new_owner"],
+      ] as const) {
+        await appendPlatformAuditLog({
+          userId: party,
+          action: "identity.organization_ownership_transferred",
+          category: "identity.lifecycle",
+          severity: "warning",
+          source: "api_organizations",
+          outcome: "success",
+          resourceType: "organization",
+          resourceId: orgId,
+          requestId: req.id,
+          metadata: { role, billingOwnerTransferred: result.billingOwnerTransferred },
+          ipAddress: null,
+          userAgent: null,
+        }).catch(() => null);
+      }
+
+      return reply.code(200).send({
+        transferred: true,
+        newOwnerUserId: body.targetUserId,
+        billingOwnerTransferred: result.billingOwnerTransferred,
+      });
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Organization closure (lifecycle Phase 6, 2026-07-17)
+  //
+  //   GET  /v1/orgs/:id/closure                     — latest request + live
+  //                                                   preflight blockers
+  //   POST /v1/orgs/:id/closure                     — request closure
+  //   POST /v1/orgs/:id/closure/:requestId/cancel   — cancel in cooling-off
+  //
+  // ORG_OWNER-only. Typed confirmation phrase validated server-side +
+  // step-up. Same asynchronous state machine as account closure: the row
+  // enters COOLING_OFF and the closure worker (digest cron) re-checks
+  // preflight before PROCESSING. Execution archives — never deletes.
+  // -------------------------------------------------------------------------
+  const ORG_CLOSURE_CONFIRMATION_PHRASE = "close this organization";
+  const ORG_CLOSURE_SELECT = {
+    id: true,
+    status: true,
+    reason: true,
+    blockersJson: true,
+    requestedAtUtc: true,
+    coolingOffEndsAtUtc: true,
+    cancelledAtUtc: true,
+    completedAtUtc: true,
+    failureCode: true,
+  } as const;
+
+  app.get(
+    "/v1/orgs/:id/closure",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const orgId = UuidParam.parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+      const access = await checkOrgAccess(prisma, {
+        orgId,
+        userId,
+        minRole: "ORG_OWNER",
+      });
+      if (access.kind !== "ok") {
+        return reply.code(403).send({ error: { code: "owner_required" } });
+      }
+      const [latest, preflight] = await Promise.all([
+        prisma.organizationClosureRequest.findFirst({
+          where: { organizationId: orgId },
+          select: ORG_CLOSURE_SELECT,
+          orderBy: { requestedAtUtc: "desc" },
+        }),
+        evaluateOrganizationClosurePreflight(orgId, userId),
+      ]);
+      return reply.code(200).send({
+        request: latest,
+        blockers: preflight.blockers,
+        confirmationPhrase: ORG_CLOSURE_CONFIRMATION_PHRASE,
+        coolingOffDays: Math.round(ORG_CLOSURE_COOLING_OFF_MS / 86_400_000),
+      });
+    },
+  );
+
+  app.post(
+    "/v1/orgs/:id/closure",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const orgId = UuidParam.parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+      const body = z
+        .object({
+          confirmation: z.string().max(120),
+          reason: z.string().max(500).optional(),
+          stepUp: z
+            .object({
+              method: z.enum(["password", "mfa"]).optional(),
+              currentPassword: z.string().optional(),
+              code: z.string().optional(),
+            })
+            .optional(),
+        })
+        .parse(req.body ?? {});
+
+      const access = await checkOrgAccess(prisma, {
+        orgId,
+        userId,
+        minRole: "ORG_OWNER",
+      });
+      if (access.kind !== "ok") {
+        return reply.code(403).send({ error: { code: "owner_required" } });
+      }
+
+      // Typed confirmation — validated SERVER-SIDE, never a boolean.
+      if (
+        body.confirmation.trim().toLowerCase() !==
+        ORG_CLOSURE_CONFIRMATION_PHRASE
+      ) {
+        return reply.code(400).send({
+          error: {
+            code: "confirmation_mismatch",
+            message: `Type "${ORG_CLOSURE_CONFIRMATION_PHRASE}" to confirm.`,
+          },
+        });
+      }
+
+      const stepUp = await verifyAccountStepUp({
+        req,
+        reply,
+        userId,
+        action: "org_closure_request",
+        proof: body.stepUp,
+      });
+      if (!stepUp.ok) {
+        return reply.code(stepUp.denial.status).send(stepUp.denial.body);
+      }
+
+      const open = await prisma.organizationClosureRequest.findFirst({
+        where: {
+          organizationId: orgId,
+          status: { in: [...ACTIVE_ORG_CLOSURE_STATUSES] },
+        },
+        select: { id: true },
+      });
+      if (open) {
+        return reply.code(409).send({
+          error: {
+            code: "closure_request_active",
+            message: "A closure request for this organization is already open.",
+          },
+        });
+      }
+
+      const { blockers } = await evaluateOrganizationClosurePreflight(
+        orgId,
+        userId,
+      );
+      if (blockers.length > 0) {
+        const blocked = await prisma.$transaction(async (tx) => {
+          const row = await tx.organizationClosureRequest.create({
+            data: {
+              organizationId: orgId,
+              requestedByUserId: userId,
+              status: "BLOCKED",
+              reason: body.reason ?? null,
+              blockersJson: JSON.stringify(blockers),
+            },
+            select: { id: true },
+          });
+          await emitOrgAuditEvent(tx, {
+            organizationId: orgId,
+            actorUserId: userId,
+            eventType: "ORG_CLOSURE_BLOCKED",
+            targetType: "organization",
+            targetId: orgId,
+            metadata: { blockers: blockers.map((b) => b.code) },
+          });
+          return row;
+        });
+        await appendPlatformAuditLog({
+          userId,
+          action: "identity.organization_closure_blocked",
+          category: "identity.lifecycle",
+          severity: "warning",
+          source: "api_organizations",
+          outcome: "denied",
+          resourceType: "organization_closure_request",
+          resourceId: blocked.id,
+          requestId: req.id,
+          metadata: { blockers: blockers.map((b) => b.code) },
+          ipAddress: null,
+          userAgent: null,
+        }).catch(() => null);
+        return reply
+          .code(409)
+          .send({ error: { code: "closure_blocked" }, blockers });
+      }
+
+      const coolingOffEndsAtUtc = new Date(
+        Date.now() + ORG_CLOSURE_COOLING_OFF_MS,
+      );
+      const created = await prisma.$transaction(async (tx) => {
+        const row = await tx.organizationClosureRequest.create({
+          data: {
+            organizationId: orgId,
+            requestedByUserId: userId,
+            status: "COOLING_OFF",
+            reason: body.reason ?? null,
+            coolingOffEndsAtUtc,
+          },
+          select: ORG_CLOSURE_SELECT,
+        });
+        await emitOrgAuditEvent(tx, {
+          organizationId: orgId,
+          actorUserId: userId,
+          eventType: "ORG_CLOSURE_REQUESTED",
+          targetType: "organization",
+          targetId: orgId,
+          metadata: {
+            coolingOffEndsAtUtc: coolingOffEndsAtUtc.toISOString(),
+          },
+        });
+        return row;
+      });
+      await appendPlatformAuditLog({
+        userId,
+        action: "identity.organization_closure_requested",
+        category: "identity.lifecycle",
+        severity: "warning",
+        source: "api_organizations",
+        outcome: "success",
+        resourceType: "organization_closure_request",
+        resourceId: created.id,
+        requestId: req.id,
+        metadata: { coolingOffEndsAtUtc: coolingOffEndsAtUtc.toISOString() },
+        ipAddress: null,
+        userAgent: null,
+      }).catch(() => null);
+      return reply.code(201).send({ request: created });
+    },
+  );
+
+  app.post(
+    "/v1/orgs/:id/closure/:requestId/cancel",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const params = z
+        .object({ id: z.string().uuid(), requestId: z.string().uuid() })
+        .parse(req.params);
+      const userId = getAuthUserId(req);
+      const access = await checkOrgAccess(prisma, {
+        orgId: params.id,
+        userId,
+        minRole: "ORG_OWNER",
+      });
+      if (access.kind !== "ok") {
+        return reply.code(403).send({ error: { code: "owner_required" } });
+      }
+
+      const cancelled = await prisma.$transaction(async (tx) => {
+        const upd = await tx.organizationClosureRequest.updateMany({
+          where: {
+            id: params.requestId,
+            organizationId: params.id,
+            status: { in: [...CANCELLABLE_ORG_CLOSURE_STATUSES] },
+          },
+          data: { status: "CANCELLED", cancelledAtUtc: new Date() },
+        });
+        if (upd.count === 0) return false;
+        await emitOrgAuditEvent(tx, {
+          organizationId: params.id,
+          actorUserId: userId,
+          eventType: "ORG_CLOSURE_CANCELLED",
+          targetType: "organization",
+          targetId: params.id,
+          metadata: { requestId: params.requestId },
+        });
+        return true;
+      });
+      if (!cancelled) {
+        const exists = await prisma.organizationClosureRequest.findFirst({
+          where: { id: params.requestId, organizationId: params.id },
+          select: { id: true },
+        });
+        if (!exists) {
+          return reply.code(404).send({ error: { code: "closure_not_found" } });
+        }
+        return reply
+          .code(409)
+          .send({ error: { code: "closure_not_cancellable" } });
+      }
+
+      await appendPlatformAuditLog({
+        userId,
+        action: "identity.organization_closure_cancelled",
+        category: "identity.lifecycle",
+        severity: "info",
+        source: "api_organizations",
+        outcome: "success",
+        resourceType: "organization_closure_request",
+        resourceId: params.requestId,
+        requestId: req.id,
+        metadata: {},
+        ipAddress: null,
+        userAgent: null,
+      }).catch(() => null);
+      const row = await prisma.organizationClosureRequest.findFirst({
+        where: { id: params.requestId, organizationId: params.id },
+        select: ORG_CLOSURE_SELECT,
+      });
+      return reply.code(200).send({ request: row });
     },
   );
 

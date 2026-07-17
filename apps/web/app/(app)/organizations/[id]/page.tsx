@@ -24,9 +24,11 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
  *
  * Operational rules:
  *
- *   - All CTAs are wired. Where a backend endpoint does NOT yet exist
- *     (e.g. Leave Organization, Transfer Ownership), the surface
- *     surfaces an honest explanation rather than a fake button.
+ *   - All CTAs are wired to real audited endpoints. Lifecycle actions
+ *     (leave — lifecycle Phase 1; transfer ownership + organization
+ *     closure — lifecycle Phase 6) are fully self-service: leave in the
+ *     header for non-owners, transfer/closure in the owner-only
+ *     lifecycle section below.
  *   - Billing visibility is honest: Phase 2.7X has not unified org-
  *     level billing yet — per-workspace billing remains the source of
  *     truth. We deep-link to /teams (Workspace administration) and
@@ -38,9 +40,11 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import { usePlatformContext } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   formatUserDate,
@@ -52,6 +56,12 @@ import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { Badge, type BadgeTone } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import {
+  StepUpVerify,
+  extractStepUp,
+  type StepUpMethods,
+  type StepUpProof,
+} from "../../security-center/components/PersonalSecuritySections";
 
 // ---------------------------------------------------------------------------
 // Types — mirror Phase 2.7X Stage 3/4/5 wire shapes.
@@ -370,6 +380,60 @@ function OrganizationDetailInner() {
   ]);
 
   // ---------------------------------------------------------------------------
+  // Leave organization (lifecycle Phase 1, 2026-07-16).
+  //
+  // Self-service departure for non-owners. The backend enforces the owner
+  // guard (409 OWNERSHIP_TRANSFER_REQUIRED) and revokes workspace access in
+  // the same transaction; on success we refresh the platform envelope (the
+  // active workspace falls back to Personal) and return to the org list.
+  // ---------------------------------------------------------------------------
+  const router = useRouter();
+  const { confirm } = useConfirmAction();
+  const platformCtx = usePlatformContext();
+  const [leaveBusy, setLeaveBusy] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+
+  const leaveOrganization = useCallback(async () => {
+    if (org.kind !== "ready" || leaveBusy) return;
+    const ok = await confirm({
+      title: `Leave ${org.data.name}?`,
+      description:
+        "You will immediately lose access to this organization and its workspaces. Your past activity remains attributed to you in the organization's audit records. An owner or admin must re-invite you to return.",
+      confirmLabel: "Leave organization",
+      tone: "danger",
+      testId: "org-leave-confirm",
+    });
+    if (!ok) return;
+    setLeaveBusy(true);
+    setLeaveError(null);
+    try {
+      await apiFetch(`/v1/orgs/${orgId}/leave`, { method: "POST" });
+      try {
+        await platformCtx.refresh();
+      } catch {
+        /* envelope refresh is best-effort; navigation reloads it */
+      }
+      router.replace("/organizations");
+    } catch (err) {
+      const e = err as { body?: { error?: { code?: string; message?: string } } };
+      if (e.body?.error?.code === "OWNERSHIP_TRANSFER_REQUIRED") {
+        setLeaveError(
+          e.body.error.message ??
+            "You are the organization owner. Transfer ownership or close the organization before leaving.",
+        );
+      } else {
+        setLeaveError(
+          toSafeUserError(err, {
+            message: "Could not leave the organization. Please try again.",
+          }).message,
+        );
+      }
+    } finally {
+      setLeaveBusy(false);
+    }
+  }, [org, orgId, leaveBusy, confirm, platformCtx, router]);
+
+  // ---------------------------------------------------------------------------
   // Render.
   // ---------------------------------------------------------------------------
   const contextStrip =
@@ -432,6 +496,21 @@ function OrganizationDetailInner() {
                   </Button>
                 </Link>
               )}
+              {/* Leave — hidden for ORG_OWNER (must transfer or close first;
+                  the backend enforces the same guard regardless). */}
+              {org.kind === "ready" &&
+                org.data.callerRole !== "ORG_OWNER" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void leaveOrganization()}
+                    loading={leaveBusy}
+                    disabled={leaveBusy}
+                    data-action="leave-organization"
+                  >
+                    Leave organization
+                  </Button>
+                )}
             </>
           }
           primaryAction={
@@ -467,6 +546,23 @@ function OrganizationDetailInner() {
       }
     >
       {/* ============================== HEADER STATES ====================== */}
+      {leaveError ? (
+        <div
+          role="alert"
+          data-section="leave-organization-error"
+          style={{
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid rgba(179,38,30,0.35)",
+            background: "rgba(179,38,30,0.06)",
+            color: "#8f1d16",
+            fontSize: 13,
+          }}
+        >
+          {leaveError}
+        </div>
+      ) : null}
+
       {org.kind === "loading" && (
         <SectionLoading dataSection="org-meta" />
       )}
@@ -1051,41 +1147,467 @@ function OrganizationDetailInner() {
         variant="status"
         tone="risk"
         data-section="org-danger-zone"
-        title="Membership controls"
-        subtitle="Lifecycle changes that affect your account or the organization. Items below are intentionally NOT self-service in Phase 2.7X — each one is documented with the operational path."
+        title="Organization lifecycle"
+        subtitle="Owner-only, verified lifecycle actions. Non-owner members leave from the page header; owners must transfer ownership (or close the organization) first."
       >
-        <div style={{ fontSize: 13, color: "var(--ink-secondary, #475569)", display: "grid", gap: 10 }}>
-          <div data-control="leave-organization-note">
-            <strong>Leave organization:</strong> not yet a self-service
-            action. Ask an organization admin to remove your membership from
-            the Members list above. The DELETE on{" "}
-            <code>/v1/orgs/:id/members/:membershipId</code> exists today
-            but is intentionally limited to ORG_ADMIN+ acting on someone
-            else; self-remove is blocked by the API to prevent accidental
-            orphan-owner orgs.
+        {callerRole === "ORG_OWNER" ? (
+          <OrgLifecycleControls
+            orgId={orgId}
+            orgName={org.kind === "ready" ? org.data.name : ""}
+            members={members.kind === "ready" ? members.data.members : []}
+            onChanged={() => void fetchAll()}
+          />
+        ) : (
+          <div
+            data-control="lifecycle-owner-only-note"
+            style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}
+          >
+            Ownership transfer and organization closure are available to the
+            organization owner only. To leave this organization, use{" "}
+            <strong>Leave organization</strong> in the page header.
           </div>
-          <div data-control="transfer-ownership-note">
-            <strong>Transfer ownership:</strong> not yet a one-step
-            action. The current ORG_OWNER can promote a second member to{" "}
-            <code>ORG_OWNER</code> from the Members list above; once two
-            owners exist, either can be demoted. The audit timeline
-            records both <code>ORG_MEMBER_ROLE_CHANGED</code> events so
-            the transfer is fully traceable.
-          </div>
-          <div data-control="archive-organization-note">
-            <strong>Archive / suspend organization:</strong> not
-            self-service in Phase 2.7X. The org <code>status</code>
-            column accepts <code>SUSPENDED</code>/<code>ARCHIVED</code>
-            but those transitions are not yet wired to a write surface.
-            Contact{" "}
-            <Link href="/support" data-action="contact-support">
-              support
-            </Link>{" "}
-            to suspend or archive.
-          </div>
-        </div>
+        )}
       </Card>
     </PageShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Organization lifecycle controls (lifecycle Phase 6, 2026-07-17).
+//
+// Owner-only: (1) atomic ownership transfer to an existing member,
+// (2) organization closure — typed phrase validated server-side, step-up,
+// preflight blockers with stable codes, 7-day cancellation window.
+// Frontend visibility is NOT authorization: every action re-checks
+// ORG_OWNER + step-up on the backend.
+// ---------------------------------------------------------------------------
+
+type OrgClosureBlocker = { code: string; message: string; count: number };
+
+type OrgClosureRequestRow = {
+  id: string;
+  status: string;
+  blockersJson: string | null;
+  requestedAtUtc: string;
+  coolingOffEndsAtUtc: string | null;
+  failureCode: string | null;
+};
+
+type OrgClosureState = {
+  request: OrgClosureRequestRow | null;
+  blockers: OrgClosureBlocker[];
+  confirmationPhrase: string;
+  coolingOffDays: number;
+};
+
+const ORG_CLOSURE_STATUS_LABEL: Record<string, string> = {
+  BLOCKED: "Blocked — action needed",
+  COOLING_OFF: "Scheduled — cancellation window open",
+  SCHEDULED: "Scheduled",
+  PROCESSING: "Closing…",
+  COMPLETED: "Closed",
+  CANCELLED: "Cancelled",
+  FAILED: "Failed",
+};
+
+function OrgLifecycleControls({
+  orgId,
+  orgName,
+  members,
+  onChanged,
+}: {
+  orgId: string;
+  orgName: string;
+  members: MembersResponse["members"];
+  onChanged: () => void;
+}) {
+  const { confirm } = useConfirmAction();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // ---- transfer ----
+  const [targetUserId, setTargetUserId] = useState("");
+  const eligibleTargets = members.filter((m) => m.role !== "ORG_OWNER");
+
+  // ---- closure ----
+  const [closure, setClosure] = useState<OrgClosureState | null>(null);
+  const [phrase, setPhrase] = useState("");
+  const [showClosureForm, setShowClosureForm] = useState(false);
+
+  // ---- shared step-up prompt ----
+  const [stepUpFor, setStepUpFor] = useState<null | "transfer" | "closure">(null);
+  const [stepUpMethods, setStepUpMethods] = useState<StepUpMethods>(["reauth"]);
+  const [stepUpMsg, setStepUpMsg] = useState("");
+
+  const reloadClosure = useCallback(async () => {
+    try {
+      const res = (await apiFetch(`/v1/orgs/${orgId}/closure`)) as OrgClosureState;
+      setClosure(res);
+    } catch {
+      setClosure(null);
+    }
+  }, [orgId]);
+  useEffect(() => {
+    void reloadClosure();
+  }, [reloadClosure]);
+
+  const transferOwnership = useCallback(
+    async (proof?: StepUpProof) => {
+      if (!targetUserId) return;
+      if (!proof) {
+        const target = eligibleTargets.find((m) => m.userId === targetUserId);
+        const ok = await confirm({
+          title: `Transfer ownership of ${orgName}?`,
+          description: `${
+            target?.displayName ?? target?.email ?? "The selected member"
+          } becomes the organization owner and you become an admin. Billing ownership follows the owner. This is atomic and audited.`,
+          confirmLabel: "Transfer ownership",
+          tone: "danger",
+          testId: "org-transfer-confirm",
+        });
+        if (!ok) return;
+      }
+      setBusy(true);
+      setError(null);
+      setNotice(null);
+      try {
+        await apiFetch(`/v1/orgs/${orgId}/transfer-ownership`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            targetUserId,
+            ...(proof ? { stepUp: proof } : {}),
+          }),
+        });
+        setStepUpFor(null);
+        setNotice("Ownership transferred. You are now an organization admin.");
+        onChanged();
+      } catch (err) {
+        const su = extractStepUp(err);
+        if (su) {
+          setStepUpFor("transfer");
+          setStepUpMethods(su.methods);
+          setStepUpMsg(su.message);
+          return;
+        }
+        const e = err as { body?: { error?: { code?: string } } };
+        const code = e.body?.error?.code;
+        if (code === "target_not_member") {
+          setError("The selected user is no longer a member of this organization.");
+        } else if (code === "owner_required") {
+          setError("Only the organization owner can transfer ownership.");
+        } else {
+          setError(
+            toSafeUserError(err, { message: "Could not transfer ownership." }).message,
+          );
+        }
+      } finally {
+        setBusy(false);
+      }
+    },
+    [targetUserId, eligibleTargets, confirm, orgName, orgId, onChanged],
+  );
+
+  const requestClosure = useCallback(
+    async (proof?: StepUpProof) => {
+      setBusy(true);
+      setError(null);
+      setNotice(null);
+      try {
+        await apiFetch(`/v1/orgs/${orgId}/closure`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            confirmation: phrase,
+            ...(proof ? { stepUp: proof } : {}),
+          }),
+        });
+        setStepUpFor(null);
+        setShowClosureForm(false);
+        setPhrase("");
+        await reloadClosure();
+      } catch (err) {
+        const su = extractStepUp(err);
+        if (su) {
+          setStepUpFor("closure");
+          setStepUpMethods(su.methods);
+          setStepUpMsg(su.message);
+          return;
+        }
+        const e = err as { body?: { error?: { code?: string; message?: string } } };
+        const code = e.body?.error?.code;
+        if (code === "closure_blocked") {
+          setError("Closure is blocked — resolve the listed items and try again.");
+          await reloadClosure();
+        } else if (code === "confirmation_mismatch") {
+          setError(e.body?.error?.message ?? "The confirmation phrase does not match.");
+        } else if (code === "closure_request_active") {
+          setError("A closure request for this organization is already open.");
+          await reloadClosure();
+        } else {
+          setError(
+            toSafeUserError(err, { message: "Could not request closure." }).message,
+          );
+        }
+      } finally {
+        setBusy(false);
+      }
+    },
+    [orgId, phrase, reloadClosure],
+  );
+
+  const cancelClosure = useCallback(
+    async (requestId: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        await apiFetch(`/v1/orgs/${orgId}/closure/${requestId}/cancel`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+        });
+        await reloadClosure();
+      } catch (err) {
+        setError(
+          toSafeUserError(err, { message: "Could not cancel the request." }).message,
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [orgId, reloadClosure],
+  );
+
+  const req = closure?.request ?? null;
+  const openClosure =
+    req !== null &&
+    ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED", "PROCESSING"].includes(
+      req.status,
+    );
+  const phraseExpected = closure?.confirmationPhrase ?? "close this organization";
+
+  return (
+    <div style={{ display: "grid", gap: 16, fontSize: 13 }}>
+      {/* ------------------------- Transfer ownership ------------------------- */}
+      <div data-control="transfer-ownership">
+        <strong>Transfer ownership.</strong>{" "}
+        <span style={{ color: "var(--ink-secondary, #475569)" }}>
+          The new owner must already be a member. You become an admin; the
+          organization is never left without an owner.
+        </span>
+        {eligibleTargets.length === 0 ? (
+          <p style={{ margin: "6px 0 0", color: "var(--ink-secondary, #475569)" }}>
+            No other members yet — invite a member before transferring
+            ownership.
+          </p>
+        ) : (
+          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <select
+              value={targetUserId}
+              onChange={(e) => setTargetUserId(e.target.value)}
+              aria-label="New owner"
+              data-control="transfer-ownership-target"
+              style={{
+                fontSize: 13,
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: "1px solid var(--border-default, rgba(15,23,42,0.15))",
+                minWidth: 220,
+              }}
+            >
+              <option value="">Select the new owner…</option>
+              {eligibleTargets.map((m) => (
+                <option key={m.userId} value={m.userId}>
+                  {m.displayName ?? m.email ?? m.userId}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void transferOwnership()}
+              loading={busy}
+              disabled={busy || !targetUserId}
+              data-action="transfer-ownership"
+            >
+              Transfer ownership
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ------------------------- Close organization ------------------------- */}
+      <div data-control="close-organization">
+        <strong>Close organization.</strong>{" "}
+        <span style={{ color: "var(--ink-secondary, #475569)" }}>
+          Archives the organization after a {closure?.coolingOffDays ?? 7}-day
+          cancellation window. Workspace access and machine credentials are
+          revoked; evidence is never deleted by closure — it stays governed
+          by retention and legal-hold rules.
+        </span>
+
+        {openClosure && req ? (
+          <div className="mt-2" data-org-closure-status={req.status}>
+            <p style={{ margin: "6px 0 0" }}>
+              {ORG_CLOSURE_STATUS_LABEL[req.status] ?? req.status}
+              {req.status === "COOLING_OFF" && req.coolingOffEndsAtUtc
+                ? ` — closes after ${formatUserDate(req.coolingOffEndsAtUtc)} unless cancelled.`
+                : ""}
+            </p>
+            {req.status === "BLOCKED" && req.blockersJson ? (
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18, color: "var(--ink-secondary, #475569)" }}>
+                {(JSON.parse(req.blockersJson) as OrgClosureBlocker[]).map((b) => (
+                  <li key={b.code}>{b.message}</li>
+                ))}
+              </ul>
+            ) : null}
+            {["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED"].includes(req.status) ? (
+              <div style={{ marginTop: 8 }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void cancelClosure(req.id)}
+                  loading={busy}
+                  disabled={busy}
+                  data-action="cancel-organization-closure"
+                >
+                  Cancel closure request
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <>
+            {(closure?.blockers.length ?? 0) > 0 ? (
+              <ul
+                data-org-closure-blockers
+                style={{ margin: "6px 0 0", paddingLeft: 18, color: "var(--ink-secondary, #475569)" }}
+              >
+                {closure!.blockers.map((b) => (
+                  <li key={b.code}>{b.message}</li>
+                ))}
+              </ul>
+            ) : null}
+            {!showClosureForm ? (
+              <div style={{ marginTop: 8 }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowClosureForm(true)}
+                  disabled={busy}
+                  data-action="open-organization-closure"
+                >
+                  Close this organization…
+                </Button>
+              </div>
+            ) : (
+              <div style={{ marginTop: 8 }} data-org-closure-form>
+                <label
+                  htmlFor="org-closure-confirm"
+                  style={{ display: "block", marginBottom: 6, color: "var(--ink-secondary, #475569)" }}
+                >
+                  Type <strong>{phraseExpected}</strong> to confirm.
+                </label>
+                <input
+                  id="org-closure-confirm"
+                  type="text"
+                  value={phrase}
+                  onChange={(e) => setPhrase(e.target.value)}
+                  autoComplete="off"
+                  style={{
+                    fontSize: 13,
+                    padding: "6px 10px",
+                    borderRadius: 8,
+                    border: "1px solid var(--border-default, rgba(15,23,42,0.15))",
+                    width: "100%",
+                    maxWidth: 340,
+                  }}
+                />
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => void requestClosure()}
+                    loading={busy}
+                    disabled={
+                      busy || phrase.trim().toLowerCase() !== phraseExpected
+                    }
+                    data-action="request-organization-closure"
+                  >
+                    Request closure
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowClosureForm(false);
+                      setPhrase("");
+                      setError(null);
+                    }}
+                    disabled={busy}
+                  >
+                    Keep the organization
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {stepUpFor ? (
+        <StepUpVerify
+          title={
+            stepUpFor === "transfer"
+              ? "Confirm transferring ownership of this organization."
+              : "Confirm closing this organization."
+          }
+          methods={stepUpMethods}
+          initialError={stepUpMsg}
+          busy={busy}
+          onSubmit={(proof) =>
+            stepUpFor === "transfer"
+              ? void transferOwnership(proof)
+              : void requestClosure(proof)
+          }
+          onCancel={() => {
+            setStepUpFor(null);
+            setStepUpMsg("");
+          }}
+        />
+      ) : null}
+
+      {error ? (
+        <div
+          role="alert"
+          style={{
+            borderRadius: 8,
+            border: "1px solid rgba(179,38,30,0.35)",
+            background: "rgba(179,38,30,0.06)",
+            color: "#8f1d16",
+            padding: "8px 12px",
+            fontSize: 12,
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+      {notice ? (
+        <div
+          style={{
+            borderRadius: 8,
+            border: "1px solid rgba(47,125,91,0.35)",
+            background: "rgba(47,125,91,0.07)",
+            color: "#215e44",
+            padding: "8px 12px",
+            fontSize: 12,
+          }}
+        >
+          {notice}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

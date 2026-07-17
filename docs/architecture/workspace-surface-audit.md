@@ -1,6 +1,57 @@
 # PROOVRA — Workspace Surface Audit
 _Status: CLOSED — all tests pass._
 
+> **Update 2026-07-17 — Account / workspace / organization lifecycle
+> families (Phases 1–8).** Five capability families shipped end-to-end:
+>
+> 1. **Connected accounts / login methods** — `UserIdentityLink` (unique
+>    `(provider, providerSubjectId)` anti-takeover invariant; conflicts are
+>    409, never a merge), link-first login resolution + login-time link
+>    freshening, add-password, last-usable-login-method protection. Surface:
+>    Security Center → *Login methods*; routes `/v1/identity/links*` +
+>    `/v1/identity/password` (step-up gated).
+> 2. **Account & security activity** — profile/preference mutation emitters
+>    (`identity.profile_updated` / `identity.preferences_updated`, field
+>    NAMES only) on the existing personal timeline; curated human labels.
+> 3. **Organization leave / ownership transfer / organization closure** —
+>    `POST /v1/orgs/:id/leave` (owner-blocked, dual-layer revocation),
+>    `POST /v1/orgs/:id/transfer-ownership` (atomic role swap, billing
+>    ownership follows, both parties audited), org closure state machine
+>    (`OrganizationClosureRequest`; typed phrase + step-up; blockers
+>    ORG_MEMBERS_ACTIVE / LEGAL_HOLD_ACTIVE / BILLING_CONTRACT_ACTIVE /
+>    PERSONAL_WORKSPACE_ORGANIZATION; execution ARCHIVES — `checkOrgAccess`
+>    now denies ARCHIVED orgs; workspace memberships REVOKED, api
+>    credentials REVOKED, webhooks DISABLED, evidence untouched). Surface:
+>    organization detail → *Organization lifecycle* (owner-only).
+> 4. **Personal data export + account closure** —
+>    `AccountDataExportRequest` (async cron generation, in-row package +
+>    sha256, POST-only authenticated download, 7-day expiry with payload
+>    nulling) and `AccountClosureRequest` (typed phrase "close my account",
+>    step-up, 7-day cooling-off + cancel, worker re-preflight, execution
+>    anonymizes PII + revokes all sessions/login methods and archives solo
+>    implicit orgs; evidence never deleted). Surface: `/settings/privacy`.
+>    Privacy rights are NEVER plan-gated.
+> 5. **Workspace closure** — `WorkspaceClosureRequest` (owner =
+>    `team.ownerUserId`; phrase "close this workspace"; blockers
+>    PERSONAL_WORKSPACE_NOT_CLOSABLE / LEGAL_HOLD_ACTIVE /
+>    BILLING_SUBSCRIPTION_ACTIVE / DESTRUCTION_REVIEW_PENDING; membership
+>    loss is the surfaced collaboration consequence, not a blocker;
+>    execution revokes memberships/credentials/webhooks, Team row +
+>    evidence intact). Surface: workspace detail → *Close workspace*
+>    (owner-only).
+>
+> Cross-cutting rules proven by tests: all three closure state machines
+> share the REQUESTED/BLOCKED/COOLING_OFF/PROCESSING/COMPLETED/CANCELLED/
+> FAILED shape with worker re-preflight + atomic claim on the digest cron;
+> every sensitive mutation is step-up gated via ONE canonical
+> `AccountStepUpAction` union; every typed confirmation is validated
+> server-side (no frontend boolean is ever trusted); closure NEVER
+> hard-deletes evidence — access is archived, retention/legal-hold
+> governance owns destruction. Machine credentials (existing Phase 10/17
+> integration platform — API keys + webhooks with display-once secrets,
+> rotate, disable, delivery logs at `/integrations`) never outlive their
+> workspace or organization.
+
 > **Update 2026-07-16 — Settings architecture + account security model.**
 > `/settings` is a compact navigational overview; editing lives on dedicated
 > child pages: `/settings/profile` (display-name-only identity),

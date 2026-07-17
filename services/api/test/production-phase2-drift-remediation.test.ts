@@ -1067,7 +1067,16 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // for the organization notification policy (mandatory categories,
 // minimum email cadence, quiet-hours override). Audited writes, tenant-
 // scoped, no evidence mutation.
-const ROUTE_COUNT_PHASE_2_BASELINE = 120;
+// Lifecycle Phase 3 (2026-07-17): +1 for identity-links.routes.ts — the
+// connected-accounts / login-methods route family (argued for in the
+// lifecycle mandate; account-tier, user-scoped, step-up-gated).
+// Lifecycle Phase 4 (2026-07-17): +1 for account-data-export.routes.ts —
+// the personal privacy-export family (account-tier, user-scoped,
+// step-up-gated, argued for in the lifecycle mandate).
+// Lifecycle Phase 5 (2026-07-17): +1 for account-closure.routes.ts — the
+// personal account-closure family (account-tier, user-scoped, step-up +
+// typed-confirmation gated, argued for in the lifecycle mandate).
+const ROUTE_COUNT_PHASE_2_BASELINE = 123;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

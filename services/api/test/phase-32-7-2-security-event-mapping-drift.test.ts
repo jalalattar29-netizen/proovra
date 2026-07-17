@@ -825,6 +825,21 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // guarded FK); zero destructive statements. Unrelated to Phase
       // 32.7.2 SecurityEvent mapping.
       "20270917000000_org_notification_policy_and_resolution_provenance",
+      // Lifecycle Phase 3 (2026-07-17) — linked login methods (additive
+      // table + deterministic backfill from users.provider_user_id).
+      "20270918000000_user_identity_links",
+      // Lifecycle Phase 4 (2026-07-17) — personal account data export
+      // requests (additive table, no backfill).
+      "20270919000000_account_data_export_requests",
+      // Lifecycle Phase 5 (2026-07-17) — personal account closure
+      // requests (additive table, no backfill).
+      "20270920000000_account_closure_requests",
+      // Lifecycle Phase 6 (2026-07-17) — organization closure requests
+      // (additive table, no backfill).
+      "20270921000000_organization_closure_requests",
+      // Lifecycle Phase 7 (2026-07-17) — workspace closure requests
+      // (additive table, no backfill).
+      "20270922000000_workspace_closure_requests",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

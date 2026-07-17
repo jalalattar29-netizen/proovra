@@ -376,6 +376,44 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     "20270917000000_org_notification_policy_and_resolution_provenance": new Set([
       "CREATE_TABLE_IF_NOT_EXISTS",
     ]),
+    // Lifecycle Phase 3 (2026-07-17) — linked login methods
+    // (user_identity_links). Pure-additive Phase O pattern: CREATE TABLE
+    // IF NOT EXISTS, guarded unique/index creation, FK in a DO +
+    // duplicate_object block, and ONE idempotent deterministic backfill
+    // INSERT ... SELECT ... ON CONFLICT DO NOTHING sourced from the
+    // already-verified users.(provider, provider_user_id) pair. Zero
+    // DROP / RENAME / TRUNCATE / DELETE / UPDATE statements.
+    "20270918000000_user_identity_links": new Set([
+      "CREATE_TABLE_IF_NOT_EXISTS",
+    ]),
+    // Lifecycle Phase 4 (2026-07-17) — account_data_export_requests:
+    // pure-additive CREATE TABLE IF NOT EXISTS + guarded indexes + FK in
+    // a DO/duplicate_object block. Zero destructive statements, no
+    // backfill (requests start empty).
+    "20270919000000_account_data_export_requests": new Set([
+      "CREATE_TABLE_IF_NOT_EXISTS",
+    ]),
+    // Lifecycle Phase 5 (2026-07-17) — account_closure_requests:
+    // pure-additive CREATE TABLE IF NOT EXISTS + guarded indexes + FK in
+    // a DO/duplicate_object block. Zero destructive statements, no
+    // backfill (closure requests start empty).
+    "20270920000000_account_closure_requests": new Set([
+      "CREATE_TABLE_IF_NOT_EXISTS",
+    ]),
+    // Lifecycle Phase 6 (2026-07-17) — organization_closure_requests:
+    // pure-additive CREATE TABLE IF NOT EXISTS + guarded indexes + FKs in
+    // DO/duplicate_object blocks. Zero destructive statements, no
+    // backfill (closure requests start empty).
+    "20270921000000_organization_closure_requests": new Set([
+      "CREATE_TABLE_IF_NOT_EXISTS",
+    ]),
+    // Lifecycle Phase 7 (2026-07-17) — workspace_closure_requests:
+    // pure-additive CREATE TABLE IF NOT EXISTS + guarded indexes + FKs in
+    // DO/duplicate_object blocks. Zero destructive statements, no
+    // backfill (closure requests start empty).
+    "20270922000000_workspace_closure_requests": new Set([
+      "CREATE_TABLE_IF_NOT_EXISTS",
+    ]),
   };
 
   it("every migration with timestamp > baseline has ZERO CRITICAL findings", async () => {

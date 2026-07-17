@@ -63,9 +63,13 @@ export async function checkOrgAccess(
 
   const org = await prisma.organization.findUnique({
     where: { id: input.orgId },
-    select: { id: true },
+    select: { id: true, status: true },
   });
   if (!org) return { kind: "not_found" };
+  // Lifecycle Phase 6 — a closed (ARCHIVED) organization is dark for
+  // every org surface at once. Memberships are retained for history but
+  // grant nothing anymore.
+  if (org.status === "ARCHIVED") return { kind: "forbidden" };
 
   const membership = await prisma.organizationMembership.findFirst({
     where: { organizationId: input.orgId, userId: input.userId },

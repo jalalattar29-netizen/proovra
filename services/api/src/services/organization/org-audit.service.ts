@@ -47,6 +47,19 @@ export const ORG_AUDIT_EVENT_TYPES = [
   "ORG_MEMBER_ACCEPTED",
   "ORG_MEMBER_ROLE_CHANGED",
   "ORG_MEMBER_REMOVED",
+  // Lifecycle Phase 1 (2026-07-16) — self-service leave. Distinct from
+  // ORG_MEMBER_REMOVED (admin-initiated) so the governance timeline
+  // separates voluntary departure from administrative removal.
+  "ORG_MEMBER_LEFT",
+  // Lifecycle Phase 6 (2026-07-17) — ownership transfer + organization
+  // closure. Transfer is atomic (old owner → ORG_ADMIN, target →
+  // ORG_OWNER, billing ownership follows); closure is the request-row
+  // state machine (requested/blocked/cancelled/completed).
+  "ORG_OWNERSHIP_TRANSFERRED",
+  "ORG_CLOSURE_REQUESTED",
+  "ORG_CLOSURE_BLOCKED",
+  "ORG_CLOSURE_CANCELLED",
+  "ORG_CLOSURE_COMPLETED",
   // Phase 2.7X Stage 5 — invite lifecycle hardening.
   "ORG_INVITE_REVOKED",
   "ORG_INVITE_RESENT",

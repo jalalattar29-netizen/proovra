@@ -484,10 +484,10 @@ function PasswordChangeCard() {
 // confirmation dialog alone is never sufficient.
 // -----------------------------------------------------------------------------
 
-type StepUpMethods = Array<"password" | "mfa" | "reauth">;
-type StepUpProof = { method: "password" | "mfa"; currentPassword?: string; code?: string };
+export type StepUpMethods = Array<"password" | "mfa" | "reauth">;
+export type StepUpProof = { method: "password" | "mfa"; currentPassword?: string; code?: string };
 
-function extractStepUp(err: unknown): { methods: StepUpMethods; message: string } | null {
+export function extractStepUp(err: unknown): { methods: StepUpMethods; message: string } | null {
   const e = err as {
     body?: { error?: { code?: string; methods?: StepUpMethods; message?: string } };
   };
@@ -502,7 +502,7 @@ function extractStepUp(err: unknown): { methods: StepUpMethods; message: string 
   };
 }
 
-function StepUpVerify({
+export function StepUpVerify({
   title,
   methods,
   initialError,
@@ -608,6 +608,452 @@ function StepUpVerify({
         </>
       )}
     </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// B2. Login methods / connected accounts (lifecycle Phase 3)
+//
+// Lists the account's usable sign-in methods from GET /v1/identity/links
+// (password + ACTIVE provider links + a read-only legacy row for OAuth
+// accounts predating the link model). Supports:
+//   - Connect Google (GSI credential → POST /v1/identity/links/google,
+//     server-side token verification, 409 identity_already_linked on
+//     conflict — never a merge)
+//   - Connect Apple (AppleID.auth.signIn → POST /v1/identity/links/apple)
+//   - Add a password to an OAuth-only account (policy-checked; step-up)
+//   - Disconnect a linked method (step-up + last-usable-method protection
+//     surfaced by stable code)
+// Organization SSO/SAML is NOT a personal method and never appears here.
+// -----------------------------------------------------------------------------
+
+interface LoginMethodsState {
+  passwordConfigured: boolean;
+  links: Array<{
+    id: string;
+    provider: string;
+    normalizedEmail: string | null;
+    linkedAtUtc: string;
+    lastUsedAtUtc: string | null;
+  }>;
+  legacyProvider: string | null;
+  usableMethods: number;
+}
+
+function LoginMethodsCard() {
+  const [state, setState] = useState<LoginMethodsState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [addPwOpen, setAddPwOpen] = useState(false);
+  const [newPw, setNewPw] = useState("");
+  const [stepUpAction, setStepUpAction] = useState<
+    null | { kind: "unlink"; id: string } | { kind: "add-password" } | {
+      kind: "link";
+      provider: "google" | "apple";
+      idToken: string;
+    }
+  >(null);
+  const [stepUpMethods, setStepUpMethods] = useState<StepUpMethods>(["reauth"]);
+  const [stepUpMsg, setStepUpMsg] = useState("");
+  const { confirm } = useConfirmAction();
+
+  const reload = useCallback(async () => {
+    setError(null);
+    try {
+      const res = (await apiFetch("/v1/identity/links", {
+        method: "GET",
+      })) as LoginMethodsState;
+      setState(res);
+    } catch (err) {
+      setError(
+        toSafeUserError(err, { message: "Could not load login methods." })
+          .message,
+      );
+    }
+  }, []);
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  const surfaceOrStepUp = useCallback(
+    (
+      err: unknown,
+      pending: NonNullable<typeof stepUpAction>,
+      fallback: string,
+    ) => {
+      const su = extractStepUp(err);
+      if (su) {
+        setStepUpAction(pending);
+        setStepUpMethods(su.methods);
+        setStepUpMsg(su.message);
+        return;
+      }
+      const e = err as { body?: { error?: { code?: string; message?: string } } };
+      const code = e.body?.error?.code;
+      if (code === "last_login_method_protected" || code === "identity_already_linked") {
+        setError(e.body?.error?.message ?? fallback);
+        return;
+      }
+      setError(toSafeUserError(err, { message: fallback }).message);
+    },
+    [],
+  );
+
+  const submitLink = useCallback(
+    async (provider: "google" | "apple", idToken: string, proof?: StepUpProof) => {
+      setBusy(true);
+      setError(null);
+      setNotice(null);
+      try {
+        await apiFetch(`/v1/identity/links/${provider}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ idToken, ...(proof ? { stepUp: proof } : {}) }),
+        });
+        setStepUpAction(null);
+        setNotice(`${provider === "google" ? "Google" : "Apple"} connected.`);
+        await reload();
+      } catch (err) {
+        surfaceOrStepUp(err, { kind: "link", provider, idToken }, "Could not connect this login method.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reload, surfaceOrStepUp],
+  );
+
+  const connectGoogle = useCallback(async () => {
+    setError(null);
+    try {
+      const { loadGoogleIdentity } = await import("../../../../lib/oauth");
+      await loadGoogleIdentity();
+      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+      const google = (
+        window as unknown as {
+          google?: {
+            accounts?: {
+              id?: {
+                initialize: (o: object) => void;
+                prompt: () => void;
+              };
+            };
+          };
+        }
+      ).google;
+      const id = google?.accounts?.id;
+      if (!clientId || !id?.initialize) {
+        setError("Google sign-in is not available right now.");
+        return;
+      }
+      id.initialize({
+        client_id: clientId,
+        cancel_on_tap_outside: true,
+        callback: (response: { credential?: string }) => {
+          if (!response.credential) {
+            setError("Google did not return a credential.");
+            return;
+          }
+          void submitLink("google", response.credential);
+        },
+      });
+      id.prompt();
+    } catch {
+      setError("Google sign-in is not available right now.");
+    }
+  }, [submitLink]);
+
+  const connectApple = useCallback(async () => {
+    setError(null);
+    try {
+      const { loadAppleIdentity } = await import("../../../../lib/oauth");
+      await loadAppleIdentity();
+      const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
+      const AppleID = (
+        window as unknown as {
+          AppleID?: {
+            auth?: {
+              init: (o: object) => void;
+              signIn: () => Promise<{
+                authorization?: { id_token?: string };
+              }>;
+            };
+          };
+        }
+      ).AppleID;
+      if (!appleClientId || !AppleID?.auth?.init) {
+        setError("Apple sign-in is not available right now.");
+        return;
+      }
+      AppleID.auth.init({
+        clientId: appleClientId,
+        scope: "email",
+        redirectURI: window.location.origin,
+        usePopup: true,
+      });
+      const res = await AppleID.auth.signIn();
+      const idToken = res.authorization?.id_token;
+      if (!idToken) {
+        setError("Apple did not return a credential.");
+        return;
+      }
+      void submitLink("apple", idToken);
+    } catch {
+      setError("Apple sign-in was cancelled or is unavailable.");
+    }
+  }, [submitLink]);
+
+  const submitAddPassword = useCallback(
+    async (proof?: StepUpProof) => {
+      if (!meetsPolicy(newPw)) {
+        setError(ERROR_MESSAGES.weak_new_password!);
+        return;
+      }
+      setBusy(true);
+      setError(null);
+      try {
+        await apiFetch("/v1/identity/password", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            newPassword: newPw,
+            ...(proof ? { stepUp: proof } : {}),
+          }),
+        });
+        setStepUpAction(null);
+        setAddPwOpen(false);
+        setNewPw("");
+        setNotice("Password added. You can now sign in with email and password.");
+        await reload();
+      } catch (err) {
+        surfaceOrStepUp(err, { kind: "add-password" }, "Could not add a password.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [newPw, reload, surfaceOrStepUp],
+  );
+
+  const unlink = useCallback(
+    async (linkId: string, provider: string, proof?: StepUpProof) => {
+      if (!proof) {
+        const ok = await confirm({
+          title: `Disconnect ${provider === "GOOGLE" ? "Google" : provider === "APPLE" ? "Apple" : provider}?`,
+          description:
+            "You will no longer be able to sign in with this method. At least one other usable login method must remain.",
+          confirmLabel: "Disconnect",
+          tone: "danger",
+          testId: "unlink-login-method",
+        });
+        if (!ok) return;
+      }
+      setBusy(true);
+      setError(null);
+      try {
+        await apiFetch(`/v1/identity/links/${linkId}`, {
+          method: "DELETE",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(proof ? { stepUp: proof } : {}),
+        });
+        setStepUpAction(null);
+        setNotice("Login method disconnected.");
+        await reload();
+      } catch (err) {
+        surfaceOrStepUp(err, { kind: "unlink", id: linkId }, "Could not disconnect this method.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [confirm, reload, surfaceOrStepUp],
+  );
+
+  const providerLabel = (p: string) =>
+    p === "GOOGLE" ? "Google" : p === "APPLE" ? "Apple" : p;
+  const connected = new Set([
+    ...(state?.links.map((l) => l.provider) ?? []),
+    ...(state?.legacyProvider ? [state.legacyProvider] : []),
+  ]);
+
+  return (
+    <Card variant="admin" style={{ marginBottom: 14 }} data-cc-login-methods-card>
+      <h2 style={sectionTitleStyle}>Login methods</h2>
+      <p style={mutedStyle}>
+        The ways you can sign in to this account. Organization single sign-on
+        is managed by your organization and never appears here.
+      </p>
+
+      {state === null ? (
+        <p style={mutedStyle}>Loading…</p>
+      ) : (
+        <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0 }}>
+          <li
+            data-cc-login-method="password"
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 10,
+              padding: "8px 2px",
+              borderBottom: "1px solid var(--border-default, rgba(15,23,42,0.07))",
+              fontSize: 13,
+              color: "var(--ink-primary, #0f172a)",
+            }}
+          >
+            <span>
+              Email &amp; password{" "}
+              <Badge tone={state.passwordConfigured ? "verified" : "neutral"} subtle style={{ marginLeft: 6 }}>
+                {state.passwordConfigured ? "Configured" : "Not configured"}
+              </Badge>
+            </span>
+            {!state.passwordConfigured ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setAddPwOpen((v) => !v)}
+                data-cc-add-password-toggle
+              >
+                Add password
+              </Button>
+            ) : null}
+          </li>
+          {state.links.map((l) => (
+            <li
+              key={l.id}
+              data-cc-login-method={l.provider.toLowerCase()}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 2px",
+                borderBottom: "1px solid var(--border-default, rgba(15,23,42,0.07))",
+                fontSize: 13,
+                color: "var(--ink-primary, #0f172a)",
+              }}
+            >
+              <span>
+                {providerLabel(l.provider)}{" "}
+                <Badge tone="verified" subtle style={{ marginLeft: 6 }}>
+                  Connected
+                </Badge>
+                <span style={{ ...mutedStyle, display: "inline", marginLeft: 8 }}>
+                  {l.lastUsedAtUtc ? `last used ${fmt(l.lastUsedAtUtc)}` : `linked ${fmt(l.linkedAtUtc)}`}
+                </span>
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void unlink(l.id, l.provider)}
+                disabled={busy}
+                data-cc-unlink={l.id}
+              >
+                Disconnect
+              </Button>
+            </li>
+          ))}
+          {state.legacyProvider ? (
+            <li
+              data-cc-login-method-legacy={state.legacyProvider.toLowerCase()}
+              style={{ ...mutedStyle, padding: "8px 2px" }}
+            >
+              {providerLabel(state.legacyProvider)} — connected (original
+              sign-in method).
+            </li>
+          ) : null}
+          {!connected.has("GOOGLE") ? (
+            <li style={{ padding: "8px 2px" }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void connectGoogle()}
+                disabled={busy}
+                data-cc-connect-google
+              >
+                Connect Google
+              </Button>
+            </li>
+          ) : null}
+          {!connected.has("APPLE") ? (
+            <li style={{ padding: "8px 2px" }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void connectApple()}
+                disabled={busy}
+                data-cc-connect-apple
+              >
+                Connect Apple
+              </Button>
+            </li>
+          ) : null}
+        </ul>
+      )}
+
+      {addPwOpen && !state?.passwordConfigured ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submitAddPassword();
+          }}
+        >
+          <label style={labelStyle}>
+            New password (12+ chars, upper- and lower-case, a number)
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={newPw}
+              onChange={(e) => setNewPw(e.target.value)}
+              disabled={busy}
+              style={{ ...inputStyle, maxWidth: 320 }}
+              data-cc-add-password-input
+            />
+          </label>
+          <div style={{ marginTop: 10 }}>
+            <Button
+              type="submit"
+              variant="secondary"
+              size="sm"
+              loading={busy}
+              disabled={busy || !meetsPolicy(newPw)}
+              data-cc-add-password-submit
+            >
+              Add password
+            </Button>
+          </div>
+        </form>
+      ) : null}
+
+      {stepUpAction ? (
+        <StepUpVerify
+          title={
+            stepUpAction.kind === "unlink"
+              ? "Confirm disconnecting this login method."
+              : stepUpAction.kind === "add-password"
+                ? "Confirm adding a password to your account."
+                : "Confirm connecting this login method."
+          }
+          methods={stepUpMethods}
+          initialError={stepUpMsg}
+          busy={busy}
+          onSubmit={(proof) => {
+            if (stepUpAction.kind === "unlink") {
+              void unlink(stepUpAction.id, "", proof);
+            } else if (stepUpAction.kind === "add-password") {
+              void submitAddPassword(proof);
+            } else {
+              void submitLink(stepUpAction.provider, stepUpAction.idToken, proof);
+            }
+          }}
+          onCancel={() => {
+            setStepUpAction(null);
+            setStepUpMsg("");
+          }}
+        />
+      ) : null}
+
+      {error ? <div style={errorBox}>{error}</div> : null}
+      {notice ? <div style={okBox}>{notice}</div> : null}
+    </Card>
   );
 }
 
@@ -1358,10 +1804,11 @@ function SecurityEventsCard() {
 
   return (
     <Card variant="admin" style={{ marginBottom: 14 }} data-cc-security-events-card>
-      <h2 style={sectionTitleStyle}>Recent security activity</h2>
+      <h2 style={sectionTitleStyle}>Account &amp; security activity</h2>
       <p style={mutedStyle}>
-        Bounded timeline of identity and auth events tied to your account.
-        Older events live in the platform audit log.
+        Bounded timeline of authentication, profile, preference, and
+        membership events tied to your account. Older events live in the
+        platform audit log.
       </p>
 
       {error ? <div style={errorBox}>{error}</div> : null}
@@ -1460,6 +1907,7 @@ export function PersonalSecuritySections() {
   return (
     <>
       <SummaryStrip mfa={mfa} sessions={sessions} />
+      <LoginMethodsCard />
       <PasswordChangeCard />
       <MfaCard mfa={mfa} mfaError={mfaError} reloadMfa={reloadMfa} />
       <ActiveSessionsCard

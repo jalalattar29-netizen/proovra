@@ -68,7 +68,23 @@ export type AccountStepUpProof = {
 export type AccountStepUpAction =
   | "mfa_factor_remove"
   | "mfa_recovery_codes_regenerate"
-  | "sessions_revoke_others";
+  | "sessions_revoke_others"
+  // Lifecycle Phase 3 — connected accounts / login methods.
+  | "login_method_link"
+  | "login_method_unlink"
+  | "password_add"
+  // Lifecycle Phase 4 — personal account data export.
+  | "data_export_request"
+  | "data_export_download"
+  | "account_closure_request"
+  // Lifecycle Phase 6 — organization ownership transfer + closure. Org
+  // authorization (ORG_OWNER) is enforced separately by the route; the
+  // step-up here proves the OWNER'S OWN recent authentication.
+  | "org_ownership_transfer"
+  | "org_closure_request"
+  // Lifecycle Phase 7 — workspace closure (workspace-owner-only route;
+  // step-up proves the owner's own recent authentication).
+  | "workspace_closure_request";
 
 type StepUpDenial = {
   status: 401 | 429;

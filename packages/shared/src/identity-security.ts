@@ -495,6 +495,9 @@ export const SESSION_REVOCATION_REASONS = [
   "STEP_UP_DENIED",
   "POLICY_CHANGE",
   "RECONCILIATION_SWEEP",
+  // Lifecycle Phase 5 (2026-07-17) — account closure execution revokes
+  // every session for the closing user.
+  "ACCOUNT_CLOSED",
 ] as const;
 export const SessionRevocationReasonSchema = z.enum(SESSION_REVOCATION_REASONS);
 export type SessionRevocationReason = z.infer<

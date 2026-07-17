@@ -183,6 +183,9 @@ import { identitySecurityRoutes } from "./routes/identity-security.routes.js";
 // codes, challenge). Sub-domain of the canonical identity surface;
 // not a parallel auth system.
 import { mfaRoutes } from "./routes/mfa.routes.js";
+import { identityLinksRoutes } from "./routes/identity-links.routes.js";
+import { accountDataExportRoutes } from "./routes/account-data-export.routes.js";
+import { accountClosureRoutes } from "./routes/account-closure.routes.js";
 // R8.1.4 — admin MFA lifecycle + lost-factor recovery routes. Same
 // canonical session model as the rest of the identity surface; the
 // service layer enforces org-scoped admin authorization.
@@ -1224,6 +1227,11 @@ allowedHeaders: [
   // R8.1.1 — MFA endpoints registered alongside identity-security.
   // Same canonical session + auth model; no parallel auth surface.
   await app.register(mfaRoutes);
+  // Lifecycle Phase 3 — connected accounts / login methods.
+  await app.register(identityLinksRoutes);
+  // Lifecycle Phase 4 — personal account data export.
+  await app.register(accountDataExportRoutes);
+  await app.register(accountClosureRoutes);
   // R8.1.4 — admin lifecycle + lost-factor recovery endpoints.
   await app.register(mfaAdminRoutes);
   // P1.1 — identity operations completion (SCIM drift + reconciliation,

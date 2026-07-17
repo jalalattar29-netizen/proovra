@@ -38,6 +38,7 @@ import { usePlatformContext } from "../../../../lib/platform-context";
 import { MemberRemovalDialog } from "./components/MemberRemovalDialog";
 import { TeamPermissionMatrix } from "./components/TeamPermissionMatrix";
 import { DangerConfirmModal } from "./components/DangerConfirmModal";
+import { WorkspaceClosureCard } from "./components/WorkspaceClosureCard";
 import { TeamAccessReviewCard } from "./components/TeamAccessReviewCard";
 // Closure verification Part C — the per-team detail page (workspace
 // admin: members, invites, danger actions) must use the canonical
@@ -2545,6 +2546,10 @@ function TeamDetailPageBody() {
               </div>
             </Card>
           )}
+
+          {/* Lifecycle Phase 7 — workspace closure (owner-only; the card
+              also self-hides when the backend returns 403). */}
+          {isOwner && teamId ? <WorkspaceClosureCard teamId={teamId} /> : null}
         </div>
       </div>
       {/* Phase 2.6B — DangerConfirmModal mounts for the two remaining

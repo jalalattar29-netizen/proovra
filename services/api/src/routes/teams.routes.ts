@@ -45,6 +45,13 @@ import { getAuthUserId } from "../auth.js";
 import { getEmailService } from "../services/email.service.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
+import { verifyAccountStepUp } from "../services/identity-security/account-step-up.service.js";
+import { evaluateWorkspaceClosurePreflight } from "../services/identity/account-lifecycle-preflight.service.js";
+import {
+  ACTIVE_WORKSPACE_CLOSURE_STATUSES,
+  CANCELLABLE_WORKSPACE_CLOSURE_STATUSES,
+  WORKSPACE_CLOSURE_COOLING_OFF_MS,
+} from "../services/workspace/workspace-closure.service.js";
 
 const CreateTeamBody = z.object({
   name: z.string().min(1).max(120),
@@ -2646,6 +2653,261 @@ export async function teamsRoutes(app: FastifyInstance) {
         version: "2.6D",
         generatedAt: new Date().toISOString(),
       });
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Workspace closure (lifecycle Phase 7, 2026-07-17)
+  //
+  //   GET  /v1/teams/:id/closure                     — latest request +
+  //                                                    live preflight
+  //   POST /v1/teams/:id/closure                     — request closure
+  //   POST /v1/teams/:id/closure/:requestId/cancel   — cancel in window
+  //
+  // Workspace-OWNER-only (team.ownerUserId — a stricter bar than the
+  // OWNER team-role). Typed confirmation phrase validated server-side +
+  // step-up. Asynchronous state machine identical to account/org closure:
+  // COOLING_OFF → worker re-preflights → PROCESSING → COMPLETED.
+  // Execution archives ACCESS (memberships REVOKED, credentials revoked,
+  // webhooks disabled); the Team row and all evidence stay intact.
+  // -------------------------------------------------------------------------
+  const WORKSPACE_CLOSURE_CONFIRMATION_PHRASE = "close this workspace";
+  const WORKSPACE_CLOSURE_SELECT = {
+    id: true,
+    status: true,
+    reason: true,
+    blockersJson: true,
+    requestedAtUtc: true,
+    coolingOffEndsAtUtc: true,
+    cancelledAtUtc: true,
+    completedAtUtc: true,
+    failureCode: true,
+  } as const;
+
+  const requireWorkspaceOwner = async (
+    teamId: string,
+    userId: string,
+  ): Promise<boolean> => {
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      select: { ownerUserId: true },
+    });
+    return team !== null && team.ownerUserId === userId;
+  };
+
+  app.get(
+    "/v1/teams/:id/closure",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const teamId = z.string().uuid().parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+      if (!(await requireWorkspaceOwner(teamId, userId))) {
+        return reply.code(403).send({ error: { code: "owner_required" } });
+      }
+      const [latest, preflight, memberCount] = await Promise.all([
+        prisma.workspaceClosureRequest.findFirst({
+          where: { teamId },
+          select: WORKSPACE_CLOSURE_SELECT,
+          orderBy: { requestedAtUtc: "desc" },
+        }),
+        evaluateWorkspaceClosurePreflight(teamId),
+        prisma.teamMember.count({
+          where: { teamId, status: "ACTIVE", userId: { not: userId } },
+        }),
+      ]);
+      return reply.code(200).send({
+        request: latest,
+        blockers: preflight.blockers,
+        confirmationPhrase: WORKSPACE_CLOSURE_CONFIRMATION_PHRASE,
+        coolingOffDays: Math.round(WORKSPACE_CLOSURE_COOLING_OFF_MS / 86_400_000),
+        // Collaboration consequence surfaced up front: how many OTHER
+        // members lose access when this workspace closes.
+        membersLosingAccess: memberCount,
+      });
+    },
+  );
+
+  app.post(
+    "/v1/teams/:id/closure",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const teamId = z.string().uuid().parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+      const body = z
+        .object({
+          confirmation: z.string().max(120),
+          reason: z.string().max(500).optional(),
+          stepUp: z
+            .object({
+              method: z.enum(["password", "mfa"]).optional(),
+              currentPassword: z.string().optional(),
+              code: z.string().optional(),
+            })
+            .optional(),
+        })
+        .parse(req.body ?? {});
+
+      if (!(await requireWorkspaceOwner(teamId, userId))) {
+        return reply.code(403).send({ error: { code: "owner_required" } });
+      }
+
+      // Typed confirmation — validated SERVER-SIDE, never a boolean.
+      if (
+        body.confirmation.trim().toLowerCase() !==
+        WORKSPACE_CLOSURE_CONFIRMATION_PHRASE
+      ) {
+        return reply.code(400).send({
+          error: {
+            code: "confirmation_mismatch",
+            message: `Type "${WORKSPACE_CLOSURE_CONFIRMATION_PHRASE}" to confirm.`,
+          },
+        });
+      }
+
+      const stepUp = await verifyAccountStepUp({
+        req,
+        reply,
+        userId,
+        action: "workspace_closure_request",
+        proof: body.stepUp,
+      });
+      if (!stepUp.ok) {
+        return reply.code(stepUp.denial.status).send(stepUp.denial.body);
+      }
+
+      const open = await prisma.workspaceClosureRequest.findFirst({
+        where: {
+          teamId,
+          status: { in: [...ACTIVE_WORKSPACE_CLOSURE_STATUSES] },
+        },
+        select: { id: true },
+      });
+      if (open) {
+        return reply.code(409).send({
+          error: {
+            code: "closure_request_active",
+            message: "A closure request for this workspace is already open.",
+          },
+        });
+      }
+
+      const { blockers } = await evaluateWorkspaceClosurePreflight(teamId);
+      if (blockers.length > 0) {
+        const blocked = await prisma.workspaceClosureRequest.create({
+          data: {
+            teamId,
+            requestedByUserId: userId,
+            status: "BLOCKED",
+            reason: body.reason ?? null,
+            blockersJson: JSON.stringify(blockers),
+          },
+          select: { id: true },
+        });
+        await appendPlatformAuditLog({
+          userId,
+          action: "identity.workspace_closure_blocked",
+          category: "identity.lifecycle",
+          severity: "warning",
+          source: "api_teams",
+          outcome: "denied",
+          resourceType: "workspace_closure_request",
+          resourceId: blocked.id,
+          requestId: req.id,
+          metadata: { teamId, blockers: blockers.map((b) => b.code) },
+          ipAddress: null,
+          userAgent: null,
+        }).catch(() => null);
+        return reply
+          .code(409)
+          .send({ error: { code: "closure_blocked" }, blockers });
+      }
+
+      const coolingOffEndsAtUtc = new Date(
+        Date.now() + WORKSPACE_CLOSURE_COOLING_OFF_MS,
+      );
+      const created = await prisma.workspaceClosureRequest.create({
+        data: {
+          teamId,
+          requestedByUserId: userId,
+          status: "COOLING_OFF",
+          reason: body.reason ?? null,
+          coolingOffEndsAtUtc,
+        },
+        select: WORKSPACE_CLOSURE_SELECT,
+      });
+      await appendPlatformAuditLog({
+        userId,
+        action: "identity.workspace_closure_requested",
+        category: "identity.lifecycle",
+        severity: "warning",
+        source: "api_teams",
+        outcome: "success",
+        resourceType: "workspace_closure_request",
+        resourceId: created.id,
+        requestId: req.id,
+        metadata: {
+          teamId,
+          coolingOffEndsAtUtc: coolingOffEndsAtUtc.toISOString(),
+        },
+        ipAddress: null,
+        userAgent: null,
+      }).catch(() => null);
+      return reply.code(201).send({ request: created });
+    },
+  );
+
+  app.post(
+    "/v1/teams/:id/closure/:requestId/cancel",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const params = z
+        .object({ id: z.string().uuid(), requestId: z.string().uuid() })
+        .parse(req.params);
+      const userId = getAuthUserId(req);
+      if (!(await requireWorkspaceOwner(params.id, userId))) {
+        return reply.code(403).send({ error: { code: "owner_required" } });
+      }
+
+      const cancelled = await prisma.workspaceClosureRequest.updateMany({
+        where: {
+          id: params.requestId,
+          teamId: params.id,
+          status: { in: [...CANCELLABLE_WORKSPACE_CLOSURE_STATUSES] },
+        },
+        data: { status: "CANCELLED", cancelledAtUtc: new Date() },
+      });
+      if (cancelled.count === 0) {
+        const exists = await prisma.workspaceClosureRequest.findFirst({
+          where: { id: params.requestId, teamId: params.id },
+          select: { id: true },
+        });
+        if (!exists) {
+          return reply.code(404).send({ error: { code: "closure_not_found" } });
+        }
+        return reply
+          .code(409)
+          .send({ error: { code: "closure_not_cancellable" } });
+      }
+
+      await appendPlatformAuditLog({
+        userId,
+        action: "identity.workspace_closure_cancelled",
+        category: "identity.lifecycle",
+        severity: "info",
+        source: "api_teams",
+        outcome: "success",
+        resourceType: "workspace_closure_request",
+        resourceId: params.requestId,
+        requestId: req.id,
+        metadata: { teamId: params.id },
+        ipAddress: null,
+        userAgent: null,
+      }).catch(() => null);
+      const row = await prisma.workspaceClosureRequest.findFirst({
+        where: { id: params.requestId, teamId: params.id },
+        select: WORKSPACE_CLOSURE_SELECT,
+      });
+      return reply.code(200).send({ request: row });
     },
   );
 }

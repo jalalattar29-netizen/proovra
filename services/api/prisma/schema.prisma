@@ -814,6 +814,12 @@ model User {
   platformRole                  String?                        @map("platform_role") @db.VarChar(32)
   provider                      AuthProvider
   providerUserId                String                         @map("provider_user_id") @db.VarChar(128)
+  // Lifecycle Phase 3 — linked login methods (see UserIdentityLink).
+  identityLinks                 UserIdentityLink[]
+  dataExportRequests            AccountDataExportRequest[]
+  accountClosureRequests        AccountClosureRequest[]
+  orgClosureRequests            OrganizationClosureRequest[] @relation("OrganizationClosureRequestedBy")
+  workspaceClosureRequests      WorkspaceClosureRequest[]    @relation("WorkspaceClosureRequestedBy")
   createdAt                     DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                     DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(6)
   avatarUrl                     String?                        @map("avatar_url") @db.VarChar(512)
@@ -1091,6 +1097,8 @@ model Team {
   legalHolds                EvidenceLegalHold[]
   apiCredentials            ApiCredential[]
   webhookEndpoints          WebhookEndpoint[]
+  // Lifecycle Phase 7 — closure request back-relation.
+  closureRequests           WorkspaceClosureRequest[] @relation("WorkspaceClosureRequests")
 
   // Phase 32.8C++++ — Dashboard intelligence back-relation.
   accessAnomalies AccessAnomaly[]
@@ -2540,6 +2548,202 @@ enum AuthProvider {
   APPLE
   GUEST
   EMAIL
+}
+
+// Lifecycle Phase 3 (2026-07-17) — linked login methods.
+//
+// Replaces the single-provider-only assumption (User.provider +
+// User.providerUserId) with a canonical multi-method identity model. The
+// legacy columns stay populated for compatibility; sign-in resolution
+// consults ACTIVE links FIRST and falls back to the legacy pair. Backfill
+// is deterministic (provider + providerUserId already verified at every
+// past login) and additive; GUEST rows are not backfilled (guest is a
+// bootstrap state, not a durable login method). PASSWORD is represented
+// by User.passwordHash presence, not a link row — no secret duplication.
+model UserIdentityLink {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String    @map("user_id") @db.Uuid
+  provider              AuthProvider
+  providerSubjectId     String    @map("provider_subject_id") @db.VarChar(128)
+  normalizedEmail       String?   @map("normalized_email") @db.VarChar(320)
+  providerEmailVerified Boolean   @default(false) @map("provider_email_verified")
+  // ACTIVE / REVOKED. No PENDING today: a link is created only after the
+  // provider token is fully verified in the same request.
+  status                String    @default("ACTIVE") @db.VarChar(20)
+  linkedAtUtc           DateTime  @default(now()) @map("linked_at_utc") @db.Timestamptz(6)
+  lastUsedAtUtc         DateTime? @map("last_used_at_utc") @db.Timestamptz(6)
+  revokedAtUtc          DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One provider identity can belong to exactly ONE account — the
+  // anti-takeover invariant. Conflicts surface as 409, never a merge.
+  @@unique([provider, providerSubjectId], name: "user_identity_links_provider_subject_uniq")
+  @@index([userId, status])
+  @@map("user_identity_links")
+}
+
+// Lifecycle Phase 4 (2026-07-17) — personal account data export.
+//
+// ACCOUNT-level privacy export, universal across every plan (privacy
+// rights are never plan-gated). Asynchronous: the request row is the
+// state machine (REQUESTED → PROCESSING → READY → EXPIRED | FAILED |
+// CANCELLED); generation runs on the existing digest cron (the same
+// piggyback pattern as operations-snapshot pruning — no new job
+// infrastructure). The package contains ONLY the user's own account
+// data (see account-data-export.service.ts boundary) and is stored
+// in-row with a checksum; download is a strictly AUTHENTICATED,
+// user-bound, step-up-gated route — no public/signed URL exists at all.
+// Expired packages have their payload nulled by the cron (secure
+// retention), keeping the request row as the audit record.
+model AccountDataExportRequest {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String    @map("user_id") @db.Uuid
+  // REQUESTED / PROCESSING / READY / FAILED / EXPIRED / CANCELLED
+  status              String    @default("REQUESTED") @db.VarChar(20)
+  requestedAtUtc      DateTime  @default(now()) @map("requested_at_utc") @db.Timestamptz(6)
+  startedAtUtc        DateTime? @map("started_at_utc") @db.Timestamptz(6)
+  completedAtUtc      DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+  expiresAtUtc        DateTime? @map("expires_at_utc") @db.Timestamptz(6)
+  // Safe, user-facing failure code only — never internals.
+  failureCode         String?   @map("failure_code") @db.VarChar(60)
+  // The generated package (bounded JSON) + integrity checksum. Nulled on
+  // expiry; schemaVersion pins the manifest layout.
+  packageJson         String?   @map("package_json")
+  packageSha256       String?   @map("package_sha256") @db.VarChar(64)
+  schemaVersion       Int       @default(1) @map("schema_version")
+  downloadCount       Int       @default(0) @map("download_count")
+  lastDownloadedAtUtc DateTime? @map("last_downloaded_at_utc") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, requestedAtUtc])
+  @@map("account_data_export_requests")
+}
+
+// Lifecycle Phase 5 (2026-07-17) — personal account closure.
+//
+// ACCOUNT-level closure, universal across every plan (privacy rights are
+// never plan-gated). The request row IS the state machine:
+//
+//   REQUESTED → BLOCKED                       (preflight found blockers)
+//   REQUESTED → COOLING_OFF → SCHEDULED → PROCESSING → COMPLETED | FAILED
+//   any pre-PROCESSING state → CANCELLED      (user changed their mind)
+//
+// Preflight blockers carry STABLE codes (organization ownership transfer
+// required, workspace has other active members, active legal hold, active
+// paid subscription) and are re-evaluated by the worker at execution time
+// — a request that passed preflight but acquired a blocker during the
+// cooling-off window moves to BLOCKED, never to PROCESSING. Execution
+// ANONYMIZES the account (PII nulled, login methods revoked, sessions
+// revoked) and ARCHIVES the implicit personal organization; evidence is
+// NEVER hard-deleted by account closure (retention/legal governance owns
+// evidence destruction, not account lifecycle).
+model AccountClosureRequest {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String    @map("user_id") @db.Uuid
+  // REQUESTED / BLOCKED / COOLING_OFF / SCHEDULED / PROCESSING /
+  // COMPLETED / CANCELLED / FAILED
+  status              String    @default("REQUESTED") @db.VarChar(20)
+  // Optional user-provided reason (free text, bounded).
+  reason              String?   @db.VarChar(500)
+  // Stable-code blocker list captured when the request is BLOCKED.
+  blockersJson        String?   @map("blockers_json")
+  requestedAtUtc      DateTime  @default(now()) @map("requested_at_utc") @db.Timestamptz(6)
+  coolingOffEndsAtUtc DateTime? @map("cooling_off_ends_at_utc") @db.Timestamptz(6)
+  cancelledAtUtc      DateTime? @map("cancelled_at_utc") @db.Timestamptz(6)
+  startedAtUtc        DateTime? @map("started_at_utc") @db.Timestamptz(6)
+  completedAtUtc      DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+  // Safe, user-facing failure code only — never internals.
+  failureCode         String?   @map("failure_code") @db.VarChar(60)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, coolingOffEndsAtUtc])
+  @@map("account_closure_requests")
+}
+
+// Lifecycle Phase 6 (2026-07-17) — organization closure.
+//
+// ORGANIZATION-level closure, ORG_OWNER-only. Same request-row state
+// machine as account closure (REQUESTED → BLOCKED | COOLING_OFF →
+// PROCESSING → COMPLETED | FAILED; pre-PROCESSING → CANCELLED). Preflight
+// blockers carry stable codes (other members active, legal hold active,
+// billing contract active, personal-workspace organization). Execution
+// ARCHIVES the organization (status ARCHIVED — checkOrgAccess denies
+// archived orgs), revokes workspace memberships, and revokes machine
+// credentials/webhooks on its workspaces. Evidence is NEVER hard-deleted
+// by organization closure.
+model OrganizationClosureRequest {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  requestedByUserId   String    @map("requested_by_user_id") @db.Uuid
+  // REQUESTED / BLOCKED / COOLING_OFF / SCHEDULED / PROCESSING /
+  // COMPLETED / CANCELLED / FAILED
+  status              String    @default("REQUESTED") @db.VarChar(20)
+  reason              String?   @db.VarChar(500)
+  blockersJson        String?   @map("blockers_json")
+  requestedAtUtc      DateTime  @default(now()) @map("requested_at_utc") @db.Timestamptz(6)
+  coolingOffEndsAtUtc DateTime? @map("cooling_off_ends_at_utc") @db.Timestamptz(6)
+  cancelledAtUtc      DateTime? @map("cancelled_at_utc") @db.Timestamptz(6)
+  startedAtUtc        DateTime? @map("started_at_utc") @db.Timestamptz(6)
+  completedAtUtc      DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+  failureCode         String?   @map("failure_code") @db.VarChar(60)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation("OrganizationClosureRequests", fields: [organizationId], references: [id], onDelete: Cascade)
+  requestedBy  User         @relation("OrganizationClosureRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([status, coolingOffEndsAtUtc])
+  @@map("organization_closure_requests")
+}
+
+// Lifecycle Phase 7 (2026-07-17) — workspace closure.
+//
+// WORKSPACE-level closure, workspace-OWNER-only. Same request-row state
+// machine as account/organization closure. Preflight blockers carry
+// stable codes (bootstrap personal workspace not closable this way,
+// active legal hold, active billing, pending destruction review).
+// Execution ARCHIVES access (memberships REVOKED, machine credentials
+// revoked, webhooks disabled); the Team row and ALL evidence remain
+// intact — retention/legal governance owns evidence destruction, not
+// workspace lifecycle. Collaboration consequence for TEAM-plan
+// workspaces: every member loses access at execution (surfaced up front
+// in the UI and audited).
+model WorkspaceClosureRequest {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId              String    @map("team_id") @db.Uuid
+  requestedByUserId   String    @map("requested_by_user_id") @db.Uuid
+  // REQUESTED / BLOCKED / COOLING_OFF / SCHEDULED / PROCESSING /
+  // COMPLETED / CANCELLED / FAILED
+  status              String    @default("REQUESTED") @db.VarChar(20)
+  reason              String?   @db.VarChar(500)
+  blockersJson        String?   @map("blockers_json")
+  requestedAtUtc      DateTime  @default(now()) @map("requested_at_utc") @db.Timestamptz(6)
+  coolingOffEndsAtUtc DateTime? @map("cooling_off_ends_at_utc") @db.Timestamptz(6)
+  cancelledAtUtc      DateTime? @map("cancelled_at_utc") @db.Timestamptz(6)
+  startedAtUtc        DateTime? @map("started_at_utc") @db.Timestamptz(6)
+  completedAtUtc      DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+  failureCode         String?   @map("failure_code") @db.VarChar(60)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  team        Team @relation("WorkspaceClosureRequests", fields: [teamId], references: [id], onDelete: Cascade)
+  requestedBy User @relation("WorkspaceClosureRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, status])
+  @@index([status, coolingOffEndsAtUtc])
+  @@map("workspace_closure_requests")
 }
 
 enum TeamRole {
@@ -9259,6 +9463,8 @@ model Organization {
   // declared above. Cascades are not used (Restrict) so an
   // Organization with active Evidence cannot be deleted by accident.
   evidence    Evidence[]               @relation("EvidenceOrganization")
+  // Lifecycle Phase 6 — closure request back-relation.
+  closureRequests OrganizationClosureRequest[] @relation("OrganizationClosureRequests")
 
   @@index([status])
   @@map("organizations")

@@ -374,6 +374,28 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
     },
   });
 
+  // Lifecycle Phase 3 — linked login methods. When the legacy
+  // (provider, providerUserId) pair resolves no native account, an ACTIVE
+  // identity link is authoritative: a password account that linked Google
+  // signs into THAT account even though its legacy provider column says
+  // EMAIL. Resolution is by the provider-verified subject id — NEVER by
+  // email equality.
+  if (!user) {
+    const activeLink = await prisma.userIdentityLink.findFirst({
+      where: {
+        provider: profile.provider,
+        providerSubjectId: profile.providerUserId,
+        status: "ACTIVE",
+      },
+      select: { userId: true },
+    });
+    if (activeLink) {
+      user = await prisma.user.findUnique({
+        where: { id: activeLink.userId },
+      });
+    }
+  }
+
   // EV3 — OAuth providers (Google, Apple) have already verified the
   // email address before issuing the id_token we accepted here.
   // Stamp emailVerifiedAt on the user record so the email-verification
@@ -449,6 +471,42 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
           : {}),
       },
     });
+  }
+
+  // Lifecycle Phase 3 — keep the identity-link inventory fresh: every
+  // successful OAuth sign-in upserts its ACTIVE link + lastUsedAtUtc
+  // (this also creates links going forward for accounts predating the
+  // link model). Binding follows the just-verified provider subject —
+  // the authenticated possessor of the identity is its rightful owner,
+  // so a previously revoked link re-binds to the account that just
+  // signed in with it. Best-effort: an inventory write never blocks
+  // authentication.
+  if (isOAuthProvider && user) {
+    await prisma.userIdentityLink
+      .upsert({
+        where: {
+          user_identity_links_provider_subject_uniq: {
+            provider: profile.provider,
+            providerSubjectId: profile.providerUserId,
+          },
+        },
+        update: {
+          userId: user.id,
+          status: "ACTIVE",
+          revokedAtUtc: null,
+          lastUsedAtUtc: now,
+        },
+        create: {
+          userId: user.id,
+          provider: profile.provider,
+          providerSubjectId: profile.providerUserId,
+          normalizedEmail: profile.email?.toLowerCase() ?? null,
+          providerEmailVerified: true,
+          status: "ACTIVE",
+          lastUsedAtUtc: now,
+        },
+      })
+      .catch(() => null);
   }
 
   const entitlement = await prisma.entitlement.findFirst({

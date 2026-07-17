@@ -50,6 +50,18 @@ test("humanizeEventKey strips the internal namespace and never returns empty", (
   assert.equal(humanizeEventKey(""), "Security event");
 });
 
+test("Phase-2 identity/preference/membership events have curated human labels", () => {
+  assert.equal(presentSecurityEvent("identity.profile_updated").title, "Profile updated");
+  assert.equal(
+    presentSecurityEvent("identity.preferences_updated").title,
+    "Preferences updated",
+  );
+  assert.equal(
+    presentSecurityEvent("identity.organization_left").title,
+    "Left an organization",
+  );
+});
+
 test("outcomes render as words, not raw enum values", () => {
   assert.equal(presentOutcome("success"), "Succeeded");
   assert.equal(presentOutcome("failure"), "Failed");

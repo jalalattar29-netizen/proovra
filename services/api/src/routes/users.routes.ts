@@ -8,6 +8,7 @@ import { getUserLegalAcceptanceStatus, recordLegalAcceptances } from "../service
 // backed by `email-password-auth.service.ts::changePasswordForUser` and
 // the session-revocation services.
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 
 const LegalAcceptanceBody = z.object({
   source: z.string().min(1).max(64).optional(),
@@ -109,6 +110,37 @@ export async function usersRoutes(app: FastifyInstance) {
       where: { id: userId },
       data,
     });
+
+    // Account & Security Activity (lifecycle Phase 2, 2026-07-16).
+    // Profile/preference mutations previously left NO trace — the personal
+    // timeline showed auth events but not identity edits. Emit ONE
+    // `identity.*` audit event per successful PATCH; the existing
+    // /v1/identity-security/security-events feed already includes the
+    // `identity.` prefix, so the event surfaces on /settings/security with
+    // no new read path. Metadata carries CHANGED FIELD NAMES ONLY — never
+    // the values (a display name or timezone is not a secret, but the
+    // audit stream stays value-free by policy).
+    if (Object.keys(data).length > 0) {
+      const prefFields = new Set(["locale", "timezone"]);
+      const changed = Object.keys(data);
+      const isPreferenceOnly = changed.every((k) => prefFields.has(k));
+      await appendPlatformAuditLog({
+        userId,
+        action: isPreferenceOnly
+          ? "identity.preferences_updated"
+          : "identity.profile_updated",
+        category: "identity",
+        severity: "info",
+        source: "api_users",
+        outcome: "success",
+        resourceType: "user",
+        resourceId: userId,
+        requestId: req.id,
+        metadata: { changedFields: changed },
+        ipAddress: null,
+        userAgent: null,
+      }).catch(() => null);
+    }
 
     return { user: pickMe(updated) };
   });
