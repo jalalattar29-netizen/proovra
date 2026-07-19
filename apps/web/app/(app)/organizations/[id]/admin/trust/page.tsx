@@ -78,8 +78,8 @@ function TrustTab() {
         >
           <DeepLink
             testId="trust-deep-link-center"
-            label="Trust Center"
-            description="Published trust articles (security, methodology, AI disclosure, …)."
+            label="Open public Trust Center"
+            description="Published trust articles (security, methodology, AI disclosure, …). Opens the public site."
             href="/trust"
           />
           <DeepLink

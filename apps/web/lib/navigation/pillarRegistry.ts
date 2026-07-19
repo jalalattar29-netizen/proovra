@@ -323,6 +323,9 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["account.profile", "ADMIN"],
   ["account.preferences", "ADMIN"],
   ["account.privacy", "ADMIN"],
+  // Internal legal routing correction (2026-07-19) — authenticated
+  // legal reader lives under /settings/legal/*, same pillar as privacy.
+  ["account.legal_document", "ADMIN"],
   // Phase IA-collapse — Account security personal home at
   // /settings/security.
   ["account.security", "ADMIN"],

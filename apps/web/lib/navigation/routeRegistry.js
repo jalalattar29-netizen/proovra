@@ -121,6 +121,24 @@ export const ROUTE_REGISTRY = [
         sidebarEligible: false,
     },
     {
+        // Internal legal reader (2026-07-19 routing correction) — the
+        // AUTHENTICATED route for canonical legal documents inside the
+        // App Shell (same content source as public /legal/[slug]).
+        id: "account.legal_document",
+        href: "/settings/legal/:slug",
+        label: "Legal document",
+        description: "Authenticated reader for canonical legal documents (same content as the public legal pages).",
+        domain: "ACCOUNT",
+        requiredCapabilities: [],
+        requiredActiveSpace: "NONE",
+        fallbackBehavior: "LOAD",
+        workflowTags: [],
+        advancedByDefault: false,
+        commandPaletteVisible: false,
+        allToolsVisible: false,
+        sidebarEligible: false,
+    },
+    {
         id: "account.billing",
         href: "/billing",
         label: "Billing",

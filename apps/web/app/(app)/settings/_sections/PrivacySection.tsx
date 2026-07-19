@@ -872,29 +872,30 @@ export function PrivacySection() {
         <Card variant="admin" padding="comfortable" data-cc-privacy-references>
           <h2 style={sectionTitle}>Privacy actions &amp; references</h2>
           <div className="grid gap-2 text-[13.5px]">
-            <Link href="/legal/privacy-requests" style={{ color: "var(--ink-primary, #0f172a)" }}>
+            <Link href="/settings/legal/privacy-requests" style={{ color: "var(--ink-primary, #0f172a)" }}>
               Submit a privacy request →
             </Link>
-            <Link href="/privacy" style={{ color: "var(--ink-secondary, #475569)" }}>
+            <Link href="/settings/legal/privacy" style={{ color: "var(--ink-secondary, #475569)" }}>
               Privacy Policy
             </Link>
-            <Link href="/terms" style={{ color: "var(--ink-secondary, #475569)" }}>
+            <Link href="/settings/legal/terms" style={{ color: "var(--ink-secondary, #475569)" }}>
               Terms of Service
             </Link>
-            <Link href="/legal/cookies" style={{ color: "var(--ink-secondary, #475569)" }}>
+            <Link href="/settings/legal/cookies" style={{ color: "var(--ink-secondary, #475569)" }}>
               Cookie Policy
             </Link>
           </div>
           <p style={{ ...muted, marginTop: 10 }}>
             The full legal library (DPA, subprocessors, retention, disclosure
-            policies, …) lives in the{" "}
+            policies, …) lives in the public Trust Center and the site footer.{" "}
             <Link
               href="/trust"
+              data-cc-open-public-trust-center
               style={{ color: "var(--ink-secondary, #475569)", textDecoration: "underline" }}
             >
-              public Trust Center
+              Open public Trust Center
             </Link>{" "}
-            and the site footer.
+            (leaves the app).
           </p>
         </Card>
     </div>

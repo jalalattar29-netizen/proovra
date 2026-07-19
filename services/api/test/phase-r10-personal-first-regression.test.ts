@@ -727,6 +727,11 @@ describe("Phase R10 — registry-page-existence invariant", () => {
     "/organizations/:id/admin/roles",
     "/organizations/:id/admin/billing",
     "/organizations/:id/admin/integrations",
+    // Internal legal routing correction (2026-07-19) — authenticated
+    // legal reader. The page lives at
+    // apps/web/app/(app)/settings/legal/[slug]/page.tsx (Next.js [slug]
+    // convention); the registry uses /:slug documentation syntax.
+    "/settings/legal/:slug",
     // Platform Admin Control Center — customer organization detail. The page
     // lives at apps/web/app/(app)/admin/organizations/[id]/page.tsx (Next.js
     // [id] convention); the registry uses /:id documentation syntax.

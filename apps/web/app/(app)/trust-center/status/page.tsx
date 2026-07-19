@@ -105,7 +105,7 @@ function Shell() {
         }
         scope="ACCOUNT"
         backHref="/trust"
-        backLabel="Back to Trust Center"
+        backLabel="Open public Trust Center"
         variant="operational"
       >
       <div style={{ marginBottom: 12 }}>

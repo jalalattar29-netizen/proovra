@@ -102,11 +102,11 @@ function Shell() {
         summary="Authoritative list of vendors that may process customer data. Every entry is versioned; every change writes an audit row."
         scope="ACCOUNT"
         backHref="/trust"
-        backLabel="Back to Trust Center"
+        backLabel="Open public Trust Center"
         relatedLinks={[
-          { label: "Subprocessors (public document)", href: "/legal/subprocessors" },
-          { label: "Data Processing Agreement", href: "/legal/dpa" },
-          { label: "Data Retention Policy", href: "/legal/data-retention" },
+          { label: "Subprocessors (full document)", href: "/settings/legal/subprocessors" },
+          { label: "Data Processing Agreement", href: "/settings/legal/dpa" },
+          { label: "Data Retention Policy", href: "/settings/legal/data-retention" },
         ]}
       >
         <div className="mb-6 flex flex-wrap gap-2">

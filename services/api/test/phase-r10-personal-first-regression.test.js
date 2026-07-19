@@ -536,6 +536,9 @@ describe("Phase R10 — registry-page-existence invariant", () => {
         "/organizations/:id/admin/audit",
         "/organizations/:id/admin/security",
         "/organizations/:id/admin/trust",
+        // Internal legal routing correction (2026-07-19) — authenticated
+        // legal reader at app/(app)/settings/legal/[slug]/page.tsx.
+        "/settings/legal/:slug",
     ]);
     function pageExistsForHref(href) {
         // Strip query/hash; the registry hrefs are clean.

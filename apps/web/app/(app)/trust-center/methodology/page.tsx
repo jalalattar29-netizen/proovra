@@ -32,7 +32,7 @@ export default function MethodologyPage() {
               For the full legal methodology document, see{" "}
               <Link
                 data-methodology-legal-link
-                href="/legal/verification-methodology"
+                href="/settings/legal/verification-methodology"
                 className="font-semibold text-[#2563EB] underline underline-offset-4 hover:text-[#1E40AF]"
               >
                 Evidence Verification Methodology (legal)
@@ -41,7 +41,7 @@ export default function MethodologyPage() {
             </span>
             <Link
               data-methodology-legal-cta
-              href="/legal/verification-methodology"
+              href="/settings/legal/verification-methodology"
               className="ml-auto rounded-lg border border-[#DDE6F2] bg-white px-3 py-1.5 text-[11.5px] font-semibold text-[#0F172A] no-underline hover:border-[#94A3B8]"
             >
               Read full legal methodology →
@@ -51,12 +51,12 @@ export default function MethodologyPage() {
         relatedLinks={[
           {
             label: "Evidence Verification Methodology (legal)",
-            href: "/legal/verification-methodology",
+            href: "/settings/legal/verification-methodology",
           },
-          { label: "Evidence Handling Policy", href: "/legal/evidence-handling" },
+          { label: "Evidence Handling Policy", href: "/settings/legal/evidence-handling" },
           {
             label: "Verification Disclaimer",
-            href: "/legal/verification-disclaimer",
+            href: "/settings/legal/verification-disclaimer",
           },
         ]}
       />

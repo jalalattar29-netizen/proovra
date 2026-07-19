@@ -177,6 +177,29 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: false,
   },
   {
+    // Internal legal reader (2026-07-19 routing correction) — the
+    // AUTHENTICATED route for viewing canonical legal documents WITHOUT
+    // leaving the App Shell. Reads the SAME markdown/metadata source as
+    // the public /legal/[slug] pages (one content source, two shells).
+    // Universal account surface — never plan- or workspace-gated.
+    // Discovery is contextual (Settings privacy references, trust-center
+    // related documents), not palette/sidebar noise.
+    id: "account.legal_document",
+    href: "/settings/legal/:slug",
+    label: "Legal document",
+    description:
+      "Authenticated reader for canonical legal documents (same content as the public legal pages).",
+    domain: "ACCOUNT",
+    requiredCapabilities: [],
+    requiredActiveSpace: "NONE",
+    fallbackBehavior: "LOAD",
+    workflowTags: [],
+    advancedByDefault: false,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+  {
     id: "account.billing",
     href: "/billing",
     label: "Billing",

@@ -20,8 +20,8 @@ export default function AiDisclosurePage() {
           </div>
         }
         relatedLinks={[
-          { label: "AI Use Policy", href: "/legal/ai-use-policy" },
-          { label: "Subprocessors", href: "/legal/subprocessors" },
+          { label: "AI Use Policy", href: "/settings/legal/ai-use-policy" },
+          { label: "Subprocessors", href: "/settings/legal/subprocessors" },
         ]}
       />
     </PageRouteGate>
