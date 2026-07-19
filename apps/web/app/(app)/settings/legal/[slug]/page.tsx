@@ -38,6 +38,15 @@ import {
 } from "../../../../legal/legal-content";
 import { legalHeroFor } from "../../../../legal/legal-hero-meta";
 
+// The slug universe is closed (ALLOWED_LEGAL_SLUGS): prerender every
+// document and reject unknown params at the router level, so unknown
+// slugs get a REAL HTTP 404 instead of a streamed 200 + not-found body.
+export const dynamicParams = false;
+
+export function generateStaticParams() {
+  return Array.from(ALLOWED_LEGAL_SLUGS, (slug) => ({ slug }));
+}
+
 export default async function InternalLegalDocumentPage({
   params,
 }: {

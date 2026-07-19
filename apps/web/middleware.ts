@@ -204,18 +204,24 @@ export function middleware(req: NextRequest) {
 
     if (isLegalPath) {
       if (isAppHost) {
-        let appLegalPath: string | null = null;
+        // App host serves legal documents through the ONE canonical
+        // authenticated reader (/settings/legal/[slug]) so the App Shell
+        // and session context stay mounted. Permanent redirect — not a
+        // rewrite — so the canonical internal URL is what users see and
+        // bookmark. (The legacy /app-legal/* renderer is deleted; its
+        // compatibility redirect lives in next.config.js.)
+        let internalSlug: string | null = null;
 
-        if (pathname === "/privacy") appLegalPath = "/app-legal/privacy";
-        else if (pathname === "/terms") appLegalPath = "/app-legal/terms";
+        if (pathname === "/privacy") internalSlug = "privacy";
+        else if (pathname === "/terms") internalSlug = "terms";
         else if (pathname.startsWith("/legal/")) {
-          appLegalPath = pathname.replace("/legal/", "/app-legal/");
+          internalSlug = pathname.slice("/legal/".length);
         }
 
-        if (appLegalPath) {
+        if (internalSlug) {
           const target = req.nextUrl.clone();
-          target.pathname = appLegalPath;
-          const res = NextResponse.rewrite(target);
+          target.pathname = `/settings/legal/${internalSlug}`;
+          const res = NextResponse.redirect(target, 308);
           if (isProd) applySecurityHeaders(res, nonce, isProd, relaxed, allowEval);
           return res;
         }

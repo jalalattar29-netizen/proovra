@@ -61,6 +61,10 @@ const nextConfig = {
       // CR1 Part 2 — `/security` → `/security-center` (the canonical
       // operator-facing security overview behind the `(app)` auth wall).
       { source: "/security", destination: "/security-center", permanent: true },
+      // Legal cleanup 2026-07-19 — the legacy in-app legal renderer at
+      // /app-legal/[slug] is deleted; /settings/legal/[slug] is the ONE
+      // authenticated legal reader. Slug-preserving compatibility 308.
+      { source: "/app-legal/:slug", destination: "/settings/legal/:slug", permanent: true },
       // Marketing — the standalone /security-overview marketing page was
       // retired; the canonical public security destination is the
       // /legal/security responsible-disclosure & security policy page.

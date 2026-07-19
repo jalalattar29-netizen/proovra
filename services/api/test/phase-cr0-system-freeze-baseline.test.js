@@ -98,10 +98,6 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
         // sidebarEligible:false, allToolsVisible:false. Wrapping itself
         // would be circular. Permanent exemption.
         { page: "tools/page.tsx", reason: "All Tools self-reference (registry entry workspace.tools)", revisitPhase: "PERMANENT" },
-        // Public-style legal page — different access model from app routes
-        // (renders signed/dated legal text). R6 will decide whether to
-        // gate or move to /(public)/.
-        { page: "app-legal/[slug]/page.tsx", reason: "legal text renderer; different access model", revisitPhase: "R6" },
         // Dynamic sub-routes that inherit access from a parent route. CR1
         // will inherit via routeId or wrap explicitly.
         { page: "investigation/cases/[caseId]/graph/page.tsx", reason: "inherits investigation.graph access", revisitPhase: "CR1" },
