@@ -1,82 +1,65 @@
 "use client";
 
+import Link from "next/link";
+
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { TrustCenterSectionList } from "../_section-list";
 
 export default function MethodologyPage() {
   return (
     <PageRouteGate routeId="workspace.trust_center">
-      <div>
-        {/*
-          Phase 4A enterprise polish — visible cross-link to the legal
-          methodology document. The in-product Methodology Center
-          surfaces the implementation-backed sections; the legal
-          counterpart at /legal/verification-methodology is the full
-          legally-styled methodology document. We LINK only — never
-          mirror — so neither surface can drift from the other.
-        */}
-        <div
-          style={{
-            maxWidth: 1320,
-            margin: "0 auto",
-            padding: "16px 20px 0",
-            color: "#0f172a",
-            fontFamily: "Inter, system-ui, sans-serif",
-          }}
-        >
+      <TrustCenterSectionList
+        kind="METHODOLOGY"
+        title="Verification Methodology Center"
+        description="How verification, hashing, trusted timestamps, OpenTimestamps, provenance, verification packages, trust decisions, redaction, and intelligence work. Sourced from actual implementation."
+        anchor="methodology"
+        /*
+          Phase 4A enterprise polish (preserved through the 2026-07-18
+          redesign) — visible cross-link to the legal methodology
+          document. The in-product Methodology Center surfaces the
+          implementation-backed sections; the legal counterpart at
+          /legal/verification-methodology is the full legally-styled
+          methodology document. We LINK only — never mirror — so neither
+          surface can drift from the other.
+        */
+        heroChildren={
           <aside
             data-methodology-legal-callout
-            style={{
-              padding: 12,
-              background: "rgba(15, 23, 42, 0.04)",
-              border: "1px solid rgba(15, 23, 42, 0.12)",
-              borderRadius: 10,
-              fontSize: 12,
-              color: "#0f172a",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              flexWrap: "wrap",
-            }}
+            className="flex flex-wrap items-center gap-2.5 rounded-[12px] border border-[#DDE6F2] bg-white/80 px-4 py-3 text-[12.5px] text-[#475569]"
           >
-            <strong style={{ fontSize: 12 }}>Legal counterpart</strong>
-            <span style={{ color: "#475569" }}>
+            <strong className="text-[#0F172A]">Legal counterpart</strong>
+            <span>
               For the full legal methodology document, see{" "}
-              <a
+              <Link
                 data-methodology-legal-link
                 href="/legal/verification-methodology"
-                style={{ color: "#0f172a", fontWeight: 600 }}
+                className="font-semibold text-[#2563EB] underline underline-offset-4 hover:text-[#1E40AF]"
               >
                 Evidence Verification Methodology (legal)
-              </a>
+              </Link>
               .
             </span>
-            <a
+            <Link
               data-methodology-legal-cta
               href="/legal/verification-methodology"
-              style={{
-                marginLeft: "auto",
-                fontSize: 11,
-                fontWeight: 600,
-                color: "#0f172a",
-                padding: "4px 8px",
-                border: "1px solid #cbd5e1",
-                borderRadius: 6,
-                background: "#fff",
-                textDecoration: "none",
-              }}
+              className="ml-auto rounded-lg border border-[#DDE6F2] bg-white px-3 py-1.5 text-[11.5px] font-semibold text-[#0F172A] no-underline hover:border-[#94A3B8]"
             >
               Read full legal methodology →
-            </a>
+            </Link>
           </aside>
-        </div>
-        <TrustCenterSectionList
-          kind="METHODOLOGY"
-          title="Verification Methodology Center"
-          description="How verification, hashing, trusted timestamps, OpenTimestamps, provenance, verification packages, trust decisions, redaction, and intelligence work. Sourced from actual implementation."
-          anchor="methodology"
-        />
-      </div>
+        }
+        relatedLinks={[
+          {
+            label: "Evidence Verification Methodology (legal)",
+            href: "/legal/verification-methodology",
+          },
+          { label: "Evidence Handling Policy", href: "/legal/evidence-handling" },
+          {
+            label: "Verification Disclaimer",
+            href: "/legal/verification-disclaimer",
+          },
+        ]}
+      />
     </PageRouteGate>
   );
 }

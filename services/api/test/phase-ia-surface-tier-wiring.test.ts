@@ -273,12 +273,18 @@ describe("Phase IA-surface-tier-wiring — simplified normal-user sidebar", () =
     }
   });
 
-  it("/teams + /intake-links + /inbox are PROFESSIONAL (PRO/TEAM only)", () => {
+  it("tier wiring — /teams PROFESSIONAL; /intake-links entitlement-driven; /inbox CORE (2026-07-18)", () => {
+    // OpsCenter visibility remediation: the Operations Center is an
+    // OPERATIONAL surface (CORE — every plan; categories inside are
+    // eligibility-governed) and intake follows the COMMERCIAL
+    // ENTITLEMENT (planFeatures.intakeIncluded; PROFESSIONAL remains the
+    // fail-closed fallback while the envelope is unknown). /teams keeps
+    // its PRO/TEAM pricing tier.
     expect(TIERS).toMatch(/pathPrefix:\s*"\/teams",\s*tier:\s*"PROFESSIONAL"/);
     expect(TIERS).toMatch(
-      /pathPrefix:\s*"\/intake-links",\s*tier:\s*"PROFESSIONAL"/,
+      /pathPrefix:\s*"\/intake-links",\s*tier:\s*"PROFESSIONAL",\s*entitlementOverride:\s*"intakeIncluded"/,
     );
-    expect(TIERS).toMatch(/pathPrefix:\s*"\/inbox",\s*tier:\s*"PROFESSIONAL"/);
+    expect(TIERS).toMatch(/pathPrefix:\s*"\/inbox",\s*tier:\s*"CORE"/);
   });
 
   it("/organizations is ENTERPRISE with notFound policy (ENTERPRISE_ONLY)", () => {

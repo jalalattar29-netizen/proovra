@@ -90,6 +90,16 @@ export type SurfaceTierRule = {
    */
   pathPrefix: string;
   tier: SurfaceTier;
+  /**
+   * OpsCenter visibility remediation (2026-07-18) — optional COMMERCIAL
+   * ENTITLEMENT override. When set, the surface decision follows the
+   * backend-computed `envelope.planFeatures.<key>` boolean (the canonical
+   * PLAN_CAPABILITIES projection) wherever the envelope is available;
+   * `tier` remains only the fail-closed fallback while the value is
+   * unknown (loading / degraded envelope). This keeps the tier table free
+   * of plan-literal duplication of the pricing catalog.
+   */
+  entitlementOverride?: "intakeIncluded";
   directAccessPolicy: DirectAccessPolicy;
   /**
    * For `redirect` policy. Defaults to `/home`. Operators see a friendly
@@ -122,15 +132,30 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   { pathPrefix: "/evidence", tier: "CORE", directAccessPolicy: "allow", reason: "evidence vault" },
   { pathPrefix: "/search", tier: "CORE", directAccessPolicy: "allow", reason: "search surface" },
   { pathPrefix: "/reports", tier: "CORE", directAccessPolicy: "allow", reason: "report generation" },
-  // Phase IA-surface-tier-pricing — `/teams`, `/intake-links`, `/inbox`
-  // are TEAM-collaboration surfaces. Per the pricing page they unlock
-  // at PRO/TEAM (PRO = up to 2 teams, TEAM = up to 5 teams). FREE/PAYG
-  // users see neither, matching the PAYG sidebar in the pricing brief:
-  // Home, Capture, Evidence, Cases, Search, Reports, Trust, Settings,
-  // Billing.
+  // Phase IA-surface-tier-pricing — `/teams` is a TEAM-collaboration
+  // surface. Per the pricing page it unlocks at PRO/TEAM (PRO = up to 2
+  // teams, TEAM = up to 5 teams).
   { pathPrefix: "/teams", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "workspace (PRO/TEAM)" },
-  { pathPrefix: "/intake-links", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "intake links (PRO/TEAM)" },
-  { pathPrefix: "/inbox", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "operational inbox (PRO/TEAM)" },
+  // OpsCenter visibility remediation (2026-07-18) — `/intake-links` is
+  // gated by the COMMERCIAL ENTITLEMENT (PLAN_CAPABILITIES.intakeIncluded:
+  // PAYG/PRO/TEAM/ENTERPRISE include intake; FREE does not). The rule's
+  // `entitlementOverride` makes the backend-computed
+  // `envelope.planFeatures.intakeIncluded` the source of truth wherever
+  // the envelope is available; the PROFESSIONAL tier remains ONLY as the
+  // fail-closed fallback while the envelope is loading/unknown. The
+  // previous plan-literal PRO/TEAM tier wrongly excluded PAYG, which the
+  // canonical catalog includes.
+  { pathPrefix: "/intake-links", tier: "PROFESSIONAL", entitlementOverride: "intakeIncluded", directAccessPolicy: "redirect", reason: "intake links (per intakeIncluded entitlement)" },
+  // OpsCenter visibility remediation (2026-07-18) — the Operations
+  // Center is an OPERATIONAL surface, not a paid-plan surface. The
+  // backend serves /v1/me/inbox to every authenticated account, mandatory
+  // evidence-integrity items are delivered to every plan, and the
+  // categories INSIDE the surface are governed by the canonical
+  // operationalEligibility projection + actual-item override
+  // (operationsFilterPolicy). Tier is therefore CORE; the previous
+  // plan-literal PROFESSIONAL tier left FREE users receiving operational
+  // items with no surface to work them.
+  { pathPrefix: "/inbox", tier: "CORE", directAccessPolicy: "allow", reason: "operations center — operational surface; categories governed by operationalEligibility" },
   // CORE alias for the canonical `/trust-center` URL — pinned by the
   // surface-tier wiring test (Phase IA-surface-tier-wiring).
   { pathPrefix: "/trust-center", tier: "CORE", directAccessPolicy: "allow", reason: "trust center" },

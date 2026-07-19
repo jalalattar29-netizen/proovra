@@ -1,18 +1,20 @@
 "use client";
 
 /**
- * Phase 4A — Reusable Trust Center section list. Driven by `kind`
- * (METHODOLOGY / AI_DISCLOSURE / SECURITY). Same shape as the
- * landing page but filtered to one kind.
+ * Reusable Trust Center section list — 2026-07-18 canonical redesign.
  *
- * Phase 4A enterprise polish:
- *  - 4-phase load state (loading / loaded / empty / error) — mirrors
- *    status/page.tsx so the page never sticks on "Loading…" after a
- *    failed request and the empty / error paths are honestly visible
- *    to the user with bounded vocabulary (no env names / stack
- *    traces).
- *  - Implementation references collapsed under a <details> summary
- *    so long reference lists no longer dominate the card visually.
+ * Renders the backend-published trust articles (METHODOLOGY /
+ * AI_DISCLOSURE / SECURITY) inside the ONE canonical legal-document
+ * shell (`LegalDocumentShell`), so authenticated trust documentation
+ * uses the exact same hero family, page background, reading width, and
+ * typography as the public /legal/[slug] pages. The legacy inline
+ * admin-styled header/cards/raw preformatted bodies are deleted.
+ *
+ * Behavior preserved from Phase 4A:
+ *  - 4-phase load state (loading / loaded / empty / degraded / error)
+ *    with bounded vocabulary (no env names / stack traces),
+ *  - drift badges + implementation-reference disclosures,
+ *  - all data-* contract markers.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -23,6 +25,8 @@ import type {
 } from "@proovra/shared";
 
 import { apiFetch } from "../../../lib/api";
+import { LegalDocumentShell } from "../../../components/legal/LegalDocumentShell";
+import { LEGAL_META_CLASSES } from "../../../components/legal/legalArticleStyles";
 import { DriftBadge } from "./_drift-badge";
 
 type LoadState =
@@ -52,16 +56,41 @@ function degradedMessage(reason: string) {
   }
 }
 
+/** Article bodies are stored as plain text — render as document paragraphs. */
+function BodyParagraphs({ body }: { body: string }) {
+  const blocks = body
+    .split(/\n{2,}/)
+    .map((b) => b.trim())
+    .filter((b) => b.length > 0);
+  return (
+    <>
+      {blocks.map((block, i) => (
+        <p key={i} style={{ whiteSpace: "pre-line" }}>
+          {block}
+        </p>
+      ))}
+    </>
+  );
+}
+
 export function TrustCenterSectionList({
   kind,
   title,
   description,
   anchor,
+  heroChildren,
+  beforeArticles,
+  relatedLinks,
 }: {
   kind: TrustArticleKind;
   title: string;
   description: string;
   anchor: string;
+  /** Optional canonical hero callout slot (e.g. legal-counterpart link). */
+  heroChildren?: React.ReactNode;
+  /** Optional content rendered above the article sections, inside the doc card. */
+  beforeArticles?: React.ReactNode;
+  relatedLinks?: ReadonlyArray<{ label: string; href: string }>;
 }) {
   const [state, setState] = useState<LoadState>({ phase: "loading" });
   const [busy, setBusy] = useState(false);
@@ -90,8 +119,7 @@ export function TrustCenterSectionList({
       }
     } catch {
       // Bounded operator-facing message. We never expose internal
-      // error codes / env names / stack traces here. The Retry
-      // button below lets the user re-attempt the load.
+      // error codes / env names / stack traces here.
       setState({
         phase: "error",
         message:
@@ -109,187 +137,112 @@ export function TrustCenterSectionList({
   const articles = state.phase === "loaded" ? state.articles : [];
 
   return (
-    <div
-      data-trust-center-page={anchor}
-      style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
-    >
-      <header style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, marginTop: 0 }}>{title}</h1>
-        <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-          {description}
-        </p>
-        <p style={{ marginTop: 6 }}>
-          <a href="/trust" style={{ fontSize: 12 }}>
-            ← Back to Trust Center
-          </a>
-        </p>
-      </header>
+    <div data-trust-center-page={anchor}>
+      <LegalDocumentShell
+        label="Trust documentation"
+        title={title}
+        summary={description}
+        scope="ACCOUNT"
+        backHref="/trust"
+        backLabel="Back to Trust Center"
+        heroChildren={heroChildren}
+        relatedLinks={relatedLinks}
+      >
+        {beforeArticles}
 
-      <div style={{ marginBottom: 12 }}>
-        <button
-          type="button"
-          className="app-header-primary-action"
-          data-trust-center-page-refresh={anchor}
-          onClick={() => void refresh()}
-          disabled={busy}
-        >
-          {busy
-            ? "Loading…"
-            : state.phase === "error"
-              ? "Retry"
-              : "Refresh"}
-        </button>
-      </div>
-
-      {state.phase === "loading" ? (
-        <p
-          data-trust-center-page-phase="loading"
-          style={{ color: "#475569", fontSize: 12 }}
-        >
-          Loading articles…
-        </p>
-      ) : null}
-
-      {state.phase === "error" ? (
-        <div
-          data-trust-center-page-phase="error"
-          style={{
-            padding: 12,
-            background: "rgba(185, 28, 28, 0.06)",
-            border: "1px solid rgba(185, 28, 28, 0.20)",
-            borderRadius: 8,
-            color: "#7f1d1d",
-            fontSize: 12,
-          }}
-        >
-          {state.message}
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <span className={LEGAL_META_CLASSES}>
+            Published for the active workspace · implementation-backed
+          </span>
+          <button
+            type="button"
+            className="rounded-lg border border-[#DDE6F2] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#0F172A] hover:border-[#94A3B8] disabled:opacity-60"
+            data-trust-center-page-refresh={anchor}
+            onClick={() => void refresh()}
+            disabled={busy}
+          >
+            {busy ? "Loading…" : state.phase === "error" ? "Retry" : "Refresh"}
+          </button>
         </div>
-      ) : null}
 
-      {state.phase === "degraded" ? (
-        <div
-          data-trust-center-page-phase="degraded"
-          data-trust-center-page-reason={state.reason}
-          style={{
-            padding: 12,
-            background: "rgba(148, 163, 184, 0.10)",
-            border: "1px solid rgba(148, 163, 184, 0.28)",
-            borderRadius: 8,
-            color: "#334155",
-            fontSize: 12,
-            display: "grid",
-            gap: 6,
-          }}
-        >
-          <div>{degradedMessage(state.reason)}</div>
-          <div>
-            Reason: <code>{state.reason}</code>
+        {state.phase === "loading" ? (
+          <p data-trust-center-page-phase="loading" aria-live="polite">
+            Loading articles…
+          </p>
+        ) : null}
+
+        {state.phase === "error" ? (
+          <div
+            data-trust-center-page-phase="error"
+            role="alert"
+            className="rounded-lg border border-[rgba(185,28,28,0.20)] bg-[rgba(185,28,28,0.06)] px-4 py-3 text-[0.9rem] text-[#7f1d1d]"
+          >
+            {state.message}
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {state.phase === "empty" ? (
-        <p
-          data-trust-center-page-phase="empty"
-          style={{ color: "#475569", fontSize: 12 }}
-        >
-          This Trust Center section is not published for the active workspace
-          yet.
-        </p>
-      ) : null}
+        {state.phase === "degraded" ? (
+          <div
+            data-trust-center-page-phase="degraded"
+            data-trust-center-page-reason={state.reason}
+            className="grid gap-1.5 rounded-lg border border-[rgba(148,163,184,0.28)] bg-[rgba(148,163,184,0.10)] px-4 py-3 text-[0.9rem] text-[#334155]"
+          >
+            <div>{degradedMessage(state.reason)}</div>
+            <div>
+              Reason: <code>{state.reason}</code>
+            </div>
+          </div>
+        ) : null}
 
-      {state.phase === "loaded" ? (
-        <div style={{ display: "grid", gap: 10 }}>
-          {articles.map((a) => (
-            <article
-              key={a.id}
-              data-trust-center-page-section={a.section}
-              data-trust-article-state={a.state}
-              data-trust-article-version={a.version}
-              className="cases-panel cases-inner"
-              style={{ padding: 14 }}
-            >
-              <header
-                style={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  justifyContent: "space-between",
-                }}
+        {state.phase === "empty" ? (
+          <p data-trust-center-page-phase="empty">
+            This Trust Center section is not published for the active workspace
+            yet.
+          </p>
+        ) : null}
+
+        {state.phase === "loaded"
+          ? articles.map((a) => (
+              <section
+                key={a.id}
+                data-trust-center-page-section={a.section}
+                data-trust-article-state={a.state}
+                data-trust-article-version={a.version}
               >
-                <strong style={{ fontSize: 15 }}>{a.title}</strong>
-                <small style={{ fontSize: 11, color: "#475569" }}>
-                  <code>{a.section}</code> · v{a.version} · {a.state}
+                <h2 id={a.section}>{a.title}</h2>
+                <div className={`-mt-2 mb-4 ${LEGAL_META_CLASSES}`}>
+                  <code>{a.section}</code> · Version {a.version} · {a.state}
                   {a.driftState ? <DriftBadge state={a.driftState} /> : null}
-                </small>
-              </header>
-              <p style={{ color: "#334155", fontSize: 13, marginTop: 6 }}>
-                {a.summary}
-              </p>
-              <pre
-                style={{
-                  margin: "8px 0 0",
-                  padding: 8,
-                  background: "rgba(15, 23, 42, 0.04)",
-                  border: "1px solid rgba(15, 23, 42, 0.06)",
-                  borderRadius: 6,
-                  fontSize: 11,
-                  whiteSpace: "pre-wrap",
-                  color: "#0f172a",
-                }}
-              >
-                {a.body}
-              </pre>
-              {a.implementationReferences.length > 0 ? (
-                <details
-                  data-trust-center-page-references={a.section}
-                  style={{ marginTop: 8 }}
-                >
-                  <summary
-                    style={{
-                      fontSize: 11,
-                      color: "#475569",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
+                </div>
+                <p>
+                  <strong>{a.summary}</strong>
+                </p>
+                <BodyParagraphs body={a.body} />
+                {a.implementationReferences.length > 0 ? (
+                  <details
+                    data-trust-center-page-references={a.section}
+                    className="mb-6 mt-2"
                   >
-                    Implementation references ·{" "}
-                    {a.implementationReferences.length}
-                  </summary>
-                  <div
-                    style={{
-                      marginTop: 6,
-                      fontSize: 11,
-                      color: "#475569",
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {a.implementationReferences.map((r) => (
-                      <code
-                        key={r}
-                        style={{
-                          marginRight: 6,
-                          padding: "1px 4px",
-                          background: "rgba(15, 23, 42, 0.04)",
-                          borderRadius: 4,
-                          display: "inline-block",
-                        }}
-                      >
-                        {r}
-                      </code>
-                    ))}
-                  </div>
-                </details>
-              ) : null}
-            </article>
-          ))}
-        </div>
-      ) : null}
+                    <summary
+                      className={`cursor-pointer ${LEGAL_META_CLASSES}`}
+                      style={{ fontWeight: 600 }}
+                    >
+                      Implementation references · {a.implementationReferences.length}
+                    </summary>
+                    <div className="mt-2 leading-[1.9]">
+                      {a.implementationReferences.map((r) => (
+                        <code key={r} className="mb-1 mr-1.5 inline-block">
+                          {r}
+                        </code>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
+                <hr />
+              </section>
+            ))
+          : null}
+      </LegalDocumentShell>
     </div>
   );
 }

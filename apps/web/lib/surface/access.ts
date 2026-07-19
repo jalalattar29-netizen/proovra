@@ -17,7 +17,6 @@ import type {
 
 import {
   findSurfaceTierRule,
-  getSurfaceTier,
   rolesUnlockingEnterprise,
   tiersAllowedByPlan,
   type DirectAccessPolicy,
@@ -40,6 +39,17 @@ export type SurfaceUserContext = {
    * a plan tier.
    */
   isEnterpriseWorkspace: boolean;
+  /**
+   * OpsCenter visibility remediation (2026-07-18) — canonical commercial
+   * entitlements from `envelope.planFeatures` (backend PLAN_CAPABILITIES
+   * projection). `null`/absent = unknown (envelope loading/degraded) —
+   * rules with an `entitlementOverride` then FALL BACK to their tier
+   * (fail-closed). Only the keys a tier rule actually overrides on are
+   * carried here.
+   */
+  planFeatures?: {
+    intakeIncluded: boolean | null;
+  } | null;
 };
 
 export const ANONYMOUS_SURFACE_CONTEXT: SurfaceUserContext = {
@@ -47,6 +57,7 @@ export const ANONYMOUS_SURFACE_CONTEXT: SurfaceUserContext = {
   role: null,
   isPlatformAdmin: false,
   isEnterpriseWorkspace: false,
+  planFeatures: null,
 };
 
 /**
@@ -140,12 +151,36 @@ void rolesUnlockingEnterprise;
  * applied by `getDirectAccessDecision` (consumed by middleware +
  * SurfaceGate).
  */
+/**
+ * OpsCenter visibility remediation (2026-07-18) — the ONE rule-level
+ * decision. Platform admins always pass. When the rule carries an
+ * `entitlementOverride` and the canonical entitlement value is KNOWN
+ * (boolean), the entitlement decides; otherwise the tier decides
+ * (fail-closed fallback while the envelope is loading).
+ */
+function isRuleAccessible(
+  ctx: SurfaceUserContext,
+  rule: SurfaceTierRule | null,
+  tier: SurfaceTier,
+): boolean {
+  // Platform admins pass every tier (incl. INTERNAL) exactly as before;
+  // an entitlement override must never hide a surface from them.
+  if (ctx.isPlatformAdmin) return true;
+  const overrideKey = rule?.entitlementOverride;
+  if (overrideKey) {
+    const value = ctx.planFeatures?.[overrideKey];
+    if (typeof value === "boolean") return value;
+  }
+  return isUserInTier(ctx, tier);
+}
+
 export function canAccessSurface(
   ctx: SurfaceUserContext,
   pathname: string,
 ): boolean {
-  const tier = getSurfaceTier(pathname);
-  return isUserInTier(ctx, tier);
+  const rule = findSurfaceTierRule(pathname);
+  const tier = rule?.tier ?? "CORE";
+  return isRuleAccessible(ctx, rule, tier);
 }
 
 /**
@@ -170,7 +205,7 @@ export function getDirectAccessDecision(
   // Unmapped paths default to CORE — allow.
   if (!rule) return { kind: "allow" };
 
-  if (isUserInTier(ctx, rule.tier)) return { kind: "allow" };
+  if (isRuleAccessible(ctx, rule, rule.tier)) return { kind: "allow" };
 
   switch (rule.directAccessPolicy) {
     case "allow":
@@ -217,7 +252,7 @@ export function describeSurfaceDecision(
 } {
   const rule = findSurfaceTierRule(pathname);
   const tier = rule?.tier ?? "CORE";
-  const inTier = isUserInTier(ctx, tier);
+  const inTier = isRuleAccessible(ctx, rule, tier);
   return {
     pathname,
     tier,

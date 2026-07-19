@@ -179,10 +179,17 @@ describe("Phase IA-surface-tier — CORE sidebar for FREE / PAYG user", () => {
   }
 });
 
-describe("Phase IA-surface-tier-pricing — PRO/TEAM sidebar adds Teams/Intake Links/Inbox", () => {
-  // PRO and TEAM unlock /teams, /intake-links, /inbox per the pricing
-  // brief. FREE/PAYG do not see these — direct URL → redirect /home.
-  const PRO_TEAM_PATHS = ["/teams", "/intake-links", "/inbox"];
+describe("Phase IA-surface-tier-pricing — plan/entitlement gated surfaces", () => {
+  // OpsCenter visibility remediation (2026-07-18):
+  //   * /teams stays PROFESSIONAL (PRO/TEAM pricing brief).
+  //   * /intake-links follows the COMMERCIAL ENTITLEMENT
+  //     (planFeatures.intakeIncluded — PAYG included per the canonical
+  //     catalog); the PROFESSIONAL tier remains only the fail-closed
+  //     fallback used here because these fixture contexts carry no
+  //     entitlement value.
+  //   * /inbox is CORE — the Operations Center is an operational surface
+  //     for every plan (categories inside are eligibility-governed).
+  const PRO_TEAM_PATHS = ["/teams", "/intake-links"];
 
   for (const path of PRO_TEAM_PATHS) {
     it(`PROFESSIONAL: ${path} is visible to PRO user`, () => {
@@ -198,6 +205,30 @@ describe("Phase IA-surface-tier-pricing — PRO/TEAM sidebar adds Teams/Intake L
       expect(d.kind).toBe("redirect");
     });
   }
+
+  it("CORE: /inbox (Operations Center) is visible to EVERY plan", () => {
+    expect(getSurfaceTier("/inbox")).toBe("CORE");
+    for (const ctx of [PERSONAL_FREE_USER, PRO_INDIVIDUAL, SMALL_TEAM_OWNER]) {
+      expect(canAccessSurface(ctx, "/inbox")).toBe(true);
+      expect(getDirectAccessDecision(ctx, "/inbox").kind).toBe("allow");
+    }
+  });
+
+  it("ENTITLEMENT: /intake-links opens for a PAYG user whose envelope carries intakeIncluded", () => {
+    expect(
+      canAccessSurface(
+        { ...PERSONAL_FREE_USER, plan: "PAYG", planFeatures: { intakeIncluded: true } },
+        "/intake-links",
+      ),
+    ).toBe(true);
+    // …and the entitlement can also close it regardless of tier.
+    expect(
+      canAccessSurface(
+        { ...PRO_INDIVIDUAL, planFeatures: { intakeIncluded: false } },
+        "/intake-links",
+      ),
+    ).toBe(false);
+  });
 });
 
 // ============================================================================

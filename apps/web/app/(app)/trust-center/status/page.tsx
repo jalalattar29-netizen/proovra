@@ -11,6 +11,7 @@ import type { StatusPageProjection } from "@proovra/shared";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
+import { LegalDocumentShell } from "../../../../components/legal/LegalDocumentShell";
 
 export default function StatusPage() {
   return (
@@ -88,48 +89,32 @@ function Shell() {
 
   const status = state.phase === "loaded" ? state.status : null;
 
+  // 2026-07-18 canonical redesign — the status page keeps its OPERATIONAL
+  // body (live health semantics are not policy prose — §16 exception) but
+  // adopts the canonical legal/trust hero family and page background via
+  // the shared shell's "operational" variant.
   return (
-    <div
-      data-status-page
-      style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
-    >
-      <header style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, marginTop: 0 }}>Status Page</h1>
-        <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-          Operational health across PROOVRA components.
-          {status ? (
-            <>
-              {" "}Upstream: <code>{status.upstreamProvider}</code>
-            </>
-          ) : null}
-        </p>
-        <p>
-          <a href="/trust" style={{ fontSize: 12 }}>← Back to Trust Center</a>
-        </p>
-      </header>
-
+    <div data-status-page>
+      <LegalDocumentShell
+        label="Trust documentation"
+        title="Status Page"
+        summary={
+          status
+            ? `Operational health across PROOVRA components. Upstream: ${status.upstreamProvider}.`
+            : "Operational health across PROOVRA components."
+        }
+        scope="ACCOUNT"
+        backHref="/trust"
+        backLabel="Back to Trust Center"
+        variant="operational"
+      >
       <div style={{ marginBottom: 12 }}>
         <button
           type="button"
           data-status-refresh
           onClick={() => void refresh()}
           disabled={busy}
-          style={{
-            padding: "6px 12px",
-            border: "1px solid #0f172a",
-            background: "#0f172a",
-            color: "#fafafa",
-            fontWeight: 600,
-            fontSize: 12,
-            borderRadius: 8,
-            cursor: "pointer",
-          }}
+          className="rounded-lg border border-[#0F172A] bg-[#0F172A] px-3 py-1.5 text-[12px] font-semibold text-white hover:opacity-90 disabled:opacity-60"
         >
           {busy
             ? "Loading…"
@@ -313,6 +298,7 @@ function Shell() {
           </footer>
         </>
       ) : null}
+      </LegalDocumentShell>
     </div>
   );
 }

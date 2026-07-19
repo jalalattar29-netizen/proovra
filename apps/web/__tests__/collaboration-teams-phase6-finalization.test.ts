@@ -75,8 +75,14 @@ const ENTERPRISE_COLLABORATION_SURFACES = [
   "/governance",
 ];
 
-// PROFESSIONAL self-serve collaboration surfaces (PRO/TEAM, not FREE/PAYG).
-const PROFESSIONAL_COLLABORATION_SURFACES = ["/intake-links", "/inbox"];
+// OpsCenter visibility remediation (2026-07-18): /inbox is now a CORE
+// operational surface (every plan; categories governed by the canonical
+// eligibility policy) and /intake-links follows the COMMERCIAL
+// ENTITLEMENT (planFeatures.intakeIncluded — PAYG included). The
+// tier-FALLBACK behavior below still applies to these fixture contexts
+// (no entitlement value → PROFESSIONAL fallback), which is what SCOPE K
+// pins for /intake-links.
+const PROFESSIONAL_COLLABORATION_SURFACES = ["/intake-links"];
 
 // ===========================================================================
 // SCOPE A — Collaboration Teams KEEP + reachable + registered once.
@@ -193,6 +199,16 @@ test("SCOPE K — platform admin unlocks enterprise collaboration surfaces regar
   };
   for (const href of ENTERPRISE_COLLABORATION_SURFACES) {
     assert.equal(canAccessSurface(admin, href), true, `admin must reach ${href}`);
+  }
+});
+
+test("SCOPE K — /inbox is CORE for every plan (operational surface, 2026-07-18)", () => {
+  for (const plan of ["FREE", "PAYG", "PRO", "TEAM"] as WorkspacePlan[]) {
+    assert.equal(
+      canAccessSurface(ctxFor(plan), "/inbox"),
+      true,
+      `${plan} must reach the Operations Center`,
+    );
   }
 });
 

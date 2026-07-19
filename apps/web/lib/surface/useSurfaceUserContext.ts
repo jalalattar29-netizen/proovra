@@ -49,5 +49,16 @@ export function useSurfaceUserContext(): SurfaceUserContext {
     role,
     isPlatformAdmin: Boolean(envelope.platform?.isPlatformAdmin),
     isEnterpriseWorkspace: Boolean(envelope.flags?.isEnterpriseWorkspace),
+    // OpsCenter visibility remediation (2026-07-18) — the canonical
+    // commercial entitlement (backend PLAN_CAPABILITIES projection).
+    // Rules with an `entitlementOverride` follow this value; while the
+    // envelope lacks it (older backend / degraded path) the value stays
+    // null and those rules fall back to their tier (fail-closed).
+    planFeatures: {
+      intakeIncluded:
+        typeof envelope.planFeatures?.intakeIncluded === "boolean"
+          ? envelope.planFeatures.intakeIncluded
+          : null,
+    },
   };
 }

@@ -1,7 +1,14 @@
 "use client";
 
 /**
- * Phase 4A — Subprocessor registry surface.
+ * Subprocessor registry surface — 2026-07-18 canonical redesign.
+ *
+ * The authenticated registry now renders inside the ONE canonical
+ * legal-document shell (same hero family, page background, reading
+ * width, table typography as the public /legal/[slug] pages). The
+ * legacy inline admin header/table styles are deleted. Behavior
+ * (refresh, canonical re-seed, degraded/error states, data-* markers)
+ * is unchanged.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -11,6 +18,7 @@ import type { SubprocessorProjection } from "@proovra/shared";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
+import { LegalDocumentShell } from "../../../../components/legal/LegalDocumentShell";
 
 export default function SubprocessorsPage() {
   return (
@@ -83,67 +91,50 @@ function Shell() {
     void refresh();
   }, [refresh]);
 
+  const buttonClasses =
+    "rounded-lg border px-3 py-1.5 text-[12px] font-semibold disabled:opacity-60";
+
   return (
-    <div
-      data-subprocessors-page
-      style={{
-        padding: 20,
-        maxWidth: 1320,
-        margin: "0 auto",
-        color: "#0f172a",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
-    >
-      <header style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, marginTop: 0 }}>Subprocessor Registry</h1>
-        <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
-          Authoritative list of vendors that may process customer data.
-          Every entry is versioned; every change writes an audit row.
-        </p>
-        <p>
-          <a href="/trust" style={{ fontSize: 12 }}>
-            ← Back to Trust Center
-          </a>
-        </p>
-      </header>
+    <div data-subprocessors-page>
+      <LegalDocumentShell
+        label="Trust documentation"
+        title="Subprocessor Registry"
+        summary="Authoritative list of vendors that may process customer data. Every entry is versioned; every change writes an audit row."
+        scope="ACCOUNT"
+        backHref="/trust"
+        backLabel="Back to Trust Center"
+        relatedLinks={[
+          { label: "Subprocessors (public document)", href: "/legal/subprocessors" },
+          { label: "Data Processing Agreement", href: "/legal/dpa" },
+          { label: "Data Retention Policy", href: "/legal/data-retention" },
+        ]}
+      >
+        <div className="mb-6 flex flex-wrap gap-2">
+          <button
+            type="button"
+            data-subprocessors-refresh
+            onClick={() => void refresh()}
+            disabled={busy}
+            className={`${buttonClasses} border-[#0F172A] bg-[#0F172A] text-white hover:opacity-90`}
+          >
+            {busy ? "Loading…" : "Refresh"}
+          </button>
+          <button
+            type="button"
+            data-subprocessors-seed
+            onClick={() => void seedDefaults()}
+            disabled={busy}
+            className={`${buttonClasses} border-[#DDE6F2] bg-white text-[#0F172A] hover:border-[#94A3B8]`}
+          >
+            Re-seed defaults
+          </button>
+        </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        <button
-          type="button"
-          data-subprocessors-refresh
-          onClick={() => void refresh()}
-          disabled={busy}
-          style={primaryButton}
-        >
-          {busy ? "Loading…" : "Refresh"}
-        </button>
-        <button
-          type="button"
-          data-subprocessors-seed
-          onClick={() => void seedDefaults()}
-          disabled={busy}
-          style={secondaryButton}
-        >
-          Re-seed defaults
-        </button>
-      </div>
-
-      <section style={{ background: "#fff", border: "1px solid rgba(15, 23, 42, 0.08)", borderRadius: 10, padding: 8, overflowX: "auto" }}>
         {reason ? (
           <div
             data-subprocessors-phase="degraded"
             data-subprocessors-reason={reason}
-            style={{
-              marginBottom: 8,
-              padding: 12,
-              background: "rgba(148, 163, 184, 0.10)",
-              border: "1px solid rgba(148, 163, 184, 0.28)",
-              borderRadius: 8,
-              color: "#334155",
-              fontSize: 12,
-              display: "grid",
-              gap: 6,
-            }}
+            className="mb-4 grid gap-1.5 rounded-lg border border-[rgba(148,163,184,0.28)] bg-[rgba(148,163,184,0.10)] px-4 py-3 text-[0.9rem] text-[#334155]"
           >
             <div>{degradedMessage(reason)}</div>
             <div>
@@ -154,91 +145,79 @@ function Shell() {
         {failed ? (
           <div
             data-subprocessors-phase="error"
-            style={{
-              marginBottom: 8,
-              padding: 12,
-              background: "rgba(185, 28, 28, 0.06)",
-              border: "1px solid rgba(185, 28, 28, 0.20)",
-              borderRadius: 8,
-              color: "#7f1d1d",
-              fontSize: 12,
-            }}
+            role="alert"
+            className="mb-4 rounded-lg border border-[rgba(185,28,28,0.20)] bg-[rgba(185,28,28,0.06)] px-4 py-3 text-[0.9rem] text-[#7f1d1d]"
           >
             {failed}
           </div>
         ) : null}
-        <table data-subprocessors-table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "#475569" }}>
-              <th style={th}>Name</th>
-              <th style={th}>Vendor</th>
-              <th style={th}>Purpose</th>
-              <th style={th}>Region</th>
-              <th style={th}>Data categories</th>
-              <th style={th}>State</th>
-              <th style={th}>Version</th>
-              <th style={th}>Effective</th>
-              <th style={th}>Docs</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && !reason && !failed ? (
-              <tr><td colSpan={9} style={{ ...td, color: "#475569" }}>No subprocessors registered.</td></tr>
-            ) : (
-              rows.map((r) => (
-                <tr
-                  key={r.id}
-                  data-subprocessor-row={r.slug}
-                  data-subprocessor-state={r.state}
-                >
-                  <td style={td}>{r.name}</td>
-                  <td style={td}>{r.vendor}</td>
-                  <td style={td}>{r.purpose}</td>
-                  <td style={td}>{r.region}</td>
-                  <td style={td}>
-                    {r.dataCategories.map((c) => (
-                      <code key={c} style={{ marginRight: 4 }}>{c}</code>
-                    ))}
-                  </td>
-                  <td style={td}><strong>{r.state}</strong></td>
-                  <td style={td}>v{r.version}</td>
-                  <td style={td}>{formatUserDate(r.effectiveAtUtc)}</td>
-                  <td style={td}>
-                    {r.documentationUrl ? (
-                      <a href={r.documentationUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11 }}>
-                        link
-                      </a>
-                    ) : "—"}
-                  </td>
+
+        {/* Canonical document-table typography comes from the shell's
+            article chain; the wrapper keeps narrow screens safe. */}
+        <div className="overflow-x-auto">
+          <table data-subprocessors-table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Vendor</th>
+                <th>Purpose</th>
+                <th>Region</th>
+                <th>Data categories</th>
+                <th>State</th>
+                <th>Version</th>
+                <th>Effective</th>
+                <th>Docs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 && !reason && !failed ? (
+                <tr>
+                  <td colSpan={9}>No subprocessors registered.</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </section>
+              ) : (
+                rows.map((r) => (
+                  <tr
+                    key={r.id}
+                    data-subprocessor-row={r.slug}
+                    data-subprocessor-state={r.state}
+                  >
+                    <td>
+                      <strong>{r.name}</strong>
+                    </td>
+                    <td>{r.vendor}</td>
+                    <td>{r.purpose}</td>
+                    <td>{r.region}</td>
+                    <td>
+                      {r.dataCategories.map((c) => (
+                        <code key={c} className="mb-1 mr-1 inline-block">
+                          {c}
+                        </code>
+                      ))}
+                    </td>
+                    <td>{r.state}</td>
+                    <td>v{r.version}</td>
+                    <td>{formatUserDate(r.effectiveAtUtc)}</td>
+                    <td>
+                      {r.documentationUrl ? (
+                        <a
+                          href={r.documentationUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="legal-link"
+                        >
+                          Vendor documentation
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </LegalDocumentShell>
     </div>
   );
 }
-
-const primaryButton = {
-  padding: "6px 12px",
-  border: "1px solid #0f172a",
-  background: "#0f172a",
-  color: "#fafafa",
-  fontWeight: 600,
-  fontSize: 12,
-  borderRadius: 8,
-  cursor: "pointer",
-} as const;
-const secondaryButton = {
-  padding: "6px 12px",
-  border: "1px solid #cbd5e1",
-  background: "#fff",
-  color: "#0f172a",
-  fontWeight: 600,
-  fontSize: 12,
-  borderRadius: 8,
-  cursor: "pointer",
-} as const;
-const th = { padding: "6px 8px", borderBottom: "1px solid #e2e8f0" } as const;
-const td = { padding: "6px 8px", borderBottom: "1px solid #f1f5f9" } as const;
