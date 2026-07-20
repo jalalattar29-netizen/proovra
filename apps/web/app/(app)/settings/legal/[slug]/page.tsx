@@ -32,6 +32,7 @@ import { PageRouteGate } from "../../../../../components/navigation/PageRouteGat
 import { LegalDocumentShell } from "../../../../../components/legal/LegalDocumentShell";
 import {
   ALLOWED_LEGAL_SLUGS,
+  internalLegalDocumentHref,
   loadLegalMarkdown,
   renderLegalMarkdown,
   titleFromSlug,
@@ -80,7 +81,10 @@ export default async function InternalLegalDocumentPage({
           backHref="/settings#privacy"
           backLabel="Back to Privacy & legal records"
         >
-          {renderLegalMarkdown(content)}
+          {/* Document cross-references stay in-app: every /legal/<slug>,
+              /privacy, /terms link embedded in the markdown maps to the
+              authenticated reader (public pages render hrefs verbatim). */}
+          {renderLegalMarkdown(content, { mapHref: internalLegalDocumentHref })}
           <hr />
           <p>
             This is the same document served on the public site.{" "}

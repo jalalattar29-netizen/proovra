@@ -1,37 +1,37 @@
 /**
- * Canonical legal-document typography + tokens (2026-07-18 redesign).
+ * Canonical legal-document typography + tokens (2026-07-18 redesign;
+ * 2026-07-19 internal flat-document split).
  *
  * ONE source of truth for the PROOVRA legal/trust document visual
  * system, shared by:
  *
- *   - the PUBLIC /legal/[slug] pages (the canonical external design),
+ *   - the PUBLIC /legal/[slug] pages (the canonical external design:
+ *     hero + white document card — `LEGAL_ARTICLE_CLASSES`),
  *   - the PUBLIC /trust Trust Center,
  *   - every AUTHENTICATED trust/legal documentation page rendered
- *     through `LegalDocumentShell`.
+ *     through `LegalDocumentShell` (flat enterprise-document layout:
+ *     the SAME typography chain, WITHOUT the marketing card —
+ *     `LEGAL_ARTICLE_TYPOGRAPHY`).
  *
- * The class chain below was extracted VERBATIM from the public
+ * The typography chain was extracted VERBATIM from the public
  * /legal/[slug] article so internal and external documents can never
  * drift apart. Do not fork these classes per route; extend here.
  */
 
-/** Page background shared by every legal/trust document page. */
+/** Page background shared by every PUBLIC legal/trust document page. */
 export const LEGAL_PAGE_BG = "#F6F9FC";
-
-/** Single canonical hero artwork (same rule as LegalHero). */
-export const LEGAL_HERO_IMAGE = "/assets/hero/legal-hero.png";
 
 /** Legal/Trust title gradient — blue → violet → magenta. No cyan. */
 export const LEGAL_TITLE_GRADIENT =
   "linear-gradient(90deg, #2563EB 0%, #7C3AED 50%, #C026D3 100%)";
 
 /**
- * The canonical white document card + typography chain. Identical to
- * the public /legal/[slug] article styling.
+ * The canonical document TYPOGRAPHY chain (headings, paragraphs, lists,
+ * tables, code, quotes). Shared verbatim by the public card article and
+ * the flat internal article — this is the zero-drift core.
  */
-export const LEGAL_ARTICLE_CLASSES = `
-  legal-page relative overflow-hidden rounded-[24px] border bg-white
-  shadow-[0_18px_42px_rgba(8,18,22,0.04)]
-  px-6 py-8 md:px-10 md:py-12 lg:px-14 lg:py-14
+export const LEGAL_ARTICLE_TYPOGRAPHY = `
+  legal-page
   text-[#0F172A]
   [&_h1]:hidden
   [&_h2]:mb-4 [&_h2]:mt-10 [&_h2]:text-[1.42rem] [&_h2]:font-semibold [&_h2]:leading-[1.18] [&_h2]:tracking-[-0.02em] [&_h2]:text-[#081426]
@@ -58,6 +58,25 @@ export const LEGAL_ARTICLE_CLASSES = `
 `
   .replace(/\s+/g, " ")
   .trim();
+
+/**
+ * The PUBLIC-only white document card chrome. Never used by the
+ * authenticated flat layout — internal documents render the typography
+ * chain directly on the application page background.
+ */
+export const LEGAL_ARTICLE_CARD = `
+  relative overflow-hidden rounded-[24px] border bg-white
+  shadow-[0_18px_42px_rgba(8,18,22,0.04)]
+  px-6 py-8 md:px-10 md:py-12 lg:px-14 lg:py-14
+`
+  .replace(/\s+/g, " ")
+  .trim();
+
+/**
+ * The canonical PUBLIC article: white rounded card + typography chain.
+ * Identical output to the pre-split public /legal/[slug] styling.
+ */
+export const LEGAL_ARTICLE_CLASSES = `${LEGAL_ARTICLE_CARD} ${LEGAL_ARTICLE_TYPOGRAPHY}`;
 
 /** Muted meta-line style used under document headings (version · state). */
 export const LEGAL_META_CLASSES =

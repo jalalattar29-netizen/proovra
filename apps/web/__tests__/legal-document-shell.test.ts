@@ -20,8 +20,9 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  LEGAL_ARTICLE_CARD,
   LEGAL_ARTICLE_CLASSES,
-  LEGAL_HERO_IMAGE,
+  LEGAL_ARTICLE_TYPOGRAPHY,
   LEGAL_PAGE_BG,
 } from "../components/legal/legalArticleStyles";
 
@@ -42,22 +43,33 @@ const PRIVACY_SECTION = read("app/(app)/settings/_sections/PrivacySection.tsx");
 // RUNTIME — canonical token exports
 // ---------------------------------------------------------------------------
 
-test("canonical tokens: one page background, one hero artwork, one typography chain", () => {
+test("canonical tokens: one page background, one typography chain, card is public-only", () => {
   assert.equal(LEGAL_PAGE_BG, "#F6F9FC");
-  assert.equal(LEGAL_HERO_IMAGE, "/assets/hero/legal-hero.png");
-  // The typography chain carries the public contract's signature rules.
+  // The SHARED typography chain carries the public contract's signature
+  // rules — used verbatim by both the public card article and the flat
+  // internal article (zero drift).
   for (const signature of [
     "[&_h2]:text-[1.42rem]",
     "[&_p]:leading-[1.88]",
     "[&_ul>li::before]:bg-[#2563EB]",
-    "rounded-[24px]",
     "[&_th]:uppercase",
   ]) {
     assert.ok(
-      LEGAL_ARTICLE_CLASSES.includes(signature),
+      LEGAL_ARTICLE_TYPOGRAPHY.includes(signature),
       `typography chain carries ${signature}`,
     );
   }
+  // The white document card is PUBLIC-only chrome: present in the card
+  // token + the public composite, never in the typography chain.
+  assert.ok(LEGAL_ARTICLE_CARD.includes("rounded-[24px]"));
+  assert.ok(LEGAL_ARTICLE_CARD.includes("bg-white"));
+  assert.ok(!LEGAL_ARTICLE_TYPOGRAPHY.includes("rounded-[24px]"));
+  assert.ok(!LEGAL_ARTICLE_TYPOGRAPHY.includes("shadow-"));
+  // The public composite is exactly card + typography.
+  assert.equal(
+    LEGAL_ARTICLE_CLASSES,
+    `${LEGAL_ARTICLE_CARD} ${LEGAL_ARTICLE_TYPOGRAPHY}`,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -71,9 +83,20 @@ test("public /legal/[slug] consumes the shared typography source (no inline fork
   assert.doesNotMatch(PUBLIC_SLUG, /\[&_h2\]:text-\[1\.42rem\]/);
 });
 
-test("the authenticated shell consumes the same source and never decides authorization", () => {
-  assert.match(SHELL, /LEGAL_ARTICLE_CLASSES/);
-  assert.match(SHELL, /LEGAL_HERO_IMAGE/);
+test("the authenticated shell is FLAT: shared typography, no hero, no card, no authorization", () => {
+  // Same zero-drift typography chain as the public article…
+  assert.match(SHELL, /LEGAL_ARTICLE_TYPOGRAPHY/);
+  // …but never the public-only chrome: no hero artwork, no white
+  // document card (2026-07-19 flat enterprise-document layout).
+  assert.doesNotMatch(SHELL, /LEGAL_HERO_IMAGE/);
+  assert.doesNotMatch(SHELL, /LEGAL_ARTICLE_CLASSES/);
+  assert.doesNotMatch(SHELL, /LEGAL_ARTICLE_CARD/);
+  assert.doesNotMatch(SHELL, /legal-hero/);
+  assert.doesNotMatch(SHELL, /data-legal-document-hero/);
+  // The compact header replaces the hero and keeps its content.
+  assert.match(SHELL, /data-legal-document-header/);
+  assert.match(SHELL, /data-legal-document-title/);
+  assert.match(SHELL, /data-legal-document-divider/);
   // Import-scoped (docblock prose may NAME the gates it defers to):
   // the shell never imports an authorization or data-fetch module.
   assert.doesNotMatch(
@@ -83,8 +106,6 @@ test("the authenticated shell consumes the same source and never decides authori
   // Scope badge vocabulary is bounded.
   assert.match(SHELL, /Organization document/);
   assert.match(SHELL, /Trust documentation/);
-  // No second global navigation inside the app — covered by the
-  // import-scoped assertion above (the public hero owns that header).
 });
 
 // ---------------------------------------------------------------------------

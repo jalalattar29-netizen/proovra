@@ -67,6 +67,29 @@ export function titleFromSlug(slug: string) {
   return map[slug] ?? slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
+/**
+ * THE one canonical authenticated-link mapper (routing-correction
+ * 2026-07-19). Converts a public legal-document href to its
+ * authenticated reader equivalent so links embedded in document
+ * markdown never eject a signed-in user from the App Shell:
+ *
+ *   /legal/<slug>       → /settings/legal/<slug>   (valid slugs only)
+ *   /privacy | /terms   → /settings/legal/{privacy,terms}
+ *   /security-overview  → /settings/legal/security
+ *
+ * Everything else (external URLs, mailto:, /trust, /support, marketing
+ * routes) passes through untouched. Used by the INTERNAL reader only —
+ * the public /legal/[slug] pages keep the public hrefs.
+ */
+export function internalLegalDocumentHref(href: string): string {
+  const m = href.match(/^\/legal\/([a-z0-9-]+)(?:[/?#].*)?$/);
+  if (m && ALLOWED_LEGAL_SLUGS.has(m[1])) return `/settings/legal/${m[1]}`;
+  if (href === "/privacy") return "/settings/legal/privacy";
+  if (href === "/terms") return "/settings/legal/terms";
+  if (href === "/security-overview") return "/settings/legal/security";
+  return href;
+}
+
 export async function loadLegalMarkdown(slug: string) {
   const filePath = path.join(
     process.cwd(),
@@ -94,7 +117,19 @@ export async function loadLegalMarkdown(slug: string) {
  * /legal/[slug] document — adding table support here fixes table
  * rendering globally.
  */
-export function renderLegalMarkdown(md: string) {
+export function renderLegalMarkdown(
+  md: string,
+  opts?: {
+    /**
+     * Optional href mapper applied to every internal (non-external)
+     * markdown link — the authenticated reader passes
+     * `internalLegalDocumentHref` so document cross-references stay
+     * inside the App Shell. Public pages omit it (hrefs verbatim).
+     */
+    mapHref?: (href: string) => string;
+  },
+) {
+  const mapHref = opts?.mapHref;
   const lines = md.replace(/\r\n/g, "\n").split("\n");
   const nodes: ReactNode[] = [];
   let listItems: ReactNode[] = [];
@@ -155,9 +190,10 @@ export function renderLegalMarkdown(md: string) {
         const match = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
         if (match) {
           const label = match[1];
-          const href = match[2];
+          const rawHref = match[2];
           const isExternal =
-            /^https?:\/\//i.test(href) || /^mailto:/i.test(href);
+            /^https?:\/\//i.test(rawHref) || /^mailto:/i.test(rawHref);
+          const href = !isExternal && mapHref ? mapHref(rawHref) : rawHref;
 
           out.push(
             <a

@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 
 import { findSurfaceTierRule } from "../lib/surface/tiers";
 import { ROUTE_REGISTRY } from "../lib/navigation/routeRegistry";
+import { internalLegalDocumentHref } from "../app/legal/legal-content";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string): string => readFileSync(resolve(APP_ROOT, rel), "utf8");
@@ -172,6 +173,35 @@ test("trust-center related links use the internal reader; /trust exits are label
   // Org Admin's deep link to /trust is labeled too.
   const orgAdmin = read("app/(app)/organizations/[id]/admin/trust/page.tsx");
   assert.match(orgAdmin, /Open public Trust Center/);
+});
+
+// ---------------------------------------------------------------------------
+// 3b. Markdown-embedded document links stay in-app (runtime mapper)
+// ---------------------------------------------------------------------------
+
+test("internalLegalDocumentHref maps embedded public legal hrefs to the reader", () => {
+  // Valid document links map into the authenticated namespace.
+  assert.equal(internalLegalDocumentHref("/legal/privacy"), "/settings/legal/privacy");
+  assert.equal(internalLegalDocumentHref("/legal/aup"), "/settings/legal/aup");
+  assert.equal(internalLegalDocumentHref("/privacy"), "/settings/legal/privacy");
+  assert.equal(internalLegalDocumentHref("/terms"), "/settings/legal/terms");
+  assert.equal(internalLegalDocumentHref("/security-overview"), "/settings/legal/security");
+  // Anchored links keep working.
+  assert.equal(
+    internalLegalDocumentHref("/legal/privacy#retention"),
+    "/settings/legal/privacy",
+  );
+  // Non-document and unknown paths pass through untouched.
+  assert.equal(internalLegalDocumentHref("/trust"), "/trust");
+  assert.equal(internalLegalDocumentHref("/support"), "/support");
+  assert.equal(internalLegalDocumentHref("/contact-sales"), "/contact-sales");
+  assert.equal(internalLegalDocumentHref("/legal/not-a-doc"), "/legal/not-a-doc");
+});
+
+test("the internal reader wires the mapper into renderLegalMarkdown; public page does not", () => {
+  assert.match(READER, /renderLegalMarkdown\(content, \{ mapHref: internalLegalDocumentHref \}\)/);
+  const PUBLIC_SLUG = read("app/legal/[slug]/page.tsx");
+  assert.doesNotMatch(PUBLIC_SLUG, /mapHref/);
 });
 
 // ---------------------------------------------------------------------------
