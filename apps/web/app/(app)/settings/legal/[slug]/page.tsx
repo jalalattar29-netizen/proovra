@@ -26,7 +26,6 @@
  */
 
 import { notFound } from "next/navigation";
-import Link from "next/link";
 
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { LegalDocumentShell } from "../../../../../components/legal/LegalDocumentShell";
@@ -80,23 +79,14 @@ export default async function InternalLegalDocumentPage({
           scope="ACCOUNT"
           backHref="/settings#privacy"
           backLabel="Back to Privacy & legal records"
+          /* The explicitly-labelled public counterpart — rendered by the
+             shell as the "View public version ↗" action (leaves the app). */
+          publicVersionHref={`/legal/${slug}`}
         >
           {/* Document cross-references stay in-app: every /legal/<slug>,
               /privacy, /terms link embedded in the markdown maps to the
               authenticated reader (public pages render hrefs verbatim). */}
           {renderLegalMarkdown(content, { mapHref: internalLegalDocumentHref })}
-          <hr />
-          <p>
-            This is the same document served on the public site.{" "}
-            <Link
-              href={`/legal/${slug}`}
-              className="legal-link"
-              data-internal-legal-public-counterpart
-            >
-              Open the public version
-            </Link>{" "}
-            (leaves the app).
-          </p>
         </LegalDocumentShell>
       </PageRouteGate>
     </div>

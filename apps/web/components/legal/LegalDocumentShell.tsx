@@ -3,34 +3,36 @@
 /**
  * Canonical AUTHENTICATED legal/trust document shell.
  *
- * 2026-07-19 flat enterprise-document layout: the user is already
- * inside the App Shell, so internal legal/trust pages carry NO
- * marketing hero and NO white article card. The page is:
+ * 2026-07-20 enterprise-documentation refinement (on top of the
+ * 2026-07-19 flat layout): the page reads like a polished internal
+ * documentation system —
  *
- *   compact document header (back link → badges → title → summary →
- *   meta) directly on the application page background
+ *   compact LEFT-aligned document header (back → badges → gradient
+ *   title → summary → metadata row with scope + public-version action)
  *   → thin divider
- *   → document body directly on the page background
+ *   → two-column documentation area: compact sticky "On this page"
+ *     navigation + a CENTERED ~760px reading column (overall region
+ *     capped at 1140px and centered in the app content area)
+ *   → document footer: related documents + public-version action.
  *
- * The document TYPOGRAPHY is the same zero-drift chain as the public
- * /legal/[slug] pages (`LEGAL_ARTICLE_TYPOGRAPHY`); only the outer
- * composition differs — the public pages keep their hero + white card,
- * internal pages are flat. The title keeps the canonical navy +
- * blue→violet→magenta gradient treatment, placed directly on the page
- * background.
+ * Still NO marketing hero, NO image background, NO white article card:
+ * the document renders directly on the application background through
+ * the same zero-drift typography chain as the public /legal/[slug]
+ * pages (`LEGAL_ARTICLE_TYPOGRAPHY`).
+ *
+ * The TOC is built client-side by scanning the rendered article's H2
+ * headings (ids are assigned post-mount when missing — trust-center
+ * sections already carry ids), so neither the shared markdown renderer
+ * nor the public pages change. Documents with fewer than two sections,
+ * and the operational variant (status page), render without a TOC.
  *
  * PRESENTATION ONLY. This shell never decides authorization — parents
  * keep their PageRouteGate / org-permission gates, and the scope badge
  * is a label, not a gate.
- *
- * Variants:
- *   variant="document"     → children render through the canonical
- *                            typography chain (long-form documents).
- *   variant="operational"  → children render as-is (status page — live
- *                            widgets, not legal prose).
  */
 
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 import {
   LEGAL_ARTICLE_TYPOGRAPHY,
@@ -44,6 +46,12 @@ const SCOPE_BADGE_LABEL: Record<LegalDocumentScope, string | null> = {
   PUBLIC: null,
   ACCOUNT: "Trust documentation",
   ORGANIZATION: "Organization document",
+};
+
+const SCOPE_META_LABEL: Record<LegalDocumentScope, string | null> = {
+  PUBLIC: null,
+  ACCOUNT: "Scope: Account",
+  ORGANIZATION: "Scope: Organization",
 };
 
 export type LegalRelatedLink = { label: string; href: string };
@@ -64,6 +72,13 @@ export type LegalDocumentShellProps = {
   backLabel?: string;
   /** Short contextual related-documents list — never the old 24-link dump. */
   relatedLinks?: ReadonlyArray<LegalRelatedLink>;
+  /**
+   * Public counterpart of this document (e.g. `/legal/privacy`). Rendered
+   * as the explicitly-labelled public-version action in the header
+   * metadata row and the document footer. Leaving the app is always
+   * labelled; never pass an internal route here.
+   */
+  publicVersionHref?: string;
   variant?: "document" | "operational";
   /** Optional slot rendered below the header meta (callouts etc.). */
   heroChildren?: React.ReactNode;
@@ -94,6 +109,17 @@ function DocumentTitle({ title, highlight }: { title: string; highlight?: string
   );
 }
 
+type TocItem = { id: string; text: string };
+
+function slugifyHeading(text: string, index: number): string {
+  const slug = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+  return slug || `section-${index}`;
+}
+
 export function LegalDocumentShell({
   label,
   title,
@@ -105,24 +131,88 @@ export function LegalDocumentShell({
   backHref = "/trust",
   backLabel = "Open public Trust Center",
   relatedLinks,
+  publicVersionHref,
   variant = "document",
   heroChildren,
   children,
 }: LegalDocumentShellProps) {
   const scopeBadge = SCOPE_BADGE_LABEL[scope];
+  const scopeMeta = SCOPE_META_LABEL[scope];
+
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [toc, setToc] = useState<ReadonlyArray<TocItem>>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  // Build the "On this page" navigation from the rendered H2 headings.
+  // Client-side only: assigns missing ids without touching the shared
+  // renderer (public pages stay byte-identical).
+  useEffect(() => {
+    if (variant !== "document") return;
+    const root = bodyRef.current;
+    if (!root) return;
+    const headings = Array.from(
+      root.querySelectorAll<HTMLHeadingElement>("article[data-legal-content] h2"),
+    );
+    const seen = new Set<string>();
+    const items: TocItem[] = headings.map((h, i) => {
+      let id = h.id || slugifyHeading(h.textContent ?? "", i);
+      while (seen.has(id)) id = `${id}-${i}`;
+      seen.add(id);
+      h.id = id;
+      return { id, text: (h.textContent ?? "").trim() };
+    });
+    setToc(items);
+
+    // Active section = the last heading at or above the reading line
+    // (just under the sticky app header). Scroll is captured at the
+    // document level so any scrollable app container is covered; a
+    // low-frequency position watcher backstops environments where
+    // scroll events are throttled or suppressed. setActiveId with an
+    // unchanged id is a React no-op, so the watcher never causes
+    // needless re-renders.
+    let frame = 0;
+    const updateActive = () => {
+      frame = 0;
+      let current: string | null = items[0]?.id ?? null;
+      for (const item of items) {
+        const el = document.getElementById(item.id);
+        if (el && el.getBoundingClientRect().top <= 120) current = item.id;
+      }
+      setActiveId(current);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(updateActive);
+    };
+    document.addEventListener("scroll", onScroll, { passive: true, capture: true });
+    const watcher = window.setInterval(updateActive, 400);
+    updateActive();
+    return () => {
+      document.removeEventListener("scroll", onScroll, { capture: true });
+      window.clearInterval(watcher);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [variant, children]);
+
+  const showToc = variant === "document" && toc.length >= 2;
+
+  const publicVersionAction = publicVersionHref ? (
+    <Link
+      href={publicVersionHref}
+      data-internal-legal-public-counterpart
+      className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#2563EB] no-underline hover:text-[#1E40AF] hover:underline hover:underline-offset-4"
+    >
+      View public version <span aria-hidden="true">↗</span>
+    </Link>
+  ) : null;
 
   return (
     <div
       className="legal-document-shell"
       data-legal-document-shell={scope.toLowerCase()}
     >
-      {/* Enterprise-docs composition: the compact header stays
-          LEFT-aligned; the reading column below it is horizontally
-          centered at the same max-width as the public legal pages. */}
       <div className="w-full px-6 py-8 md:px-8 md:py-10">
-        {/* HEADER — compact console document header, left-aligned. No
-            hero image, no gradient panel, no card: content sits on the
-            page background. */}
+        {/* HEADER — compact console document header, LEFT-aligned. No
+            hero image, no gradient panel, no card. */}
         <header className="max-w-[960px]" data-legal-document-header>
           {backHref ? (
             <div className="mb-4">
@@ -172,11 +262,25 @@ export function LegalDocumentShell({
             {summary}
           </p>
 
-          {meta ? (
-            <div className={`mt-3 ${LEGAL_META_CLASSES}`} data-legal-document-meta>
-              {meta}
-            </div>
-          ) : null}
+          {/* Metadata row — updated/type · scope · public-version action. */}
+          <div
+            className={`mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 ${LEGAL_META_CLASSES}`}
+            data-legal-document-meta
+          >
+            {meta ? <span>{meta}</span> : null}
+            {scopeMeta ? (
+              <>
+                {meta ? <span aria-hidden="true">·</span> : null}
+                <span data-legal-document-scope-meta>{scopeMeta}</span>
+              </>
+            ) : null}
+            {publicVersionAction ? (
+              <>
+                <span aria-hidden="true">·</span>
+                {publicVersionAction}
+              </>
+            ) : null}
+          </div>
           {organizationName ? (
             <div
               className={`mt-1 ${LEGAL_META_CLASSES}`}
@@ -196,42 +300,110 @@ export function LegalDocumentShell({
           />
         </header>
 
-        {/* BODY — CENTERED reading column at the same max-width as the
-            public /legal/[slug] pages (mx-auto max-w-5xl). The canonical
-            typography chain renders directly on the page background —
-            still no white card, no shadow, no panel. */}
-        <div className="mx-auto w-full max-w-5xl pt-8" data-legal-document-reading-column>
-          {variant === "document" ? (
-            <article className={LEGAL_ARTICLE_TYPOGRAPHY} data-legal-content>
-              {children}
-            </article>
-          ) : (
-            <div data-legal-operational-body>{children}</div>
-          )}
+        {/* DOCUMENTATION AREA — centered region; sticky TOC + centered
+            narrow reading column. Directly on the app background. */}
+        <div
+          ref={bodyRef}
+          className="mx-auto w-full max-w-[1140px] pt-8"
+          data-legal-document-reading-column
+        >
+          <div
+            className={
+              showToc
+                ? "lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-14"
+                : undefined
+            }
+          >
+            {showToc ? (
+              <aside className="hidden lg:block">
+                <nav
+                  aria-label="On this page"
+                  data-legal-document-toc
+                  className="sticky top-24"
+                >
+                  <div className="text-[0.72rem] font-bold uppercase tracking-[0.14em] text-[#64748B]">
+                    On this page
+                  </div>
+                  <ul className="mt-3 grid gap-0.5 border-l border-[#E2E8F0]">
+                    {toc.map((item) => (
+                      <li key={item.id}>
+                        <a
+                          href={`#${item.id}`}
+                          data-legal-toc-active={activeId === item.id || undefined}
+                          className={
+                            activeId === item.id
+                              ? "-ml-px block border-l-2 border-[#7C3AED] py-1 pl-3 text-[0.82rem] font-semibold leading-[1.4] text-[#0F172A] no-underline"
+                              : "block border-l-2 border-transparent py-1 pl-3 text-[0.82rem] leading-[1.4] text-[#64748B] no-underline hover:text-[#0F172A]"
+                          }
+                        >
+                          {item.text}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+              </aside>
+            ) : null}
 
-          {relatedLinks && relatedLinks.length > 0 ? (
-            <nav
-              aria-label="Related documents"
-              className="mt-10 border-t border-[#DDE6F2] pt-5"
-              data-legal-related-links
-            >
-              <div className="text-[0.78rem] font-bold uppercase tracking-[0.12em] text-[#475569]">
-                Related documents
-              </div>
-              <ul className="mt-3 grid gap-2">
-                {relatedLinks.map((l) => (
-                  <li key={l.href}>
-                    <Link
-                      href={l.href}
-                      className="text-[0.95rem] font-medium text-[#2563EB] underline underline-offset-4 hover:text-[#1E40AF]"
+            <div className="mx-auto w-full max-w-[760px]">
+              {variant === "document" ? (
+                <article
+                  className={`${LEGAL_ARTICLE_TYPOGRAPHY} [&_h2]:scroll-mt-24`}
+                  data-legal-content
+                >
+                  {children}
+                </article>
+              ) : (
+                <div data-legal-operational-body>{children}</div>
+              )}
+
+              {/* DOCUMENT FOOTER — related documents + public action. */}
+              {(relatedLinks && relatedLinks.length > 0) || publicVersionHref ? (
+                <footer
+                  className="mt-12 border-t border-[#DDE6F2] pt-6"
+                  data-legal-document-footer
+                >
+                  {relatedLinks && relatedLinks.length > 0 ? (
+                    <nav aria-label="Related documents" data-legal-related-links>
+                      <div className="text-[0.72rem] font-bold uppercase tracking-[0.14em] text-[#64748B]">
+                        Related documents
+                      </div>
+                      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {relatedLinks.map((l) => (
+                          <li key={l.href}>
+                            <Link
+                              href={l.href}
+                              className="group flex items-center justify-between gap-3 rounded-lg border border-[#E2E8F0] px-3.5 py-2.5 text-[0.9rem] font-medium text-[#0F172A] no-underline transition-colors hover:border-[#7C3AED66] hover:text-[#1E40AF]"
+                            >
+                              <span>{l.label}</span>
+                              <span
+                                aria-hidden="true"
+                                className="text-[#94A3B8] transition-colors group-hover:text-[#7C3AED]"
+                              >
+                                →
+                              </span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </nav>
+                  ) : null}
+
+                  {publicVersionAction ? (
+                    <div
+                      className={`${relatedLinks && relatedLinks.length > 0 ? "mt-6" : ""} flex flex-wrap items-center gap-2`}
+                      data-legal-document-public-action
                     >
-                      {l.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          ) : null}
+                      {publicVersionAction}
+                      <span className={LEGAL_META_CLASSES}>
+                        Same document on the public site (leaves the app).
+                      </span>
+                    </div>
+                  ) : null}
+                </footer>
+              ) : null}
+            </div>
+          </div>
         </div>
       </div>
     </div>

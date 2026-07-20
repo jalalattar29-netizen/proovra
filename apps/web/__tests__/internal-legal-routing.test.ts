@@ -72,9 +72,14 @@ test("internal reader renders the SHARED content source through the authenticate
   assert.doesNotMatch(READER, /^"use client"/m);
   // Unknown slugs 404 instead of rendering an empty document.
   assert.match(READER, /notFound\(\)/);
-  // The one outbound link to the public counterpart is explicitly labeled.
-  assert.match(READER, /data-internal-legal-public-counterpart/);
-  assert.match(READER, /leaves the app/);
+  // The one outbound link to the public counterpart is explicitly labeled:
+  // the reader passes publicVersionHref; the shell renders the marked,
+  // labelled "View public version" action.
+  assert.match(READER, /publicVersionHref=\{`\/legal\/\$\{slug\}`\}/);
+  const SHELL_SRC = read("components/legal/LegalDocumentShell.tsx");
+  assert.match(SHELL_SRC, /data-internal-legal-public-counterpart/);
+  assert.match(SHELL_SRC, /View public version/);
+  assert.match(SHELL_SRC, /leaves the app/);
 });
 
 test("/settings/legal/* inherits the CORE allow tier (no redirect off the shell)", () => {
