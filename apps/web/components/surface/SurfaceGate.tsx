@@ -83,7 +83,10 @@ export function SurfaceGate({
         actions={[
           { label: "Back to dashboard", href: "/home", variant: "primary" },
           { label: "View plans", href: "/billing", variant: "secondary" },
-          { label: "Contact support", href: "/support", variant: "secondary" },
+          // /support is a public page; this forbidden state renders inside
+          // the authenticated App Shell, so open it in a new tab (external
+          // cue) rather than replacing the app in the current tab.
+          { label: "Contact support", href: "/support", variant: "secondary", external: true },
         ]}
       />
     );

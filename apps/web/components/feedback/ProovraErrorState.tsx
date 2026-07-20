@@ -24,6 +24,14 @@ export interface ProovraErrorAction {
   href?: string;
   onClick?: () => void;
   variant?: "primary" | "secondary";
+  /**
+   * Opt-in: open this action's href in a NEW tab (target=_blank +
+   * rel=noopener noreferrer) with a visible ↗ cue. Used for public
+   * destinations reached from an authenticated context (e.g. the public
+   * /support page from a forbidden gate) so the app stays in the current
+   * tab. Off by default — existing same-tab actions are unchanged.
+   */
+  external?: boolean;
 }
 
 export function ProovraErrorState({
@@ -77,9 +85,21 @@ export function ProovraErrorState({
                 <a
                   key={a.label}
                   href={a.href}
+                  {...(a.external
+                    ? {
+                        target: "_blank",
+                        rel: "noopener noreferrer",
+                        "aria-label": `${a.label} — opens in a new tab`,
+                      }
+                    : {})}
                   style={a.variant === "secondary" ? secondaryBtnStyle : primaryBtnStyle}
                 >
                   {a.label}
+                  {a.external ? (
+                    <span aria-hidden="true" style={{ marginLeft: 4 }}>
+                      ↗
+                    </span>
+                  ) : null}
                 </a>
               ) : (
                 <button

@@ -101,6 +101,176 @@ export async function loadLegalMarkdown(slug: string) {
   return readFile(filePath, "utf8");
 }
 
+
+// ---------------------------------------------------------------------------
+// Documentation presentation components (2026-07-20 enterprise rebuild).
+//
+// Used ONLY when the renderer runs with `enhance: true` (the
+// authenticated reader). The markdown SOURCE never changes — these are
+// presentation upgrades for structures the corpus already contains
+// (provider/address + contact blocks, short enumerations). Public
+// pages render without `enhance` and stay byte-identical.
+// ---------------------------------------------------------------------------
+
+function IconBuilding() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M4 17V4.5A1.5 1.5 0 0 1 5.5 3h5A1.5 1.5 0 0 1 12 4.5V17M12 8h2.5A1.5 1.5 0 0 1 16 9.5V17M2.5 17h15" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6.5 6.5h3M6.5 9.5h3M6.5 12.5h3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconMail() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="2.5" y="4.5" width="15" height="11" rx="2" />
+      <path d="m3.5 6 6.5 5 6.5-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconShieldSmall() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M10 2.5 4 5v4.5c0 3.7 2.6 6.6 6 8 3.4-1.4 6-4.3 6-8V5l-6-2.5Z" strokeLinejoin="round" />
+      <path d="m7.5 9.8 1.8 1.8 3.2-3.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconChip() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="3.5" y="3.5" width="13" height="13" rx="3" />
+      <path d="m7.5 10 1.8 1.8 3.4-3.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+type ContactItem = { email: string; description?: string };
+
+/** Two-column enterprise provider/contact Information Panel. */
+function ProviderPanel({
+  addressLines,
+  contacts,
+}: {
+  addressLines: ReadonlyArray<string>;
+  contacts: ReadonlyArray<ContactItem>;
+}) {
+  return (
+    <div
+      data-legal-provider-panel
+      className="my-7 rounded-[14px] border border-[#E2E8F0] bg-white/70 px-6 py-5"
+    >
+      <div className="grid gap-6 sm:grid-cols-[1fr_1px_1.2fr] sm:gap-8">
+        <div className="flex items-start gap-3.5">
+          <span
+            aria-hidden="true"
+            className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#F1F5F9] text-[#64748B]"
+          >
+            <IconBuilding />
+          </span>
+          <div className="grid gap-0.5 text-[0.92rem] leading-[1.6] text-[#475569]">
+            {addressLines.map((line, i) => (
+              <div key={i} className={i === 0 ? "font-semibold text-[#0F172A]" : undefined}>
+                {line}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div aria-hidden="true" className="hidden w-px bg-[#EEF2F7] sm:block" />
+        <div className="grid content-center gap-2.5">
+          {contacts.map((c) => (
+            <a
+              key={c.email}
+              href={`mailto:${c.email}`}
+              className="inline-flex items-baseline gap-2.5 text-[0.9rem] font-medium text-[#334155] no-underline hover:text-[#1E40AF]"
+            >
+              <span className="translate-y-0.5 text-[#64748B]">
+                {/^security@/.test(c.email) ? <IconShieldSmall /> : <IconMail />}
+              </span>
+              <span>
+                {c.email}
+                {c.description ? (
+                  <span className="font-normal text-[#94A3B8]"> — {c.description}</span>
+                ) : null}
+              </span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Contact rows without an address block. */
+function ContactPanel({ contacts }: { contacts: ReadonlyArray<ContactItem> }) {
+  return (
+    <div
+      data-legal-contact-panel
+      className="my-6 grid gap-2.5 rounded-[14px] border border-[#E2E8F0] bg-white/70 px-6 py-4"
+    >
+      {contacts.map((c) => (
+        <a
+          key={c.email}
+          href={`mailto:${c.email}`}
+          className="inline-flex items-baseline gap-2.5 text-[0.9rem] font-medium text-[#334155] no-underline hover:text-[#1E40AF]"
+        >
+          <span className="translate-y-0.5 text-[#64748B]">
+            {/^security@/.test(c.email) ? <IconShieldSmall /> : <IconMail />}
+          </span>
+          <span>
+            {c.email}
+            {c.description ? (
+              <span className="font-normal text-[#94A3B8]"> — {c.description}</span>
+            ) : null}
+          </span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+/** Short enumerations render as scannable capability chips. */
+function ChipRow({ items }: { items: ReadonlyArray<string> }) {
+  return (
+    <div data-legal-chip-row className="my-5 flex flex-wrap gap-2">
+      {items.map((item) => (
+        <span
+          key={item}
+          className="inline-flex items-center gap-2 rounded-[10px] border border-[#E2E8F0] bg-white/70 px-3 py-2 text-[0.82rem] font-medium text-[#334155]"
+        >
+          <span aria-hidden="true" className="text-[#64748B]">
+            <IconChip />
+          </span>
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Markdown renderer
+// ---------------------------------------------------------------------------
+
+const EMAIL_ITEM_RE = /^([\w.+-]+@[\w.-]+\.[a-z]{2,})(?:\s+—\s+(.+))?$/i;
+
+type TaggedKind =
+  | "block" // generic (headings, hr, tables, ordered lists)
+  | "p"
+  | "p-short" // short-line paragraph (address-line candidate)
+  | "p-contact" // "Contact:" label paragraph
+  | "ul";
+
+type Tagged = {
+  kind: TaggedKind;
+  node: ReactNode;
+  rawText?: string;
+  rawItems?: string[];
+};
+
 /**
  * Minimal Markdown renderer for legal documents. Supports:
  *   - H1 / H2 / H3
@@ -110,12 +280,18 @@ export async function loadLegalMarkdown(slug: string) {
  *   - `---` horizontal rule
  *   - GitHub-flavored Markdown tables
  *
- * Tables are emitted as real `<table>` elements wrapped in a
- * horizontally-scrollable enterprise container with #E2E8F0 borders,
- * #F8FAFC header background, navy header text, slate body text, and
- * comfortable cell padding. This is the renderer used by every
- * /legal/[slug] document — adding table support here fixes table
- * rendering globally.
+ * Tables are emitted as enterprise documentation tables (scrollable
+ * container, #E2E8F0 borders, #F8FAFC header, comfortable padding).
+ *
+ * With `opts.enhance` (authenticated reader ONLY) the renderer also
+ * recognizes structured legal content and presents it visually,
+ * WITHOUT changing the markdown source:
+ *   - address block + "Contact:" + email list → two-column Provider
+ *     Information Panel;
+ *   - standalone email lists → contact rows with icons;
+ *   - short enumerations (3–8 items, each 8–36 chars, ≥2 words, no
+ *     links/periods) → scannable chip rows.
+ * Public pages never pass `enhance` and render exactly as before.
  */
 export function renderLegalMarkdown(
   md: string,
@@ -127,37 +303,49 @@ export function renderLegalMarkdown(
      * inside the App Shell. Public pages omit it (hrefs verbatim).
      */
     mapHref?: (href: string) => string;
+    /** Enable structured-content presentation (internal reader only). */
+    enhance?: boolean;
   },
 ) {
   const mapHref = opts?.mapHref;
+  const enhance = opts?.enhance === true;
   const lines = md.replace(/\r\n/g, "\n").split("\n");
-  const nodes: ReactNode[] = [];
+  const tagged: Tagged[] = [];
   let listItems: ReactNode[] = [];
+  let listRaw: string[] = [];
   let orderedItems: ReactNode[] = [];
 
   const flushLists = () => {
     if (listItems.length > 0) {
-      nodes.push(
-        <ul key={`ul-${nodes.length}`} className="legal-list">
-          {listItems.map((item, idx) => (
-            <li key={idx}>{item}</li>
-          ))}
-        </ul>,
-      );
+      tagged.push({
+        kind: "ul",
+        rawItems: listRaw,
+        node: (
+          <ul key={`ul-${tagged.length}`} className="legal-list">
+            {listItems.map((item, idx) => (
+              <li key={idx}>{item}</li>
+            ))}
+          </ul>
+        ),
+      });
       listItems = [];
+      listRaw = [];
     }
 
     if (orderedItems.length > 0) {
-      nodes.push(
-        <ol
-          key={`ol-${nodes.length}`}
-          className="legal-list legal-list-ordered"
-        >
-          {orderedItems.map((item, idx) => (
-            <li key={idx}>{item}</li>
-          ))}
-        </ol>,
-      );
+      tagged.push({
+        kind: "block",
+        node: (
+          <ol
+            key={`ol-${tagged.length}`}
+            className="legal-list legal-list-ordered"
+          >
+            {orderedItems.map((item, idx) => (
+              <li key={idx}>{item}</li>
+            ))}
+          </ol>
+        ),
+      });
       orderedItems = [];
     }
   };
@@ -270,16 +458,10 @@ export function renderLegalMarkdown(
       i++;
     }
 
-    const wrapperStyle: React.CSSProperties = {
-      overflowX: "auto",
-      WebkitOverflowScrolling: "touch",
-      margin: "1.5rem 0",
-      borderRadius: "12px",
-      border: "1px solid #E2E8F0",
-      boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
-      background: "#FFFFFF",
-    };
-
+    // Container chrome (overflow scroll, border, radius, background,
+    // breakout) lives in the canonical .legal-table-wrapper / .legal-table
+    // CSS so markdown tables and aligned direct React tables render
+    // identically. Only data-driven per-cell alignment stays inline.
     const tableStyle: React.CSSProperties = {
       width: "100%",
       borderCollapse: "collapse",
@@ -288,11 +470,7 @@ export function renderLegalMarkdown(
     };
 
     const node = (
-      <div
-        key={`tw-${start}`}
-        className="legal-table-wrapper"
-        style={wrapperStyle}
-      >
+      <div key={`tw-${start}`} className="legal-table-wrapper">
         <table className="legal-table" style={tableStyle}>
           <thead style={{ background: "#F8FAFC" }}>
             <tr>
@@ -300,14 +478,14 @@ export function renderLegalMarkdown(
                 <th
                   key={`th-${hi}`}
                   style={{
-                    padding: "12px 16px",
+                    padding: "13px 18px",
                     textAlign: alignments[hi] ?? "left",
                     fontWeight: 600,
                     color: "#0F172A",
                     borderBottom: "1px solid #E2E8F0",
-                    fontSize: "12.5px",
+                    fontSize: "12px",
                     textTransform: "uppercase",
-                    letterSpacing: "0.04em",
+                    letterSpacing: "0.06em",
                     whiteSpace: "nowrap",
                   }}
                 >
@@ -323,10 +501,11 @@ export function renderLegalMarkdown(
                   <td
                     key={`td-${ri}-${ci}`}
                     style={{
-                      padding: "12px 16px",
+                      padding: "13px 18px",
                       textAlign: alignments[ci] ?? "left",
                       color: "#475569",
                       verticalAlign: "top",
+                      lineHeight: 1.6,
                       borderTop: "1px solid #F1F5F9",
                     }}
                   >
@@ -342,6 +521,16 @@ export function renderLegalMarkdown(
 
     return { node, nextIndex: i };
   };
+
+  // Address-line candidate: short, name/street-like, no sentence
+  // punctuation, no markdown constructs.
+  const isShortLine = (text: string): boolean =>
+    text.length >= 3 &&
+    text.length <= 48 &&
+    !/[.:;,]$/.test(text) &&
+    text.split(/\s+/).length <= 6 &&
+    !/[[\]|*#>]/.test(text) &&
+    !EMAIL_ITEM_RE.test(text);
 
   let cursor = 0;
   while (cursor < lines.length) {
@@ -362,7 +551,7 @@ export function renderLegalMarkdown(
       const table = tryParseTable(cursor);
       if (table) {
         flushLists();
-        nodes.push(table.node);
+        tagged.push({ kind: "block", node: table.node });
         cursor = table.nextIndex;
         continue;
       }
@@ -370,40 +559,54 @@ export function renderLegalMarkdown(
 
     if (trimmed === "---") {
       flushLists();
-      nodes.push(<hr key={`hr-${nodes.length}`} className="legal-divider" />);
+      tagged.push({
+        kind: "block",
+        node: <hr key={`hr-${tagged.length}`} className="legal-divider" />,
+      });
       cursor++;
       continue;
     }
 
     if (trimmed.startsWith("### ")) {
       flushLists();
-      nodes.push(
-        <h3 key={`h3-${nodes.length}`}>{renderInline(trimmed.slice(4))}</h3>,
-      );
+      tagged.push({
+        kind: "block",
+        node: (
+          <h3 key={`h3-${tagged.length}`}>{renderInline(trimmed.slice(4))}</h3>
+        ),
+      });
       cursor++;
       continue;
     }
 
     if (trimmed.startsWith("## ")) {
       flushLists();
-      nodes.push(
-        <h2 key={`h2-${nodes.length}`}>{renderInline(trimmed.slice(3))}</h2>,
-      );
+      tagged.push({
+        kind: "block",
+        node: (
+          <h2 key={`h2-${tagged.length}`}>{renderInline(trimmed.slice(3))}</h2>
+        ),
+      });
       cursor++;
       continue;
     }
 
     if (trimmed.startsWith("# ")) {
       flushLists();
-      nodes.push(
-        <h1 key={`h1-${nodes.length}`}>{renderInline(trimmed.slice(2))}</h1>,
-      );
+      tagged.push({
+        kind: "block",
+        node: (
+          <h1 key={`h1-${tagged.length}`}>{renderInline(trimmed.slice(2))}</h1>
+        ),
+      });
       cursor++;
       continue;
     }
 
     if (trimmed.startsWith("- ")) {
-      listItems.push(renderInline(trimmed.slice(2)));
+      const raw = trimmed.slice(2).trim();
+      listItems.push(renderInline(raw));
+      listRaw.push(raw);
       cursor++;
       continue;
     }
@@ -416,10 +619,117 @@ export function renderLegalMarkdown(
     }
 
     flushLists();
-    nodes.push(<p key={`p-${nodes.length}`}>{renderInline(trimmed)}</p>);
+    const kind: TaggedKind = /^contacts?:$/i.test(trimmed)
+      ? "p-contact"
+      : isShortLine(trimmed)
+        ? "p-short"
+        : "p";
+    tagged.push({
+      kind,
+      rawText: trimmed,
+      node: <p key={`p-${tagged.length}`}>{renderInline(trimmed)}</p>,
+    });
     cursor++;
   }
 
   flushLists();
-  return nodes;
+
+  if (!enhance) return tagged.map((t) => t.node);
+
+  // -------------------------------------------------------------------------
+  // Enhancement post-pass (authenticated reader only).
+  // -------------------------------------------------------------------------
+
+  const parseContacts = (rawItems: string[]): ContactItem[] =>
+    rawItems.map((raw) => {
+      const m = raw.match(EMAIL_ITEM_RE)!;
+      return { email: m[1], description: m[2] };
+    });
+
+  const isEmailList = (t: Tagged): boolean =>
+    t.kind === "ul" &&
+    (t.rawItems?.length ?? 0) > 0 &&
+    t.rawItems!.every((r) => EMAIL_ITEM_RE.test(r));
+
+  const isChipList = (t: Tagged): boolean =>
+    t.kind === "ul" &&
+    (t.rawItems?.length ?? 0) >= 3 &&
+    t.rawItems!.length <= 8 &&
+    t.rawItems!.every(
+      (r) =>
+        r.length >= 8 &&
+        r.length <= 36 &&
+        r.split(/\s+/).length >= 2 &&
+        !/[.[\]@]/.test(r),
+    );
+
+  const out: ReactNode[] = [];
+  let i = 0;
+  while (i < tagged.length) {
+    const t = tagged[i];
+
+    // Provider panel: run of ≥2 short lines (+ optional "Contact:") +
+    // email list — the corpus shape of every provider/impressum block.
+    if (t.kind === "p-short") {
+      let j = i;
+      const address: string[] = [];
+      while (j < tagged.length && tagged[j].kind === "p-short") {
+        address.push(tagged[j].rawText!);
+        j++;
+      }
+      let k = j;
+      if (k < tagged.length && tagged[k].kind === "p-contact") k++;
+      if (address.length >= 2 && k < tagged.length && isEmailList(tagged[k])) {
+        out.push(
+          <ProviderPanel
+            key={`prov-${i}`}
+            addressLines={address}
+            contacts={parseContacts(tagged[k].rawItems!)}
+          />,
+        );
+        i = k + 1;
+        continue;
+      }
+      // No panel — emit the short lines as ordinary paragraphs.
+      for (let x = i; x < j; x++) out.push(tagged[x].node);
+      i = j;
+      continue;
+    }
+
+    // Contact list preceded by a "Contact:" label paragraph.
+    if (t.kind === "p-contact") {
+      if (i + 1 < tagged.length && isEmailList(tagged[i + 1])) {
+        out.push(
+          <ContactPanel
+            key={`contact-${i}`}
+            contacts={parseContacts(tagged[i + 1].rawItems!)}
+          />,
+        );
+        i += 2;
+        continue;
+      }
+      out.push(t.node);
+      i++;
+      continue;
+    }
+
+    if (isEmailList(t)) {
+      out.push(
+        <ContactPanel key={`contact-${i}`} contacts={parseContacts(t.rawItems!)} />,
+      );
+      i++;
+      continue;
+    }
+
+    if (isChipList(t)) {
+      out.push(<ChipRow key={`chips-${i}`} items={t.rawItems!} />);
+      i++;
+      continue;
+    }
+
+    out.push(t.node);
+    i++;
+  }
+
+  return out;
 }

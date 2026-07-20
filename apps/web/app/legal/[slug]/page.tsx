@@ -55,7 +55,13 @@ export default async function LegalPage({
         highlight={hero.highlight}
       />
 
-      {/* Content card on silver background */}
+      {/* Content card on silver background. The article keeps its exact
+          reading width and card chrome; wide tables are handled entirely
+          inside their own isolated scroll container (.legal-table-wrapper
+          — overflow-x within the card), so a large table NEVER widens the
+          article, stretches text, or breaks the reading flow. The
+          wide-table breakout is intentionally NOT enabled here (no
+          `data-legal-doc`); it applies only to the authenticated shell. */}
       <section className="mx-auto max-w-5xl px-6 py-12 md:px-8 md:py-16">
         <article className={LEGAL_ARTICLE_CLASSES} data-legal-content>
           {renderLegalMarkdown(content)}

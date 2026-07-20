@@ -72,14 +72,18 @@ test("internal reader renders the SHARED content source through the authenticate
   assert.doesNotMatch(READER, /^"use client"/m);
   // Unknown slugs 404 instead of rendering an empty document.
   assert.match(READER, /notFound\(\)/);
-  // The one outbound link to the public counterpart is explicitly labeled:
-  // the reader passes publicVersionHref; the shell renders the marked,
-  // labelled "View public version" action.
-  assert.match(READER, /publicVersionHref=\{`\/legal\/\$\{slug\}`\}/);
+  // The per-document "View public version" action was removed (2026-07-20
+  // UX cleanup): the authenticated + public docs share the same canonical
+  // content, so the only public exit is the labelled Trust Center link.
   const SHELL_SRC = read("components/legal/LegalDocumentShell.tsx");
-  assert.match(SHELL_SRC, /data-internal-legal-public-counterpart/);
-  assert.match(SHELL_SRC, /View public version/);
-  assert.match(SHELL_SRC, /leaves the app/);
+  assert.doesNotMatch(READER, /publicVersionHref/);
+  assert.doesNotMatch(SHELL_SRC, /publicVersionHref/);
+  assert.doesNotMatch(SHELL_SRC, /View public version/);
+  // The kept Trust Center action opens the public site in a NEW tab and
+  // leaves the app open in the current one.
+  assert.match(SHELL_SRC, /data-legal-open-public-trust-center/);
+  assert.match(SHELL_SRC, /target="_blank"/);
+  assert.match(SHELL_SRC, /rel="noopener noreferrer"/);
 });
 
 test("/settings/legal/* inherits the CORE allow tier (no redirect off the shell)", () => {
@@ -203,10 +207,11 @@ test("internalLegalDocumentHref maps embedded public legal hrefs to the reader",
   assert.equal(internalLegalDocumentHref("/legal/not-a-doc"), "/legal/not-a-doc");
 });
 
-test("the internal reader wires the mapper into renderLegalMarkdown; public page does not", () => {
-  assert.match(READER, /renderLegalMarkdown\(content, \{ mapHref: internalLegalDocumentHref \}\)/);
+test("the internal reader wires mapper + enhance into renderLegalMarkdown; public page uses neither", () => {
+  assert.match(READER, /mapHref: internalLegalDocumentHref/);
+  assert.match(READER, /enhance: true/);
   const PUBLIC_SLUG = read("app/legal/[slug]/page.tsx");
-  assert.doesNotMatch(PUBLIC_SLUG, /mapHref/);
+  assert.doesNotMatch(PUBLIC_SLUG, /mapHref|enhance/);
 });
 
 // ---------------------------------------------------------------------------

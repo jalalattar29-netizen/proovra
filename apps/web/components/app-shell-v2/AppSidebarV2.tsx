@@ -8,6 +8,7 @@ import {
   Activity,
   Bell,
   BookOpen,
+  ArrowUpRight,
   BriefcaseBusiness,
   Camera,
   CircleHelp,
@@ -831,11 +832,35 @@ export function AppSidebarV2() {
 
         <SidebarStorageWidget />
 
-        <Link href="/support" className="app-sidebar-v2-help" title="Contact support">
+        {/* /support is intentionally public (Marketing Header/Footer). Open
+            it in a NEW tab so the authenticated App Shell stays put in the
+            current tab; the ↗ cue marks it as an external/public page. */}
+        <Link
+          href="/support"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="app-sidebar-v2-help"
+          aria-label="Contact support — opens the public support page in a new tab"
+        >
           <CircleHelp size={20} strokeWidth={1.75} />
           <span>
             <strong>Need help?</strong>
-            <small>Contact support</small>
+            <small>
+              Contact support
+              <ArrowUpRight
+                aria-hidden="true"
+                strokeWidth={2}
+                style={{
+                  width: 12,
+                  height: 12,
+                  marginLeft: 4,
+                  display: "inline",
+                  verticalAlign: "-1px",
+                  flex: "none",
+                  color: "currentColor",
+                }}
+              />
+            </small>
           </span>
         </Link>
       </div>

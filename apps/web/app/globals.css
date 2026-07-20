@@ -4139,3 +4139,118 @@ html[dir="rtl"] .legal-content a::after {
     display: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Canonical legal documentation tables (2026-07-20).
+   ONE implementation shared by EVERY legal/trust table — the markdown
+   renderer's `.legal-table-wrapper`/`.legal-table` AND aligned direct
+   React tables (subprocessors, AI capability disclosure). Internal
+   (/settings/legal/*, Trust Center) and public (/legal/*) surfaces both
+   consume these rules; the wide-table breakout is opted into by the
+   shared `[data-legal-doc]` attribute that both shells carry. No
+   document-specific hacks, no per-surface duplication.
+   --------------------------------------------------------------------------- */
+
+.legal-table-wrapper {
+  /* Self-sufficient container: any table (markdown OR aligned direct
+     React table) gets the same responsive scroll region + card chrome
+     from this ONE class. */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 1.75rem 0;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  background: #ffffff;
+}
+/* Polished, integrated horizontal scrolling (never a raw browser bar).
+   `.legal-scroll` is the scroll-affordance-only variant for compact
+   direct tables (e.g. the live AI capability widget) that keep their
+   own chrome but should share the same scrollbar. */
+.legal-table-wrapper,
+.legal-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.legal-table-wrapper::-webkit-scrollbar,
+.legal-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+.legal-table-wrapper::-webkit-scrollbar-track,
+.legal-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 0 12px;
+}
+.legal-table-wrapper::-webkit-scrollbar-thumb,
+.legal-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+.legal-table-wrapper::-webkit-scrollbar-thumb:hover,
+.legal-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Cells never collapse into unreadable slivers: every column keeps a
+   readable minimum and the table grows (and scrolls/breaks out) instead.
+   Long text wraps; short status/value columns stay compact via
+   intrinsic sizing (no table-layout:fixed, no forced column widths). */
+.legal-table th,
+.legal-table td {
+  min-width: 8.5rem;
+  vertical-align: top;
+}
+/* Comfortable side padding so the first/last columns never touch the
+   container edge or hide under the scroll area. */
+.legal-table th:first-child,
+.legal-table td:first-child {
+  padding-left: 20px !important;
+}
+.legal-table th:last-child,
+.legal-table td:last-child {
+  padding-right: 20px !important;
+}
+
+/* ---------------------------------------------------------------------------
+   Wide-table breakout (canonical, shared).
+   When a table is wider than the prose column, the layout adapts: the
+   table sizes to its natural width, breaks symmetrically out of the
+   reading column (centered on the article), and only scrolls when it
+   still cannot fit. Prose keeps its readable width — only tables breach
+   it. Opted into by [data-legal-doc], carried by BOTH the public legal
+   section and the authenticated shell, so one rule drives both. Breakout
+   needs horizontal room, so it activates on wide viewports only; below
+   that the polished scroll region above handles overflow.
+   --------------------------------------------------------------------------- */
+@media (min-width: 1200px) {
+  [data-legal-doc] .legal-table-wrapper {
+    /* Size to the table's natural width, clamped to [column width,
+       column + breakout]; overflow-x scrolls only past the cap.
+       max-content (not fit-content) is deterministic on a scroll
+       container — fit-content shrink-wraps unpredictably here. */
+    width: max-content;
+    min-width: 100%;
+    max-width: calc(100% + 280px);
+    /* Center the (possibly wider) table on the article's axis. */
+    margin-left: 50%;
+    transform: translateX(-50%);
+  }
+  /* The public article is a rounded white card with overflow:hidden,
+     which would clip the breakout at the card edge. Release horizontal
+     child overflow at the breakout breakpoints so the wide table shows
+     as an intentional centered slot. The card's rounded corners still
+     render (border-radius clips the card's own box), and the card's
+     vertical padding keeps prose off the corners — no artifacts. On the
+     internal article (no card) this is a no-op. */
+  [data-legal-doc] article[data-legal-content] {
+    overflow: visible;
+  }
+}
+/* Wider tables get more room on large viewports. 1400px (not 1440) so
+   the tier reliably activates on 1440-px laptops despite the vertical
+   scrollbar narrowing the media-query width by ~15px. */
+@media (min-width: 1400px) {
+  [data-legal-doc] .legal-table-wrapper {
+    max-width: calc(100% + 460px);
+  }
+}

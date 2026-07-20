@@ -152,10 +152,13 @@ function Shell() {
           </div>
         ) : null}
 
-        {/* Canonical document-table typography comes from the shell's
-            article chain; the wrapper keeps narrow screens safe. */}
-        <div className="overflow-x-auto">
-          <table data-subprocessors-table>
+        {/* Aligned onto the canonical legal-table system (2026-07-20):
+            same scroll region, card chrome, min-column widths, edge
+            padding, and wide-table breakout as every markdown table —
+            without routing this live data through markdown. Cell
+            typography still comes from the shell's article chain. */}
+        <div className="legal-table-wrapper">
+          <table data-subprocessors-table className="legal-table">
             <thead>
               <tr>
                 <th>Name</th>

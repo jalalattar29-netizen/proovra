@@ -47,6 +47,19 @@ export function generateStaticParams() {
   return Array.from(ALLOWED_LEGAL_SLUGS, (slug) => ({ slug }));
 }
 
+/**
+ * Default related-documents navigation (labels/descriptions are
+ * navigation copy, not legal text). The current document is filtered
+ * out; the shell caps the panel at 4 entries.
+ */
+const CORE_RELATED = [
+  { slug: "privacy", label: "Privacy Policy", description: "How we collect, use, and protect personal data." },
+  { slug: "cookies", label: "Cookie Policy", description: "How cookies and similar technologies are used." },
+  { slug: "dpa", label: "Data Processing Agreement", description: "Our obligations under GDPR and data protection laws." },
+  { slug: "subprocessors", label: "Subprocessors", description: "Third-party service providers we use." },
+  { slug: "terms", label: "Terms of Service", description: "The terms that govern access to and use of the platform." },
+] as const;
+
 export default async function InternalLegalDocumentPage({
   params,
 }: {
@@ -79,14 +92,20 @@ export default async function InternalLegalDocumentPage({
           scope="ACCOUNT"
           backHref="/settings#privacy"
           backLabel="Back to Privacy & legal records"
-          /* The explicitly-labelled public counterpart — rendered by the
-             shell as the "View public version ↗" action (leaves the app). */
-          publicVersionHref={`/legal/${slug}`}
+          relatedLinks={CORE_RELATED.filter((r) => r.slug !== slug).map((r) => ({
+            label: r.label,
+            href: `/settings/legal/${r.slug}`,
+            description: r.description,
+          }))}
         >
-          {/* Document cross-references stay in-app: every /legal/<slug>,
-              /privacy, /terms link embedded in the markdown maps to the
-              authenticated reader (public pages render hrefs verbatim). */}
-          {renderLegalMarkdown(content, { mapHref: internalLegalDocumentHref })}
+          {/* Document cross-references stay in-app (mapHref) and
+              structured legal content renders as Information Panels,
+              contact rows, and chip rows (enhance) — the markdown
+              source is untouched; public pages render verbatim. */}
+          {renderLegalMarkdown(content, {
+            mapHref: internalLegalDocumentHref,
+            enhance: true,
+          })}
         </LegalDocumentShell>
       </PageRouteGate>
     </div>

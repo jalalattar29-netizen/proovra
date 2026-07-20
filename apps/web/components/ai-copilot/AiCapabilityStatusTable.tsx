@@ -79,7 +79,10 @@ export function AiCapabilityStatusTable() {
       {error ? <div className="app-alert">{error}</div> : null}
       {!caps && !error ? <p style={{ opacity: 0.6 }}>Loading live status…</p> : null}
       {caps ? (
-        <div style={{ overflowX: "auto" }}>
+        // Compact live-status widget — a justified direct-table variant
+        // (app-card + chips). Shares only the canonical polished
+        // scrollbar (.legal-scroll); keeps its own compact chrome.
+        <div className="legal-scroll" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ textAlign: "left", opacity: 0.7 }}>
