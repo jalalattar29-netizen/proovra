@@ -200,8 +200,13 @@ export function LegalDocumentShell({
   meta,
   scope,
   organizationName,
-  backHref = "/trust",
-  backLabel = "Open public Trust Center",
+  // (2026-07-21) This is the AUTHENTICATED document shell, so the back
+  // link must return to an in-app origin — never the public /trust route
+  // in the same tab (that drops the App Shell and reads as a sign-out).
+  // The default is the internal Trust Center hub; the public Trust Center
+  // is reachable only via the labelled new-tab action in the footer below.
+  backHref = "/trust-center",
+  backLabel = "Back to Trust Center",
   relatedLinks,
   variant = "document",
   heroChildren,

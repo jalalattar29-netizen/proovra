@@ -888,14 +888,20 @@ export function PrivacySection() {
           <p style={{ ...muted, marginTop: 10 }}>
             The full legal library (DPA, subprocessors, retention, disclosure
             policies, …) lives in the public Trust Center and the site footer.{" "}
-            <Link
+            <a
               href="/trust"
+              target="_blank"
+              rel="noopener noreferrer"
               data-cc-open-public-trust-center
-              style={{ color: "var(--ink-secondary, #475569)", textDecoration: "underline" }}
+              style={{
+                color: "var(--ink-secondary, #475569)",
+                textDecoration: "underline",
+                whiteSpace: "nowrap",
+              }}
             >
-              Open public Trust Center
-            </Link>{" "}
-            (leaves the app).
+              Open public Trust Center <span aria-hidden="true">↗</span>
+            </a>{" "}
+            (opens in a new tab — this app stays open).
           </p>
         </Card>
     </div>

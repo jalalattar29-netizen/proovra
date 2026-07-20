@@ -104,8 +104,8 @@ function Shell() {
             : "Operational health across PROOVRA components."
         }
         scope="ACCOUNT"
-        backHref="/trust"
-        backLabel="Open public Trust Center"
+        backHref="/trust-center"
+        backLabel="Back to Trust Center"
         variant="operational"
       >
       <div style={{ marginBottom: 12 }}>

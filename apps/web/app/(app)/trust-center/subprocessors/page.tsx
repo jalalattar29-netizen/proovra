@@ -101,8 +101,8 @@ function Shell() {
         title="Subprocessor Registry"
         summary="Authoritative list of vendors that may process customer data. Every entry is versioned; every change writes an audit row."
         scope="ACCOUNT"
-        backHref="/trust"
-        backLabel="Open public Trust Center"
+        backHref="/trust-center"
+        backLabel="Back to Trust Center"
         relatedLinks={[
           { label: "Subprocessors (full document)", href: "/settings/legal/subprocessors" },
           { label: "Data Processing Agreement", href: "/settings/legal/dpa" },

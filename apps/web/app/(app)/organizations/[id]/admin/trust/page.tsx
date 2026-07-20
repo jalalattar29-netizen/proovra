@@ -79,8 +79,9 @@ function TrustTab() {
           <DeepLink
             testId="trust-deep-link-center"
             label="Open public Trust Center"
-            description="Published trust articles (security, methodology, AI disclosure, …). Opens the public site."
+            description="Published trust articles (security, methodology, AI disclosure, …). Opens the public site in a new tab — this app stays open."
             href="/trust"
+            external
           />
           <DeepLink
             testId="trust-deep-link-subprocessors"
@@ -105,11 +106,19 @@ function DeepLink({
   label,
   description,
   href,
+  external = false,
 }: {
   testId: string;
   label: string;
   description: string;
   href: string;
+  /**
+   * When true the destination is the PUBLIC site (outside the
+   * authenticated App Shell). It opens in a new tab so the app stays
+   * open in the current tab, and the CTA carries an external-link cue.
+   * Internal (`/trust-center/*`) deep links stay in the same tab.
+   */
+  external?: boolean;
 }) {
   return (
     <Card
@@ -137,11 +146,26 @@ function DeepLink({
           {description}
         </div>
       </div>
-      <Link href={href} data-testid={testId} style={{ textDecoration: "none", flexShrink: 0 }}>
-        <Button variant="secondary" size="sm">
-          Open →
-        </Button>
-      </Link>
+      {external ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid={testId}
+          aria-label={`${label} (opens in a new tab)`}
+          style={{ textDecoration: "none", flexShrink: 0 }}
+        >
+          <Button variant="secondary" size="sm">
+            Open <span aria-hidden="true">↗</span>
+          </Button>
+        </a>
+      ) : (
+        <Link href={href} data-testid={testId} style={{ textDecoration: "none", flexShrink: 0 }}>
+          <Button variant="secondary" size="sm">
+            Open →
+          </Button>
+        </Link>
+      )}
     </Card>
   );
 }

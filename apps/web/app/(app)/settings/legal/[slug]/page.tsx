@@ -101,10 +101,14 @@ export default async function InternalLegalDocumentPage({
           {/* Document cross-references stay in-app (mapHref) and
               structured legal content renders as Information Panels,
               contact rows, and chip rows (enhance) — the markdown
-              source is untouched; public pages render verbatim. */}
+              source is untouched; public pages render verbatim.
+              externalizePublicExits: body links to the PUBLIC Trust
+              Center (/trust) open in a NEW tab so the App Shell stays
+              open in the current tab (2026-07-21). */}
           {renderLegalMarkdown(content, {
             mapHref: internalLegalDocumentHref,
             enhance: true,
+            externalizePublicExits: true,
           })}
         </LegalDocumentShell>
       </PageRouteGate>

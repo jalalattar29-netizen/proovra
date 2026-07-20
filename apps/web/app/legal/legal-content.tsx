@@ -90,6 +90,27 @@ export function internalLegalDocumentHref(href: string): string {
   return href;
 }
 
+/**
+ * Root-relative body-link destinations that leave the authenticated App
+ * Shell for the PUBLIC site when opened from the INTERNAL legal reader.
+ *
+ * The canonical one is the public Trust Center at `/trust`. The internal
+ * in-app trust pages (`/trust-center/*`) are NOT public exits — they stay
+ * in the App Shell and must keep same-tab navigation. Absolute http(s)
+ * URLs are already treated as external by the renderer, so this predicate
+ * only needs to catch the root-relative public Trust Center form.
+ *
+ * Used by the INTERNAL reader (via `renderLegalMarkdown`'s
+ * `externalizePublicExits`) so a body-content `[Trust Center](/trust)`
+ * link opens in a NEW tab instead of dropping the App Shell in the
+ * current tab. Public pages never set the flag, so they are unaffected.
+ */
+export function isAuthenticatedPublicExit(href: string): boolean {
+  // `/trust`, `/trust/`, `/trust?…`, `/trust#…` → true.
+  // `/trust-center`, `/trust-center/security` → false (internal, in-app).
+  return /^\/trust(?:[/?#]|$)/.test(href);
+}
+
 export async function loadLegalMarkdown(slug: string) {
   const filePath = path.join(
     process.cwd(),
@@ -305,10 +326,21 @@ export function renderLegalMarkdown(
     mapHref?: (href: string) => string;
     /** Enable structured-content presentation (internal reader only). */
     enhance?: boolean;
+    /**
+     * Authenticated-reader context flag. When true, body-content links
+     * whose (post-`mapHref`) destination is a PUBLIC exit that leaves the
+     * App Shell — canonically the public Trust Center at `/trust`
+     * (`isAuthenticatedPublicExit`) — render as new-tab anchors
+     * (`target="_blank"` + `rel="noopener noreferrer"`) with an
+     * external-link cue, so the authenticated app stays open in the
+     * current tab. Public pages omit this flag and render verbatim.
+     */
+    externalizePublicExits?: boolean;
   },
 ) {
   const mapHref = opts?.mapHref;
   const enhance = opts?.enhance === true;
+  const externalizePublicExits = opts?.externalizePublicExits === true;
   const lines = md.replace(/\r\n/g, "\n").split("\n");
   const tagged: Tagged[] = [];
   let listItems: ReactNode[] = [];
@@ -383,15 +415,34 @@ export function renderLegalMarkdown(
             /^https?:\/\//i.test(rawHref) || /^mailto:/i.test(rawHref);
           const href = !isExternal && mapHref ? mapHref(rawHref) : rawHref;
 
+          // Authenticated reader: a body link that (after mapHref) still
+          // points at a PUBLIC destination outside the App Shell —
+          // canonically the public Trust Center at /trust — must open in
+          // a new tab so the app stays open in the current tab. Internal
+          // reader cross-references were already rewritten to
+          // /settings/legal/* by mapHref and stay same-tab; /trust-center/*
+          // is internal and stays same-tab too.
+          const isPublicExit =
+            externalizePublicExits &&
+            !isExternal &&
+            isAuthenticatedPublicExit(href);
+          const openInNewTab = isExternal || isPublicExit;
+
           out.push(
             <a
               key={`a-${i}`}
               href={href}
-              target={isExternal ? "_blank" : undefined}
-              rel={isExternal ? "noreferrer noopener" : undefined}
+              target={openInNewTab ? "_blank" : undefined}
+              rel={openInNewTab ? "noreferrer noopener" : undefined}
+              aria-label={
+                isPublicExit ? `${label} (opens in a new tab)` : undefined
+              }
               className="legal-link"
             >
               {label}
+              {isPublicExit ? (
+                <span aria-hidden="true">{" ↗"}</span>
+              ) : null}
             </a>,
           );
           return;

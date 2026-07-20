@@ -143,8 +143,8 @@ export function TrustCenterSectionList({
         title={title}
         summary={description}
         scope="ACCOUNT"
-        backHref="/trust"
-        backLabel="Open public Trust Center"
+        backHref="/trust-center"
+        backLabel="Back to Trust Center"
         heroChildren={heroChildren}
         relatedLinks={relatedLinks}
       >
