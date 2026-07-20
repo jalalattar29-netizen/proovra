@@ -15,22 +15,22 @@ import { test } from "node:test";
 import { resolveNavigationGroups } from "../lib/navigation/navigationGroupingResolver";
 import { PHASE_B_OPERATIONAL_GROUPS } from "../lib/navigation/phaseBOperationalGroups";
 import { ROUTE_REGISTRY } from "../lib/navigation/routeRegistry";
-import type { WorkflowExposureItem } from "../lib/navigation/workflowExposureResolver";
+import type { NavigationExposureItem } from "../lib/navigation/navigationExposureResolver";
 
 const ACCESS = {
   canLoad: true,
   accessState: "FULL",
   reasons: [],
-} as unknown as WorkflowExposureItem["access"];
+} as unknown as NavigationExposureItem["access"];
 
-function item(routeId: string): WorkflowExposureItem {
+function item(routeId: string): NavigationExposureItem {
   const route = ROUTE_REGISTRY.find((r) => r.id === routeId);
   assert.ok(route, `route ${routeId} must exist in the registry`);
   return {
     route,
     access: ACCESS,
     bucketReason: "canonical-primary",
-  } as WorkflowExposureItem;
+  } as NavigationExposureItem;
 }
 
 test("declarative contract: Home is first and Operations Center second in the Workspace primary array", () => {

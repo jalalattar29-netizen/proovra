@@ -68,10 +68,10 @@ export function resolveWorkspaceExperience(
     };
   }
 
-  // ORGANIZATION sub-mode. Tilt emphasis based on workflow, then
-  // sanity-check against capabilities so we don't promise reviewer
-  // emphasis to a user who has no reviewer capabilities.
-  const workflow = input.primaryWorkflow;
+  // ORGANIZATION sub-mode. Chosen purely by capabilities (2026-07-20 —
+  // the workflow/persona tilt was removed; emphasis is now deterministic
+  // from the actor's capabilities). Reviewer emphasis is only chosen for
+  // a user who actually has reviewer capabilities, governance likewise.
   const hasReviewerCap =
     input.capabilities["REVIEWER_OPS_VIEW"] === true ||
     input.capabilities["REVIEWER_OPS_ACT"] === true;
@@ -79,19 +79,19 @@ export function resolveWorkspaceExperience(
     input.capabilities["GOVERNANCE_VIEW"] === true ||
     input.capabilities["GOVERNANCE_ACT"] === true;
 
-  if (workflow === "REVIEW_OPS" && hasReviewerCap) {
+  if (hasReviewerCap) {
     return {
       mode: "REVIEW_OPS",
-      subModeReason: "org-workflow-review-ops-with-capability",
+      subModeReason: "org-review-ops-capability",
       demotionRouteIds: EMPTY_DEMOTION_SET,
       dashboardEmphasis: "review-ops",
       helpAudience: "review-ops-operator",
     };
   }
-  if (workflow === "GOVERNANCE" && hasGovernanceCap) {
+  if (hasGovernanceCap) {
     return {
       mode: "GOVERNANCE",
-      subModeReason: "org-workflow-governance-with-capability",
+      subModeReason: "org-governance-capability",
       demotionRouteIds: EMPTY_DEMOTION_SET,
       dashboardEmphasis: "governance-compliance",
       helpAudience: "governance-operator",

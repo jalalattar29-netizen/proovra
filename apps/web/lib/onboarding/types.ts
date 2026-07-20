@@ -3,9 +3,9 @@
  *
  * Pure data types for the bounded onboarding step model. The
  * onboarding state is a presentation hint derived from existing
- * canonical sources — `workspacePersonaProfile.onboardingCompleted`,
- * `envelope.activeSpace.type`, and `envelope.capabilities`. R7 does
- * NOT introduce a parallel onboarding state store.
+ * canonical sources — the caller-supplied `onboardingCompleted`
+ * signal, `envelope.activeSpace.type`, and `envelope.capabilities`.
+ * R7 does NOT introduce a parallel onboarding state store.
  */
 
 import type { PersonaCode } from "@proovra/shared-evidence-presentation";
@@ -20,7 +20,6 @@ export const ONBOARDING_STEP_IDS = [
   "personal.collaboration-basics",
   "personal.intake-link",
   // Organization-mode bounded sequence.
-  "org.configure-workspace-profile",
   "org.invite-collaborators",
   "org.configure-intake-links",
   "org.review-queues",
@@ -47,7 +46,7 @@ export interface OnboardingStep {
 
 export interface OnboardingResolverInput {
   readonly mode: WorkspaceExperienceMode;
-  /** From `envelope.personaProfile.onboardingCompleted`. Single source. */
+  /** Caller-supplied first-run completion signal. Single source. */
   readonly onboardingCompleted: boolean;
   /**
    * Phase E7 — optional persona code. When supplied, the resolver

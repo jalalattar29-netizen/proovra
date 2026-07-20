@@ -41,12 +41,7 @@ import {
   useGlobalRuntimeState,
   type GlobalRuntimeSeverity,
 } from "../../lib/useGlobalRuntimeState";
-import {
-  usePlatformContext,
-  usePersonaProfile,
-  workflowFromPersona,
-  type WorkflowProfileCode,
-} from "../../lib/platform-context";
+import { usePlatformContext } from "../../lib/platform-context";
 import { ROUTE_REGISTRY, type RouteDefinition } from "../../lib/navigation/routeRegistry";
 // Phase IA-surface-tier — surface visibility filter. The sidebar
 // renders ONLY routes the user's plan/role unlocks. ENTERPRISE/
@@ -58,9 +53,9 @@ import {
   type RouteAccessResult,
 } from "../../lib/navigation/routeAccessResolver";
 import {
-  resolveWorkflowExposure,
-  type WorkflowExposureItem,
-} from "../../lib/navigation/workflowExposureResolver";
+  resolveNavigationExposure,
+  type NavigationExposureItem,
+} from "../../lib/navigation/navigationExposureResolver";
 import { resolveWorkspaceExperience } from "../../lib/workspace-experience";
 // R2 — canonical navigation pipeline. The disclosure resolver folds
 // in R1.5B's experience-mode demotion AND adds the bounded primary
@@ -84,7 +79,7 @@ import { SidebarStorageWidget } from "./SidebarStorageWidget";
  * PHASE 38.9 — Canonical sidebar.
  *
  * Sole source of truth: ROUTE_REGISTRY + resolveRouteAccess +
- * resolveWorkflowExposure. The legacy `envelope.navigation.groups`
+ * resolveNavigationExposure. The legacy `envelope.navigation.groups`
  * projection is no longer consumed here — it remains on the envelope
  * for analytics/migration but the sidebar reads exclusively from the
  * canonical registry.
@@ -97,7 +92,7 @@ import { SidebarStorageWidget } from "./SidebarStorageWidget";
  * Hard rules — pinned by Phase 38.9 source-contract tests:
  *   - imports ROUTE_REGISTRY
  *   - imports resolveRouteAccess
- *   - imports resolveWorkflowExposure
+ *   - imports resolveNavigationExposure
  *   - does NOT consume `envelope.navigation` for rendering
  *   - does NOT call apiFetch
  *   - does NOT derive role/persona/platform-admin locally
@@ -142,7 +137,6 @@ const ICON_BY_ROUTE_ID: Record<string, SidebarIcon> = {
   "admin.teams": UsersRound,
   "account.billing": CreditCard,
   "account.settings": Settings,
-  "account.persona": Settings,
   "platform.admin": Key,
   "workspace.tools": LayoutGrid,
   "workspace.intake_links": Link2,
@@ -335,7 +329,7 @@ function SidebarLink({
   inMore,
   disclosureTier,
 }: {
-  item: WorkflowExposureItem;
+  item: NavigationExposureItem;
   badge: SidebarBadge | null;
   active: boolean;
   inMore?: boolean;
@@ -469,7 +463,7 @@ function SidebarMoreView({
   hydratedBadges,
   disclosureTierByRouteId,
 }: {
-  items: ReadonlyArray<WorkflowExposureItem>;
+  items: ReadonlyArray<NavigationExposureItem>;
   pathname: string | null;
   hydratedBadges: Map<string, SidebarBadge>;
   disclosureTierByRouteId: Map<string, string>;
@@ -537,7 +531,6 @@ function SidebarMoreView({
 
 export function AppSidebarV2() {
   const { envelope } = usePlatformContext();
-  const persona = usePersonaProfile();
   const pathname = usePathname();
 
   const activeSpaceType = envelope?.activeSpace?.type ?? null;
@@ -631,24 +624,16 @@ export function AppSidebarV2() {
 
   // Bucket by workflow priority. Workflow only re-orders; capabilities
   // already decided canSeeNav/canLoad above.
-  const primaryWorkflow: WorkflowProfileCode = workflowFromPersona(
-    persona.primaryProfile,
-  ).code;
-  const secondaryWorkflows: WorkflowProfileCode[] = persona.secondaryUseCases.map(
-    (p) => workflowFromPersona(p).code,
-  );
-  const exposure = resolveWorkflowExposure({
-    routes: resolved,
-    primaryWorkflow,
-    secondaryWorkflows,
-  });
+  // Deterministic navigation exposure (persona/workflow personalization
+  // removed 2026-07-20). Buckets are decided purely by registry flags;
+  // capabilities already decided canSeeNav/canLoad above.
+  const exposure = resolveNavigationExposure({ routes: resolved });
 
   // R1.5B — workspace experience segmentation. Read the canonical
   // mode for the current context.
   const experience = resolveWorkspaceExperience({
     activeSpaceType,
     capabilities,
-    primaryWorkflow,
   });
 
   // R2 — canonical navigation pipeline. The disclosure resolver
@@ -683,30 +668,12 @@ export function AppSidebarV2() {
     });
   }
 
-  // Phase 1 (frontend consolidation) — wire the persona-visibility
-  // overlay. Previously this call omitted `persona`, leaving the
-  // `PERSONA_PILLAR_VISIBILITY` overlay dormant: saving a persona changed
-  // ordering but never sidebar composition, so "Save persona" appeared to
-  // do nothing. Passing the active persona lets the resolver declutter the
-  // sidebar to the persona's pillar set.
-  //
-  // This is SAFE BY CONSTRUCTION and is NOT a capability gate:
-  //   * The surface-tier gate (`tierFilteredRegistry`, above) and the
-  //     capability/active-space resolver have already run, so the persona
-  //     filter can only SUBTRACT from what plan + role + workspace already
-  //     permit — it can never expose an enterprise/internal surface.
-  //   * CORE self-serve pillars are pinned universal (see
-  //     `UNIVERSAL_PILLARS` in pillarRegistry.ts), so no core product
-  //     surface can be hidden for any persona.
-  //   * Persona-hidden pillars remain reachable via Command Palette /
-  //     All Tools when capabilities permit (presentation-only).
-  const { groups } = resolveNavigationGroups(
-    {
-      primaryItems: disclosure.primaryItems,
-      secondaryItems: disclosure.secondaryItems,
-    },
-    { persona: persona.primaryProfile },
-  );
+  // Deterministic grouping by canonical Phase B order — capability/plan/
+  // role/active-space have already decided visibility upstream.
+  const { groups } = resolveNavigationGroups({
+    primaryItems: disclosure.primaryItems,
+    secondaryItems: disclosure.secondaryItems,
+  });
 
   // R5 — compute the disclosure tier per visible route. Pure
   // presentation hint; drives `data-disclosure-tier` so CSS / R10

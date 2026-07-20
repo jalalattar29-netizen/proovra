@@ -36,7 +36,6 @@
  *      It MUST NOT import from `routeRegistry.ts` (pure registry; no cycle).
  */
 
-import type { WorkspacePersonaProfile } from "../platform-context/types";
 
 // =============================================================================
 // 8 PILLARS — canonical enum + display metadata
@@ -335,7 +334,6 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["workspace.reviewer_criteria", "ADMIN"],
   // Notification preferences — personal settings surface under /settings/*.
   ["account.notification_settings", "ADMIN"],
-  ["account.persona", "ADMIN"],
   ["account.billing", "ADMIN"],
   ["platform.admin", "ADMIN"],
   ["workspace.tools", "ADMIN"],
@@ -379,100 +377,11 @@ export function pillarForRoute(routeId: string): ProovraPillar {
   return PILLAR_FOR_ROUTE_ID.get(routeId) ?? "ADMIN";
 }
 
-// =============================================================================
-// PERSONA → PILLAR VISIBILITY
-//
-// Personas come from Phase 38 use-case persona profiles. Each persona
-// sees a curated subset of the 8 pillars. HOME and TRUST are universal.
-//
-// This is a UI visibility filter on top of capability gates — capabilities
-// remain the authoritative access decision. A persona that "doesn't see"
-// Operations can still reach it via Command Palette + All Tools when
-// their capability map permits.
-// =============================================================================
-
-/**
- * Pillars visible to every persona — non-negotiable.
- *
- * Phase 1 (frontend consolidation) — CAPTURE, CASES and ADMIN are pinned
- * universal so the CORE self-serve product (Home, Capture, Evidence,
- * Cases, Reports, Search, Settings, Billing) is ALWAYS visible in the
- * sidebar for every persona once the persona-visibility overlay is wired
- * into `AppSidebarV2`. Without this, the `ENTERPRISE_COMPLIANCE` overlay
- * (which omits CAPTURE) would hide the Capture surface — a core-product
- * regression. CASES + ADMIN are already present in all seven overlays;
- * pinning them here makes "core is always visible" a structural invariant
- * rather than a property that each overlay must remember to preserve.
- *
- * This is a PRESENTATION filter only — capabilities and the surface-tier
- * gate remain the authoritative access decision, and any pillar hidden by
- * persona is still reachable via Command Palette / All Tools when the
- * user's capabilities permit.
- */
-const UNIVERSAL_PILLARS: ReadonlyArray<ProovraPillar> = [
-  "HOME",
-  "TRUST",
-  "CAPTURE",
-  "CASES",
-  "ADMIN",
-];
-
-/** Persona → visible pillars (excluding the universal set). */
-const PERSONA_PILLAR_OVERLAY: Readonly<
-  Record<WorkspacePersonaProfile, ReadonlyArray<ProovraPillar>>
-> = {
-  // Solo / individual users — minimal surface; ADMIN exposes settings.
-  INDIVIDUAL: ["CAPTURE", "CASES", "ADMIN"],
-  // Legal casework persona — captures + cases + review + governance.
-  LAWYER: ["CAPTURE", "CASES", "REVIEW", "GOVERNANCE", "ADMIN"],
-  // Insurance SIU — captures + cases + review.
-  INSURANCE: ["CAPTURE", "CASES", "REVIEW", "ADMIN"],
-  // Investigator — captures, cases, review (lighter governance focus).
-  INVESTIGATOR: ["CAPTURE", "CASES", "REVIEW", "ADMIN"],
-  // Journalist — capture + cases only (no enterprise governance/ops).
-  JOURNALIST: ["CAPTURE", "CASES", "ADMIN"],
-  // Compliance — governance-led; cases read-only; minimal capture.
-  ENTERPRISE_COMPLIANCE: ["CASES", "GOVERNANCE", "ADMIN"],
-  // Admin / operator persona — full breadth: ops + admin + governance.
-  ADMIN_OPERATOR: [
-    "CAPTURE",
-    "CASES",
-    "REVIEW",
-    "GOVERNANCE",
-    "OPERATIONS",
-    "ADMIN",
-  ],
-};
-
-/**
- * Returns the bounded set of pillars visible to a persona.
- *
- * The returned set always includes HOME and TRUST. The persona-specific
- * overlay is added on top.
- *
- * NB: this is a UI visibility filter. The capability resolver remains the
- * authoritative access decision — a hidden pillar's routes are still
- * reachable via Command Palette or All Tools when capabilities permit.
- */
-export function visiblePillarsForPersona(
-  persona: WorkspacePersonaProfile,
-): ReadonlySet<ProovraPillar> {
-  const set = new Set<ProovraPillar>(UNIVERSAL_PILLARS);
-  const overlay = PERSONA_PILLAR_OVERLAY[persona] ?? [];
-  for (const pillar of overlay) set.add(pillar);
-  return set;
-}
-
-/**
- * Returns the bounded ordered list of pillars to render for a persona,
- * preserving canonical `PILLAR_DEFINITIONS` order.
- */
-export function orderedPillarsForPersona(
-  persona: WorkspacePersonaProfile,
-): ReadonlyArray<PillarDefinition> {
-  const visible = visiblePillarsForPersona(persona);
-  return PILLAR_DEFINITIONS.filter((def) => visible.has(def.id));
-}
+// (2026-07-20) The PERSONA → PILLAR VISIBILITY overlay (UNIVERSAL_PILLARS,
+// PERSONA_PILLAR_OVERLAY, visiblePillarsForPersona, orderedPillarsForPersona)
+// was removed with the workspace-persona feature. Pillar visibility is
+// decided upstream by capabilities / plan / role; the surface-tier gate
+// and capability map remain the authoritative access decision.
 
 // =============================================================================
 // HARD VISIBILITY CEILING — sidebar node budget

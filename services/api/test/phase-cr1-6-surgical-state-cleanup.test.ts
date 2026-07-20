@@ -274,12 +274,9 @@ describe("CR1.6 Test 6 — canonical contracts preserved", () => {
     expect(cc).not.toMatch(/\buseTeamWorkspaceGate\s*\(/);
   });
 
-  it("Persona save still calls ctx.refresh() (R1 Bug B regression pin)", () => {
-    const persona = readWeb("app/(app)/settings/persona/page.tsx");
-    expect(persona).toMatch(/method:\s*["']PATCH["']/);
-    expect(persona).toMatch(/ctx\.refresh\s*\(/);
-    expect(persona).not.toMatch(/Reload to see/i);
-  });
+  // (2026-07-20) The "Persona save still calls ctx.refresh()" regression
+  // pin was removed with the /settings/persona page (workspace-persona /
+  // workflow-personalization deletion). There is no persona save flow.
 
   it("PageRouteGate component remains the canonical access gate", () => {
     // The component must still exist and the canonical surfaces wrap

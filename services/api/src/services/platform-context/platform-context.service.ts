@@ -56,7 +56,6 @@ import {
   type WorkspaceRole,
 } from "./types.js";
 import { ensurePersonalWorkspace } from "./workspace-bootstrap.service.js";
-import { readWorkspacePersonaProfile } from "./persona-profile.service.js";
 
 // Locked product model: only the ENTERPRISE plan (ORGANIZATION workspace)
 // is an enterprise workspace. TEAM is a subscription plan inside a PERSONAL
@@ -727,17 +726,9 @@ export async function buildPlatformContext(
     });
   }
 
-  // -------------------------------------------------------------------------
-  // PHASE 38 — Workspace persona profile (UX-layer only).
-  //
-  // The profile NEVER grants capabilities. It only changes ordering,
-  // defaults, and terminology on the client. The resolver always returns
-  // a complete profile (defaulted when no row exists or the read fails).
-  // -------------------------------------------------------------------------
-  const personaProfile = await readWorkspacePersonaProfile({
-    teamId: activeSpace.type === "PERSONAL" ? activeSpace.id : activeSpace.id,
-    resolvedRolePersona: resolvedPersona,
-  });
+  // (2026-07-20) The workspace persona profile (readWorkspacePersonaProfile)
+  // was removed with the workspace-persona / workflow-personalization
+  // feature. It was UX-layer only and never granted capabilities.
 
   // -------------------------------------------------------------------------
   // Operational eligibility (2026-07-15) — the canonical relevance
@@ -866,7 +857,6 @@ export async function buildPlatformContext(
     personalSpace,
     organizations,
     activeSpace,
-    personaProfile,
     duplicatePersonalCandidates,
 
     diagnostics: {

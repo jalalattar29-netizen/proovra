@@ -104,7 +104,7 @@ for (const { template, stepId } of TEMPLATE_PRIMARY_STEPS) {
   test(`primary readiness — ${template} (${stepId}): dropdown-mapped primary item satisfies has_primary`, () => {
     const item = simulateDropdownMapPrimary(makeItem({ id: "i1" }), stepId);
     assert.equal(hasPrimaryEvidence([item]), true);
-    const readiness = computeCaptureReadiness({ items: [item], workflow: PROFILE });
+    const readiness = computeCaptureReadiness({ items: [item] });
     const c = readiness.criteria.find((c) => c.id === "has_primary");
     assert.ok(c);
     assert.equal(c.satisfied, true, `${template}/${stepId} must satisfy has_primary`);
@@ -171,7 +171,7 @@ test("primary readiness ≠ required-checklist coverage (Insurance Claim with 3 
   // Universal primary-readiness IS satisfied.
   assert.equal(hasPrimaryEvidence(items), true);
   assert.equal(
-    computeCaptureReadiness({ items, workflow: PROFILE }).criteria.find(
+    computeCaptureReadiness({ items }).criteria.find(
       (c) => c.id === "has_primary",
     )!.satisfied,
     true,

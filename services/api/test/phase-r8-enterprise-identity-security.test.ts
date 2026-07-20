@@ -423,17 +423,21 @@ describe("R8 Part 9 — no workflow/persona authorization regression", () => {
     expect(src).not.toMatch(/\.personaProfile\b/);
   });
 
-  it("workflowExposureResolver still documents the no-authorization contract", () => {
+  it("navigation exposure resolver remains authorization-independent", () => {
+    // (2026-07-20) The workflow/persona exposure resolver was replaced
+    // by the neutral, persona-free `navigationExposureResolver` when the
+    // workspace-persona / workflow-personalization feature was deleted.
     const src = readFileSync(
       fileURLToPath(
         new URL(
-          `../../../apps/web/lib/navigation/workflowExposureResolver.ts`,
+          `../../../apps/web/lib/navigation/navigationExposureResolver.ts`,
           import.meta.url,
         ),
       ),
       "utf8",
     );
-    expect(src).toMatch(/Workflow NEVER changes/i);
+    expect(src).toMatch(/Access decisions are upstream/i);
+    expect(src).not.toMatch(/\bauthorize\s*\(/);
   });
 });
 

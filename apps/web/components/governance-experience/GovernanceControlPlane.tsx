@@ -20,9 +20,7 @@ import {
   CapabilityDegradedPanel,
   useActiveSpaceId,
   useCan,
-  usePersonaProfile,
   usePlatformContext,
-  workflowFromPersona,
 } from "../../lib/platform-context";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { RuntimeStatusBanner } from "../operational";
@@ -66,11 +64,6 @@ export function GovernanceControlPlane() {
   const teamId = useActiveSpaceId();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [tab, setTab] = useState<TabKey>("posture");
-  // Phase 38.17 — workflow-aware contextual help.
-  const governancePersona = usePersonaProfile();
-  const governanceWorkflowCode = workflowFromPersona(
-    governancePersona.primaryProfile,
-  ).code;
 
   const load = useCallback(async () => {
     if (!teamId) return;
@@ -160,13 +153,9 @@ export function GovernanceControlPlane() {
         </div>
       </header>
 
-      {/* Phase 38.17 — workflow-aware contextual help, collapsed by
-          default so the governance posture surface stays primary. */}
-      <ContextualHelp
-        workflow={governanceWorkflowCode}
-        surface="governance"
-        collapsedByDefault
-      />
+      {/* Contextual help, collapsed by default so the governance
+          posture surface stays primary. */}
+      <ContextualHelp surface="governance" collapsedByDefault />
 
       {/* Phase 32.7 — runtime banner scoped to governance_lifecycle so
           platform-internal degradations don't poison the operator view. */}

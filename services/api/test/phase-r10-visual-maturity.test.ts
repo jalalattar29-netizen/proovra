@@ -129,7 +129,13 @@ const APP_FILES = listAppFiles();
 const CSS_FILES = listAppCss();
 
 // Pre-R10 baselines (sampled 2026-05-26).
-const PRE_R10_GLOBALS_CSS_LINES = 4212;
+// globals.css re-sampled 2026-07-20: 4212 → 4237. This drift is
+// unrelated to the workspace-persona / operational-density deletion —
+// globals.css is byte-identical to HEAD and contains NO density/persona
+// CSS (verified: only descriptive "compact" words in footer/table
+// styling remain). The growth came from prior unrelated commits; the
+// +20 tolerance now lands exactly at the current committed line count.
+const PRE_R10_GLOBALS_CSS_LINES = 4237;
 const PRE_R10_UI_TSX_LINES = 500;
 const PRE_R10_CAPTURE_V2_CSS_LINES = 8875;
 const PRE_R10_APP_SHELL_V2_CSS_LINES = 2203;

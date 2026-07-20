@@ -22,29 +22,25 @@
 
 import { useEffect, useState } from "react";
 
-import type { WorkflowProfileCode } from "../../../../lib/platform-context";
-import { WORKFLOW_SAFETY_STATEMENT } from "../../../../components/navigation/WorkflowSafetyNotice";
 import { getCaptureWorkflowGuidance } from "./workflowGuidance";
 import type { CollectionPlanTemplate } from "./types";
 
 const DISMISS_KEY_PREFIX = "capture-workflow-guidance-dismissed:";
 
 export function CaptureWorkflowGuidance({
-  workflow,
   allTemplates,
   onSelectTemplate,
   selectedTemplateId,
 }: {
-  workflow: WorkflowProfileCode;
   allTemplates: ReadonlyArray<CollectionPlanTemplate>;
   onSelectTemplate?: (templateId: string) => void;
   selectedTemplateId?: string | null;
 }) {
-  const guidance = getCaptureWorkflowGuidance(workflow);
+  const guidance = getCaptureWorkflowGuidance();
   const recommendedIds = new Set(guidance.recommendedTemplateIds);
   const recommended = allTemplates.filter((t) => recommendedIds.has(t.id));
 
-  const dismissKey = `${DISMISS_KEY_PREFIX}${workflow}`;
+  const dismissKey = DISMISS_KEY_PREFIX;
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
@@ -71,7 +67,6 @@ export function CaptureWorkflowGuidance({
   return (
     <section
       data-capture-workflow-guidance
-      data-capture-workflow-guidance-workflow={workflow}
       aria-label={`Workflow guidance: ${guidance.title}`}
       style={{
         marginBottom: 16,
@@ -210,7 +205,6 @@ export function CaptureWorkflowGuidance({
           lineHeight: 1.5,
         }}
       >
-        {WORKFLOW_SAFETY_STATEMENT}{" "}
         <span data-capture-workflow-guidance-all-templates-note>
           All templates remain available from the template selector
           below.

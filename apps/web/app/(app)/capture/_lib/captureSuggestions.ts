@@ -6,20 +6,19 @@
  *
  * Hard rules:
  *
- *   1. Pure. Same input → same output. Reads `SessionItem` fields and
- *      the workflow code; never mutates state, never calls the API.
+ *   1. Pure. Same input → same output. Reads the readiness criteria;
+ *      never mutates state, never calls the API.
  *   2. Suggestions are NEVER blocking. The operator can finalize
  *      regardless. The panel is informational + action-prompting only.
  *   3. Bounded vocabulary. Suggestion ids + copy come from a closed
  *      catalog; no free-form generation, no AI claims.
- *   4. Workflow-aware: which suggestions appear and in what order
- *      depends on the workflow profile. Suggestions never assert
- *      legal admissibility, authenticity, or forensic guarantees.
+ *   4. Suggestions never assert legal admissibility, authenticity, or
+ *      forensic guarantees. (2026-07-20) The per-workflow-profile
+ *      dimension was removed with the workspace-persona feature.
  *   5. Each suggestion is keyed on an unsatisfied readiness criterion;
  *      satisfied criteria do not produce suggestions.
  */
 
-import type { WorkflowProfileCode } from "../../../../lib/platform-context";
 import type { CaptureReadinessSummary } from "./captureReadiness";
 
 export type CaptureSuggestion = {
@@ -86,7 +85,6 @@ const SUGGESTIONS_BY_CRITERION: Record<string, CaptureSuggestion> = {
 };
 
 export function computeCaptureSuggestions(input: {
-  workflow: WorkflowProfileCode;
   readiness: CaptureReadinessSummary;
   /** Bounded cap — never returns more than this. Default 4. */
   maxSuggestions?: number;

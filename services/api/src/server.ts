@@ -15,7 +15,6 @@ import { ZodError } from "zod";
 import { prisma } from "./db.js";
 import { usersRoutes } from "./routes/users.routes.js";
 import { platformContextRoutes } from "./routes/platform-context.routes.js";
-import { workspacePersonaRoutes } from "./routes/workspace-persona.routes.js";
 import { captureException, initSentry } from "./observability/sentry.js";
 import { readFastifyClientError } from "./observability/fastify-client-error.js";
 // CR1 Phase D — legacy `auditMiddleware` removed. The canonical audit
@@ -960,7 +959,6 @@ allowedHeaders: [
   await app.register(authRoutes);
   await app.register(usersRoutes);
   await app.register(platformContextRoutes);
-  await app.register(workspacePersonaRoutes);
   await app.register(teamsRoutes);
   // Phase 5 — Collaboration Teams (the new Team Collaboration Platform).
   // Mounted under /v1/collaboration-teams; orthogonal to /v1/teams

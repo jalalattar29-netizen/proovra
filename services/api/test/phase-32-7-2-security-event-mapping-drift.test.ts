@@ -844,6 +844,11 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // becomes nullable (NULL = inherit account timezone); constraint
       // relaxation + restrictive idempotent backfill only.
       "20270923000000_notification_schedule_timezone_inherit",
+      // Workspace-persona deletion (2026-07-20) — drops the retired
+      // workspace_persona_profiles table (product-approved physical
+      // deletion of the workspace-persona / workflow-personalization /
+      // operational-density feature family). Not Phase 32.7.2-attributable.
+      "20270924000000_drop_workspace_persona_profiles",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

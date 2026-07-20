@@ -63,7 +63,6 @@ test("readiness: dropdown-mapped primary item (role human-readable, slug in chec
         checklistStepId: "primary_overview_media",
       }),
     ],
-    workflow: PROFILE,
   });
   const hasPrimary = readiness.criteria.find((c) => c.id === "has_primary");
   assert.ok(hasPrimary, "has_primary criterion exists");
@@ -73,7 +72,6 @@ test("readiness: dropdown-mapped primary item (role human-readable, slug in chec
 test("readiness: legacy slug role 'primary_evidence' still satisfies (back-compat)", () => {
   const readiness = computeCaptureReadiness({
     items: [makeItem({ id: "i1", role: "primary_evidence" })],
-    workflow: PROFILE,
   });
   const hasPrimary = readiness.criteria.find((c) => c.id === "has_primary");
   assert.equal(hasPrimary!.satisfied, true);
@@ -82,7 +80,6 @@ test("readiness: legacy slug role 'primary_evidence' still satisfies (back-compa
 test("readiness: unmapped item does NOT satisfy has_primary (negative control)", () => {
   const readiness = computeCaptureReadiness({
     items: [makeItem({ id: "i1", role: "", checklistStepId: null })],
-    workflow: PROFILE,
   });
   const hasPrimary = readiness.criteria.find((c) => c.id === "has_primary");
   assert.equal(hasPrimary!.satisfied, false);
@@ -101,7 +98,6 @@ test("readiness: regression lock — readiness MUST NOT depend solely on `role =
         checklistStepId: "primary_evidence",
       }),
     ],
-    workflow: PROFILE,
   });
   assert.equal(
     readiness.criteria.find((c) => c.id === "has_primary")!.satisfied,
@@ -121,7 +117,6 @@ test("readiness: alternate template slugs (primary_overview_media, primary_scene
   ]) {
     const readiness = computeCaptureReadiness({
       items: [makeItem({ id: `i-${slug}`, checklistStepId: slug })],
-      workflow: PROFILE,
     });
     assert.equal(
       readiness.criteria.find((c) => c.id === "has_primary")!.satisfied,

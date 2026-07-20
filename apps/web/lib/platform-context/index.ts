@@ -41,46 +41,7 @@ export {
   useCan,
   useDuplicatePersonalCandidates,
 } from "./useTenantModel";
-// PHASE 38 — persona profile hook + reorder utility (UX-only).
-export {
-  usePersonaProfile,
-  usePrimaryPersona,
-  useIsOperatorPersona,
-} from "./usePersonaProfile";
-export {
-  reorderByPersona,
-  splitByPersona,
-  PERSONA_PRIORITY_PREFIXES,
-} from "./personaPriorityOrder";
-export {
-  getPersonaSectionOrder,
-  PERSONA_DASHBOARD_PRIORITY,
-} from "./personaSectionOrder";
-export { resolvePersonaHint } from "./personaHints";
-export type { PersonaHint, PersonaHintSurface } from "./personaHints";
-export {
-  WORKFLOW_PROFILE_CODES,
-  workflowFromPersona,
-  workflowFromCode,
-  listWorkflowDescriptors,
-} from "./workflowProfile";
-export type {
-  WorkflowProfileCode,
-  WorkflowProfileDescriptor,
-} from "./workflowProfile";
-export { suggestWorkflow } from "./workflowSuggestion";
-export type {
-  WorkflowUsageSignals,
-  WorkflowSuggestion,
-} from "./workflowSuggestion";
-export { resolveWorkflowHelp } from "./workflowHelp";
-export type { HelpSurface, WorkflowHelpEntry } from "./workflowHelp";
+// Canonical terminology accessor (persona-override dimension removed
+// 2026-07-20 — returns the single canonical vocabulary).
 export { useTerminology, resolveTerminology } from "./useTerminology";
 export type { TerminologyKey } from "./useTerminology";
-export {
-  resolvePersonaEmptyState,
-} from "./personaEmptyStates";
-export type {
-  EmptyStateSurface,
-  PersonaEmptyState,
-} from "./personaEmptyStates";

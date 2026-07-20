@@ -9,7 +9,7 @@
  *
  *   resolveRouteAccess({ route, activeSpace, capabilities, account, plan })
  *
- * The exposure resolver (`resolveWorkflowExposure`) takes the OUTPUT
+ * The exposure resolver (`resolveNavigationExposure`) takes the OUTPUT
  * of this function and buckets routes by workflow priority — but it
  * cannot change a `canLoad: false` into `true`, and it cannot remove
  * a `canLoad: true` route from the navigation tree entirely.

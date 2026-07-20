@@ -26,10 +26,7 @@
  *   5. `EvidenceRequestEventsTab`     — `GET /v1/evidence-requests/:id/events`
  *      Host: `/evidence-requests/[id]/page.tsx`
  *
- *   6. `WorkspacePersonaProfileCard`  — `GET /v1/workspaces/:teamId/persona`
- *      Host: `/settings/persona/page.tsx`
- *
- *   7. `OrgHealthSnapshotCard`        — `GET /v1/dashboard/org-health?teamId=`
+ *   6. `OrgHealthSnapshotCard`        — `GET /v1/dashboard/org-health?teamId=`
  *      Host: `/security-center/page.tsx`
  *
  *   8. `ReviewerRoutingRecommendationsPane` — `GET /v1/reviewer/routing-recommendations`
@@ -783,80 +780,7 @@ export function EvidenceRequestEventsTab({
 }
 
 // =============================================================================
-// 6. WorkspacePersonaProfileCard
-// =============================================================================
-
-interface WorkspacePersonaProfile {
-  primaryProfile: string | null;
-  secondaryProfile?: string | null;
-  customizations?: Record<string, unknown> | null;
-  updatedAt?: string | null;
-}
-
-export function WorkspacePersonaProfileCard({ teamId }: { teamId: string }) {
-  const [profile, setProfile] = useState<WorkspacePersonaProfile | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setErr(null);
-    apiFetch(`/v1/workspaces/${encodeURIComponent(teamId)}/persona`)
-      .then((res: { profile?: WorkspacePersonaProfile | null } | WorkspacePersonaProfile) => {
-        if (cancelled) return;
-        const p =
-          (res as { profile?: WorkspacePersonaProfile | null })?.profile ??
-          (res as WorkspacePersonaProfile);
-        setProfile(p ?? null);
-      })
-      .catch((e: { message?: string; status?: number }) => {
-        if (cancelled) return;
-        if (e?.status === 403) {
-          setErr("You are not authorized to read the workspace persona.");
-        } else if (e?.status === 404) {
-          setErr("Workspace not found.");
-        } else {
-          setErr(toSafeUserError(e, { message: "Could not load persona." }).message);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [teamId]);
-
-  return (
-    <section data-cc-panel="workspace-persona-profile" style={card}>
-      <h2 style={heading}>Workspace persona</h2>
-      <p style={muted}>
-        The durable workspace persona profile drives default hubs, sidebar
-        priority, and operator priorities.
-      </p>
-      {err ? (
-        <div style={errBox}>{err}</div>
-      ) : !profile ? (
-        <p style={muted}>Loading…</p>
-      ) : !profile.primaryProfile ? (
-        <p style={muted}>No persona configured for this workspace yet.</p>
-      ) : (
-        <div style={{ marginTop: 6, color: "#dce1de", fontSize: 12 }}>
-          <div>
-            Primary: <strong>{profile.primaryProfile}</strong>
-          </div>
-          {profile.secondaryProfile ? (
-            <div>
-              Secondary: <strong>{profile.secondaryProfile}</strong>
-            </div>
-          ) : null}
-          {profile.updatedAt ? (
-            <div style={muted}>Updated {tsFmt(profile.updatedAt)}</div>
-          ) : null}
-        </div>
-      )}
-    </section>
-  );
-}
-
-// =============================================================================
-// 7. OrgHealthSnapshotCard
+// 6. OrgHealthSnapshotCard
 // =============================================================================
 
 interface OrgHealthSnapshot {

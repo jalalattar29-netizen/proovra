@@ -150,22 +150,9 @@ describe("Phase CR0.5 — known bug diagnostic pins (R1 must update when fixing)
     expect(cc).toMatch(/\buseActiveSpace\s*\(/);
   });
 
-  it("[FIXED IN R1] settings/persona save handler now calls refresh() after PATCH", () => {
-    const persona = readWeb("app/(app)/settings/persona/page.tsx");
-    // R1 fix: the handler now imports usePlatformContext and awaits
-    // ctx.refresh() after the PATCH succeeds. The matching R1
-    // acceptance pin lives in phase-r1-product-state-recovery.test.ts.
-    expect(persona).toMatch(/\busePlatformContext\b/);
-    expect(persona).toMatch(/ctx\.refresh\s*\(/);
-  });
-
-  it("[FIXED IN R1] settings/persona success block no longer shows the 'Reload to see' copy", () => {
-    const persona = readWeb("app/(app)/settings/persona/page.tsx");
-    // R1 removed the stale "Reload to see updated navigation and
-    // labels." copy and replaced it with a non-stale success message.
-    expect(persona).not.toMatch(/Reload to see/i);
-    expect(persona).toMatch(/Workspace profile updated/);
-  });
+  // (2026-07-20) The two "settings/persona save handler" diagnostic pins
+  // were removed with the /settings/persona page (workspace-persona /
+  // workflow-personalization deletion). There is no persona save flow.
 });
 
 // =============================================================================
@@ -313,11 +300,14 @@ describe("Phase CR0.5 — no workflow/persona authorization gate introduced", ()
 // =============================================================================
 
 describe("Phase CR0.5 — no new duplicate navigation source", () => {
-  it("sidebar still consumes only ROUTE_REGISTRY + resolveRouteAccess + resolveWorkflowExposure", () => {
+  it("sidebar still consumes only ROUTE_REGISTRY + resolveRouteAccess + resolveNavigationExposure", () => {
+    // (2026-07-20) The workflow/persona exposure resolver was replaced by
+    // the neutral `resolveNavigationExposure` when the workspace-persona /
+    // workflow-personalization feature was deleted.
     const sidebar = readWeb("components/app-shell-v2/AppSidebarV2.tsx");
     expect(sidebar).toMatch(/ROUTE_REGISTRY/);
     expect(sidebar).toMatch(/resolveRouteAccess/);
-    expect(sidebar).toMatch(/resolveWorkflowExposure/);
+    expect(sidebar).toMatch(/resolveNavigationExposure/);
   });
 
   it("no new file exports a function whose name suggests an alternative navigation builder", () => {

@@ -9,10 +9,6 @@ import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { ContextualHelp } from "../../../components/contextual-help/ContextualHelp";
 import { canAccessSurface } from "../../../lib/surface/access";
 import { useSurfaceUserContext } from "../../../lib/surface/useSurfaceUserContext";
-import {
-  usePersonaProfile as useEvidencePersonaProfile,
-  workflowFromPersona as evidenceWorkflowFromPersona,
-} from "../../../lib/platform-context";
 import { captureException } from "../../../lib/sentry";
 import { EvidenceLibraryHeader } from "./components/EvidenceLibraryHeader";
 import { EvidenceMetrics } from "./components/EvidenceMetrics";
@@ -1157,12 +1153,6 @@ function EvidenceLibraryPageInner() {
     setPageNumber((current) => current + 1);
   };
 
-  // Phase 38.17 — workflow-aware contextual help mount.
-  const evidencePersona = useEvidencePersonaProfile();
-  const evidenceWorkflowCode = evidenceWorkflowFromPersona(
-    evidencePersona.primaryProfile,
-  ).code;
-
   // Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) — capability gate.
   // The QueueSelectionPreview's reviewer-assignment + due-date rows
   // are enterprise-only — they assume an external reviewer is on
@@ -1179,13 +1169,9 @@ function EvidenceLibraryPageInner() {
         style={{ maxWidth: "none", margin: 0, padding: 0 }}
       >
         <EvidenceLibraryHeader refreshing={refreshing} onRefresh={refreshCurrentScope} />
-        {/* Phase 38.17 — workflow-aware contextual help, collapsed
-            by default so the evidence table stays primary. */}
-        <ContextualHelp
-          workflow={evidenceWorkflowCode}
-          surface="evidence"
-          collapsedByDefault
-        />
+        {/* Contextual help, collapsed by default so the evidence
+            table stays primary. */}
+        <ContextualHelp surface="evidence" collapsedByDefault />
         <EvidenceMetrics items={metrics} />
         <ActiveTrustFilterChips
           filters={filters}

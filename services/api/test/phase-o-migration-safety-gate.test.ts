@@ -414,6 +414,17 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     "20270922000000_workspace_closure_requests": new Set([
       "CREATE_TABLE_IF_NOT_EXISTS",
     ]),
+    // Workspace-persona deletion (2026-07-20) — drops the orphan
+    // `workspace_persona_profiles` table. Product-approved physical
+    // deletion of the retired workspace-persona, workflow-personalization,
+    // onboarding-draft and operational-density feature family. The table
+    // was UX-layer only (never granted capabilities) and now has zero
+    // code / service / schema references after the repository-wide
+    // deletion. Uses `DROP TABLE IF EXISTS … CASCADE` (idempotent + safe
+    // on partial state), mirroring the approved
+    // `20261009000000_drop_reviewer_queue_projection` precedent.
+    // Documented in `docs/operations/audit-closure-ledger.md`.
+    "20270924000000_drop_workspace_persona_profiles": new Set(["DROP_TABLE"]),
   };
 
   it("every migration with timestamp > baseline has ZERO CRITICAL findings", async () => {

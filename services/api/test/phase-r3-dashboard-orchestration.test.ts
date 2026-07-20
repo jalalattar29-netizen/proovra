@@ -251,10 +251,14 @@ describe("R3 Part 5 — onboarding hints are mode-aware + operationally meaningf
 // =============================================================================
 
 describe("R3 Part 6 — bounded section hierarchy + emphasis labels", () => {
-  it("orchestrator emits per-section emphasis (primary / secondary / de-emphasized)", () => {
+  it("orchestrator emits per-section emphasis (primary / de-emphasized)", () => {
+    // (2026-07-20) The `secondary` tier was removed with the
+    // workspace-persona feature — it was assigned exclusively by the
+    // deleted persona-priority layer. The neutral contract is exactly
+    // primary (mode-priority) | de-emphasized (everything else).
     expect(SECTIONS).toMatch(/emphasis:\s*"primary"/);
-    expect(SECTIONS).toMatch(/emphasis:\s*"secondary"/);
     expect(SECTIONS).toMatch(/emphasis:\s*"de-emphasized"/);
+    expect(SECTIONS).not.toMatch(/emphasis:\s*"secondary"/);
   });
 
   it("orchestrator NEVER removes sections (only reorders + labels)", () => {

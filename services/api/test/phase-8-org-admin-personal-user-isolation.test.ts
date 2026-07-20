@@ -66,19 +66,17 @@ describe("Phase 8 — admin routes never appear in the primary sidebar", () => {
   }
 });
 
-describe("Phase 8 — admin routes carry no workflowTags (no persona promotion)", () => {
+describe("Phase 8 — admin routes carry no workflow/persona promotion", () => {
   const registry = readWeb("lib/navigation/routeRegistry.ts");
 
-  for (const id of ADMIN_ROUTE_IDS) {
-    it(`${id} declares empty workflowTags`, () => {
-      const block = registry.match(
-        new RegExp(
-          `id:\\s*"${id.replace(/\./g, "\\.")}"[\\s\\S]{0,1000}?sidebarEligible:\\s*(true|false)\\s*,`,
-        ),
-      );
-      expect(block?.[0]).toMatch(/workflowTags:\s*\[\s*\]/);
-    });
-  }
+  // (2026-07-20) The `workflowTags` RouteDefinition field was removed
+  // entirely with the workspace-persona / workflow-personalization
+  // feature. There is no longer any per-route workflow-promotion input,
+  // so admin routes structurally cannot be persona-promoted. We pin the
+  // stronger invariant: the field is gone from the whole registry.
+  it("the registry declares no workflowTags field on any route", () => {
+    expect(registry).not.toMatch(/workflowTags\s*:/);
+  });
 });
 
 describe("Phase 8 — admin routes are advancedByDefault (never in any persona top-N)", () => {

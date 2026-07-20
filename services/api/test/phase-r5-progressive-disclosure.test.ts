@@ -348,9 +348,13 @@ describe("R5 Part 9 — workflow/persona still presentation-only", () => {
     expect(ra).not.toMatch(/\.personaProfile\b/);
   });
 
-  it("workflowExposureResolver still documents the no-authorization contract", () => {
-    const we = readWeb("lib/navigation/workflowExposureResolver.ts");
-    expect(we).toMatch(/Workflow NEVER changes/i);
+  it("navigation exposure resolver remains authorization-independent", () => {
+    // (2026-07-20) The workflow/persona exposure resolver was replaced
+    // by the neutral, persona-free `navigationExposureResolver` when the
+    // workspace-persona / workflow-personalization feature was deleted.
+    const we = readWeb("lib/navigation/navigationExposureResolver.ts");
+    expect(we).toMatch(/Access decisions are upstream/i);
+    expect(we).not.toMatch(/\bauthorize\s*\(/);
   });
 });
 

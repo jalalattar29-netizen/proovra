@@ -43,7 +43,9 @@ const TYPES = readWeb("lib/onboarding/types.ts");
 const STEPS = readWeb("lib/onboarding/onboardingSteps.ts");
 const RESOLVER = readWeb("lib/onboarding/resolveOnboardingState.ts");
 const INDEX = readWeb("lib/onboarding/index.ts");
-const PERSONA_PAGE = readWeb("app/(app)/settings/persona/page.tsx");
+// (2026-07-20) The /settings/persona page + PersonaSetupBanner were
+// physically deleted with the workspace-persona / workflow-personalization
+// feature; the persona-refresh + setup-banner tests were removed below.
 const COMMAND_CENTER = readWeb(
   "components/command-center/CommandCenter.tsx",
 );
@@ -101,11 +103,15 @@ describe("R7 Part 2 — personal onboarding sequence", () => {
 // =============================================================================
 
 describe("R7 Part 3 — organization onboarding sequence", () => {
-  it("ORGANIZATION sequence leads with workspace profile + invite collaborators", () => {
+  it("ORGANIZATION sequence leads with invite collaborators", () => {
+    // (2026-07-20) The "Configure your workspace profile" step pointed at
+    // the deleted /settings/persona page and was removed with the
+    // workspace-persona feature. Org onboarding now leads with inviting
+    // collaborators.
     const block = STEPS.match(/ORGANIZATION:\s*\[([\s\S]*?)\],\s*REVIEW_OPS:/);
     expect(block).toBeTruthy();
-    expect(block![1]).toMatch(/Configure your workspace profile/);
     expect(block![1]).toMatch(/Invite collaborators/);
+    expect(block![1]).not.toMatch(/Configure your workspace profile/);
   });
 
   it("ORGANIZATION sequence includes intake + queues + governance setup", () => {
@@ -193,17 +199,10 @@ describe("R7 Part 5 — every step href references an existing route", () => {
 // PART 6 — R1 refresh behavior preserved (workflow setup outcome)
 // =============================================================================
 
-describe("R7 Part 6 — R1 persona-refresh behavior preserved", () => {
-  it("persona save handler still calls ctx.refresh() after PATCH", () => {
-    expect(PERSONA_PAGE).toMatch(/\busePlatformContext\b/);
-    expect(PERSONA_PAGE).toMatch(/ctx\.refresh\s*\(/);
-  });
-
-  it("the stale 'Reload to see' copy stays removed (R1 contract)", () => {
-    expect(PERSONA_PAGE).not.toMatch(/Reload to see/i);
-    expect(PERSONA_PAGE).toMatch(/Workspace profile updated/);
-  });
-
+describe("R7 Part 6 — dashboard onboarding hint preserved", () => {
+  // (2026-07-20) The persona-save-refresh tests were removed with the
+  // /settings/persona page. The dashboard onboarding hint is the
+  // surviving onboarding surface and still consumes the canonical helper.
   it("dashboard onboarding hint still consumes the canonical helper", () => {
     expect(COMMAND_CENTER).toMatch(/resolveDashboardOnboarding/);
     expect(COMMAND_CENTER).toMatch(/onboardingHint\s*\?/);
@@ -294,15 +293,11 @@ describe("R7 Part 8 — no duplicate onboarding system / parallel state store", 
     }
   });
 
-  it("the existing PersonaSetupBanner remains the single setup-banner component", () => {
-    const path = webPath("components/app-shell-v2/PersonaSetupBanner.tsx");
-    expect(statSync(path).isFile()).toBe(true);
-  });
-
-  it("the existing PersonaWizardPage remains the single setup wizard", () => {
-    const path = webPath("app/(app)/settings/persona/page.tsx");
-    expect(statSync(path).isFile()).toBe(true);
-  });
+  // (2026-07-20) The "PersonaSetupBanner remains the single setup-banner"
+  // and "PersonaWizardPage remains the single setup wizard" tests were
+  // removed: both were physically deleted with the workspace-persona /
+  // workflow-personalization feature. Onboarding is now the mode-driven
+  // dashboard hint + the bounded step model — there is no setup wizard.
 });
 
 // =============================================================================

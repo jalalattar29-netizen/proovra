@@ -232,24 +232,12 @@ describe("CR1.5B Test 6 — useGlobalRuntimeState returns UNKNOWN when probes er
 });
 
 // ===========================================================================
-// 7. Persona save handler still calls `ctx.refresh()` (regression pin)
+// 7. (2026-07-20) REMOVED — persona save handler regression pin. The
+//    /settings/persona page was physically deleted with the
+//    workspace-persona / workflow-personalization feature; there is no
+//    persona save flow. The PATCH-then-refresh contract is still exercised
+//    for the surviving /settings profile page.
 // ===========================================================================
-
-describe("CR1.5B Test 7 — persona save invalidates envelope (extends CR1.5 Test 10)", () => {
-  it("settings/persona/page.tsx PATCH handler calls ctx.refresh() AND emits state event", () => {
-    const src = readWeb("app/(app)/settings/persona/page.tsx");
-    // PATCH call exists.
-    expect(src).toMatch(/method:\s*["']PATCH["']/);
-    // R1 Bug B fix is intact.
-    expect(src).toMatch(/ctx\.refresh\s*\(/);
-    // State observability is wired.
-    expect(src).toMatch(/persona-profile:saved/);
-    expect(src).toMatch(/persona-profile:refresh-missing/);
-    // Success copy does NOT instruct user to reload.
-    expect(src).not.toMatch(/Reload to see/i);
-    expect(src).toMatch(/Workspace profile updated/);
-  });
-});
 
 // ===========================================================================
 // 8. CommandCenter still uses useActiveSpace() (regression pin)
@@ -307,16 +295,17 @@ describe("CR1.5B Test 9 — observability event vocabulary covers production emi
 // 10. workflowExposureResolver forbids authorization concepts (regression pin)
 // ===========================================================================
 
-describe("CR1.5B Test 10 — workflowExposureResolver stays presentation-only (extends CR1.5 Test 12)", () => {
-  it("workflow exposure logic does NOT reference canLoad / requiredCapabilities / authorize / forbidden", () => {
-    const src = readWeb("lib/navigation/workflowExposureResolver.ts");
+describe("CR1.5B Test 10 — navigation exposure stays presentation-only (extends CR1.5 Test 12)", () => {
+  it("navigation exposure logic does NOT reference canLoad / requiredCapabilities / authorize", () => {
+    // (2026-07-20) The workflow/persona exposure resolver was replaced by
+    // the neutral `navigationExposureResolver`. It buckets already-allowed
+    // routes only — it must NEVER touch authorization decisions.
+    const src = readWeb("lib/navigation/navigationExposureResolver.ts");
     expect(src).not.toMatch(/\bcanLoad\s*=/);
     expect(src).not.toMatch(/requiredCapabilities\b\s*[:?.]/);
-    expect(src).not.toMatch(/authorize/i);
-    expect(src).not.toMatch(/forbidden/i);
-    // The "Workflow NEVER changes [authorization]" contract is still
-    // documented in the file header.
-    expect(src).toMatch(/Workflow NEVER changes/i);
+    expect(src).not.toMatch(/\bauthorize\s*\(/);
+    // The no-authorization contract is documented in the file header.
+    expect(src).toMatch(/Access decisions are upstream/i);
   });
 });
 
@@ -477,12 +466,13 @@ describe("CR1.5B Test 14 — canonical workspace-state hooks remain exported", (
   it("lib/platform-context exports the canonical hooks used by every surface", () => {
     // Reading the barrel file ensures the hooks remain available.
     const idx = readWeb("lib/platform-context/index.ts");
+    // (2026-07-20) `usePersonaProfile` was removed from the canonical
+    // hooks with the workspace-persona / workflow-personalization feature.
     const REQUIRED_EXPORTS = [
       "usePlatformContext",
       "useActiveSpace",
       "useActiveSpaceId",
       "useTeamWorkspaceGate",
-      "usePersonaProfile",
       "useAccount",
       "useOrganizations",
       "usePersonalSpace",

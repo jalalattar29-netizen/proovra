@@ -14,10 +14,8 @@
  *
  * Hard rules pinned by tests:
  *
- *   1. Workflow profiles never appear as `requiredCapabilities`. They
- *      drive `workflowTags` only.
- *   2. `advancedByDefault: true` demotes a route to More/Advanced for
- *      workflows that don't tag it — but the route remains reachable.
+ *   1. `advancedByDefault: true` demotes a route to More/Advanced,
+ *      but the route remains reachable via search + All Tools.
  *   3. Capability-allowed routes are reachable from at least one
  *      navigation surface (sidebar OR All Tools OR command palette).
  *   4. Account-tier routes (settings, billing, pricing) declare
@@ -81,7 +79,7 @@ export type RouteDefinition = {
    * Workflow tags that PRIORITIZE the route in the sidebar / dashboard.
    * NEVER used as a gate by the access resolver.
    */
-  workflowTags: ReadonlyArray<string>;
+
   /** When true, the route renders under More/Advanced by default. */
   advancedByDefault: boolean;
   /** When true, the command palette returns this route as a result. */
@@ -119,7 +117,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["ACCOUNT_SETTINGS_VIEW"],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -139,7 +137,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -154,7 +152,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -170,7 +168,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -193,7 +191,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -208,27 +206,13 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["ACCOUNT_BILLING_VIEW"],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
     sidebarEligible: false,
   },
-  {
-    id: "account.persona",
-    href: "/settings/persona",
-    label: "Workflow profile",
-    description: "Choose workflows that personalize layout and defaults.",
-    domain: "ACCOUNT",
-    requiredCapabilities: ["ACCOUNT_SETTINGS_VIEW"],
-    requiredActiveSpace: "NONE",
-    fallbackBehavior: "LOAD",
-    workflowTags: [],
-    advancedByDefault: true,
-    commandPaletteVisible: true,
-    allToolsVisible: true,
-    sidebarEligible: false,
-  },
+
   // Phase A.1 — Operational cohesion: register the Phase 2.7X Stage 3+4+5
   // Organization surfaces in the canonical route registry. They were
   // intentionally NOT registered when the Stage 3 surface first shipped
@@ -251,7 +235,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -266,7 +250,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -289,7 +273,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -305,7 +289,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -326,7 +310,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -349,15 +333,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["DASHBOARD_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: [
-      "VERIFICATION_DOCUMENTATION",
-      "LEGAL_CASEWORK",
-      "REVIEW_OPERATIONS",
-      "INVESTIGATION_RECONSTRUCTION",
-      "MEDIA_VERIFICATION",
-      "GOVERNANCE_COMPLIANCE",
-      "OPERATIONAL_ADMINISTRATION",
-    ],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -372,11 +348,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["EVIDENCE_CAPTURE"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: [
-      "VERIFICATION_DOCUMENTATION",
-      "INVESTIGATION_RECONSTRUCTION",
-      "MEDIA_VERIFICATION",
-    ],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -391,12 +363,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["EVIDENCE_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: [
-      "VERIFICATION_DOCUMENTATION",
-      "LEGAL_CASEWORK",
-      "INVESTIGATION_RECONSTRUCTION",
-      "MEDIA_VERIFICATION",
-    ],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -412,7 +379,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["CASES_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["LEGAL_CASEWORK", "REVIEW_OPERATIONS"],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -427,7 +394,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["REPORTS_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["LEGAL_CASEWORK", "MEDIA_VERIFICATION"],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -442,10 +409,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["SEARCH_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: [
-      "INVESTIGATION_RECONSTRUCTION",
-      "VERIFICATION_DOCUMENTATION",
-    ],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -467,7 +431,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // asks the user to pick a workspace when none is active.
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -483,7 +447,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["SETTINGS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -498,7 +462,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["INTEGRATIONS_MANAGE"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -513,7 +477,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["INTAKE_LINKS_MANAGE"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["LEGAL_CASEWORK", "REVIEW_OPERATIONS"],
+
     // Phase IA-intake-access-fix — Intake Links is a CORE self-serve
     // surface for PRO/TEAM, not an advanced add-on. It must render in
     // the primary sidebar group instead of being demoted to "More /
@@ -547,7 +511,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["INTEGRATIONS_MANAGE"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -571,7 +535,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["SECURITY_CENTER_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -594,7 +558,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["SECURITY_CENTER_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -612,7 +576,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // (constitutional rule 9; see docs/architecture/phase-4-route-persona-matrix.md §3.8).
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -627,7 +591,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["ESCALATIONS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "CREATE_ORG",
-    workflowTags: ["REVIEW_OPERATIONS", "OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -642,7 +606,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["GOVERNANCE_ACT"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "CREATE_ORG",
-    workflowTags: ["GOVERNANCE_COMPLIANCE", "OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -657,7 +621,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["GOVERNANCE_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "CREATE_ORG",
-    workflowTags: ["GOVERNANCE_COMPLIANCE"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -672,7 +636,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["LIFECYCLE_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "CREATE_ORG",
-    workflowTags: ["GOVERNANCE_COMPLIANCE"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -687,7 +651,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["RETENTION_MANAGE"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "CREATE_ORG",
-    workflowTags: ["GOVERNANCE_COMPLIANCE"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -702,7 +666,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["GOVERNANCE_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "CREATE_ORG",
-    workflowTags: ["GOVERNANCE_COMPLIANCE"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -718,7 +682,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // PHASE 4 — Operations is a platform-admin area (rule 9).
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -739,7 +703,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "CREATE_ORG",
-    workflowTags: ["REVIEW_OPERATIONS"],
+
     advancedByDefault: true,
     // Detail page reached from the queue — not listed independently in
     // discoverability surfaces.
@@ -765,7 +729,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["EVIDENCE_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -780,7 +744,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["EVIDENCE_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["INVESTIGATION_RECONSTRUCTION", "MEDIA_VERIFICATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -795,7 +759,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["EVIDENCE_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["INVESTIGATION_RECONSTRUCTION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -810,7 +774,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["EVIDENCE_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["INVESTIGATION_RECONSTRUCTION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -826,7 +790,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // PHASE 4 — Operations is a platform-admin area (rule 9).
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -851,7 +815,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // PHASE 4 — Operations is a platform-admin area (rule 9).
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -869,7 +833,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // PHASE 4 — Operations is a platform-admin area (rule 9).
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -899,7 +863,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["EVIDENCE_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["REVIEW_OPERATIONS", "LEGAL_CASEWORK"],
+
     advancedByDefault: true,
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -926,12 +890,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: [
-      "LEGAL_CASEWORK",
-      "REVIEW_OPERATIONS",
-      "INVESTIGATION_RECONSTRUCTION",
-      "VERIFICATION_DOCUMENTATION",
-    ],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -946,7 +905,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["LEGAL_CASEWORK", "REVIEW_OPERATIONS"],
+
     advancedByDefault: true,
     // Detail page reached from /collaboration-teams; not listed
     // independently in discovery surfaces.
@@ -964,7 +923,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["LEGAL_CASEWORK", "REVIEW_OPERATIONS"],
+
     advancedByDefault: true,
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -979,7 +938,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -1003,7 +962,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["DASHBOARD_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     // Phase R7.5 — canonical location RESOLVED: the live quota console now
     // lives at app/(app)/operations/quotas/page.tsx (moved from /dashboard/
@@ -1035,7 +994,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["DASHBOARD_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     // Phase R7.5 — canonical location RESOLVED: the live batch console now
     // lives at app/(app)/operations/batch-analysis/page.tsx (moved from
@@ -1054,7 +1013,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["EVIDENCE_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["INVESTIGATION_RECONSTRUCTION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1069,7 +1028,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["EVIDENCE_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["INVESTIGATION_RECONSTRUCTION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1084,7 +1043,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["EVIDENCE_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["INVESTIGATION_RECONSTRUCTION", "REVIEW_OPERATIONS"],
+
     advancedByDefault: true,
     // -------------------------------------------------------------------------
     // Investigation-suite audit (persona-fit decision):
@@ -1115,7 +1074,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["EVIDENCE_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
-    workflowTags: ["INVESTIGATION_RECONSTRUCTION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1145,7 +1104,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "CREATE_ORG",
-    workflowTags: ["REVIEW_OPERATIONS", "OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1170,7 +1129,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "CREATE_ORG",
-    workflowTags: ["REVIEW_OPERATIONS", "OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: false,
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -1186,7 +1145,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "CREATE_ORG",
-    workflowTags: ["REVIEW_OPERATIONS"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1202,7 +1161,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["INTAKE_LINKS_MANAGE"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["LEGAL_CASEWORK", "REVIEW_OPERATIONS"],
+
     advancedByDefault: true,
     // PHASE 4 — root list page does not exist (only the [id] detail page
     // ships). Constitutional rule 11: no visible route may lead to Page
@@ -1221,7 +1180,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["SLA_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "CREATE_ORG",
-    workflowTags: ["REVIEW_OPERATIONS"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1236,7 +1195,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["GOVERNANCE_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "CREATE_ORG",
-    workflowTags: ["GOVERNANCE_COMPLIANCE", "LEGAL_CASEWORK"],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1251,7 +1210,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["RETENTION_MANAGE"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["GOVERNANCE_COMPLIANCE"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1267,7 +1226,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // PHASE 4 — Operations is a platform-admin area (rule 9).
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1288,7 +1247,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // PHASE 4 — Operations is a platform-admin area (rule 9).
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1309,7 +1268,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     // PHASE 4 — Operations is a platform-admin area (rule 9).
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1339,7 +1298,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["TEAM_VIEW"],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1358,7 +1317,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -1381,7 +1340,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     // Surfaced so a Platform Admin can reach provisioning from the command
     // palette / All Tools (and the /admin console nav) — never a direct-URL
@@ -1400,7 +1359,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1416,7 +1375,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     // Dynamic detail route — reached from the roster, not the palette/All Tools.
     commandPaletteVisible: false,
@@ -1433,7 +1392,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1449,7 +1408,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1465,7 +1424,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1481,7 +1440,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1498,7 +1457,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1514,7 +1473,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1530,7 +1489,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1546,7 +1505,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1562,7 +1521,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1578,7 +1537,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1594,7 +1553,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1614,7 +1573,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1630,7 +1589,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1646,7 +1605,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1662,7 +1621,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     // Reached from Demo Requests / the sales flow — not a palette entry.
     commandPaletteVisible: false,
@@ -1682,7 +1641,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["ACCOUNT_SETTINGS_VIEW"],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: false, // self-reference; doesn't list itself
@@ -1710,7 +1669,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -1732,7 +1691,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["REVIEW_OPERATIONS"],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1747,7 +1706,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["REVIEW_OPERATIONS"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1762,7 +1721,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["REVIEW_OPERATIONS"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1777,7 +1736,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["REVIEW_OPERATIONS"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1793,7 +1752,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["REVIEW_OPERATIONS"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1813,7 +1772,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["REVIEW_OPERATIONS"],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1835,7 +1794,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["REVIEW_OPERATIONS"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1872,7 +1831,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1895,7 +1854,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1916,7 +1875,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1935,7 +1894,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1951,7 +1910,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["GOVERNANCE_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1967,7 +1926,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["GOVERNANCE_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1983,7 +1942,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["GOVERNANCE_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -1998,7 +1957,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["LIFECYCLE_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2014,7 +1973,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["EXPORT_GOVERNANCE_MANAGE"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2030,7 +1989,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["GOVERNANCE_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2056,7 +2015,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["GOVERNANCE_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2072,7 +2031,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["EXPORT_GOVERNANCE_MANAGE"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2088,7 +2047,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
-    workflowTags: ["REVIEW_OPERATIONS"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2124,7 +2083,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2140,7 +2099,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2155,7 +2114,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2170,7 +2129,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2186,7 +2145,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2207,7 +2166,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2223,7 +2182,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2238,7 +2197,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2254,7 +2213,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2271,7 +2230,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2288,7 +2247,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2305,7 +2264,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2323,7 +2282,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["OBSERVABILITY_VIEW"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2347,7 +2306,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["OPS_CENTER_VIEW"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -2365,7 +2324,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["OPS_CENTER_VIEW"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -2383,7 +2342,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["OPS_CENTER_VIEW"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
-    workflowTags: ["OPERATIONAL_ADMINISTRATION"],
+
     advancedByDefault: true,
     commandPaletteVisible: false,
     allToolsVisible: false,
@@ -2399,7 +2358,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2423,7 +2382,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2438,7 +2397,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2460,7 +2419,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2476,7 +2435,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,
@@ -2492,7 +2451,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: [],
     requiredActiveSpace: "NONE",
     fallbackBehavior: "LOAD",
-    workflowTags: [],
+
     advancedByDefault: true,
     commandPaletteVisible: true,
     allToolsVisible: true,

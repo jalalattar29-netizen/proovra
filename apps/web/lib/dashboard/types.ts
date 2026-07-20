@@ -15,10 +15,15 @@ import type { WorkspaceExperienceMode } from "../workspace-experience/types";
  * attributes so future CSS / Phase R5/R6 work can target. The
  * orchestrator NEVER removes a section — sections that aren't
  * appropriate for a mode become `de-emphasized`, not hidden.
+ *
+ * (2026-07-20) The `secondary` tier was removed with the
+ * workspace-persona feature — it was assigned exclusively by the
+ * deleted persona-priority layer. The neutral contract is now exactly
+ * `primary | de-emphasized`: mode-priority sections are `primary`,
+ * everything else is `de-emphasized`.
  */
 export type SectionEmphasis =
   | "primary"
-  | "secondary"
   | "de-emphasized";
 
 export interface OrderedSectionId {
@@ -28,16 +33,14 @@ export interface OrderedSectionId {
 
 export interface DashboardSectionsInput {
   readonly mode: WorkspaceExperienceMode;
-  readonly persona: string;
   readonly availableSectionIds: ReadonlyArray<string>;
 }
 
 export interface DashboardSectionsResult {
   /**
-   * The bounded display order. Mode priority wins over persona
-   * priority; persona priority wins over the canonical default
-   * order. Sections that are available but un-prioritized retain
-   * their input order at the tail.
+   * The bounded display order. Mode priority wins over the canonical
+   * default order. Sections that are available but un-prioritized
+   * retain their input order at the tail.
    */
   readonly sectionOrder: ReadonlyArray<string>;
   /**

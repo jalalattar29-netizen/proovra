@@ -38,19 +38,10 @@ export default function ReviewPage() {
     return null;
   }, [ctx.state]);
 
-  const density = useMemo(() => {
-    if (ctx.state.name !== "READY") return "comfortable" as const;
-    const pref =
-      ctx.state.envelope.personaProfile?.operationalDensityPreference ??
-      "comfortable";
-    return pref;
-  }, [ctx.state]);
-
   return (
     <PageRouteGate routeId="review.queue">
       <ReviewerConsole
         teamId={teamId}
-        density={density}
         onOpenRow={(row) => {
           // Delegate to the existing per-workflow inspector. The
           // inspector is the canonical mutation surface (assign,

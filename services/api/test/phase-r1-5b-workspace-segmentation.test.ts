@@ -299,9 +299,14 @@ describe("R1.5B Part 8 — no authorization regression", () => {
     expect(src).not.toMatch(/\.personaProfile\b/);
   });
 
-  it("workflowExposureResolver still documents the no-authorization contract", () => {
-    const src = readWeb("lib/navigation/workflowExposureResolver.ts");
-    expect(src).toMatch(/Workflow NEVER changes/i);
+  it("navigation exposure resolver remains authorization-independent", () => {
+    // (2026-07-20) The workflow/persona exposure resolver was replaced
+    // by the neutral, persona-free `navigationExposureResolver` when the
+    // workspace-persona / workflow-personalization feature was deleted.
+    // It only organizes already-allowed routes — never grants access.
+    const src = readWeb("lib/navigation/navigationExposureResolver.ts");
+    expect(src).toMatch(/Access decisions are upstream/i);
+    expect(src).not.toMatch(/\bauthorize\s*\(/);
   });
 
   it("experience resolver is not imported into routeAccessResolver", () => {

@@ -176,27 +176,9 @@ export const CAPABILITY_KEYS = [
     // Phase E4 — operational analytics (single bounded VIEW capability).
     "ANALYTICS_VIEW",
 ];
-// =============================================================================
-// PHASE 38 — Workspace persona profile (UX-layer only).
-//
-// The profile drives ordering, defaults, and terminology. It NEVER grants
-// capabilities — pages MUST keep gating features on `ctx.can(CAPABILITY)`
-// even when the persona prioritizes a surface.
-// =============================================================================
-export const WORKSPACE_PERSONA_PROFILES = [
-    "INDIVIDUAL",
-    "LAWYER",
-    "INSURANCE",
-    "INVESTIGATOR",
-    "JOURNALIST",
-    "ENTERPRISE_COMPLIANCE",
-    "ADMIN_OPERATOR",
-];
-export const OPERATIONAL_DENSITY_PREFERENCES = [
-    "compact",
-    "comfortable",
-    "spacious",
-];
+// (2026-07-20) WORKSPACE_PERSONA_PROFILES + OPERATIONAL_DENSITY_PREFERENCES
+// removed with the workspace-persona / workflow-personalization /
+// operational-density feature.
 // Convenience predicate used by the workspace switcher + tests.
 export function isReady(s) {
     return s.name === "READY";

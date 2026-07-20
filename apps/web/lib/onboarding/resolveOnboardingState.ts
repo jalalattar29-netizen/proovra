@@ -13,9 +13,9 @@
  *      steps; the destination route's own PageRouteGate handles
  *      unauthorized clicks.
  *
- *   3. Single state source. The resolver consumes
- *      `onboardingCompleted` from `envelope.personaProfile`. NO
- *      parallel onboarding state is introduced.
+ *   3. Single state source. The resolver consumes the caller-supplied
+ *      `onboardingCompleted` signal. NO parallel onboarding state is
+ *      introduced.
  *
  *   4. Bounded sequences. The mode → step mapping is the only
  *      source; future modes require deliberate extension.

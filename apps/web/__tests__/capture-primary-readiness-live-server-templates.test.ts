@@ -235,7 +235,6 @@ for (const { template, step } of SERVER_PRIMARY_STEPS) {
     // The readiness panel's has_primary criterion must satisfy.
     const readiness = computeCaptureReadiness({
       items: [item],
-      workflow: PROFILE,
     });
     const hp = readiness.criteria.find((c) => c.id === "has_primary");
     assert.ok(hp, "has_primary criterion exists");

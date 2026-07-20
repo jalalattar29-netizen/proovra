@@ -38,7 +38,9 @@ function readWeb(rel: string): string {
 }
 
 const CC = readWeb("components/command-center/CommandCenter.tsx");
-const PERSONA = readWeb("app/(app)/settings/persona/page.tsx");
+// (2026-07-20) The /settings/persona page was physically deleted with the
+// workspace-persona / workflow-personalization feature; its persona-save
+// refresh tests were removed below.
 const PROVIDER = readWeb("lib/platform-context/PlatformContextProvider.tsx");
 // Settings IA remediation (2026-07-16): profile editing (the PATCH
 // /v1/users/me + platformCtx.refresh() contract pinned below) moved from
@@ -92,37 +94,10 @@ describe("R1 Part 1 — CommandCenter consumes canonical active-space", () => {
   });
 });
 
-// =============================================================================
-// PART 2 — Persona save refresh
-// =============================================================================
-
-describe("R1 Part 2 — persona save refreshes the canonical envelope", () => {
-  it("settings/persona/page.tsx imports usePlatformContext", () => {
-    expect(PERSONA).toMatch(/\busePlatformContext\b/);
-  });
-
-  it("PATCH handler calls ctx.refresh() after successful save", () => {
-    expect(PERSONA).toMatch(/ctx\.refresh\s*\(/);
-    // Refresh must happen INSIDE the persistProfile body, between
-    // the PATCH success and `setSaved(true)`. We anchor by checking
-    // that the refresh call appears before `setSaved(true)` in the
-    // same source.
-    const refreshIdx = PERSONA.search(/ctx\.refresh\s*\(/);
-    const setSavedIdx = PERSONA.search(/setSaved\s*\(\s*true\s*\)/);
-    expect(refreshIdx, "ctx.refresh() must be present").toBeGreaterThan(-1);
-    expect(setSavedIdx, "setSaved(true) must be present").toBeGreaterThan(-1);
-    expect(refreshIdx).toBeLessThan(setSavedIdx);
-  });
-
-  it("the stale 'Reload to see' copy is removed", () => {
-    expect(PERSONA).not.toMatch(/Reload to see/i);
-  });
-
-  it("the new success copy says navigation/recommendations have been refreshed", () => {
-    expect(PERSONA).toMatch(/Workspace profile updated/);
-    expect(PERSONA).toMatch(/refreshed/i);
-  });
-});
+// (2026-07-20) PART 2 — "Persona save refresh" was removed with the
+// /settings/persona page (workspace-persona / workflow-personalization
+// deletion). The envelope-refresh-after-mutation contract is still
+// exercised for the surviving /settings profile PATCH in Part 4 below.
 
 // =============================================================================
 // PART 3 — No red "Unknown" state in primary shell
@@ -186,16 +161,12 @@ describe("R1 Part 7 — observability utility wired into key transitions", () =>
     expect(CC).toMatch(/dashboard:resolved/);
   });
 
-  it("persona save emits persona-profile:saved (and :refresh-missing on failure)", () => {
-    expect(PERSONA).toMatch(/state-observability/);
-    expect(PERSONA).toMatch(/persona-profile:saved/);
-    expect(PERSONA).toMatch(/persona-profile:refresh-missing/);
-  });
+  // (2026-07-20) The "persona save emits persona-profile:saved" test was
+  // removed with the /settings/persona page.
 
   it("observability emits use the redactWorkspaceId helper (no full workspace ids in payload)", () => {
     expect(PROVIDER).toMatch(/redactWorkspaceId/);
     expect(CC).toMatch(/redactWorkspaceId/);
-    expect(PERSONA).toMatch(/redactWorkspaceId/);
   });
 });
 
@@ -204,21 +175,25 @@ describe("R1 Part 7 — observability utility wired into key transitions", () =>
 // capabilities still authoritative
 // =============================================================================
 
-describe("R1 Part 6 — no workflow/persona authorization regression", () => {
-  it("workflowExposureResolver still documents the no-authorization contract", () => {
-    const src = readWeb("lib/navigation/workflowExposureResolver.ts");
-    expect(src).toMatch(/Workflow NEVER changes/i);
-    expect(src).not.toMatch(/\bauthorize\b/i);
+describe("R1 Part 6 — no navigation authorization regression", () => {
+  it("navigation exposure resolver remains authorization-independent", () => {
+    // (2026-07-20) The workflow/persona exposure resolver was replaced
+    // by the neutral, persona-free `navigationExposureResolver` when the
+    // workspace-persona / workflow-personalization feature was deleted.
+    const src = readWeb("lib/navigation/navigationExposureResolver.ts");
+    expect(src).toMatch(/Access decisions are upstream/i);
+    expect(src).not.toMatch(/\bauthorize\s*\(/);
   });
 
-  it("R1 did NOT introduce workflow-gated capability checks in CommandCenter", () => {
+  it("CommandCenter gates on capabilities, never on a persona value", () => {
     // The CommandCenter still uses `ctx.can(...)` (capability) for
     // mutation visibility and `envelope.flags.isTeamWorkspace` for
-    // team-only sections. It must NOT gate on persona/workflow.
-    expect(CC).not.toMatch(/persona\s*===\s*["']/);
-    // Workflow code is consumed for data-cc-workflow attribute and
-    // section ordering — that is presentation only.
-    expect(CC).toMatch(/data-cc-workflow=/);
+    // team-only sections. It must NOT gate on the workspace-persona
+    // feature (deleted 2026-07-20). The authorization role-persona from
+    // capabilityMatrix is display-only (data-cc-persona).
+    expect(CC).not.toMatch(/personaProfile/);
+    expect(CC).not.toMatch(/workflowFromPersona/);
+    expect(CC).toMatch(/ctx\.can\(/);
   });
 });
 

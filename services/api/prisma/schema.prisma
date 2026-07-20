@@ -88,8 +88,8 @@ model Evidence {
   //                        the environment the material entered PROOVRA in;
   //                        it is NOT the file's embedded EXIF metadata and
   //                        NOT the preservation (OTS/RFC3161) state.
-  technicalMetadata                 Json?     @map("technical_metadata")
-  captureEnvironment                Json?     @map("capture_environment")
+  technicalMetadata  Json? @map("technical_metadata")
+  captureEnvironment Json? @map("capture_environment")
 
   lat                      Float?
   lng                      Float?
@@ -818,8 +818,8 @@ model User {
   identityLinks                 UserIdentityLink[]
   dataExportRequests            AccountDataExportRequest[]
   accountClosureRequests        AccountClosureRequest[]
-  orgClosureRequests            OrganizationClosureRequest[] @relation("OrganizationClosureRequestedBy")
-  workspaceClosureRequests      WorkspaceClosureRequest[]    @relation("WorkspaceClosureRequestedBy")
+  orgClosureRequests            OrganizationClosureRequest[]   @relation("OrganizationClosureRequestedBy")
+  workspaceClosureRequests      WorkspaceClosureRequest[]      @relation("WorkspaceClosureRequestedBy")
   createdAt                     DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                     DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(6)
   avatarUrl                     String?                        @map("avatar_url") @db.VarChar(512)
@@ -1098,7 +1098,7 @@ model Team {
   apiCredentials            ApiCredential[]
   webhookEndpoints          WebhookEndpoint[]
   // Lifecycle Phase 7 — closure request back-relation.
-  closureRequests           WorkspaceClosureRequest[] @relation("WorkspaceClosureRequests")
+  closureRequests           WorkspaceClosureRequest[]  @relation("WorkspaceClosureRequests")
 
   // Phase 32.8C++++ — Dashboard intelligence back-relation.
   accessAnomalies AccessAnomaly[]
@@ -1166,8 +1166,8 @@ model Team {
   governanceNotifications      GovernanceNotification[]
   governanceExportSnapshots    GovernanceExportSnapshot[]
 
-  // Phase 38 — Use-case persona profile (UX layer only; never grants caps).
-  personaProfile WorkspacePersonaProfile?
+  // (2026-07-20) `personaProfile WorkspacePersonaProfile?` removed with
+  // the workspace-persona / workflow-personalization feature.
 
   // Phase R8.1.4 — MFA recovery requests are scoped to a team. Back-
   // relation lets the admin surface list pending requests per team.
@@ -1793,22 +1793,22 @@ model GuestIdentity {
 }
 
 model Entitlement {
-  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId                   String    @map("user_id") @db.Uuid
-  plan                     PlanType
-  credits                  Int       @default(0)
-  teamSeats                Int       @default(0) @map("team_seats")
-  active                   Boolean   @default(true)
-  validUntil               DateTime? @map("valid_until") @db.Timestamptz(6)
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String    @map("user_id") @db.Uuid
+  plan                    PlanType
+  credits                 Int       @default(0)
+  teamSeats               Int       @default(0) @map("team_seats")
+  active                  Boolean   @default(true)
+  validUntil              DateTime? @map("valid_until") @db.Timestamptz(6)
   /// Grandfather override: when set, replaces the plan's lifetime
   /// evidence-record cap for this user. Backfilled for accounts that
   /// already exceeded the new Pro/Team caps at the time of the
   /// pricing-hardening migration so existing records remain accessible
   /// while new creation is blocked above their grandfathered allowance.
-  legacyRecordCapOverride  Int?      @map("legacy_record_cap_override")
-  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user                     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  legacyRecordCapOverride Int?      @map("legacy_record_cap_override")
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("entitlements")
@@ -2561,20 +2561,20 @@ enum AuthProvider {
 // bootstrap state, not a durable login method). PASSWORD is represented
 // by User.passwordHash presence, not a link row — no secret duplication.
 model UserIdentityLink {
-  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId                String    @map("user_id") @db.Uuid
+  id                    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String       @map("user_id") @db.Uuid
   provider              AuthProvider
-  providerSubjectId     String    @map("provider_subject_id") @db.VarChar(128)
-  normalizedEmail       String?   @map("normalized_email") @db.VarChar(320)
-  providerEmailVerified Boolean   @default(false) @map("provider_email_verified")
+  providerSubjectId     String       @map("provider_subject_id") @db.VarChar(128)
+  normalizedEmail       String?      @map("normalized_email") @db.VarChar(320)
+  providerEmailVerified Boolean      @default(false) @map("provider_email_verified")
   // ACTIVE / REVOKED. No PENDING today: a link is created only after the
   // provider token is fully verified in the same request.
-  status                String    @default("ACTIVE") @db.VarChar(20)
-  linkedAtUtc           DateTime  @default(now()) @map("linked_at_utc") @db.Timestamptz(6)
-  lastUsedAtUtc         DateTime? @map("last_used_at_utc") @db.Timestamptz(6)
-  revokedAtUtc          DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status                String       @default("ACTIVE") @db.VarChar(20)
+  linkedAtUtc           DateTime     @default(now()) @map("linked_at_utc") @db.Timestamptz(6)
+  lastUsedAtUtc         DateTime?    @map("last_used_at_utc") @db.Timestamptz(6)
+  revokedAtUtc          DateTime?    @map("revoked_at_utc") @db.Timestamptz(6)
+  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -4082,7 +4082,7 @@ model SecurityEvent {
 
   // Stable canonical event type string. Adding one requires a code
   // change so we can keep the operator-facing labels under control.
-  eventType String                @map("eventType") @db.VarChar(64)
+  eventType String @map("eventType") @db.VarChar(64)
   // Phase IA-securityEvent-driftFix —
   // Production inspection (via the `operator does not exist:
   // character varying = "SecurityEventSeverity"` error surfaced by
@@ -4106,7 +4106,7 @@ model SecurityEvent {
   // already pass plain string literals (`severity: "HIGH"` etc.), so
   // their behavior is unchanged. The allowed values catalog lives in
   // application code (see `services/api/src/services/security/severity.ts`).
-  severity  String                @map("severity") @db.VarChar(16) @default("INFO")
+  severity  String @default("INFO") @map("severity") @db.VarChar(16)
 
   // Phase 32.7.2 — production already has these columns; Prisma
   // model declares them now so future writers (e.g., audit
@@ -4160,9 +4160,9 @@ enum UploadSessionStatus {
 }
 
 model UploadSession {
-  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  evidenceId String  @unique @map("evidence_id") @db.Uuid
-  teamId     String  @map("team_id") @db.Uuid
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId String @unique @map("evidence_id") @db.Uuid
+  teamId     String @map("team_id") @db.Uuid
 
   status UploadSessionStatus @default(CREATED)
 
@@ -4640,9 +4640,9 @@ enum DiscussionMessageAuthorKind {
 }
 
 model DiscussionMessage {
-  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  threadId String  @map("thread_id") @db.Uuid
-  teamId   String  @map("team_id") @db.Uuid
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  threadId String @map("thread_id") @db.Uuid
+  teamId   String @map("team_id") @db.Uuid
 
   authorKind                 DiscussionMessageAuthorKind @map("author_kind")
   authorUserId               String?                     @map("author_user_id") @db.Uuid
@@ -6386,10 +6386,10 @@ model OperationsInboxSnapshot {
   priority String @db.VarChar(4)
 
   /// Captured ONCE at first surface — never rewritten.
-  title String  @db.VarChar(300)
-  body  String  @db.VarChar(1200)
+  title String @db.VarChar(300)
+  body  String @db.VarChar(1200)
   /// Deep link captured at first surface (server-generated route).
-  href  String  @db.VarChar(300)
+  href  String @db.VarChar(300)
 
   /// Real due date from the source when one existed; never fabricated.
   dueAtUtc DateTime? @map("due_at_utc") @db.Timestamptz(6)
@@ -6408,8 +6408,8 @@ model OperationsInboxSnapshot {
   /// stopped emitting the item (automatic, system-labeled — never a
   /// fabricated human resolver). Future workflow-driven resolutions may
   /// record their own source labels + the acting user.
-  resolutionSource String? @map("resolution_source") @db.VarChar(32)
-  resolvedByUserId String? @map("resolved_by_user_id") @db.Uuid
+  resolutionSource    String?   @map("resolution_source") @db.VarChar(32)
+  resolvedByUserId    String?   @map("resolved_by_user_id") @db.Uuid
 
   /// Bounded, validated context copied from the item's `context` map
   /// (names/ids the user already saw — never admin-only enrichment).
@@ -6444,18 +6444,18 @@ model OrganizationNotificationPolicy {
 
   organizationId String @map("organization_id") @db.Uuid
   /// NotificationPreferenceType value (bounded at the app layer).
-  category String @db.VarChar(40)
+  category       String @db.VarChar(40)
 
-  mandatoryInApp Boolean @default(false) @map("mandatory_in_app")
-  mandatoryEmail Boolean @default(false) @map("mandatory_email")
+  mandatoryInApp             Boolean @default(false) @map("mandatory_in_app")
+  mandatoryEmail             Boolean @default(false) @map("mandatory_email")
   /// Minimum allowed EMAIL cadence (IMMEDIATE strongest … WEEKLY weakest);
   /// null = no minimum. Users cannot weaken below this.
-  minimumFrequency String? @map("minimum_frequency") @db.VarChar(16)
+  minimumFrequency           String? @map("minimum_frequency") @db.VarChar(16)
   /// Whether CRITICAL items in this category may bypass quiet hours.
   quietHoursCriticalOverride Boolean @default(true) @map("quiet_hours_critical_override")
 
-  policyVersion   Int    @default(1) @map("policy_version")
-  createdByUserId String @map("created_by_user_id") @db.Uuid
+  policyVersion   Int     @default(1) @map("policy_version")
+  createdByUserId String  @map("created_by_user_id") @db.Uuid
   updatedByUserId String? @map("updated_by_user_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -6481,10 +6481,10 @@ model NotificationScheduleSetting {
   /// EXPLICIT per-workspace override chosen by the user.
   timezone String? @db.VarChar(64)
 
-  quietHoursEnabled Boolean @default(false) @map("quiet_hours_enabled")
+  quietHoursEnabled     Boolean @default(false) @map("quiet_hours_enabled")
   /// Minutes after local midnight (0..1439).
-  quietStartMinute Int @default(1320) @map("quiet_start_minute")
-  quietEndMinute   Int @default(420) @map("quiet_end_minute")
+  quietStartMinute      Int     @default(1320) @map("quiet_start_minute")
+  quietEndMinute        Int     @default(420) @map("quiet_end_minute")
   /// When true, CRITICAL items may still deliver during quiet hours.
   quietCriticalOverride Boolean @default(true) @map("quiet_critical_override")
 
@@ -9168,29 +9168,11 @@ model OrgHealthProjection {
 // can override (e.g. a solo lawyer with a personal Pro account can pick
 // LAWYER for sensible defaults).
 // =============================================================================
-model WorkspacePersonaProfile {
-  teamId                       String  @id @map("team_id") @db.Uuid
-  primaryProfile               String  @default("INDIVIDUAL") @map("primary_profile") @db.VarChar(40)
-  /// Bounded JSON array of additional use-case codes (max 4) — e.g.
-  /// `["INVESTIGATOR"]` for a lawyer who also runs investigations.
-  secondaryUseCases            Json    @default("[]") @map("secondary_use_cases")
-  onboardingCompleted          Boolean @default(false) @map("onboarding_completed")
-  preferredDashboardLayout     String? @map("preferred_dashboard_layout") @db.VarChar(64)
-  /// One of: "compact" | "comfortable" | "spacious".
-  operationalDensityPreference String  @default("comfortable") @map("operational_density_preference") @db.VarChar(20)
-  /// Bounded JSON array of feature codes the UX layer prioritises.
-  featurePriorityOverrides     Json    @default("[]") @map("feature_priority_overrides")
-  /// Bounded JSON capturing onboarding state for resumable flows.
-  onboardingState              Json    @default("{}") @map("onboarding_state")
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  @@index([primaryProfile])
-  @@map("workspace_persona_profiles")
-}
+// (2026-07-20) The `WorkspacePersonaProfile` model (table
+// `workspace_persona_profiles`) was removed with the workspace-persona /
+// workflow-personalization / operational-density feature. The forward
+// migration drops the table. The `Team.personaProfile` relation was
+// removed with it.
 
 // =============================================================================
 // Phase E3 — Operational Automation Foundation
@@ -9427,18 +9409,18 @@ enum OrganizationRole {
 }
 
 model Organization {
-  id                 String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name               String                         @db.VarChar(180)
-  legalName          String?                        @map("legal_name") @db.VarChar(180)
-  legalEmail         String?                        @map("legal_email") @db.VarChar(320)
-  address            String?
-  timezone           String?                        @db.VarChar(64)
-  logoUrl            String?                        @map("logo_url") @db.VarChar(512)
-  status             OrganizationStatus             @default(ACTIVE)
+  id                     String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String                         @db.VarChar(180)
+  legalName              String?                        @map("legal_name") @db.VarChar(180)
+  legalEmail             String?                        @map("legal_email") @db.VarChar(320)
+  address                String?
+  timezone               String?                        @db.VarChar(64)
+  logoUrl                String?                        @map("logo_url") @db.VarChar(512)
+  status                 OrganizationStatus             @default(ACTIVE)
   /// Org-level billing owner. Distinct from per-Team billing
   /// ownership; Team billing fields stay for transition compatibility
   /// until Stage 5 cutover.
-  billingOwnerUserId String?                        @map("billing_owner_user_id") @db.Uuid
+  billingOwnerUserId     String?                        @map("billing_owner_user_id") @db.Uuid
   /// Phase 2 Blocker 1 — brand-new-owner enterprise provisioning.
   /// When a platform admin provisions an enterprise customer whose
   /// owner has no account yet, the resolved enterprise seat count is
@@ -9447,28 +9429,28 @@ model Organization {
   /// the ENTERPRISE workspace with these seats and clears this marker.
   /// NULL means "no pending enterprise provisioning" (the default for
   /// every existing and non-enterprise org).
-  pendingEnterpriseSeats Int?                       @map("pending_enterprise_seats")
+  pendingEnterpriseSeats Int?                           @map("pending_enterprise_seats")
   /// Verification state — mirrors the Team-level field so the
   /// future Stage 5 cutover has a place to land.
-  verificationState  OrganizationVerificationState? @map("verification_state")
-  verifiedAtUtc      DateTime?                      @map("verified_at_utc") @db.Timestamptz(6)
-  createdAt          DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  verificationState      OrganizationVerificationState? @map("verification_state")
+  verifiedAtUtc          DateTime?                      @map("verified_at_utc") @db.Timestamptz(6)
+  createdAt              DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  memberships OrganizationMembership[]
-  invites     OrganizationInvite[]
-  auditEvents OrganizationAuditEvent[]
-  workspaces  Team[]                   @relation("OrganizationToTeam")
+  memberships          OrganizationMembership[]
+  invites              OrganizationInvite[]
+  auditEvents          OrganizationAuditEvent[]
+  workspaces           Team[]                           @relation("OrganizationToTeam")
   notificationPolicies OrganizationNotificationPolicy[] @relation("OrganizationNotificationPolicyOrg")
-  policies    OrganizationPolicy[]
+  policies             OrganizationPolicy[]
   // Phase 3 — Enterprise Identity: DNS-verified domain ownership.
-  domains     OrganizationDomain[]
+  domains              OrganizationDomain[]
   // Phase A1 — back-relation for the Evidence organization relation
   // declared above. Cascades are not used (Restrict) so an
   // Organization with active Evidence cannot be deleted by accident.
-  evidence    Evidence[]               @relation("EvidenceOrganization")
+  evidence             Evidence[]                       @relation("EvidenceOrganization")
   // Lifecycle Phase 6 — closure request back-relation.
-  closureRequests OrganizationClosureRequest[] @relation("OrganizationClosureRequests")
+  closureRequests      OrganizationClosureRequest[]     @relation("OrganizationClosureRequests")
 
   @@index([status])
   @@map("organizations")
@@ -10526,24 +10508,24 @@ model RedactionDetection {
 }
 
 model RedactionDecision {
-  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // R7-redaction: relaxed to nullable — decisions can be version-level (bulk decision over whole version) or region-level
-  regionId               String?   @map("region_id") @db.Uuid
-  teamId                 String    @map("team_id") @db.Uuid
-  decidedByUserId        String    @map("decided_by_user_id") @db.Uuid
-  state                  String    @default("PENDING") @db.VarChar(20)
-  rationale              String?   @db.VarChar(800)
-  decidedAtUtc           DateTime  @default(now()) @map("decided_at_utc") @db.Timestamptz(6)
+  regionId               String?  @map("region_id") @db.Uuid
+  teamId                 String   @map("team_id") @db.Uuid
+  decidedByUserId        String   @map("decided_by_user_id") @db.Uuid
+  state                  String   @default("PENDING") @db.VarChar(20)
+  rationale              String?  @db.VarChar(800)
+  decidedAtUtc           DateTime @default(now()) @map("decided_at_utc") @db.Timestamptz(6)
   // R7 additive
-  versionId              String    @map("version_id") @db.Uuid
+  versionId              String   @map("version_id") @db.Uuid
   // R7-redaction additive — links a decision back to the originating detection (Phase 3A bulk-decision audit)
-  detectionId            String    @map("detection_id") @db.Uuid
+  detectionId            String   @map("detection_id") @db.Uuid
   // R7-redaction additive — Phase 3A bulk-decision pipeline records resolved detection-state alongside row state
-  decisionState          String    @map("decision_state") @db.VarChar(20)
+  decisionState          String   @map("decision_state") @db.VarChar(20)
   // R7-redaction additive — when a decision modifies the region geometry (e.g. trim/expand), the modified shape is stored here
-  modifiedRegionGeometry Json?     @map("modified_region_geometry")
-  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  modifiedRegionGeometry Json?    @map("modified_region_geometry")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   region RedactionRegion? @relation(fields: [regionId], references: [id], onDelete: Cascade)
 
@@ -10553,19 +10535,19 @@ model RedactionDecision {
 }
 
 model RedactionApproval {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  versionId        String    @map("version_id") @db.Uuid
-  teamId           String    @map("team_id") @db.Uuid
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  versionId        String   @map("version_id") @db.Uuid
+  teamId           String   @map("team_id") @db.Uuid
   // R7-redaction: relaxed to nullable — service writes use `approverUserId` instead; this column kept for legacy reads
-  approvedByUserId String?   @map("approved_by_user_id") @db.Uuid
-  verdict          String    @db.VarChar(20)
-  rationale        String?   @db.VarChar(800)
+  approvedByUserId String?  @map("approved_by_user_id") @db.Uuid
+  verdict          String   @db.VarChar(20)
+  rationale        String?  @db.VarChar(800)
   // R7-redaction: default NOW() so service can record approvals without explicit timestamp
-  approvedAtUtc    DateTime  @default(now()) @map("approved_at_utc") @db.Timestamptz(6)
+  approvedAtUtc    DateTime @default(now()) @map("approved_at_utc") @db.Timestamptz(6)
   // R7 additive
-  approverUserId   String    @map("approver_user_id") @db.Uuid
-  decidedAtUtc     DateTime  @default(now()) @map("decided_at_utc") @db.Timestamptz(6)
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  approverUserId   String   @map("approver_user_id") @db.Uuid
+  decidedAtUtc     DateTime @default(now()) @map("decided_at_utc") @db.Timestamptz(6)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   version RedactionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
 
@@ -10766,7 +10748,7 @@ model StatusIncident {
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  updates   StatusIncidentUpdate[]
+  updates StatusIncidentUpdate[]
 
   @@map("status_incidents")
 }
@@ -11401,18 +11383,18 @@ model DepartmentMembership {
 // ---------------------------------------------------------------------------
 
 model SecurityClaimCheck {
-  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId                     String    @map("team_id") @db.Uuid
-  controlKey                 String    @map("control_key") @db.VarChar(80)
-  documented                 Boolean   @default(false)
-  implemented                Boolean   @default(false)
-  implementationReferencesOk Boolean   @default(false) @map("implementation_references_ok")
-  evidencePaths              Json      @default("[]") @map("evidence_paths")
-  limitation                 String?   @db.VarChar(400)
-  ownerUserId                String?   @map("owner_user_id") @db.Uuid
-  lastVerifiedAt             DateTime  @map("last_verified_at") @db.Timestamptz(6)
-  createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId                     String   @map("team_id") @db.Uuid
+  controlKey                 String   @map("control_key") @db.VarChar(80)
+  documented                 Boolean  @default(false)
+  implemented                Boolean  @default(false)
+  implementationReferencesOk Boolean  @default(false) @map("implementation_references_ok")
+  evidencePaths              Json     @default("[]") @map("evidence_paths")
+  limitation                 String?  @db.VarChar(400)
+  ownerUserId                String?  @map("owner_user_id") @db.Uuid
+  lastVerifiedAt             DateTime @map("last_verified_at") @db.Timestamptz(6)
+  createdAt                  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([teamId, controlKey], name: "teamId_controlKey")
   @@index([teamId])
@@ -11476,7 +11458,7 @@ model VideoTrackDetection {
   trackId       String @map("track_id") @db.Uuid
   frameId       String @map("frame_id") @db.Uuid
   bbox          Json
-  rawConfidence Float @map("raw_confidence")
+  rawConfidence Float  @map("raw_confidence")
 
   track VideoTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
   frame VideoFrame @relation(fields: [frameId], references: [id], onDelete: Cascade)
@@ -12040,11 +12022,11 @@ model AiCopilotRun {
   boundedResultJson          Json? @map("bounded_result_json")
   validatedCitationsJson     Json? @map("validated_citations_json")
 
-  status       String    @db.VarChar(40)
-  generatedAt  DateTime  @default(now()) @map("generated_at") @db.Timestamptz(6)
-  expiresAt    DateTime? @map("expires_at") @db.Timestamptz(6)
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status      String    @db.VarChar(40)
+  generatedAt DateTime  @default(now()) @map("generated_at") @db.Timestamptz(6)
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   observationReviews AiCopilotObservationReview[]
 
@@ -12059,15 +12041,15 @@ model AiCopilotRun {
 /// Preserves the original AI text (hash) separately from the human edit.
 /// The final review decision lives in its canonical model, never here.
 model AiCopilotObservationReview {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  copilotRunId  String   @map("copilot_run_id") @db.Uuid
-  observationId String   @map("observation_id") @db.VarChar(80)
-  state         String   @db.VarChar(20)
-  originalTextHash String @map("original_text_hash") @db.VarChar(64)
-  editedText    String?  @map("edited_text") @db.VarChar(600)
-  actorId       String   @map("actor_id") @db.Uuid
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  copilotRunId     String   @map("copilot_run_id") @db.Uuid
+  observationId    String   @map("observation_id") @db.VarChar(80)
+  state            String   @db.VarChar(20)
+  originalTextHash String   @map("original_text_hash") @db.VarChar(64)
+  editedText       String?  @map("edited_text") @db.VarChar(600)
+  actorId          String   @map("actor_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   run AiCopilotRun @relation(fields: [copilotRunId], references: [id], onDelete: Cascade)
 
@@ -12098,16 +12080,16 @@ model ReviewerCriteriaSet {
 }
 
 model ReviewerCriteriaVersion {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  criteriaSetId   String    @map("criteria_set_id") @db.Uuid
-  version         Int
-  title           String    @db.VarChar(160)
-  instructions    String?   @db.VarChar(2000)
-  createdByUserId String    @map("created_by_user_id") @db.Uuid
-  publishedByUserId String? @map("published_by_user_id") @db.Uuid
-  publishedAt     DateTime? @map("published_at") @db.Timestamptz(6)
-  retiredAt       DateTime? @map("retired_at") @db.Timestamptz(6)
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  criteriaSetId     String    @map("criteria_set_id") @db.Uuid
+  version           Int
+  title             String    @db.VarChar(160)
+  instructions      String?   @db.VarChar(2000)
+  createdByUserId   String    @map("created_by_user_id") @db.Uuid
+  publishedByUserId String?   @map("published_by_user_id") @db.Uuid
+  publishedAt       DateTime? @map("published_at") @db.Timestamptz(6)
+  retiredAt         DateTime? @map("retired_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   set      ReviewerCriteriaSet @relation(fields: [criteriaSetId], references: [id], onDelete: Cascade)
   criteria ReviewerCriterion[]
@@ -12136,21 +12118,21 @@ model ReviewerCriterion {
 /// Phase A7 — Durable AI usage ledger (multi-replica-safe, restart-safe).
 /// Replaces the process-local AiCostGuard as budget AUTHORITY.
 model AiUsageEvent {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workspaceId  String   @map("workspace_id") @db.Uuid
-  userId       String   @map("user_id") @db.Uuid
-  feature      String   @db.VarChar(40)
-  provider     String   @db.VarChar(40)
-  model        String   @db.VarChar(80)
-  requestId    String   @unique @map("request_id") @db.VarChar(120)
-  inputTokens  Int?     @map("input_tokens")
-  outputTokens Int?     @map("output_tokens")
-  estimatedCostUsdMicros BigInt  @map("estimated_cost_usd_micros")
-  actualCostUsdMicros    BigInt? @map("actual_cost_usd_micros")
-  status       String   @db.VarChar(20)
-  reservedAt   DateTime @default(now()) @map("reserved_at") @db.Timestamptz(6)
-  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
-  failedAt     DateTime? @map("failed_at") @db.Timestamptz(6)
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId            String    @map("workspace_id") @db.Uuid
+  userId                 String    @map("user_id") @db.Uuid
+  feature                String    @db.VarChar(40)
+  provider               String    @db.VarChar(40)
+  model                  String    @db.VarChar(80)
+  requestId              String    @unique @map("request_id") @db.VarChar(120)
+  inputTokens            Int?      @map("input_tokens")
+  outputTokens           Int?      @map("output_tokens")
+  estimatedCostUsdMicros BigInt    @map("estimated_cost_usd_micros")
+  actualCostUsdMicros    BigInt?   @map("actual_cost_usd_micros")
+  status                 String    @db.VarChar(20)
+  reservedAt             DateTime  @default(now()) @map("reserved_at") @db.Timestamptz(6)
+  completedAt            DateTime? @map("completed_at") @db.Timestamptz(6)
+  failedAt               DateTime? @map("failed_at") @db.Timestamptz(6)
 
   @@index([workspaceId, reservedAt(sort: Desc)])
   @@index([workspaceId, feature])
@@ -12159,10 +12141,10 @@ model AiUsageEvent {
 
 /// Phase A7 — per-workspace-per-UTC-day rollup (atomic increments).
 model AiUsageDaily {
-  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workspaceId String @map("workspace_id") @db.Uuid
-  dayUtc      String @map("day_utc") @db.VarChar(10)
-  operations  Int    @default(0)
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId   String @map("workspace_id") @db.Uuid
+  dayUtc        String @map("day_utc") @db.VarChar(10)
+  operations    Int    @default(0)
   costUsdMicros BigInt @default(0) @map("cost_usd_micros")
 
   @@unique([workspaceId, dayUtc])
@@ -12171,10 +12153,10 @@ model AiUsageDaily {
 
 /// Phase A7 — per-workspace-per-UTC-month rollup (atomic increments).
 model AiUsageMonthly {
-  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workspaceId String @map("workspace_id") @db.Uuid
-  monthUtc    String @map("month_utc") @db.VarChar(7)
-  operations  Int    @default(0)
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId   String @map("workspace_id") @db.Uuid
+  monthUtc      String @map("month_utc") @db.VarChar(7)
+  operations    Int    @default(0)
   costUsdMicros BigInt @default(0) @map("cost_usd_micros")
 
   @@unique([workspaceId, monthUtc])

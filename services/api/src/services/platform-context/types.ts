@@ -199,66 +199,14 @@ export const PERSONAS = [
 ] as const;
 export type Persona = (typeof PERSONAS)[number];
 
-// =============================================================================
-// PHASE 38 — Workspace persona profile vocabulary.
-//
-// This is the USE-CASE persona — distinct from the role-derived `Persona`
-// above which captures (role × scope). The use-case persona drives UX
-// ordering, terminology, dashboard emphasis, and capture defaults.
-//
-// HARD RULE: persona profiles are UX-LAYER ONLY.
-//
-//   - They MUST NOT grant capabilities.
-//   - They MUST NOT bypass capability checks.
-//   - They MUST NOT change the canonical access-helper outcomes.
-//   - They MAY change ordering / defaults / terminology / emphasis.
-//
-// See test/phase-38-persona-foundation.test.ts for the contract.
-// =============================================================================
-
-export const WORKSPACE_PERSONA_PROFILES = [
-  "INDIVIDUAL",
-  "LAWYER",
-  "INSURANCE",
-  "INVESTIGATOR",
-  "JOURNALIST",
-  "ENTERPRISE_COMPLIANCE",
-  "ADMIN_OPERATOR",
-] as const;
-export type WorkspacePersonaProfile = (typeof WORKSPACE_PERSONA_PROFILES)[number];
-
-export const OPERATIONAL_DENSITY_PREFERENCES = [
-  "compact",
-  "comfortable",
-  "spacious",
-] as const;
-export type OperationalDensityPreference =
-  (typeof OPERATIONAL_DENSITY_PREFERENCES)[number];
-
-/**
- * Bounded shape of the workspace persona profile surfaced on the
- * platform-context envelope. Returned with default values when no
- * explicit row exists for the workspace, so consumers can always read
- * a complete shape.
- */
-export type PlatformContextPersonaProfile = {
-  /** The active-space team's id this profile is for. Null if no active workspace. */
-  teamId: string | null;
-  primaryProfile: WorkspacePersonaProfile;
-  secondaryUseCases: ReadonlyArray<WorkspacePersonaProfile>;
-  onboardingCompleted: boolean;
-  preferredDashboardLayout: string | null;
-  operationalDensityPreference: OperationalDensityPreference;
-  /** Bounded enum codes the frontend recognizes; ordered low → high priority. */
-  featurePriorityOverrides: ReadonlyArray<string>;
-  /**
-   * @deprecated existing role-derived persona kept for backwards
-   * compatibility. New surfaces read `primaryProfile`.
-   */
-  resolvedRolePersona: Persona;
-  /** Whether this profile was loaded from a real DB row vs. defaulted. */
-  source: "default" | "stored";
-};
+// (2026-07-20) The USE-CASE workspace-persona profile vocabulary
+// (WORKSPACE_PERSONA_PROFILES / WorkspacePersonaProfile), the
+// operational-density vocabulary (OPERATIONAL_DENSITY_PREFERENCES /
+// OperationalDensityPreference), and the PlatformContextPersonaProfile
+// envelope shape were removed with the workspace-persona /
+// workflow-personalization / operational-density feature. The
+// role-derived `Persona` above (role × scope, authorization input)
+// is unaffected.
 
 // =============================================================================
 // Bounded plan vocabulary (mirrors Prisma PlanType)
@@ -763,14 +711,9 @@ export type PlatformContextEnvelope = {
   organizations: ReadonlyArray<PlatformContextOrganization>;
   /** Resolved active space (PERSONAL or ORGANIZATION). */
   activeSpace: PlatformContextActiveSpace;
-  /**
-   * PHASE 38 — Use-case persona profile for the active workspace.
-   *
-   * Optional on the envelope so consumers tolerate older API responses
-   * during the rollout. UX layers MUST treat the returned values as
-   * presentation-only — never gate capabilities on them.
-   */
-  personaProfile?: PlatformContextPersonaProfile;
+  // (2026-07-20) `personaProfile` (use-case workspace-persona profile)
+  // was removed with the workspace-persona / workflow-personalization
+  // feature. Authorization `persona` (role × scope) is unaffected.
   /**
    * Legacy duplicate-personal-like Team rows discovered during this request.
    * The frontend renders them in /teams as an admin diagnostic with safe

@@ -30,14 +30,15 @@ function read(rel: string): string {
 
 const PANELS = read("apps/web/components/hidden-feature-panels/HiddenFeaturePanels.tsx");
 
-describe("Phase Final-Hidden-Feature-Surfacing — barrel exports 9 panel components", () => {
+describe("Phase Final-Hidden-Feature-Surfacing — barrel exports 8 panel components", () => {
+  // (2026-07-20) `WorkspacePersonaProfileCard` was removed with the
+  // workspace-persona / workflow-personalization feature (9 → 8 panels).
   const EXPORTS = [
     "CaseRiskPanel",
     "EvidenceAiCategorizationCard",
     "ImmutableStorageDriftSection",
     "MfaRecoveryApprovalHistoryBlock",
     "EvidenceRequestEventsTab",
-    "WorkspacePersonaProfileCard",
     "OrgHealthSnapshotCard",
     "ReviewerRoutingRecommendationsPane",
     "AccessAnomaliesCard",
@@ -56,7 +57,8 @@ describe("Phase Final-Hidden-Feature-Surfacing — panels call real backend endp
     "/v1/governance/immutable-storage-checks?",
     "/v1/identity/mfa-admin/recovery-requests/${encodeURIComponent(",
     "/v1/evidence-requests/${encodeURIComponent(requestId)}/events",
-    "/v1/workspaces/${encodeURIComponent(teamId)}/persona",
+    // (2026-07-20) The workspace-persona endpoint was removed with the
+    // workspace-persona / workflow-personalization feature.
     "/v1/dashboard/org-health?teamId=",
     "/v1/reviewer/routing-recommendations?teamId=",
     "/v1/security-center/access-anomalies?teamId=",
@@ -142,11 +144,9 @@ describe("Phase Final-Hidden-Feature-Surfacing — host pages mount each panel",
     expect(f).toMatch(/EvidenceRequestEventsTab/);
     expect(f).toMatch(/<EvidenceRequestEventsTab\s+requestId/);
   });
-  it("/settings/persona mounts WorkspacePersonaProfileCard", () => {
-    const f = read("apps/web/app/(app)/settings/persona/page.tsx");
-    expect(f).toMatch(/WorkspacePersonaProfileCard/);
-    expect(f).toMatch(/<WorkspacePersonaProfileCard\s+teamId/);
-  });
+  // (2026-07-20) The "/settings/persona mounts WorkspacePersonaProfileCard"
+  // test was removed with the workspace-persona / workflow-personalization
+  // feature — both the page and the panel were physically deleted.
   it("/security-center mounts OrgHealthSnapshotCard + AccessAnomaliesCard", () => {
     const f = read("apps/web/app/(app)/security-center/page.tsx");
     expect(f).toMatch(/AccessAnomaliesCard/);

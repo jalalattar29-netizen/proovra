@@ -27,7 +27,7 @@ import Link from "next/link";
 import { resolveHubContext, type HubId } from "../../lib/hubs";
 import { resolveDisclosureHelp } from "../../lib/navigation/disclosureHelp";
 import { resolveWorkspaceExperience } from "../../lib/workspace-experience";
-import { usePersonaProfile, usePlatformContext, workflowFromPersona } from "../../lib/platform-context";
+import { usePlatformContext } from "../../lib/platform-context";
 
 export interface HubQuickActionsBarProps {
   hubId: HubId;
@@ -35,11 +35,9 @@ export interface HubQuickActionsBarProps {
 
 export function HubQuickActionsBar({ hubId }: HubQuickActionsBarProps) {
   const ctx = usePlatformContext();
-  const persona = usePersonaProfile();
   const experience = resolveWorkspaceExperience({
     activeSpaceType: ctx.envelope?.activeSpace?.type ?? null,
     capabilities: ctx.envelope?.capabilities ?? {},
-    primaryWorkflow: workflowFromPersona(persona.primaryProfile).code,
   });
   const help = resolveDisclosureHelp(experience.mode);
   const { definition, quickActions } = resolveHubContext({ hubId });

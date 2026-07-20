@@ -44,9 +44,7 @@ import {
   // build.
   useActiveSpace,
   useCan,
-  usePersonaProfile,
   usePlatformContext,
-  workflowFromPersona,
 } from "../../lib/platform-context";
 import {
   emit as emitStateEvent,
@@ -190,7 +188,6 @@ export function CommandCenter() {
 
 function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
   const ctx = usePlatformContext();
-  const personaProfile = usePersonaProfile();
   const { workspace, sections } = envelope;
   // Phase 32.8 Foundation cleanup — capability-derived visibility.
   const isTeam = ctx.envelope?.flags.isTeamWorkspace === true;
@@ -207,11 +204,9 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
   const backendSectionOrder: string[] =
     envelope.capabilityMatrix?.sectionOrder ?? [];
 
-  // Phase 38.10 / 38.11 — re-rank the section order client-side via
-  // the canonical `getPersonaSectionOrder` helper. Workflow profile
-  // changes the visible ordering immediately (no envelope re-fetch
-  // needed); capabilities still decide which sections are populated.
-  // The helper is a pure partition + concat — never adds or removes.
+  // Re-rank the section order client-side. Capabilities decide which
+  // sections are populated; the experience mode decides ordering. The
+  // orchestrator is a pure partition + concat — never adds or removes.
   //
   // The available section ids are intersected with the section
   // component registry (CANONICAL_SECTION_IDS) and with the envelope's
@@ -223,22 +218,16 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
     (id) => sectionsKeys.has(id),
   );
   // R3 — canonical dashboard orchestration. Combines workspace
-  // experience mode + persona + availability into a single ordered
-  // section list with per-section emphasis labels. The orchestrator
-  // wraps `getPersonaSectionOrder()` (legacy persona helper) so the
-  // existing persona contract is preserved while mode emphasis
-  // layers on top. No authorization is consulted.
+  // experience mode + availability into a single ordered section list
+  // with per-section emphasis labels. No authorization is consulted.
   const experienceModeForSections = ctx.envelope?.activeSpace?.type
     ? resolveWorkspaceExperience({
         activeSpaceType: ctx.envelope.activeSpace.type,
         capabilities: ctx.envelope.capabilities ?? {},
-        primaryWorkflow: workflowFromPersona(personaProfile.primaryProfile)
-          .code,
       }).mode
     : ("PERSONAL" as const);
   const orchestratedSections = resolveDashboardSections({
     mode: experienceModeForSections,
-    persona: personaProfile.primaryProfile,
     availableSectionIds:
       renderableSectionIds.length > 0
         ? renderableSectionIds
@@ -263,10 +252,8 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
   });
   // The render loop consumes this exact ordered list. The priority
   // strip + IntersectionObserver hook also read it, so the strip,
-  // active-section tracking, and rendered layout all move together
-  // when the workflow profile changes.
+  // active-section tracking, and rendered layout all move together.
   const finalSectionOrder: string[] = sectionOrder;
-  const workflowCode = workflowFromPersona(personaProfile.primaryProfile).code;
 
   // R1.5B — dashboard experience emphasis. Read the canonical mode
   // and surface it as a data attribute + observability event. The
@@ -276,7 +263,6 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
   const dashboardExperience = resolveWorkspaceExperience({
     activeSpaceType: ctx.envelope?.activeSpace?.type ?? null,
     capabilities: ctx.envelope?.capabilities ?? {},
-    primaryWorkflow: workflowCode,
   });
   emitStateEvent("dashboard-mode:resolved", "CommandCenter", {
     experienceMode: dashboardExperience.mode,
@@ -298,9 +284,13 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
   // R3 — contextual onboarding hint. Returns `null` once the operator
   // has completed setup. The dashboard renders it as a single
   // operationally-meaningful action — never generic emptiness.
+  // (2026-07-20) The onboarding-completed flag previously came from
+  // the deleted workspace-persona profile. It is now derived from
+  // whether the dashboard already has populated data sections — a
+  // workspace showing real sections is past first-run onboarding.
   const onboardingHint = resolveDashboardOnboarding({
     mode: dashboardExperience.mode,
-    onboardingCompleted: personaProfile.onboardingCompleted,
+    onboardingCompleted: renderableSectionIds.length > 0,
   });
 
   // Phase 32.8C+++++++ — active-section tracking via IntersectionObserver.
@@ -315,7 +305,6 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
       data-command-center
       data-cc-persona={persona ?? "VIEWER"}
       data-cc-workspace-scope={workspace.scope}
-      data-cc-workflow={workflowCode}
       data-cc-experience-mode={dashboardExperience.mode}
       data-cc-dashboard-emphasis={dashboardExperience.dashboardEmphasis}
       data-cc-persona-section-order={sectionOrder.join(",")}
@@ -472,25 +461,17 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
       {/* SUMMARY STRIP */}
       <SummaryStrip envelope={envelope} isTeam={isTeam} />
 
-      {/* Phase 38.16 — workflow-aware contextual help, collapsed by
-          default so the operational sections stay primary. Renders
-          the bounded `resolveWorkflowHelp` entry for the dashboard
-          surface (the helper code uses "ops" for the operations
-          center, which is the closest catalog match for dashboard-
-          level operational guidance — falls back to the canonical
-          ops entry when the workflow has no override). */}
-      <ContextualHelp
-        workflow={workflowCode}
-        surface="ops"
-        collapsedByDefault
-      />
+      {/* Contextual help, collapsed by default so the operational
+          sections stay primary. Uses the "ops" surface entry — the
+          closest catalog match for dashboard-level operational
+          guidance. */}
+      <ContextualHelp surface="ops" collapsedByDefault />
 
-      {/* Phase 38.11 / 38.12 — section component registry + workflow-
-          driven render loop with grid grouping. The render ORDER is
-          set by `finalSectionOrder` (workflow-aware via
-          `getPersonaSectionOrder`). The render LAYOUT is set by the
-          `gridGroup` metadata on each registry entry: consecutive
-          sections sharing the same `gridGroup` are wrapped in a
+      {/* Section component registry + render loop with grid grouping.
+          The render ORDER is set by `finalSectionOrder` (experience-mode
+          driven). The render LAYOUT is set by the `gridGroup` metadata
+          on each registry entry: consecutive sections sharing the same
+          `gridGroup` are wrapped in a
           multi-column grid, restoring the multi-panel command-center
           density without losing the workflow ordering. Sections with
           no gridGroup render full-width. */}
@@ -515,15 +496,13 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
               data-section-grid-group={band.gridGroup ?? "single"}
               // R3 / R8.1A — per-section emphasis label sourced from
               // the dashboard orchestrator. Drives mode-aware CSS
-              // tilts (primary / secondary / de-emphasized) and is
-              // observable by source-contract tests. `sectionEmphasisById`
-              // was constructed but never wired to the DOM until R8.1A,
-              // which produced an `unused-vars` ESLint failure on
-              // Vercel. Defaults to "secondary" for any section the
-              // orchestrator did not classify (e.g. registry-only
-              // sections rendered before R3 took ownership).
+              // tilts (primary / de-emphasized) and is observable by
+              // source-contract tests. Defaults to "de-emphasized" for
+              // any section the orchestrator did not classify as
+              // mode-primary. (2026-07-20 — the `secondary` tier was
+              // removed with the workspace-persona feature.)
               data-cc-section-emphasis={
-                sectionEmphasisById.get(sectionId) ?? "secondary"
+                sectionEmphasisById.get(sectionId) ?? "de-emphasized"
               }
               aria-label={entry.ariaLabel}
             >
@@ -587,12 +566,10 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
 // new section requires:
 //   1. Adding it to `CommandCenterEnvelope["sections"]` in types.ts.
 //   2. Registering it here with the renderer + label.
-//   3. Optionally adding it to a persona's priority list in
-//      personaSectionOrder.ts.
 //
-// Workflow profile NEVER hides a section — it only reorders. The set
-// of rendered sections is determined by which envelope keys are
-// populated (capabilities + backend projection state).
+// Ordering is driven by the experience mode. The set of rendered
+// sections is determined by which envelope keys are populated
+// (capabilities + backend projection state).
 // ============================================================================
 
 type SectionRenderArgs = {
@@ -890,9 +867,9 @@ const CANONICAL_SECTION_IDS: ReadonlyArray<string> = [
 //      with no group form a single-entry band of their own.
 //
 //   2. PRIORITIZE — each band's priority is `min(orderedIds.indexOf(...))`
-//      across its members. Workflow profile, via getPersonaSectionOrder,
-//      decides those indices. The band with the lowest-index member
-//      renders first.
+//      across its members. The experience-mode section order decides
+//      those indices. The band with the lowest-index member renders
+//      first.
 //
 // Result:
 //   - Paired sections ALWAYS stay grouped (no order-sensitivity bug).

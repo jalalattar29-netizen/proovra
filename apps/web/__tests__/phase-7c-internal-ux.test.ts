@@ -110,23 +110,9 @@ test("/settings renders through the shared PageShell (no bespoke silver-card her
   assert.match(src, /data-cc-security-link-card/);
 });
 
-// ---------------------------------------------------------------------------
-// /settings/persona — the persona wizard must render through the shared shell,
-// not the raw `.cc-page` layout, while preserving the wizard data-* contract.
-// ---------------------------------------------------------------------------
-test("/settings/persona renders through the shared PageShell (no raw cc-page root)", () => {
-  const src = read("app/(app)/settings/persona/page.tsx");
-  assert.match(src, /PageShell/, "persona wizard must use the shared PageShell");
-  assert.doesNotMatch(
-    src,
-    /<main\s+className="cc-page"/,
-    "persona wizard must not render the raw <main className='cc-page'> layout",
-  );
-  // Wizard automation contract preserved.
-  assert.match(src, /data-persona-wizard\b/);
-  assert.match(src, /data-persona-wizard-save\b/);
-  assert.match(src, /data-persona-wizard-step-block/);
-});
+// (2026-07-20) The `/settings/persona` wizard PageShell test was removed
+// with the workspace-persona / workflow-personalization feature — the
+// route and its page no longer exist.
 
 // ---------------------------------------------------------------------------
 // /search — migrated off the bespoke header; uses PageShell/PageHeader.

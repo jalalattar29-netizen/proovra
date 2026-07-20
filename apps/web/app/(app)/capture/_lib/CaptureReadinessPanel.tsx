@@ -21,7 +21,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import type { WorkflowProfileCode } from "../../../../lib/platform-context";
 import {
   computeCaptureReadiness,
   type CaptureReadinessSummary,
@@ -59,17 +58,15 @@ const LEVEL_TONE: Record<
 
 export function CaptureReadinessPanel({
   items,
-  workflow,
 }: {
   items: ReadonlyArray<SessionItem>;
-  workflow: WorkflowProfileCode;
 }) {
   const summary = useMemo(
-    () => computeCaptureReadiness({ items, workflow }),
-    [items, workflow],
+    () => computeCaptureReadiness({ items }),
+    [items],
   );
 
-  const dismissKey = `${DISMISS_KEY_PREFIX}${workflow}`;
+  const dismissKey = DISMISS_KEY_PREFIX;
   const [dismissed, setDismissed] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -104,7 +101,6 @@ export function CaptureReadinessPanel({
       aria-label={`Capture readiness: ${LEVEL_LABEL[summary.level]}`}
       data-capture-readiness
       data-capture-readiness-level={summary.level}
-      data-capture-readiness-workflow={workflow}
       data-capture-readiness-score={`${summary.score.satisfied}/${summary.score.total}`}
       style={{
         marginTop: 12,

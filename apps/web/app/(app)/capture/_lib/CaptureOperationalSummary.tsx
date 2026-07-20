@@ -31,7 +31,6 @@
 
 import { useMemo } from "react";
 
-import type { WorkflowProfileCode } from "../../../../lib/platform-context";
 import {
   computeCaptureReadiness,
   type CaptureReadinessSummary,
@@ -70,24 +69,21 @@ const LEVEL_LABEL: Record<CaptureReadinessSummary["level"], string> = {
 };
 
 export function CaptureOperationalSummary({
-  workflow,
   items,
 }: {
-  workflow: WorkflowProfileCode;
   items: ReadonlyArray<SessionItem>;
 }) {
   const readiness = useMemo(
-    () => computeCaptureReadiness({ items, workflow }),
-    [items, workflow],
+    () => computeCaptureReadiness({ items }),
+    [items],
   );
   const suggestions = useMemo(
     () =>
       computeCaptureSuggestions({
-        workflow,
         readiness,
         maxSuggestions: 1,
       }),
-    [workflow, readiness],
+    [readiness],
   );
 
   // Hide entirely if no items staged — the panel band would be noise.
@@ -102,7 +98,6 @@ export function CaptureOperationalSummary({
       aria-label={`Capture readiness summary — readiness ${LEVEL_LABEL[readiness.level]}`}
       data-capture-operational-summary
       data-capture-operational-summary-level={readiness.level}
-      data-capture-operational-summary-workflow={workflow}
       data-capture-operational-summary-score={`${readiness.score.satisfied}/${readiness.score.total}`}
       data-capture-operational-summary-top-suggestion={
         topSuggestion?.id ?? "none"

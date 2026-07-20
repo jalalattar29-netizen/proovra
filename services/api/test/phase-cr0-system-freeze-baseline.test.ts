@@ -375,7 +375,10 @@ describe("Phase CR0 — existing Phase 38 architectural locks still hold", () =>
     const sidebar = readWeb("components/app-shell-v2/AppSidebarV2.tsx");
     expect(sidebar).toMatch(/ROUTE_REGISTRY/);
     expect(sidebar).toMatch(/resolveRouteAccess/);
-    expect(sidebar).toMatch(/resolveWorkflowExposure/);
+    // (2026-07-20) The workflow/persona exposure resolver was replaced
+    // by the neutral, persona-free `resolveNavigationExposure` when the
+    // workspace-persona / workflow-personalization feature was deleted.
+    expect(sidebar).toMatch(/resolveNavigationExposure/);
   });
 
   it("PageRouteGate remains the canonical access decision render layer", () => {
@@ -384,10 +387,8 @@ describe("Phase CR0 — existing Phase 38 architectural locks still hold", () =>
     expect(gate).toMatch(/getRouteDefinition/);
   });
 
-  it("the workflow safety statement remains available as the canonical reassurance", () => {
-    const notice = readWeb("components/navigation/WorkflowSafetyNotice.tsx");
-    expect(notice).toMatch(
-      /WORKFLOW_SAFETY_STATEMENT\s*=\s*["']Workflow profiles personalize layout, defaults, and recommendations\. They do not change permissions or remove tools\.["']/,
-    );
-  });
+  // (2026-07-20) The "workflow safety statement" test was removed with the
+  // WorkflowSafetyNotice component: workflow profiles no longer exist, so
+  // there is nothing to reassure operators about. Navigation is canonical
+  // and identical for everyone — no personalization to disclaim.
 });

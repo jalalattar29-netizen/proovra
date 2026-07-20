@@ -1,0 +1,21 @@
+-- PRODUCT-APPROVED PHYSICAL DELETION — Drop workspace_persona_profiles.
+--
+-- Product-approved physical deletion of the retired workspace-persona,
+-- workflow-personalization, onboarding-draft and operational-density
+-- feature family.
+--
+-- The `workspace_persona_profiles` table backed the WorkspacePersonaProfile
+-- Prisma model, which was UX-layer only — it NEVER granted capabilities.
+-- The entire feature (workspace personas, workflow personalization,
+-- operator density preferences, dashboard-layout overrides,
+-- feature-priority overrides, and onboarding-draft state) has been removed
+-- from the application, services, and Prisma schema. This migration drops
+-- the backing table. The row's `team_id` FK carried ON DELETE CASCADE, so
+-- no orphan rows can survive the drop.
+--
+-- Idempotent + safe on partial state: `DROP TABLE IF EXISTS … CASCADE`
+-- mirrors the approved Phase Final-Closure precedent
+-- `20261009000000_drop_reviewer_queue_projection`. Documented in
+-- `docs/operations/audit-closure-ledger.md`.
+
+DROP TABLE IF EXISTS "workspace_persona_profiles" CASCADE;

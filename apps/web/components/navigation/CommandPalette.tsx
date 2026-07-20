@@ -34,11 +34,9 @@ import {
 import { useRouter } from "next/navigation";
 
 import {
-  usePersonaProfile,
   usePersonalSpaceFragment,
   usePlatformContext,
   useWorkspaceFragment,
-  workflowFromPersona,
 } from "../../lib/platform-context";
 import {
   ROUTE_REGISTRY,
@@ -50,18 +48,17 @@ import {
   type RouteAccessResult,
 } from "../../lib/navigation/routeAccessResolver";
 // Phase IA-surface-tier — command palette applies the surface-tier
-// visibility filter before the workflow ranker runs. ENTERPRISE /
-// INTERNAL surfaces never reach the palette for a non-eligible user
-// so they cannot be quick-navigated to via Cmd+K.
+// visibility filter. ENTERPRISE / INTERNAL surfaces never reach the
+// palette for a non-eligible user so they cannot be quick-navigated
+// to via Cmd+K.
 import { canAccessSurface } from "../../lib/surface/access";
 import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
 import { Badge, type BadgeTone } from "../ui/Badge";
-import { WORKFLOW_SAFETY_STATEMENT } from "./WorkflowSafetyNotice";
 
 type IndexedItem = {
   route: RouteDefinition;
   access: RouteAccessResult;
-  /** Workflow-derived ranking score; higher = earlier in the result list. */
+  /** Static ranking score; higher = earlier in the result list. */
   rank: number;
 };
 
@@ -86,7 +83,6 @@ function badgeForAccessState(state: string): { label: string; tone: BadgeTone } 
 
 export function CommandPalette() {
   const { envelope } = usePlatformContext();
-  const persona = usePersonaProfile();
   // Phase IA-surface-tier — surface user context for cmd-K filter.
   const surfaceUserCtx = useSurfaceUserContext();
   // PERSONAL-FIRST RESCUE fragments come from the centralized
@@ -104,14 +100,6 @@ export function CommandPalette() {
   const triggerRef = useRef<HTMLElement | null>(null);
 
   const indexed = useMemo<IndexedItem[]>(() => {
-    const primaryWorkflow: string = workflowFromPersona(
-      persona.primaryProfile,
-    ).code;
-    const secondaryWorkflows: Set<string> = new Set(
-      persona.secondaryUseCases.map(
-        (p) => workflowFromPersona(p).code as string,
-      ),
-    );
     const items: IndexedItem[] = [];
     for (const route of ROUTE_REGISTRY) {
       // Phase IA-surface-tier — filter ENTERPRISE / INTERNAL surfaces
@@ -137,16 +125,12 @@ export function CommandPalette() {
       if (!access.canSeeNav) continue;
       if (!route.commandPaletteVisible) continue;
       let rank = 0;
-      if (route.workflowTags.includes(primaryWorkflow)) rank += 20;
-      for (const tag of route.workflowTags) {
-        if (secondaryWorkflows.has(tag)) rank += 5;
-      }
       if (access.canLoad) rank += 2;
       if (!route.advancedByDefault) rank += 1;
       items.push({ route, access, rank });
     }
     return items;
-  }, [envelope, persona, surfaceUserCtx, workspaceFragment, personalSpaceFragment]);
+  }, [envelope, surfaceUserCtx, workspaceFragment, personalSpaceFragment]);
 
   // Filter + rank for the current query.
   const results = useMemo<IndexedItem[]>(() => {
@@ -458,18 +442,6 @@ export function CommandPalette() {
             })
           )}
         </ul>
-        <div
-          data-command-palette-safety-notice
-          style={{
-            borderTop: "1px solid #e2e8f0",
-            padding: "6px 16px",
-            fontSize: 11,
-            color: "#64748b",
-            background: "#f8fafc",
-          }}
-        >
-          {WORKFLOW_SAFETY_STATEMENT}
-        </div>
         <footer
           data-command-palette-footer
           style={{

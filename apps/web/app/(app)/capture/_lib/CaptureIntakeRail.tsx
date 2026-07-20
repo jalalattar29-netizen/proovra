@@ -15,15 +15,11 @@
  *      catalog in `captureIntakeStages.ts`.
  *   3. A11y: rendered as a `<nav>` landmark with `aria-label`; the
  *      active stage carries `aria-current="step"`.
- *   4. Density-aware: consumes `data-operational-density` from a
- *      parent attribute so COMMAND_CENTER mode renders a compact
- *      variant via CSS variables.
- *   5. No legal / forensic claims. Operational tone only.
+ *   4. No legal / forensic claims. Operational tone only.
  */
 
 import { useMemo } from "react";
 
-import type { WorkflowProfileCode } from "../../../../lib/platform-context";
 import type { CaptureReadinessSummary } from "./captureReadiness";
 import {
   computeIntakeStages,
@@ -56,12 +52,10 @@ const STATUS_TONE: Record<
 };
 
 export function CaptureIntakeRail({
-  workflow,
   items,
   collectionPlanSelected,
   readiness,
 }: {
-  workflow: WorkflowProfileCode;
   items: ReadonlyArray<SessionItem>;
   collectionPlanSelected: boolean;
   readiness: CaptureReadinessSummary;
@@ -69,19 +63,17 @@ export function CaptureIntakeRail({
   const stages = useMemo(
     () =>
       computeIntakeStages({
-        workflow,
         items,
         collectionPlanSelected,
         readiness,
       }),
-    [workflow, items, collectionPlanSelected, readiness],
+    [items, collectionPlanSelected, readiness],
   );
 
   return (
     <nav
       aria-label="Capture intake progression"
       data-capture-intake-rail
-      data-capture-intake-rail-workflow={workflow}
       data-capture-intake-rail-active-stage={
         stages.find((s) => s.status === "active")?.id ?? "finish"
       }

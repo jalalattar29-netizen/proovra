@@ -33,12 +33,6 @@ export interface WorkspaceExperienceInput {
    * route-access resolver remains authoritative for that.
    */
   readonly capabilities: Readonly<Record<string, boolean>>;
-  /**
-   * Primary workflow code (from `workflowFromPersona(persona)`).
-   * Used to tilt the ORG sub-mode toward review-ops vs governance
-   * vs operations, when the active space is ORGANIZATION.
-   */
-  readonly primaryWorkflow: string;
 }
 
 /**

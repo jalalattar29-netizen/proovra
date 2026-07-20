@@ -32,8 +32,6 @@ import {
   useDuplicatePersonalCandidates,
   useOrganizations,
   usePersonalSpace,
-  usePersonaProfile,
-  workflowFromPersona,
 } from "../../lib/platform-context";
 import { WorkspaceAdminPanel } from "./WorkspaceAdminPanel";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
@@ -44,11 +42,6 @@ export function WorkspaceAdministrationHome() {
   const organizations = useOrganizations();
   const activeSpace = useActiveSpace();
   const duplicates = useDuplicatePersonalCandidates();
-  // Phase 38.18 — workflow-aware contextual help.
-  const teamsPersona = usePersonaProfile();
-  const teamsWorkflowCode = workflowFromPersona(
-    teamsPersona.primaryProfile,
-  ).code;
 
   return (
     <main className="cc-page" data-workspace-administration-home>
@@ -73,13 +66,9 @@ export function WorkspaceAdministrationHome() {
         </div>
       </header>
 
-      {/* Phase 38.18 — workflow-aware contextual help, collapsed by
-          default so the spaces list stays primary. */}
-      <ContextualHelp
-        workflow={teamsWorkflowCode}
-        surface="teams"
-        collapsedByDefault
-      />
+      {/* Contextual help, collapsed by default so the spaces list
+          stays primary. */}
+      <ContextualHelp surface="teams" collapsedByDefault />
 
       {/* ============================ PERSONAL ============================ */}
       <section

@@ -141,17 +141,15 @@ describe("Phase 1A — route coverage", () => {
 // ===========================================================================
 
 describe("Phase 1A — universal pillars", () => {
-  it("HOME and TRUST are in the UNIVERSAL_PILLARS set", () => {
-    const block = PILLAR_REGISTRY.match(
-      /UNIVERSAL_PILLARS[\s\S]*?=\s*\[([^\]]*)\]/,
-    );
-    expect(block).toBeTruthy();
-    const universals = (block![1] ?? "")
-      .split(",")
-      .map((s) => s.trim().replace(/^"|"$/g, ""))
-      .filter((s) => s.length > 0);
-    expect(universals).toContain("HOME");
-    expect(universals).toContain("TRUST");
+  // (2026-07-20) The `UNIVERSAL_PILLARS` set + the persona-pillar
+  // visibility overlay were removed with the workspace-persona /
+  // workflow-personalization feature. Pillar visibility is no longer
+  // persona-filtered; every pillar's routes surface per capabilities,
+  // so there is no "universal-per-persona" subset to pin. HOME and TRUST
+  // remain in the canonical bounded pillar enum (pinned below).
+  it("HOME and TRUST remain in the canonical pillar enum", () => {
+    expect(PILLAR_REGISTRY).toMatch(/"HOME"/);
+    expect(PILLAR_REGISTRY).toMatch(/"TRUST"/);
   });
 });
 
@@ -273,9 +271,13 @@ describe("Phase 1A — grouping resolver", () => {
     expect(GROUPING_RESOLVER).toContain("overflowItems");
   });
 
-  it("accepts a persona for visibility filtering", () => {
-    expect(GROUPING_RESOLVER).toMatch(/persona\?:\s*WorkspacePersonaProfile/);
-    expect(GROUPING_RESOLVER).toMatch(/visiblePillarsForPersona/);
+  // (2026-07-20) The "accepts a persona for visibility filtering" test was
+  // removed with the workspace-persona / workflow-personalization feature.
+  // The grouping resolver no longer takes a persona param or calls
+  // `visiblePillarsForPersona`; navigation is canonical for everyone.
+  it("does NOT filter navigation by a workspace persona", () => {
+    expect(GROUPING_RESOLVER).not.toMatch(/WorkspacePersonaProfile/);
+    expect(GROUPING_RESOLVER).not.toMatch(/visiblePillarsForPersona/);
   });
 });
 

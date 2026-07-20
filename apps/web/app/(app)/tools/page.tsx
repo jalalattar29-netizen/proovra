@@ -32,17 +32,15 @@ import { Button } from "../../../components/ui/Button";
 import { FilterBar } from "../../../components/ui/FilterBar";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import {
-  usePersonaProfile,
   usePersonalSpaceFragment,
   usePlatformContext,
   useWorkspaceFragment,
-  workflowFromPersona,
 } from "../../../lib/platform-context";
 import { ROUTE_REGISTRY } from "../../../lib/navigation/routeRegistry";
 import { resolveRouteAccess } from "../../../lib/navigation/routeAccessResolver";
-import { resolveWorkflowExposure } from "../../../lib/navigation/workflowExposureResolver";
+import { resolveNavigationExposure } from "../../../lib/navigation/navigationExposureResolver";
 // Phase IA-surface-tier — All Tools catalog applies the surface-tier
-// visibility filter before the workflow exposure resolver runs. A FREE
+// visibility filter before the navigation exposure resolver runs. A FREE
 // personal user sees only CORE tools; ENTERPRISE / INTERNAL surfaces
 // disappear entirely (NO "Permission required" badge for tools the
 // user's plan cannot unlock — keeps the surface focused).
@@ -96,9 +94,8 @@ function groupForRoute(domain: string): GroupId {
 
 function AllToolsPageBody() {
   const { envelope } = usePlatformContext();
-  const persona = usePersonaProfile();
   // Phase IA-surface-tier — tier-filter the registry before the All
-  // Tools workflow exposure resolver runs.
+  // Tools navigation exposure resolver runs.
   const surfaceUserCtx = useSurfaceUserContext();
   // PERSONAL-FIRST RESCUE fragments come from the centralized
   // platform-context hooks — direct envelope reads for the workspace
@@ -130,15 +127,8 @@ function AllToolsPageBody() {
         personalSpace: personalSpaceFragment,
       }),
     }));
-    const workflow = workflowFromPersona(persona.primaryProfile).code;
-    return resolveWorkflowExposure({
-      routes,
-      primaryWorkflow: workflow,
-      secondaryWorkflows: persona.secondaryUseCases.map(
-        (p) => workflowFromPersona(p).code,
-      ),
-    });
-  }, [envelope, persona, surfaceUserCtx]);
+    return resolveNavigationExposure({ routes });
+  }, [envelope, surfaceUserCtx]);
 
   // Build grouped items from the canonical exposure list. Each bucket
   // is a mutable array; `allToolsItems` itself is read-only by contract.

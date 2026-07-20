@@ -24,11 +24,9 @@ import { apiFetch } from "../../../lib/api";
 import { formatUserDateTime } from "../../../lib/date";
 import {
   useActiveSpace,
-  usePersonaProfile,
   usePlatformContext,
   useTerminology,
   useWorkspaceId,
-  workflowFromPersona,
 } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 // Phase 7C — full shared design-system migration of the /search console.
@@ -332,11 +330,6 @@ function SearchInner() {
   // Kept as a `void` reference so removing the hook is a deliberate
   // future change rather than a lint-driven side effect.
   void useTerminology;
-  // Phase 38.18 — workflow-aware contextual help.
-  const searchPersona = usePersonaProfile();
-  const searchWorkflowCode = workflowFromPersona(
-    searchPersona.primaryProfile,
-  ).code;
   // Phase 15 — read active space to gate the admin-only "Enable semantic
   // search" no-result suggestion. We never expose raw env-var names in
   // the UI; the suggestion link points at the in-product integrations
@@ -1350,13 +1343,9 @@ function SearchInner() {
         }
       />
 
-      {/* Phase 38.18 — workflow-aware contextual help, collapsed by
-          default so the search results stay primary. */}
-      <ContextualHelp
-        workflow={searchWorkflowCode}
-        surface="search"
-        collapsedByDefault
-      />
+      {/* Contextual help, collapsed by default so the search results
+          stay primary. */}
+      <ContextualHelp surface="search" collapsedByDefault />
 
       {error ? (
         <Card variant="status" tone="risk" padding="compact" style={{ marginTop: 12 }}>

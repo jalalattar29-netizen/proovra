@@ -1076,7 +1076,12 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // Lifecycle Phase 5 (2026-07-17): +1 for account-closure.routes.ts — the
 // personal account-closure family (account-tier, user-scoped, step-up +
 // typed-confirmation gated, argued for in the lifecycle mandate).
-const ROUTE_COUNT_PHASE_2_BASELINE = 123;
+// Workspace-persona deletion (2026-07-20): -1 for the physically deleted
+// workspace-persona.routes.ts (GET/PATCH /v1/workspaces/:teamId/persona).
+// Product-approved physical deletion of the workspace-persona API route
+// family (123 → 122). The route was UX-layer only and never granted
+// capabilities; the whole feature was removed repository-wide.
+const ROUTE_COUNT_PHASE_2_BASELINE = 122;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

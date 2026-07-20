@@ -188,7 +188,6 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // enterprise plan. Direct URL returns 404 — no upsell, the surface
   // simply does not exist for self-serve plans.
   { pathPrefix: "/organizations", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "Organizations entity (ENTERPRISE_ONLY)" },
-  { pathPrefix: "/persona", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/settings", reason: "persona picker → /settings (self-serve)" },
   { pathPrefix: "/dashboard/batch-analysis", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "batch analysis (PRO upsell)" },
   { pathPrefix: "/dashboard/quotas", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "quota dashboard (PRO upsell)" },
 

@@ -20,33 +20,31 @@
  *
  * The resolver carries NO authorization logic. Access decisions
  * remain in `resolveRouteAccess`; workflow bucketing remains in
- * `resolveWorkflowExposure`; experience emphasis remains in
+ * `resolveNavigationExposure`; experience emphasis remains in
  * `resolveWorkspaceExperience`. R2 only adds the IA disclosure step.
  */
 
 import { applyExperienceEmphasis } from "../workspace-experience/applyExperienceEmphasis";
 import { CANONICAL_PRIMARY_ROUTE_IDS } from "./canonicalNavigationGroups";
 import type {
-  WorkflowExposureItem,
-  WorkflowExposureResult,
-} from "./workflowExposureResolver";
+  NavigationExposureItem,
+  NavigationExposureResult,
+} from "./navigationExposureResolver";
 
 export interface NavigationDisclosureInput {
-  readonly exposure: WorkflowExposureResult;
+  readonly exposure: NavigationExposureResult;
   readonly demotionRouteIds: ReadonlySet<string>;
 }
 
 export interface NavigationDisclosureResult {
   /** Strictly the canonical primary route ids (bounded). */
-  readonly primaryItems: ReadonlyArray<WorkflowExposureItem>;
+  readonly primaryItems: ReadonlyArray<NavigationExposureItem>;
   /** Domain-organized; receives workflow-promoted non-canonical routes. */
-  readonly secondaryItems: ReadonlyArray<WorkflowExposureItem>;
+  readonly secondaryItems: ReadonlyArray<NavigationExposureItem>;
   /** Advanced disclosure bucket; receives experience-mode demotions. */
-  readonly moreAdvancedItems: ReadonlyArray<WorkflowExposureItem>;
+  readonly moreAdvancedItems: ReadonlyArray<NavigationExposureItem>;
   /** All Tools — preserved untouched. */
-  readonly allToolsItems: ReadonlyArray<WorkflowExposureItem>;
-  /** Recommendation strip — preserved untouched. */
-  readonly recommendedItems: ReadonlyArray<WorkflowExposureItem>;
+  readonly allToolsItems: ReadonlyArray<NavigationExposureItem>;
   /** Diagnostic counters for tests + observability. */
   readonly stats: {
     readonly primaryBoundedCount: number;
@@ -63,8 +61,8 @@ export function resolveNavigationDisclosure(
   // Step 1 — bound the primary group to the canonical 6 route ids.
   // Anything else workflow promoted to primary falls back into
   // secondary so it still renders in its domain group.
-  const boundedPrimary: WorkflowExposureItem[] = [];
-  const primaryOverflow: WorkflowExposureItem[] = [];
+  const boundedPrimary: NavigationExposureItem[] = [];
+  const primaryOverflow: NavigationExposureItem[] = [];
   for (const item of exposure.primaryItems) {
     if (CANONICAL_PRIMARY_ROUTE_IDS.has(item.route.id)) {
       boundedPrimary.push(item);
@@ -94,7 +92,6 @@ export function resolveNavigationDisclosure(
     secondaryItems: demoted.secondaryItems,
     moreAdvancedItems: demoted.moreAdvancedItems,
     allToolsItems: exposure.allToolsItems,
-    recommendedItems: exposure.recommendedItems,
     stats: {
       primaryBoundedCount: boundedPrimary.length,
       primaryOverflowCount: primaryOverflow.length,

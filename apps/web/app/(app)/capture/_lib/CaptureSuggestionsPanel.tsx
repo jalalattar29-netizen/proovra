@@ -21,7 +21,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import type { WorkflowProfileCode } from "../../../../lib/platform-context";
 import type { CaptureReadinessSummary } from "./captureReadiness";
 import { computeCaptureSuggestions } from "./captureSuggestions";
 
@@ -46,21 +45,19 @@ const TONE_STYLES: Record<
 };
 
 export function CaptureSuggestionsPanel({
-  workflow,
   readiness,
   onActionClick,
 }: {
-  workflow: WorkflowProfileCode;
   readiness: CaptureReadinessSummary;
   /** Optional handler invoked when the operator clicks a suggestion's action. */
   onActionClick?: (targetId: string) => void;
 }) {
   const suggestions = useMemo(
-    () => computeCaptureSuggestions({ workflow, readiness }),
-    [workflow, readiness],
+    () => computeCaptureSuggestions({ readiness }),
+    [readiness],
   );
 
-  const dismissKey = `${DISMISS_KEY_PREFIX}${workflow}`;
+  const dismissKey = DISMISS_KEY_PREFIX;
   const [dismissed, setDismissed] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -89,7 +86,6 @@ export function CaptureSuggestionsPanel({
       role="region"
       aria-label="Capture suggestions"
       data-capture-suggestions
-      data-capture-suggestions-workflow={workflow}
       data-capture-suggestions-count={suggestions.length}
       style={{
         marginTop: 12,

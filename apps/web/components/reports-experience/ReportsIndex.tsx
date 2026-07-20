@@ -36,13 +36,9 @@ import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
 import { apiFetch } from "../../lib/api";
 import {
-  resolvePersonaEmptyState,
-  usePersonaProfile,
   usePlatformContext,
   useWorkspaceId,
-  workflowFromPersona,
 } from "../../lib/platform-context";
-import { HintCallout } from "../persona/HintCallout";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { AccessGate } from "../access/AccessGate";
 // Phase G3.2 — every Report PDF / Verification Package ZIP download
@@ -169,11 +165,6 @@ export function ReportsIndex() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [filter, setFilter] = useState<LifecycleFilter>("all");
   const [search, setSearch] = useState("");
-  // Phase 38.17 — workflow-aware contextual help.
-  const personaProfileForHelp = usePersonaProfile();
-  const reportsWorkflowCode = workflowFromPersona(
-    personaProfileForHelp.primaryProfile,
-  ).code;
 
   const reload = useCallback(
     async (currentFilter: LifecycleFilter, currentSearch: string) => {
@@ -350,18 +341,9 @@ export function ReportsIndex() {
         />
       }
     >
-      {/* Phase 38.17 — workflow-aware contextual help, collapsed by
-          default so the reports/artifacts queue stays primary. */}
-      <ContextualHelp
-        workflow={reportsWorkflowCode}
-        surface="reports"
-        collapsedByDefault
-      />
-
-      {/* Phase 38.4 — persona-aware contextual hint. Dismissible;
-          gated on the hint's capabilityKey via useCan; never blocks
-          the page. */}
-      <HintCallout surface="reports" />
+      {/* Contextual help, collapsed by default so the reports/artifacts
+          queue stays primary. */}
+      <ContextualHelp surface="reports" collapsedByDefault />
 
       {/* Operational summary */}
       {sections.summary.status === "ok" && sections.summary.data ? (
@@ -1046,20 +1028,17 @@ function packageLabel(state: PackageLifecycle): string {
 }
 
 function ReportsEmptyState({ filter }: { filter: LifecycleFilter }) {
-  // Phase 38.1 — consume the persona empty-state library. CTAs and copy
-  // adapt to the active persona while the canonical Reports surface
-  // remains the same route.
-  const persona = usePersonaProfile();
-  const state = resolvePersonaEmptyState({
-    persona: persona.primaryProfile,
-    surface: "reports",
-  });
+  // Canonical Reports empty state. (2026-07-20) The per-persona empty
+  // state variants were removed with the workspace-persona feature.
+  const state = {
+    title: "No reports yet",
+    body:
+      "Reports are generated from signed evidence. Capture or upload evidence to make a report available.",
+    primaryCtaLabel: "Open evidence",
+    primaryCtaHref: "/evidence",
+  };
   return (
-    <div
-      className="cases-empty"
-      data-reports-empty={filter}
-      data-persona-empty-state-persona={persona.primaryProfile}
-    >
+    <div className="cases-empty" data-reports-empty={filter}>
       <EmptyState
         framed
         title={state.title}
@@ -1068,7 +1047,7 @@ function ReportsEmptyState({ filter }: { filter: LifecycleFilter }) {
           <Link
             href={state.primaryCtaHref}
             className="cc-quick-action"
-            data-persona-empty-state-cta
+            data-reports-empty-state-cta
             style={{
               display: "inline-flex",
               alignItems: "center",

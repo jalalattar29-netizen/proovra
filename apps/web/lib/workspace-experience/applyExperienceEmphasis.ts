@@ -12,25 +12,25 @@
  * decision.
  */
 
-import type { WorkflowExposureItem, WorkflowExposureResult } from "../navigation/workflowExposureResolver";
+import type { NavigationExposureItem, NavigationExposureResult } from "../navigation/navigationExposureResolver";
 
 export interface ApplyExperienceEmphasisInput {
-  readonly exposure: WorkflowExposureResult;
+  readonly exposure: NavigationExposureResult;
   readonly demotionRouteIds: ReadonlySet<string>;
 }
 
 export interface ApplyExperienceEmphasisResult {
   /** Items that remain in the primary sidebar bucket. */
-  readonly primaryItems: ReadonlyArray<WorkflowExposureItem>;
+  readonly primaryItems: ReadonlyArray<NavigationExposureItem>;
   /** Items that remain in the secondary sidebar bucket. */
-  readonly secondaryItems: ReadonlyArray<WorkflowExposureItem>;
+  readonly secondaryItems: ReadonlyArray<NavigationExposureItem>;
   /**
    * Items that should render under "More / Advanced". This is the
    * concatenation of the original `moreAdvancedItems` plus any
    * items demoted out of `primaryItems` / `secondaryItems` by the
    * experience-mode rule.
    */
-  readonly moreAdvancedItems: ReadonlyArray<WorkflowExposureItem>;
+  readonly moreAdvancedItems: ReadonlyArray<NavigationExposureItem>;
   /** Number of items demoted (useful for tests + observability). */
   readonly demotedCount: number;
 }
@@ -56,9 +56,9 @@ export function applyExperienceEmphasis(
     };
   }
 
-  const keptPrimary: WorkflowExposureItem[] = [];
-  const keptSecondary: WorkflowExposureItem[] = [];
-  const demoted: WorkflowExposureItem[] = [];
+  const keptPrimary: NavigationExposureItem[] = [];
+  const keptSecondary: NavigationExposureItem[] = [];
+  const demoted: NavigationExposureItem[] = [];
 
   for (const item of exposure.primaryItems) {
     if (demotionRouteIds.has(item.route.id)) demoted.push(item);
@@ -72,7 +72,7 @@ export function applyExperienceEmphasis(
   // Original moreAdvancedItems stay first so familiar entries
   // (advancedByDefault routes) keep their position. Demoted items
   // append after.
-  const merged: WorkflowExposureItem[] = [
+  const merged: NavigationExposureItem[] = [
     ...exposure.moreAdvancedItems,
     ...demoted,
   ];

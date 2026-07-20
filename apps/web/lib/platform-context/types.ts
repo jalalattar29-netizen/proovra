@@ -399,37 +399,11 @@ export type PlatformContextDuplicatePersonalCandidate = {
 // even when the persona prioritizes a surface.
 // =============================================================================
 
-export const WORKSPACE_PERSONA_PROFILES = [
-  "INDIVIDUAL",
-  "LAWYER",
-  "INSURANCE",
-  "INVESTIGATOR",
-  "JOURNALIST",
-  "ENTERPRISE_COMPLIANCE",
-  "ADMIN_OPERATOR",
-] as const;
-export type WorkspacePersonaProfile =
-  (typeof WORKSPACE_PERSONA_PROFILES)[number];
-
-export const OPERATIONAL_DENSITY_PREFERENCES = [
-  "compact",
-  "comfortable",
-  "spacious",
-] as const;
-export type OperationalDensityPreference =
-  (typeof OPERATIONAL_DENSITY_PREFERENCES)[number];
-
-export type PlatformContextPersonaProfile = {
-  teamId: string | null;
-  primaryProfile: WorkspacePersonaProfile;
-  secondaryUseCases: ReadonlyArray<WorkspacePersonaProfile>;
-  onboardingCompleted: boolean;
-  preferredDashboardLayout: string | null;
-  operationalDensityPreference: OperationalDensityPreference;
-  featurePriorityOverrides: ReadonlyArray<string>;
-  resolvedRolePersona: Persona;
-  source: "default" | "stored";
-};
+// (2026-07-20) Workspace-persona / workflow-personalization / operational-
+// density feature family removed. The authorization ROLE persona
+// (`PERSONAS` / `Persona` / `PlatformContextPersona.resolvedPersona`) is a
+// separate, retained system — navigation/labels/density are now canonical
+// and no longer personalized.
 
 export type PlatformContextDiagnostics = {
   sectionStatus: {
@@ -501,7 +475,6 @@ export type PlatformContextEnvelope = {
   personalSpace?: PlatformContextPersonalSpace;
   organizations?: ReadonlyArray<PlatformContextOrganization>;
   activeSpace?: PlatformContextActiveSpace;
-  personaProfile?: PlatformContextPersonaProfile;
   duplicatePersonalCandidates?: ReadonlyArray<PlatformContextDuplicatePersonalCandidate>;
   diagnostics: PlatformContextDiagnostics;
   /**

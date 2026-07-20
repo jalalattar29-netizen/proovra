@@ -71,10 +71,8 @@ import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
 import {
   CapabilityDegradedPanel,
   useActiveWorkspaceId,
-  usePersonaProfile,
   usePersonalSpace,
   usePlatformContext,
-  workflowFromPersona,
 } from "../../lib/platform-context";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 // Phase 7C — canonical PROOVRA design foundation. PageShell/PageHeader/
@@ -162,9 +160,6 @@ export function CasesIndex() {
   // were jargon for this surface. Persona terminology is still used
   // elsewhere (Home, Evidence pages); only this header opted out.
   const viewerUserId = ctx.envelope?.user.id ?? null;
-  // Phase 38.17 — workflow-aware contextual help.
-  const personaProfile = usePersonaProfile();
-  const workflowCode = workflowFromPersona(personaProfile.primaryProfile).code;
 
   const [filters, setFilters] = useState<QueueFilters>(DEFAULT_FILTERS);
   // Phase CASES-PERSONAL-UX — debounced view of `filters.search`. The
@@ -442,10 +437,9 @@ export function CasesIndex() {
           />
         }
       >
-        {/* Phase 38.17 — workflow-aware contextual help, collapsed by
-            default so the matter queue stays primary. */}
+        {/* Contextual help, collapsed by default so the matter queue
+            stays primary. */}
         <ContextualHelp
-          workflow={workflowCode}
           surface="cases"
           collapsedByDefault
           stateNotes={

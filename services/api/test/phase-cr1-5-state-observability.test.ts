@@ -359,59 +359,31 @@ describe("CR1.5 Test 9 — [FIXED IN R1] CommandCenter no longer uses useTeamWor
 });
 
 // =============================================================================
-// PART 10 — INVERSE PIN: Persona save does NOT call refresh() (until R1)
+// PART 10/11 — (2026-07-20) REMOVED: persona save-refresh + "Reload to see"
+// pins. The /settings/persona page was physically deleted with the
+// workspace-persona / workflow-personalization feature. There is no
+// persona save flow. The general PATCH-then-refresh contract is still
+// exercised for the surviving /settings profile page elsewhere.
 // =============================================================================
 
-describe("CR1.5 Test 10 — [FIXED IN R1] persona save refreshes the envelope", () => {
-  it("settings/persona/page.tsx PATCH handler imports usePlatformContext and calls refresh()", () => {
-    const src = readWeb("app/(app)/settings/persona/page.tsx");
-    // Confirm the PATCH call still exists (we are talking about the
-    // right file).
-    expect(src).toMatch(/\/v1\/workspaces\/.+\/persona/);
-    expect(src).toMatch(/method:\s*["']PATCH["']/);
-    // R1 Bug B — flipped. The handler must now import the platform
-    // context and refresh the envelope after a successful PATCH so
-    // sidebar / dashboard / density / persona banner / help all
-    // re-render without a manual page reload.
-    expect(src).toMatch(/\busePlatformContext\b/);
-    expect(src).toMatch(/ctx\.refresh\s*\(/);
-  });
-});
-
 // =============================================================================
-// PART 11 — INVERSE PIN: "Reload to see" copy remains until R1
+// PART 12 — Navigation presentation stays authorization-independent
 // =============================================================================
 
-describe("CR1.5 Test 11 — [FIXED IN R1] 'Reload to see' bug-marker copy removed", () => {
-  it("settings/persona/page.tsx no longer ships the 'Reload to see' bug-marker copy", () => {
-    const src = readWeb("app/(app)/settings/persona/page.tsx");
-    // R1 removed the stale instruction. The success banner now says
-    // navigation/recommendations have been refreshed (because they
-    // actually have — see Test 10).
-    expect(src).not.toMatch(/Reload to see/i);
-    expect(src).toMatch(/Workspace profile updated/);
-  });
-});
-
-// =============================================================================
-// PART 12 — No workflow/persona authorization gates introduced
-// =============================================================================
-
-describe("CR1.5 Test 12 — workflow/persona stays presentation-only (no authorization)", () => {
-  it("workflowExposureResolver does not reference canLoad, requiredCapabilities, or authorize", () => {
-    const src = readWeb("lib/navigation/workflowExposureResolver.ts");
-    // The exposure resolver is about ordering and bucketing only. It
-    // must NEVER touch authorization concepts.
+describe("CR1.5 Test 12 — navigation exposure stays presentation-only (no authorization)", () => {
+  it("navigationExposureResolver does not reference authorization primitives", () => {
+    // (2026-07-20) The workflow/persona exposure resolver was replaced by
+    // the neutral `navigationExposureResolver`. It buckets already-allowed
+    // routes only — it must NEVER touch authorization decisions.
+    const src = readWeb("lib/navigation/navigationExposureResolver.ts");
     expect(src).not.toMatch(/\bcanLoad\s*=/);
     expect(src).not.toMatch(/requiredCapabilities\b\s*[:?.]/);
-    expect(src).not.toMatch(/authorize/i);
-    expect(src).not.toMatch(/forbidden/i);
+    expect(src).not.toMatch(/\bauthorize\s*\(/);
   });
 
-  it("workflowExposureResolver header still documents the no-authorization contract", () => {
-    const src = readWeb("lib/navigation/workflowExposureResolver.ts");
-    // Lines 14-21 per CR1.5 §5 trace.
-    expect(src).toMatch(/Workflow NEVER changes/i);
+  it("navigationExposureResolver header documents the no-authorization contract", () => {
+    const src = readWeb("lib/navigation/navigationExposureResolver.ts");
+    expect(src).toMatch(/Access decisions are upstream/i);
   });
 });
 
@@ -462,19 +434,18 @@ describe("CR1.5 Test 13 — observability utility is production-safe", () => {
     expect(OBS).not.toMatch(/\bconsole\.log\b/);
   });
 
-  it("R1 wired the observability utility into the provider + persona save handler", () => {
-    // R1 Part 7 — the dev-only utility now traces:
+  it("R1 wired the observability utility into the provider + CommandCenter", () => {
+    // R1 Part 7 — the dev-only utility traces:
     //   - platform-envelope:loaded + :refreshed (provider)
-    //   - persona-profile:saved + :refresh-missing (persona handler)
     //   - active-space:resolved + dashboard:resolved (CommandCenter)
     // Production behavior is unchanged (emit() is no-op in prod).
+    // (2026-07-20) The persona save handler trace was removed with the
+    // /settings/persona page.
     const provider = readWeb(
       "lib/platform-context/PlatformContextProvider.tsx",
     );
-    const persona = readWeb("app/(app)/settings/persona/page.tsx");
     const cc = readWeb("components/command-center/CommandCenter.tsx");
     expect(provider).toMatch(/state-observability/);
-    expect(persona).toMatch(/state-observability/);
     expect(cc).toMatch(/state-observability/);
   });
 });

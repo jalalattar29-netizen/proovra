@@ -712,8 +712,11 @@ describe("tsa_failure + case_assignment — full state-mutation parity", () => {
       expect(dismiss.status).toBe(200);
       expect(dismiss.body.dismissedAt).toBeTruthy();
 
+      // Must be a FUTURE timestamp — the API rejects snoozing into the
+      // past (400). Compute it relative to the test clock so the test
+      // never rots as wall-clock time advances past a hardcoded date.
       const snooze = await mutate(key, "snooze", {
-        snoozedUntil: "2026-07-20T00:00:00.000Z",
+        snoozedUntil: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       });
       expect(snooze.status).toBe(200);
       expect(snooze.body.snoozedUntil).toBeTruthy();

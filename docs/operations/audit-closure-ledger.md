@@ -139,3 +139,35 @@ in `phase-32-7-2-security-event-mapping-drift.test.ts`
 **Reopen allowed only if:** any surface re-introduces `receipt_id` /
 `public_url` / `published` / `externalPublicationAttached` on the anchor, or
 the external-publication concept is deliberately re-added by design.
+
+---
+
+## 2026-07-20 — `20270924000000_drop_workspace_persona_profiles`
+
+**Finding:** `DROP_TABLE` (CRITICAL) on `workspace_persona_profiles`.
+
+**Why approved:** Product-approved physical deletion of the retired
+workspace-persona, workflow-personalization, onboarding-draft and
+operational-density feature family. The `workspace_persona_profiles` table
+backed the `WorkspacePersonaProfile` Prisma model, which was UX-layer only —
+it never granted capabilities. The whole feature (workspace personas,
+workflow personalization, operator density preferences, dashboard-layout
+overrides, feature-priority overrides, onboarding-draft state) was removed
+repository-wide first (Prisma model + `Team.personaProfile` relation,
+`workspace-persona.routes.ts`, `persona-profile.service.ts`, the
+`personaProfile` envelope field, all web libs/components/routes/tests),
+leaving zero code, schema, service, report or package references. The
+role-derived authorization persona (`Persona` / `PERSONAS` /
+`resolvedRolePersona`) is a separate system and is preserved.
+
+**Safety:** `DROP TABLE IF EXISTS "workspace_persona_profiles" CASCADE` is
+idempotent and safe on partial state, mirroring the approved
+`20261009000000_drop_reviewer_queue_projection` precedent. The row `team_id`
+FK carried ON DELETE CASCADE, so no orphan rows survive. The CRITICAL
+`DROP_TABLE` finding is registered in
+`phase-o-migration-safety-gate.test.ts` `APPROVED_CRITICAL_BY_MIGRATION` and
+in `phase-32-7-2-security-event-mapping-drift.test.ts`
+`PERMITTED_LATER_MIGRATIONS`.
+
+**Reopen allowed only if:** the workspace-persona / workflow-personalization
+/ operational-density product concept is deliberately re-added by design.

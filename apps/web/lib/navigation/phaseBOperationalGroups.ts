@@ -305,7 +305,6 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // authenticated legal reader at /settings/legal/:slug; never a
       // navigation destination, so secondary keeps the primary budget.
       "account.legal_document",
-      "account.persona",
       // Phase IA-collapse — `workspace.communications` (renamed
       // "Messaging operations") moved from WORKSPACE/secondary to
       // SYSTEM/secondary alongside the other ops health surfaces. It

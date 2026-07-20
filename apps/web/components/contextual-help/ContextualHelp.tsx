@@ -1,46 +1,106 @@
 "use client";
 
 /**
- * PHASE 38.16 — Contextual help component.
+ * Contextual help component.
  *
- * Reads the canonical `resolveWorkflowHelp` library for (workflow,
- * surface) help text and renders it as a bounded, dismissible,
+ * Renders bounded, surface-keyed help text as a dismissible,
  * non-blocking inline panel. Optionally accepts a `stateNotes` array
  * for additional operator-state-aware context (e.g. "no evidence
  * yet" / "review queue is busy") that the consuming surface can
  * provide.
  *
- * Hard rules pinned by Phase 38.16 source-contract tests:
+ * Hard rules pinned by the source-contract tests:
  *
  *   1. Informational + non-blocking. Never an overlay, never a modal.
- *   2. Reads bounded `resolveWorkflowHelp` output — no free-form
+ *   2. Reads the bounded canonical catalog below — no free-form
  *      generation, no AI claims.
- *   3. Workflow + surface drive the help text; state notes augment.
+ *   3. Surface drives the help text; state notes augment.
  *   4. A11y: role="region" + aria-label; dismiss button labelled.
- *   5. Dismissible (localStorage-persisted, scoped per workflow x
- *      surface).
- *   6. Density-aware via the data-operational-density CSS variables.
- *   7. No legal / forensic overclaim — copy comes from the bounded
- *      catalog in workflowHelp.ts.
+ *   5. Dismissible (localStorage-persisted, scoped per surface).
+ *   6. No legal / forensic overclaim — copy comes from the bounded
+ *      catalog below.
+ *
+ * (2026-07-20) The per-workflow help override dimension was removed
+ * with the workspace-persona / workflow-personalization feature.
+ * Help is now canonical: one bounded entry per surface for everyone.
  */
 
 import { useEffect, useState } from "react";
 
-import {
-  resolveWorkflowHelp,
-  type HelpSurface,
-  type WorkflowProfileCode,
-} from "../../lib/platform-context";
+export type HelpSurface =
+  | "capture"
+  | "evidence"
+  | "cases"
+  | "reports"
+  | "governance"
+  | "reviewer-ops"
+  | "ops"
+  | "teams"
+  | "search";
+
+type WorkflowHelpEntry = {
+  /** Short headline rendered above the body. */
+  title: string;
+  /** One-paragraph body. Operational tone; no legal overclaims. */
+  body: string;
+};
+
+/** Canonical, surface-keyed help catalog. Identical for every operator. */
+const SURFACE_HELP: Record<HelpSurface, WorkflowHelpEntry> = {
+  capture: {
+    title: "What capture does",
+    body:
+      "Records are hashed and signed at capture time so the resulting evidence carries an integrity record. The hash + signature are independent of the storage backend; you can verify them later from the public verify page.",
+  },
+  evidence: {
+    title: "Evidence integrity",
+    body:
+      "Every record carries a SHA-256 hash, a signature, and a custody timeline. Generating a report or verification package projects the current state at that moment; the underlying integrity record stays unchanged.",
+  },
+  cases: {
+    title: "Cases bundle related evidence",
+    body:
+      "A case groups evidence with role-scoped collaboration. Cases do not change the integrity of the underlying evidence.",
+  },
+  reports: {
+    title: "Reports snapshot integrity",
+    body:
+      "Reports and verification packages snapshot the integrity state at generation time. They are workspace deliverables — they record integrity at the moment of generation and make no claim about legal admissibility or authenticity.",
+  },
+  governance: {
+    title: "Governance controls",
+    body:
+      "Legal holds, retention windows, and destruction reviews are recorded against evidence and cases. These controls do not change the underlying integrity records; they govern access and lifecycle.",
+  },
+  "reviewer-ops": {
+    title: "Reviewer operations",
+    body:
+      "Queues route work to reviewers; SLA tracking surfaces breaches; escalations preserve operational continuity. Reviewer actions are audited but do not modify the integrity of the evidence under review.",
+  },
+  ops: {
+    title: "Operations Center",
+    body:
+      "Operational pressure, queue health, and incidents are aggregated for operator awareness. Acting on an incident is audited; viewing it is not — browse is read-only.",
+  },
+  teams: {
+    title: "Workspace administration",
+    body:
+      "Workspace administration covers access roles, billing seats, integrations posture, and operational accountability. Every authenticated user has a Personal Space; organizations layer team-scoped access + billing on top. Browse is read-only; explicit invitation and role changes remain audited.",
+  },
+  search: {
+    title: "Operator search",
+    body:
+      "Operator search spans evidence, workflows, audit events, and cases. Results respect workspace boundaries and the actor's capability set — no result here ever bypasses workspace-scoped access controls.",
+  },
+};
 
 const DISMISS_KEY_PREFIX = "contextual-help-dismissed:";
 
 export function ContextualHelp({
-  workflow,
   surface,
   stateNotes,
   collapsedByDefault = false,
 }: {
-  workflow: WorkflowProfileCode;
   surface: HelpSurface;
   /**
    * Optional state-aware notes the consuming surface can provide.
@@ -56,8 +116,8 @@ export function ContextualHelp({
    */
   collapsedByDefault?: boolean;
 }) {
-  const entry = resolveWorkflowHelp({ workflow, surface });
-  const dismissKey = `${DISMISS_KEY_PREFIX}${workflow}:${surface}`;
+  const entry = SURFACE_HELP[surface];
+  const dismissKey = `${DISMISS_KEY_PREFIX}${surface}`;
   const [dismissed, setDismissed] = useState(false);
   const [expanded, setExpanded] = useState(!collapsedByDefault);
 
@@ -87,7 +147,6 @@ export function ContextualHelp({
       role="region"
       aria-label={`Contextual help: ${entry.title}`}
       data-contextual-help
-      data-contextual-help-workflow={workflow}
       data-contextual-help-surface={surface}
       data-contextual-help-state-note-count={
         stateNotes?.length ?? 0

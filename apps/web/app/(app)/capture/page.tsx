@@ -5,10 +5,6 @@ import { Button, PageShell, PageHeader, useToast } from "../../../components/ui"
 import { Button as ActionButton } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-import {
-  usePersonaProfile,
-  workflowFromPersona,
-} from "../../../lib/platform-context";
 import { orderTemplatesByWorkflow } from "./_lib/workflowTemplateOrder";
 import { CaptureWorkflowGuidance } from "./_lib/CaptureWorkflowGuidance";
 import { CaptureReadinessPanel } from "./_lib/CaptureReadinessPanel";
@@ -143,19 +139,16 @@ function CapturePageInner() {
   }, []);
 
   const { templates: serverTemplates } = useWorkflowTemplates();
-  const personaProfile = usePersonaProfile();
 
-  // Phase 38.10 — workflow-aware template ordering. NEVER hides
-  // templates; only reorders so the workflow's primary templates
-  // appear first. The operator can always pick any template.
+  // Canonical template ordering. NEVER hides templates; only reorders
+  // so the canonical priority templates appear first. The operator can
+  // always pick any template.
   const collectionPlansBase = serverTemplates.length
     ? serverTemplates
     : COLLECTION_PLAN_TEMPLATES;
-  const workflowCode = workflowFromPersona(personaProfile.primaryProfile).code;
   const collectionPlans = [
     ...orderTemplatesByWorkflow({
       templates: collectionPlansBase,
-      workflow: workflowCode,
     }),
   ];
 
@@ -570,33 +563,26 @@ function CapturePageInner() {
 
       <div
         className="capture-enterprise-shell"
-        data-capture-workflow={workflowCode}
         data-capture-template-order={collectionPlans
           .map((p) => p.id)
           .join(",")}
-        data-operational-density={
-          personaProfile.operationalDensityPreference ?? "comfortable"
-        }
       >
-        {/* Phase 38.16 — intake progress rail. Five-stage workflow-
-            aware progression derived from the actual session state.
-            Informational + non-blocking; the operator can finalize
-            via the existing controls regardless of rail state. */}
+        {/* Intake progress rail. Five-stage progression derived from
+            the actual session state. Informational + non-blocking; the
+            operator can finalize via the existing controls regardless
+            of rail state. */}
         <CaptureIntakeRail
-          workflow={workflowCode}
           items={sessionItems}
           collectionPlanSelected={Boolean(selectedCollectionPlan)}
           readiness={computeCaptureReadiness({
             items: sessionItems,
-            workflow: workflowCode,
           })}
         />
 
-        {/* Phase 38.16 — contextual help, collapsed by default so the
-            rail + capture controls stay primary. State-aware notes
-            surface when the operator has no items staged. */}
+        {/* Contextual help, collapsed by default so the rail + capture
+            controls stay primary. State-aware notes surface when the
+            operator has no items staged. */}
         <ContextualHelp
-          workflow={workflowCode}
           surface="capture"
           collapsedByDefault
           stateNotes={
@@ -608,32 +594,29 @@ function CapturePageInner() {
           }
         />
 
-        {/* Phase 38.11 — workflow-aware guidance panel: title +
-            helper copy + checklist + recommended templates (subset,
-            never replacement) + canonical safety statement. */}
+        {/* Capture guidance panel: title + helper copy + checklist +
+            recommended templates (subset, never replacement) +
+            canonical safety statement. */}
         <CaptureWorkflowGuidance
-          workflow={workflowCode}
           allTemplates={collectionPlans}
           onSelectTemplate={(id) => setCollectionPlanId(id)}
           selectedTemplateId={collectionPlanId}
         />
 
-        {/* Phase 38.14 — operational readiness layer: workflow-aware
-            completeness criteria evaluated against the current session.
-            Read-only; never blocks finalization. Hidden when the
-            operator hasn't started intake yet. */}
-        <CaptureReadinessPanel items={sessionItems} workflow={workflowCode} />
+        {/* Operational readiness layer: completeness criteria evaluated
+            against the current session. Read-only; never blocks
+            finalization. Hidden when the operator hasn't started intake
+            yet. */}
+        <CaptureReadinessPanel items={sessionItems} />
 
-        {/* Phase 38.15 — actionable suggestions derived from the same
-            readiness criteria. Where the readiness panel reports the
-            state, this panel proposes the next concrete operator
-            action. Informational + non-blocking. */}
+        {/* Actionable suggestions derived from the same readiness
+            criteria. Where the readiness panel reports the state, this
+            panel proposes the next concrete operator action.
+            Informational + non-blocking. */}
         {sessionItems.length > 0 ? (
           <CaptureSuggestionsPanel
-            workflow={workflowCode}
             readiness={computeCaptureReadiness({
               items: sessionItems,
-              workflow: workflowCode,
             })}
           />
         ) : null}
@@ -1401,10 +1384,7 @@ onClick={async () => {
             directly above the finalize bar so the operator sees
             "where am I + what's the next concrete action" without
             scrolling back to the top-of-page panels. */}
-        <CaptureOperationalSummary
-          workflow={workflowCode}
-          items={sessionItems}
-        />
+        <CaptureOperationalSummary items={sessionItems} />
 
         <CaptureBottomBar
           busy={busy}

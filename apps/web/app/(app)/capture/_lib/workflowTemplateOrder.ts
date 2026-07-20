@@ -1,10 +1,14 @@
 /**
- * PHASE 38.10 — Workflow-aware capture template ordering.
+ * Capture template ordering.
  *
  * Pure function. Reorders the canonical `COLLECTION_PLAN_TEMPLATES`
- * list so the workflow profile's primary templates appear first. NEVER
- * adds or removes templates — capability is upstream and the operator
- * can always pick any template.
+ * list so the canonical priority templates appear first. NEVER adds or
+ * removes templates — capability is upstream and the operator can
+ * always pick any template.
+ *
+ * (2026-07-20) The per-workflow-profile priority lists were removed
+ * with the workspace-persona / workflow-personalization feature.
+ * Ordering is now canonical for every operator.
  *
  * Hard rules:
  *
@@ -12,51 +16,28 @@
  *   2. Preserving — every input template appears in the output exactly
  *      once. The function is structurally a partition + concat, so the
  *      length is invariant.
- *   3. Workflow tags PRIORITISE templates; absence does not remove.
- *   4. Bounded template ids — the priority lists below are pinned to
- *      the canonical template id strings.
+ *   3. Priority PRIORITISES templates; absence does not remove.
  */
 
-import type { WorkflowProfileCode } from "../../../../lib/platform-context";
 import type { CollectionPlanTemplate } from "./types";
 
 /**
- * Priority template ids per workflow profile. Templates not listed
- * still appear (in canonical order) after the priority slice.
+ * Canonical priority template ids. Templates not listed still appear
+ * (in canonical order) after the priority slice.
  */
-export const WORKFLOW_TEMPLATE_PRIORITY: Record<
-  WorkflowProfileCode,
-  ReadonlyArray<string>
-> = {
-  VERIFICATION_DOCUMENTATION: ["general-evidence-record"],
-  LEGAL_CASEWORK: ["legal-matter", "general-evidence-record"],
-  REVIEW_OPERATIONS: ["insurance-claim", "general-evidence-record"],
-  INVESTIGATION_RECONSTRUCTION: [
-    "incident-investigation",
-    "general-evidence-record",
-  ],
-  MEDIA_VERIFICATION: [
-    "journalism-field-capture",
-    "general-evidence-record",
-  ],
-  GOVERNANCE_COMPLIANCE: ["compliance-audit", "general-evidence-record"],
-  OPERATIONAL_ADMINISTRATION: [
-    "compliance-audit",
-    "incident-investigation",
-    "general-evidence-record",
-  ],
-};
+export const CANONICAL_TEMPLATE_PRIORITY: ReadonlyArray<string> = [
+  "general-evidence-record",
+];
 
 /**
- * Reorder capture templates so the workflow's priority templates lead
+ * Reorder capture templates so the canonical priority templates lead
  * the list. The returned array contains exactly the same templates as
  * the input — only the order changes. No template is ever hidden.
  */
 export function orderTemplatesByWorkflow(input: {
   templates: ReadonlyArray<CollectionPlanTemplate>;
-  workflow: WorkflowProfileCode;
 }): ReadonlyArray<CollectionPlanTemplate> {
-  const priorityIds = WORKFLOW_TEMPLATE_PRIORITY[input.workflow] ?? [];
+  const priorityIds = CANONICAL_TEMPLATE_PRIORITY;
   if (priorityIds.length === 0) return [...input.templates];
 
   const byId = new Map<string, CollectionPlanTemplate>(

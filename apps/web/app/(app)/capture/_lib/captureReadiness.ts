@@ -18,7 +18,6 @@
  *   5. Pure function with stable output for the same input.
  */
 
-import type { WorkflowProfileCode } from "../../../../lib/platform-context";
 import type { ChecklistStep, SessionItem } from "./types";
 
 export type ReadinessLevel = "draft" | "developing" | "ready";
@@ -234,51 +233,15 @@ const CRITERION_LABEL: Record<
 };
 
 /**
- * Bounded per-workflow criterion ids. Captures the operational
- * differences between workflow priorities without changing any
- * backend behavior or template availability.
+ * Canonical readiness criterion ids. (2026-07-20) The per-workflow
+ * criterion variants were removed with the workspace-persona /
+ * workflow-personalization feature.
  */
-const WORKFLOW_CRITERION_IDS: Record<WorkflowProfileCode, string[]> = {
-  VERIFICATION_DOCUMENTATION: [
-    "has_primary",
-    "has_context_note",
-    "no_duplicate_warnings",
-  ],
-  LEGAL_CASEWORK: [
-    "has_primary",
-    "has_supporting",
-    "has_context_note",
-    "no_duplicate_warnings",
-  ],
-  REVIEW_OPERATIONS: [
-    "has_primary",
-    "has_supporting",
-    "has_context_note",
-    "at_least_three_items",
-  ],
-  INVESTIGATION_RECONSTRUCTION: [
-    "has_primary",
-    "has_context_note",
-    "has_location",
-    "at_least_three_items",
-  ],
-  MEDIA_VERIFICATION: [
-    "has_primary",
-    "has_source_label",
-    "has_context_note",
-    "no_duplicate_warnings",
-  ],
-  GOVERNANCE_COMPLIANCE: [
-    "has_primary",
-    "has_context_note",
-    "no_duplicate_warnings",
-  ],
-  OPERATIONAL_ADMINISTRATION: [
-    "has_primary",
-    "has_context_note",
-    "at_least_three_items",
-  ],
-};
+const CANONICAL_CRITERION_IDS: string[] = [
+  "has_primary",
+  "has_context_note",
+  "no_duplicate_warnings",
+];
 
 function evaluateCriterion(
   id: string,
@@ -306,15 +269,12 @@ function evaluateCriterion(
 
 /**
  * Compute the bounded readiness summary for the operator's current
- * capture session given their workflow profile. Pure function.
+ * capture session. Pure function.
  */
 export function computeCaptureReadiness(input: {
   items: ReadonlyArray<SessionItem>;
-  workflow: WorkflowProfileCode;
 }): CaptureReadinessSummary {
-  const ids =
-    WORKFLOW_CRITERION_IDS[input.workflow] ??
-    WORKFLOW_CRITERION_IDS.VERIFICATION_DOCUMENTATION;
+  const ids = CANONICAL_CRITERION_IDS;
   const criteria: ReadinessCriterion[] = ids.map((id) => {
     const meta = CRITERION_LABEL[id] ?? {
       label: id,

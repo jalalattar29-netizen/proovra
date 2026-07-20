@@ -80,12 +80,9 @@ export const ONBOARDING_STEPS_BY_MODE: Record<
     },
   ],
   ORGANIZATION: [
-    {
-      id: "org.configure-workspace-profile",
-      label: "Configure your workspace profile",
-      href: "/settings/persona",
-      intent: "primary",
-    },
+    // (2026-07-20) The "org.configure-workspace-profile" step pointed
+    // at /settings/persona and was removed with the workspace-persona
+    // feature. Org onboarding now leads with inviting collaborators.
     {
       id: "org.invite-collaborators",
       label: "Invite collaborators",

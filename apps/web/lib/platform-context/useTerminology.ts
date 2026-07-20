@@ -1,25 +1,13 @@
 "use client";
 
 /**
- * PHASE 38-CLOSURE — Persona terminology layer.
+ * Canonical product terminology.
  *
- * Returns persona-tuned labels for canonical product concepts. The
- * underlying backend objects keep their canonical names (`Case`,
- * `Evidence`, `Report`, etc.) — this hook ONLY changes the visible
- * label.
- *
- * Hard rules:
- *
- *   1. NEVER changes a backend identifier, route, or permission.
- *   2. NEVER conditions visibility — labels apply regardless of whether
- *      a feature is reachable.
- *   3. Bounded vocabulary. Every label has a default (the canonical
- *      term) and a per-persona override. Unknown personas fall back to
- *      the default — never throws.
+ * (2026-07-20) The persona/workflow terminology-override dimension was
+ * removed with the workspace-persona feature family. Every surface now
+ * uses the single canonical vocabulary; the backend object names
+ * (`Case`, `Evidence`, `Report`, …) are unchanged.
  */
-
-import { usePersonaProfile } from "./usePersonaProfile";
-import type { WorkspacePersonaProfile } from "./types";
 
 export type TerminologyKey =
   | "case"
@@ -39,7 +27,7 @@ export type TerminologyKey =
 
 type TerminologyMap = Record<TerminologyKey, string>;
 
-const DEFAULT_TERMS: TerminologyMap = {
+const CANONICAL_TERMS: TerminologyMap = {
   case: "Case",
   caseLower: "case",
   casePlural: "Cases",
@@ -56,67 +44,11 @@ const DEFAULT_TERMS: TerminologyMap = {
   incident: "Incident",
 };
 
-const PERSONA_TERMS: Record<
-  WorkspacePersonaProfile,
-  Partial<TerminologyMap>
-> = {
-  INDIVIDUAL: {},
-  LAWYER: {
-    case: "Matter",
-    caseLower: "matter",
-    casePlural: "Matters",
-    report: "Evidence report",
-    reportLower: "evidence report",
-    timeline: "Custody timeline",
-  },
-  INSURANCE: {
-    case: "Claim",
-    caseLower: "claim",
-    casePlural: "Claims",
-    review: "Claim review",
-    assignment: "Handler assignment",
-    queue: "Claims queue",
-  },
-  INVESTIGATOR: {
-    case: "Investigation",
-    caseLower: "investigation",
-    casePlural: "Investigations",
-    evidence: "Material",
-    evidenceLower: "material",
-    timeline: "Reconstruction",
-  },
-  JOURNALIST: {
-    evidence: "Media record",
-    evidenceLower: "media record",
-    report: "Verification brief",
-    reportLower: "verification brief",
-    publicVerify: "Publication verification",
-  },
-  ENTERPRISE_COMPLIANCE: {
-    case: "Review matter",
-    caseLower: "review matter",
-    casePlural: "Review matters",
-    report: "Compliance report",
-    reportLower: "compliance report",
-  },
-  ADMIN_OPERATOR: {
-    dashboard: "Command Center",
-    queue: "Operations queue",
-    incident: "Operational incident",
-  },
-};
-
 export function useTerminology(): TerminologyMap {
-  const profile = usePersonaProfile();
-  return resolveTerminology(profile.primaryProfile);
+  return CANONICAL_TERMS;
 }
 
-/**
- * Pure-function variant for tests + non-React callers.
- */
-export function resolveTerminology(
-  persona: WorkspacePersonaProfile,
-): TerminologyMap {
-  const overrides = PERSONA_TERMS[persona] ?? {};
-  return { ...DEFAULT_TERMS, ...overrides };
+/** Pure-function variant for tests + non-React callers. */
+export function resolveTerminology(): TerminologyMap {
+  return CANONICAL_TERMS;
 }

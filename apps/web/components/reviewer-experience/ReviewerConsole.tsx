@@ -11,8 +11,6 @@
  *     views in one envelope (Phase C0 server change),
  *   * five operational sub-tabs (Queue · Mine · Escalations · SLA
  *     · Workload),
- *   * compact / comfortable / spacious density modes driven by the
- *     persona profile's `operationalDensityPreference`,
  *   * keyboard-first navigation: `j` / `k` to move selection,
  *     `Enter` to open the focused row, `a` to assign, `e` to
  *     escalate, `m` to request more info, `/` to focus the in-tab
@@ -169,13 +167,6 @@ type SavedViewRow = {
   };
 };
 
-type Density = "compact" | "comfortable" | "spacious";
-const DENSITY_VALUES: ReadonlyArray<Density> = [
-  "compact",
-  "comfortable",
-  "spacious",
-];
-
 type TabId = "queue" | "mine" | "escalations" | "sla" | "workload";
 const TABS: ReadonlyArray<{ id: TabId; label: string; description: string }> = [
   { id: "queue", label: "Queue", description: "Unassigned reviews" },
@@ -287,18 +278,12 @@ export type ReviewerConsoleProps = {
    * a request with a placeholder.
    */
   teamId: string | null;
-  /**
-   * Density preference from `personaProfile.operationalDensityPreference`.
-   * Drives row padding only — never changes which columns render.
-   */
-  density: Density;
   /** Open the upstream evidence detail surface in a new view. */
   onOpenRow?: (row: ConsoleRow | EscalationRow) => void;
 };
 
 export function ReviewerConsole({
   teamId,
-  density,
   onOpenRow,
 }: ReviewerConsoleProps) {
   const [envelope, setEnvelope] = useState<ConsoleEnvelope | null>(null);
@@ -325,11 +310,6 @@ export function ReviewerConsole({
   // workspace flag drives when the backend returns 401
   // STEP_UP_REQUIRED; the hook surfaces the modal + retries once.
   const stepUp = useStepUpAction({ teamId });
-
-  const effectiveDensity: Density = useMemo(
-    () => (DENSITY_VALUES.includes(density) ? density : "comfortable"),
-    [density],
-  );
 
   // Reload the envelope on tab open / workspace switch. The
   // server already bounds every section; we never paginate the
@@ -751,15 +731,10 @@ export function ReviewerConsole({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  // Per-density row padding. Compact mode is the enterprise
-  // default for high-throughput reviewers; comfortable is the
-  // fallback; spacious is for accessibility / casual review.
-  const rowPad =
-    effectiveDensity === "compact"
-      ? "6px 10px"
-      : effectiveDensity === "spacious"
-        ? "16px 18px"
-        : "10px 14px";
+  // Canonical row padding. (2026-07-20) The compact/comfortable/
+  // spacious density modes were removed with the workspace-persona /
+  // operational-density feature; the comfortable value is now the base.
+  const rowPad = "10px 14px";
 
   if (!teamId) {
     return (
@@ -785,7 +760,6 @@ export function ReviewerConsole({
   return (
     <PageShell
       className="reviewer-console"
-      data-density={effectiveDensity}
       data-active-tab={activeTab}
       header={
         <PageHeader

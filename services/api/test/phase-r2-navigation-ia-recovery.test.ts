@@ -49,8 +49,11 @@ const DISCLOSURE = readWeb(
 const GROUPING = readWeb("lib/navigation/navigationGroupingResolver.ts");
 const SIDEBAR = readWeb("components/app-shell-v2/AppSidebarV2.tsx");
 const ROUTE_ACCESS = readWeb("lib/navigation/routeAccessResolver.ts");
-const WORKFLOW_EXPOSURE = readWeb(
-  "lib/navigation/workflowExposureResolver.ts",
+// (2026-07-20) The workflow/persona exposure resolver was replaced by the
+// neutral, persona-free `navigationExposureResolver` when the
+// workspace-persona / workflow-personalization feature was deleted.
+const NAV_EXPOSURE = readWeb(
+  "lib/navigation/navigationExposureResolver.ts",
 );
 
 // =============================================================================
@@ -197,10 +200,12 @@ describe("R2 Part 5 — disclosure resolver enforces bounded primary + folds in 
   it("disclosure resolver preserves allToolsItems untouched", () => {
     // The resolver MUST return `exposure.allToolsItems` directly,
     // not transform it. This is the discoverability guarantee.
+    // (2026-07-20) The `recommendedItems` bucket was the workflow/persona
+    // recommendation output; it was removed with the workspace-persona /
+    // workflow-personalization feature. `allToolsItems` remains the
+    // discoverability guarantee.
     expect(DISCLOSURE).toMatch(/allToolsItems:\s*exposure\.allToolsItems/);
-    expect(DISCLOSURE).toMatch(
-      /recommendedItems:\s*exposure\.recommendedItems/,
-    );
+    expect(DISCLOSURE).not.toMatch(/recommendedItems/);
   });
 });
 
@@ -267,7 +272,7 @@ describe("R2 Part 8 — sidebar inline grouping extracted to canonical resolver"
     // hierarchy was introduced.
     expect(SIDEBAR).toMatch(/ROUTE_REGISTRY/);
     expect(SIDEBAR).toMatch(/resolveRouteAccess/);
-    expect(SIDEBAR).toMatch(/resolveWorkflowExposure/);
+    expect(SIDEBAR).toMatch(/resolveNavigationExposure/);
     expect(SIDEBAR).toMatch(/resolveWorkspaceExperience/);
   });
 });
@@ -313,8 +318,17 @@ describe("R2 Part 10 — invariant pins", () => {
     expect(ROUTE_ACCESS).not.toMatch(/\.personaProfile\b/);
   });
 
-  it("workflowExposureResolver still documents the no-authorization contract", () => {
-    expect(WORKFLOW_EXPOSURE).toMatch(/Workflow NEVER changes/i);
+  it("navigation presentation remains authorization-independent", () => {
+    // The neutral navigation exposure resolver only organizes
+    // already-allowed routes — it never grants authorization and never
+    // makes an unauthorized route loadable.
+    expect(NAV_EXPOSURE).toMatch(/Access decisions are upstream/i);
+    expect(NAV_EXPOSURE).toMatch(/this never changes .?canLoad/i);
+    expect(NAV_EXPOSURE).not.toMatch(/\bauthorize\s*\(/);
+    // No personalization input is consumed — the input is only the
+    // route registry + per-route access results.
+    expect(NAV_EXPOSURE).not.toMatch(/primaryWorkflow/);
+    expect(NAV_EXPOSURE).not.toMatch(/personaProfile/);
   });
 
   it("no second sidebar component was introduced", () => {

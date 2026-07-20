@@ -243,10 +243,12 @@ describe("Phase IA-surface-tier-wiring — simplified normal-user sidebar", () =
     );
   });
 
-  it("/persona is ENTERPRISE — redirects to /settings", () => {
-    expect(TIERS).toMatch(
-      /pathPrefix:\s*"\/persona",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"redirect",\s*redirectTo:\s*"\/settings"/,
-    );
+  it("no /persona surface-tier rule exists (feature deleted)", () => {
+    // (2026-07-20) The /persona route + its ENTERPRISE→/settings redirect
+    // rule were removed with the workspace-persona / workflow-personalization
+    // feature. The deleted route family resolves through normal not-found
+    // behavior — there is NO compatibility redirect.
+    expect(TIERS).not.toMatch(/pathPrefix:\s*"\/persona"/);
   });
 
   it("the 9 FREE/PAYG CORE surfaces are still CORE (pricing-aligned)", () => {

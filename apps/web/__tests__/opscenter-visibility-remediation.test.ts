@@ -28,7 +28,7 @@ import {
 } from "../lib/surface/access";
 import { getSurfaceTier } from "../lib/surface/tiers";
 import { resolveRouteAccess } from "../lib/navigation/routeAccessResolver";
-import { resolveWorkflowExposure } from "../lib/navigation/workflowExposureResolver";
+import { resolveNavigationExposure } from "../lib/navigation/navigationExposureResolver";
 import { resolveWorkspaceExperience } from "../lib/workspace-experience";
 import { resolveNavigationDisclosure } from "../lib/navigation/navigationDisclosureResolver";
 import { resolveNavigationGroups } from "../lib/navigation/navigationGroupingResolver";
@@ -198,15 +198,12 @@ function sidebarRouteIds(plan: "FREE" | "PAYG" | "PRO" | "TEAM"): string[] {
     }
     return { route, access };
   });
-  const exposure = resolveWorkflowExposure({
+  const exposure = resolveNavigationExposure({
     routes: resolved as never,
-    primaryWorkflow: "GENERAL" as never,
-    secondaryWorkflows: [],
   } as never);
   const experience = resolveWorkspaceExperience({
     activeSpaceType: "PERSONAL",
     capabilities: {},
-    primaryWorkflow: "GENERAL",
   } as never);
   const disclosure = resolveNavigationDisclosure({
     exposure,

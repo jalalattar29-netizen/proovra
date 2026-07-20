@@ -33,7 +33,7 @@ import { describe, expect, it } from "vitest";
 import {
   CANONICAL_PRIMARY_ROUTE_IDS,
 } from "../../../apps/web/lib/navigation/canonicalNavigationGroups";
-import { resolveWorkflowExposure } from "../../../apps/web/lib/navigation/workflowExposureResolver";
+import { resolveNavigationExposure } from "../../../apps/web/lib/navigation/navigationExposureResolver";
 import type { RouteDefinition } from "../../../apps/web/lib/navigation/routeRegistry";
 import type { RouteAccessResult } from "../../../apps/web/lib/navigation/routeAccessResolver";
 
@@ -66,7 +66,6 @@ function makeRoute(
     requiredCapabilities: overrides.requiredCapabilities ?? [],
     requiredActiveSpace: overrides.requiredActiveSpace ?? "PERSONAL_OR_ORG",
     fallbackBehavior: overrides.fallbackBehavior ?? "REQUEST_ACCESS",
-    workflowTags: overrides.workflowTags ?? [],
     advancedByDefault: overrides.advancedByDefault ?? false,
     commandPaletteVisible: overrides.commandPaletteVisible ?? true,
     allToolsVisible: overrides.allToolsVisible ?? true,
@@ -134,20 +133,16 @@ describe("Phase IA-intake-access-fix — Bug B: sidebar placement", () => {
     expect(block).toMatch(/advancedByDefault:\s*false/);
   });
 
-  it("resolveWorkflowExposure promotes a canonical-primary route into primary even when no workflow tag matches", () => {
-    // Simulate the PRO user whose primaryWorkflow doesn't touch the
-    // /intake-links tags. Before the fix the route would land in
-    // moreAdvancedItems via the advancedByDefault branch; after the
-    // fix it MUST land in primaryItems via canonical-primary.
+  it("resolveNavigationExposure places a canonical-primary route into primary", () => {
+    // (2026-07-20) After the workspace-persona / workflow-personalization
+    // deletion, bucketing is registry-driven only. A canonical-primary
+    // route MUST land in primaryItems regardless of advancedByDefault.
     const intake = makeRoute({
       id: "workspace.intake_links",
-      workflowTags: ["LEGAL_CASEWORK"],
       advancedByDefault: false,
     });
-    const result = resolveWorkflowExposure({
+    const result = resolveNavigationExposure({
       routes: [{ route: intake, access: ALLOWED }],
-      primaryWorkflow: "EVIDENCE_CAPTURE" as never,
-      secondaryWorkflows: [],
     });
     expect(result.primaryItems.map((i) => i.route.id)).toContain(
       "workspace.intake_links",
@@ -163,17 +158,14 @@ describe("Phase IA-intake-access-fix — Bug B: sidebar placement", () => {
   });
 
   it("a non-canonical advancedByDefault route still lands in moreAdvancedItems", () => {
-    // Defence: the canonical-primary promotion does NOT widen
+    // Defence: the canonical-primary bucket does NOT widen
     // advancedByDefault semantics for other routes.
     const odd = makeRoute({
       id: "workspace.something_else",
-      workflowTags: ["GOVERNANCE"],
       advancedByDefault: true,
     });
-    const result = resolveWorkflowExposure({
+    const result = resolveNavigationExposure({
       routes: [{ route: odd, access: ALLOWED }],
-      primaryWorkflow: "EVIDENCE_CAPTURE" as never,
-      secondaryWorkflows: [],
     });
     expect(result.moreAdvancedItems.map((i) => i.route.id)).toContain(
       "workspace.something_else",
@@ -181,25 +173,11 @@ describe("Phase IA-intake-access-fix — Bug B: sidebar placement", () => {
     expect(result.primaryItems.map((i) => i.route.id)).not.toContain(
       "workspace.something_else",
     );
-  });
-
-  it("workflow-primary-tag still wins (no regression to canonical promotion)", () => {
-    // When BOTH primary-workflow-match AND canonical-primary apply,
-    // the bucketReason should still reflect the workflow tag for
-    // existing analytics.
-    const route = makeRoute({
-      id: "workspace.evidence",
-      workflowTags: ["EVIDENCE_CAPTURE"],
-    });
-    const result = resolveWorkflowExposure({
-      routes: [{ route, access: ALLOWED }],
-      primaryWorkflow: "EVIDENCE_CAPTURE" as never,
-      secondaryWorkflows: [],
-    });
     expect(
-      result.primaryItems.find((i) => i.route.id === "workspace.evidence")
-        ?.bucketReason,
-    ).toBe("primary-workflow-match");
+      result.moreAdvancedItems.find(
+        (i) => i.route.id === "workspace.something_else",
+      )?.bucketReason,
+    ).toBe("advanced-by-default");
   });
 });
 

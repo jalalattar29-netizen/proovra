@@ -28,9 +28,7 @@ import {
   CapabilityDegradedPanel,
   useActiveSpaceId,
   useCan,
-  usePersonaProfile,
   usePlatformContext,
-  workflowFromPersona,
 } from "../../lib/platform-context";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { RuntimeStatusBanner } from "../operational";
@@ -57,11 +55,6 @@ export function ReviewerCommandConsole() {
   // directly; loading is a transient state.
   const teamId = useActiveSpaceId();
   const [state, setState] = useState<LoadState>({ status: "loading" });
-  // Phase 38.17 — workflow-aware contextual help.
-  const reviewerPersona = usePersonaProfile();
-  const reviewerWorkflowCode = workflowFromPersona(
-    reviewerPersona.primaryProfile,
-  ).code;
 
   const load = useCallback(async () => {
     if (!teamId) return;
@@ -174,13 +167,9 @@ export function ReviewerCommandConsole() {
         </div>
       </header>
 
-      {/* Phase 38.17 — workflow-aware contextual help, collapsed by
-          default so the reviewer triage surface stays primary. */}
-      <ContextualHelp
-        workflow={reviewerWorkflowCode}
-        surface="reviewer-ops"
-        collapsedByDefault
-      />
+      {/* Contextual help, collapsed by default so the reviewer triage
+          surface stays primary. */}
+      <ContextualHelp surface="reviewer-ops" collapsedByDefault />
 
       {/* Phase 32.7 — runtime banner scoped to reviewer_ops so platform-
           internal degradations don't poison the operator view. */}

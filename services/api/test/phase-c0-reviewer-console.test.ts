@@ -145,15 +145,14 @@ describe("Phase C0 — reviewer console UI (source contract)", () => {
     expect(CONSOLE_UI).toMatch(/id:\s*"workload"/);
   });
 
-  it("density modes are bounded to compact / comfortable / spacious", () => {
-    // The DENSITY_VALUES constant is the bounded vocabulary the
-    // component reads. We assert each value appears, and the
-    // constant name + tuple literal is present (trailing comma
-    // tolerated).
-    expect(CONSOLE_UI).toMatch(/const DENSITY_VALUES\b/);
-    expect(CONSOLE_UI).toMatch(/"compact"/);
-    expect(CONSOLE_UI).toMatch(/"comfortable"/);
-    expect(CONSOLE_UI).toMatch(/"spacious"/);
+  it("no operational-density mode system remains in the reviewer console", () => {
+    // (2026-07-20) The compact / comfortable / spacious density modes
+    // were removed with the workspace-persona / operational-density
+    // feature. The "comfortable" spacing was folded into the base
+    // styling; the console renders one canonical density for everyone.
+    expect(CONSOLE_UI).not.toMatch(/const DENSITY_VALUES\b/);
+    expect(CONSOLE_UI).not.toMatch(/operationalDensity/i);
+    expect(CONSOLE_UI).not.toMatch(/data-density=/);
   });
 
   it("keyboard navigation handles j / k / Enter / / / Cmd+K", () => {
@@ -274,8 +273,12 @@ describe("Phase C0 — /review canonical page", () => {
     expect(REVIEW_PAGE).toContain('router.push(`/reviewer-ops/${candidate}`)');
   });
 
-  it("/review reads density from the persona profile", () => {
-    expect(REVIEW_PAGE).toContain("operationalDensityPreference");
+  it("/review does not read a persona-profile density preference", () => {
+    // (2026-07-20) Operational density + the workspace-persona profile
+    // were removed. The /review page no longer threads a density prop
+    // into the reviewer console.
+    expect(REVIEW_PAGE).not.toContain("operationalDensityPreference");
+    expect(REVIEW_PAGE).not.toContain("personaProfile");
   });
 
   it("/review resolves the workspace teamId from activeSpace (not legacy ctx.workspace alone)", () => {
