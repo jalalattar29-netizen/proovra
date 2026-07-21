@@ -216,10 +216,12 @@ describe("Phase B0 — retention inheritance resolver", () => {
 
 describe("Phase B0 — sidebar vocabulary", () => {
   it("server navigation registry surfaces 'Workspaces' label", () => {
-    // Both the administration sidebar entry and the account-menu
-    // entry now read "Workspaces".
+    // account-menu refactor 2026-07-21 — the account-menu ACCOUNT group (with
+    // its account.teams "Workspaces" entry) is retired; the account menu is
+    // client-resolved. The administration sidebar entry (admin.teams) still
+    // reads "Workspaces", so exactly one canonical registry site remains.
     const matches = NAV_REGISTRY.match(/label:\s*"Workspaces"/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+    expect(matches.length).toBeGreaterThanOrEqual(1);
   });
 
   it("server registry does NOT carry a literal 'Teams' label any more", () => {

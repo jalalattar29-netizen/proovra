@@ -313,33 +313,42 @@ describe("Phase IA-surface-tier-pricing — topbar workspace switcher", () => {
   // Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
   // retargeted to the live AppAccountToolbar.
   const TOPBAR = readWeb("components/app-shell-v2/AppAccountToolbar.tsx");
+  // account-menu refactor 2026-07-21 — org gating moved out of the toolbar's
+  // surface-access hooks and into the single client resolver, which decides
+  // org visibility purely from ACTIVE org membership.
+  const RESOLVER = readWeb("lib/navigation/accountMenu.ts");
 
-  it("imports canAccessSurface + useSurfaceUserContext", () => {
+  it("no longer imports canAccessSurface / useSurfaceUserContext — org gating is resolver-driven (account-menu refactor 2026-07-21)", () => {
+    // The retired design decided org visibility in the toolbar via
+    // canAccessSurface('/organizations'); the folded menu delegates all
+    // visibility to resolveAccountMenu.
+    expect(TOPBAR).not.toMatch(/canAccessSurface/);
+    expect(TOPBAR).not.toMatch(/useSurfaceUserContext/);
     expect(TOPBAR).toMatch(
-      /import\s*\{\s*canAccessSurface\s*\}\s*from\s*["']\.\.\/\.\.\/lib\/surface\/access["']/,
-    );
-    expect(TOPBAR).toMatch(
-      /import\s*\{\s*useSurfaceUserContext\s*\}\s*from\s*["']\.\.\/\.\.\/lib\/surface\/useSurfaceUserContext["']/,
+      /import\s*\{[\s\S]{0,80}resolveAccountMenu[\s\S]{0,80}\}\s*from\s*["']\.\.\/\.\.\/lib\/navigation\/accountMenu["']/,
     );
   });
 
-  it("computes canSeeOrganizations from canAccessSurface(\"/organizations\")", () => {
-    // The call is split across multiple lines in the source — allow
-    // arbitrary whitespace including newlines.
-    expect(TOPBAR).toMatch(
-      /const canSeeOrganizations\s*=\s*canAccessSurface\([\s\S]{0,200}surfaceUserCtx[\s\S]{0,200}"\/organizations"/,
-    );
+  it("org visibility is decided by ACTIVE org membership in the resolver, not canSeeOrganizations (account-menu refactor 2026-07-21)", () => {
+    // No toolbar-local canSeeOrganizations flag anymore.
+    expect(TOPBAR).not.toMatch(/canSeeOrganizations/);
+    // The resolver filters switchable orgs to ACTIVE memberships only.
+    expect(RESOLVER).toMatch(/membershipStatus === "ACTIVE"/);
   });
 
-  it("Organizations group is gated on canSeeOrganizations", () => {
-    expect(TOPBAR).toMatch(
-      /\{canSeeOrganizations && organizations\.length > 0/,
-    );
+  it("Organizations switcher group is gated on the resolved active-org options (account-menu refactor 2026-07-21)", () => {
+    expect(TOPBAR).toMatch(/menu\.workspaces\.organizations\.length > 0/);
   });
 
-  it("Create/Join/Manage organization actions are gated on canSeeOrganizations", () => {
-    expect(TOPBAR).toMatch(
-      /\{canSeeOrganizations \?[\s\S]{0,2000}Manage organizations/,
+  it("Organization settings is membership-gated in the resolver; create/join/manage actions removed (account-menu refactor 2026-07-21)", () => {
+    // The retired Actions block (Create/Join/Manage organization) is gone.
+    expect(TOPBAR).not.toMatch(/Manage organizations/);
+    // Organization settings appears only when the user has >=1 ACTIVE org
+    // membership AND the destination is reachable.
+    expect(RESOLVER).toMatch(
+      /activeOrganizations\.length > 0 &&\s*routeLoads\("account\.organizations"/,
     );
+    // The toolbar renders the org section only when it is non-empty.
+    expect(TOPBAR).toMatch(/menu\.organization\.length > 0/);
   });
 });

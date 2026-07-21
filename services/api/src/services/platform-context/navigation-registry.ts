@@ -597,146 +597,6 @@ const ADMINISTRATION_GROUP: NavRegistryGroup = {
   ],
 };
 
-// =============================================================================
-// Group 5 — ACCOUNT (topbar account-menu only, never in the sidebar)
-// =============================================================================
-
-/**
- * Phase ROUTE-FIX — the account menu is the always-available surface
- * for logged-in users. It must NEVER be hidden by workspace gating:
- *
- *   - Profile / Notifications / Settings are personal-account routes.
- *   - Pricing / Billing / Plans / Help are product/account routes.
- *
- * Items here have `surface: "ACCOUNT_MENU"`. The filter pipeline
- * returns them as a separate `accountMenu` array on the envelope so
- * the topbar can render them independently of the sidebar groups.
- *
- * Capabilities here are deliberately permissive (`null` or
- * `SETTINGS_VIEW` which is granted to every authenticated user):
- * the account surface stays usable when workspace capabilities
- * degrade.
- */
-const ACCOUNT_GROUP: NavRegistryGroup = {
-  id: "account",
-  title: "Account",
-  domain: "ACCOUNT",
-  order: 5,
-  items: [
-    {
-      id: "account.profile",
-      label: "Profile",
-      href: "/settings",
-      iconKey: "profile",
-      domain: "ACCOUNT",
-      badgeKey: null,
-      surface: "ACCOUNT_MENU",
-      requiresCapability: null,
-    },
-    // Operations-Center redesign — the account menu's notification entry
-    // points at the user's NOTIFICATION PREFERENCES (System 3). The
-    // outbound delivery log keeps its own admin-tier sidebar entry under
-    // its honest name; the Operations Center is reached via the header
-    // bell — neither is duplicated here.
-    {
-      id: "account.notifications",
-      label: "Notification preferences",
-      // Settings IA refactor (2026-07-17) — the notifications page merged
-      // into the unified /settings workspace; deep-link to its section.
-      href: "/settings#notifications",
-      iconKey: "notifications",
-      domain: "ACCOUNT",
-      badgeKey: null,
-      surface: "ACCOUNT_MENU",
-      requiresCapability: null,
-    },
-    {
-      id: "account.pricing",
-      label: "Pricing & plans",
-      href: "/pricing",
-      iconKey: "billing",
-      domain: "BILLING_PLAN",
-      badgeKey: null,
-      surface: "ACCOUNT_MENU",
-      // Pricing is a public marketing page — visible in the account
-      // menu for every authenticated user regardless of workspace.
-      requiresCapability: null,
-    },
-    {
-      id: "account.billing",
-      label: "Billing",
-      href: "/billing",
-      iconKey: "billing",
-      domain: "BILLING_PLAN",
-      badgeKey: null,
-      surface: "ACCOUNT_MENU",
-      // BILLING_VIEW is granted to every authenticated user (personal
-      // + team) in the capability resolver — billing is an account
-      // surface, not a workspace surface.
-      requiresCapability: "BILLING_VIEW",
-    },
-    {
-      id: "account.teams",
-      // Phase B0 — operational vocabulary is "Workspaces".
-      label: "Workspaces",
-      href: "/workspaces",
-      iconKey: "teams",
-      domain: "ACCOUNT",
-      badgeKey: null,
-      surface: "ACCOUNT_MENU",
-      // Reachable from the account menu as a CREATE-workspace entry
-      // point for personal users. The /teams page renders the create
-      // flow when no team workspace exists.
-      requiresCapability: "TEAM_VIEW",
-    },
-    // Phase A.1B — Organizations governance surface. The /organizations
-    // route is the Phase 2.7X canonical governance hub (members, invites,
-    // audit). It is intentionally NOT eligible for the sidebar (CR0
-    // bounded group contract: the sidebar Workspace/Operations/Governance
-    // groups are pinned), so the account menu is the discoverability
-    // path for every authenticated user. Capability gate is `null` —
-    // org membership itself is the gate; non-members see the empty
-    // state on the /organizations page (no fake 403).
-    //
-    // Phase 8 — The org admin shell at /organizations/:id/admin (overview /
-    // members / departments / governance / access-reviews / retention /
-    // audit / security / trust) is INTENTIONALLY NOT mirrored here. The
-    // admin shell + 9 tab leaves are PAGE-SCOPED — reached from the org
-    // detail page's "Open Admin" CTA, not from the sidebar and not from
-    // the account menu. They're registered client-side in
-    // apps/web/lib/navigation/routeRegistry.ts so cmd-K + All Tools surface
-    // them for power-user discoverability, but the canonical access gate is
-    // org membership enforced at `/v1/orgs/:id` (services/api/src/services/
-    // organization/org-access.ts → checkOrgAccess). Personal-only users hit
-    // the org REST endpoints and receive 403 with requestId on a per-tab
-    // basis; they never see an admin route in their primary nav surface.
-    {
-      id: "account.organizations",
-      label: "Organizations",
-      href: "/organizations",
-      iconKey: "teams",
-      domain: "ACCOUNT",
-      badgeKey: null,
-      surface: "ACCOUNT_MENU",
-      requiresCapability: null,
-    },
-    // Operations-Center redesign — the former "Inbox" account-menu entry
-    // was REMOVED. The Operations Center's single navigation owner is the
-    // header Notification Bell (plus the command palette via the client
-    // route registry); duplicating it in the account menu violated the
-    // one-responsibility-per-menu-entry rule.
-    {
-      id: "account.help",
-      label: "Help & support",
-      href: "/support",
-      iconKey: "support",
-      domain: "ACCOUNT",
-      badgeKey: null,
-      surface: "ACCOUNT_MENU",
-      requiresCapability: null,
-    },
-  ],
-};
 
 // =============================================================================
 // Canonical registry
@@ -747,7 +607,13 @@ export const NAVIGATION_REGISTRY: ReadonlyArray<NavRegistryGroup> = [
   REVIEW_GOVERNANCE_GROUP,
   PLATFORM_HEALTH_GROUP,
   ADMINISTRATION_GROUP,
-  ACCOUNT_GROUP,
+  // ACCOUNT_GROUP retired (2026-07-21). The top-bar account menu is now
+  // resolved entirely on the client by the single canonical resolver
+  // `apps/web/lib/navigation/accountMenu.ts` (account management only, no
+  // duplicated application navigation, no public /pricing entry). The server
+  // no longer projects account-menu items — `accountMenu.items` is emitted
+  // empty for schema stability. Account routes remain discoverable via the
+  // client route registry (command palette + All Tools).
 ];
 
 // =============================================================================
@@ -894,19 +760,11 @@ export function buildNavigationProjection(caps: CapabilityMap): {
     },
   ).filter((group) => group.items.length > 0);
 
-  // Account menu — flat, ordered: respect registry order. Dedupe by
-  // id so an item appearing on BOTH surfaces is only listed once.
-  const seen = new Set<string>();
+  // Account menu — RETIRED server-side (2026-07-21). The top-bar account
+  // menu is resolved entirely on the client by the single canonical resolver
+  // `apps/web/lib/navigation/accountMenu.ts`. The server emits an empty list
+  // for schema stability; no account-menu items are projected here anymore.
   const accountMenuItems: PlatformContextNavItem[] = [];
-  for (const group of NAVIGATION_REGISTRY) {
-    for (const item of group.items) {
-      if (!appearsOnSurface(item, "ACCOUNT_MENU")) continue;
-      if (!passesCapabilityGate(item, caps)) continue;
-      if (seen.has(item.id)) continue;
-      seen.add(item.id);
-      accountMenuItems.push(projectItem(item));
-    }
-  }
 
   // Phase 1A — also expose the canonical 8-pillar grouping so callers don't
   // have to call buildPillarProjection separately. Same capability gating,

@@ -39,12 +39,17 @@ const CC_CSS = readWeb("components/command-center/command-center.css");
 // =============================================================================
 
 describe("Phase 32.8C FINAL-4 — topbar workspace cluster", () => {
-  it("strong[data-workspace-name] uses bounded labels (Personal Space / Organization workspace)", () => {
+  // account-menu refactor 2026-07-21 — the standalone workspace cluster/chip is
+  // retired. The active workspace now surfaces as a badge inside the folded
+  // account menu (data-account-menu-header-workspace), with labels still from
+  // `getWorkspaceLabels`.
+  it("account-menu workspace badge uses bounded labels (Personal Space / Organization workspace)", () => {
     // ENTERPRISE TENANT MODEL — fallback labels come from
     // `getWorkspaceLabels` which uses the canonical activeSpace section.
     expect(TOPBAR).toMatch(/Personal Space/);
     expect(TOPBAR).toMatch(/Organization workspace/);
-    expect(TOPBAR).toMatch(/data-workspace-name/);
+    // The active-workspace badge replaces the retired data-workspace-name chip.
+    expect(TOPBAR).toMatch(/data-account-menu-header-workspace/);
   });
 
   // OBSOLETE — Phase 32.8 Foundation removed the literal "Member"
@@ -52,16 +57,13 @@ describe("Phase 32.8C FINAL-4 — topbar workspace cluster", () => {
   // can't be resolved. See phase-32-8-foundation-platform-context.test.ts.
   it.skip("scope-line label uses distinct copy from the name slot", () => {});
 
-  it("never repeats 'Workspace' as a literal twice in the cluster fallback chain", () => {
-    // The bug was: `name: "Workspace"` AND `scope-line: "Workspace"`.
-    // Verify the topbar source no longer contains two unconditional
-    // `: "Workspace"` literals back-to-back in the cluster.
-    const cluster = TOPBAR.match(
-      /<div className="app-topbar-v2-workspace-copy">[\s\S]*?<\/div>/,
-    );
-    expect(cluster).not.toBeNull();
-    const occurrences = cluster![0].match(/: "Workspace"/g) ?? [];
-    expect(occurrences.length).toBeLessThanOrEqual(0);
+  it("never repeats 'Workspace' as a literal twice in the label fallback chain", () => {
+    // The bug was: `name: "Workspace"` AND `scopeLine: "Workspace"`.
+    // Verify the label resolver no longer emits two "Workspace" literals.
+    const fn = TOPBAR.match(/function getWorkspaceLabels[\s\S]*?\n\}/);
+    expect(fn).not.toBeNull();
+    const occurrences = fn![0].match(/"Workspace"/g) ?? [];
+    expect(occurrences.length).toBeLessThanOrEqual(1);
   });
 });
 
@@ -74,16 +76,17 @@ describe("Phase 32.8C FINAL-4 — workspace menu count text", () => {
     expect(TOPBAR).not.toMatch(/\{workspaceList\.length\}\s*available/);
   });
 
-  it("renders 'Only Personal Space' when no organizations exist", () => {
-    // ENTERPRISE TENANT MODEL — the switcher reports "Only Personal Space"
-    // for the personal-only case (no organizations).
-    expect(TOPBAR).toMatch(/"Only Personal Space"/);
+  it("no longer renders a workspace count strip (folded switcher) (account-menu refactor 2026-07-21)", () => {
+    // The retired standalone chip rendered "Only Personal Space" / "<N>
+    // spaces". The folded in-menu switcher has no count strip.
+    expect(TOPBAR).not.toMatch(/"Only Personal Space"/);
+    expect(TOPBAR).not.toMatch(/spaces`/);
   });
 
-  it("uses 'spaces' pluralization with a counted total", () => {
-    // ENTERPRISE TENANT MODEL — the count text is "<N> spaces".
-    expect(TOPBAR).toMatch(/spaces`/);
-    expect(TOPBAR).toMatch(/totalSwitchable/);
+  it("switcher visibility is gated on the resolved switchable total (account-menu refactor 2026-07-21)", () => {
+    // The switcher renders only when there is at least one switchable space,
+    // decided from the resolver's `workspaces.total`.
+    expect(TOPBAR).toMatch(/menu\.workspaces\.total/);
   });
 });
 
@@ -92,28 +95,34 @@ describe("Phase 32.8C FINAL-4 — workspace menu count text", () => {
 // =============================================================================
 
 describe("Phase 32.8C FINAL-4 — grouped workspace switcher", () => {
-  it("renders separate groups for PERSONAL and ORGANIZATIONS and ACTIONS", () => {
-    // ENTERPRISE TENANT MODEL — the canonical switcher renders three
-    // top-level groups: Personal Space, Organizations, Actions.
+  it("renders separate groups for PERSONAL and ORGANIZATIONS — no ACTIONS group (account-menu refactor 2026-07-21)", () => {
+    // The folded switcher renders two groups inside the account menu: Personal
+    // Space and Organizations. The retired standalone chip's ACTIONS group
+    // (create/join/manage) is gone.
     expect(TOPBAR).toMatch(/data-workspace-menu-group="PERSONAL"/);
     expect(TOPBAR).toMatch(/data-workspace-menu-group="ORGANIZATIONS"/);
-    expect(TOPBAR).toMatch(/data-workspace-menu-group="ACTIONS"/);
-    // The live toolbar renders the group label via its class (no
-    // separate data attribute).
-    expect(TOPBAR).toMatch(/app-topbar-v2-workspace-menu-group-label/);
+    expect(TOPBAR).not.toMatch(/data-workspace-menu-group="ACTIONS"/);
+    // The switcher lives inside the account menu.
+    expect(TOPBAR).toMatch(/data-account-menu-switcher/);
   });
 
-  it("group labels read as 'Personal' and 'Organizations' and 'Actions'", () => {
-    // Multi-line JSX — match the label literals tolerantly to whitespace.
-    expect(TOPBAR).toMatch(/>\s*Personal\s*</);
-    expect(TOPBAR).toMatch(/>\s*Organizations\s*</);
-    expect(TOPBAR).toMatch(/>\s*Actions\s*</);
+  it("switcher section is labelled 'Workspaces' with per-option scope chips (account-menu refactor 2026-07-21)", () => {
+    // The section carries a "Workspaces" label; each option carries a scope
+    // chip reading Personal / Organization.
+    expect(TOPBAR).toMatch(/>\s*Workspaces\s*</);
+    expect(TOPBAR).toMatch(
+      /data-workspace-scope-chip="PERSONAL"[\s\S]{0,40}Personal/,
+    );
+    expect(TOPBAR).toMatch(
+      /data-workspace-scope-chip="ORGANIZATION"[\s\S]{0,40}Organization/,
+    );
   });
 
-  it("active workspace is visually marked (is-active menu item state)", () => {
+  it("active workspace is visually marked (is-active + aria-current)", () => {
     // The live toolbar marks the active space via the is-active class
-    // modifier on the menu item.
-    expect(TOPBAR).toMatch(/app-topbar-v2-workspace-menu-item is-active/);
+    // modifier on the workspace button, plus aria-current.
+    expect(TOPBAR).toMatch(/app-topbar-v2-account-menu-workspace is-active/);
+    expect(TOPBAR).toMatch(/aria-current=/);
   });
 
   it("menu items expose the workspace scope chip", () => {
@@ -260,12 +269,14 @@ describe("Phase 32.8C FINAL-4 — bulk actions toolbar", () => {
 // =============================================================================
 
 describe("Phase 32.8C FINAL-4 — no raw UUID in shell rendering paths", () => {
-  it("topbar workspace name slot never references workspaceId as a fallback", () => {
-    const cluster = TOPBAR.match(
-      /<div className="app-topbar-v2-workspace-copy">[\s\S]*?<\/div>/,
+  it("topbar workspace name slot never references workspaceId as a fallback (account-menu refactor 2026-07-21)", () => {
+    // Selector updated to the folded account-menu badge, which renders the
+    // resolved workspace name and never the raw id.
+    const badge = TOPBAR.match(
+      /data-account-menu-header-workspace[\s\S]*?<\/span>/,
     );
-    expect(cluster).not.toBeNull();
-    expect(cluster![0]).not.toMatch(/workspace\.workspaceId/);
+    expect(badge).not.toBeNull();
+    expect(badge![0]).not.toMatch(/workspaceId/);
   });
 
   it("workspace switcher menu items never fall back to w.id as display text", () => {

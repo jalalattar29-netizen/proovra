@@ -329,15 +329,16 @@ describe("Phase 32.8 Foundation — capability registry", () => {
 // =============================================================================
 
 describe("Phase 32.8 Foundation — navigation registry", () => {
-  it("NAVIGATION_REGISTRY declares the canonical groups in stable order (sidebar 4 + account)", () => {
-    // Phase ROUTE-FIX — added a 5th ACCOUNT group surfaced only via
-    // the account-menu projection, not the sidebar.
+  it("NAVIGATION_REGISTRY declares the canonical 4 sidebar groups in stable order (account-menu refactor 2026-07-21)", () => {
+    // account-menu refactor 2026-07-21 — the server-side ACCOUNT group is
+    // retired. The account menu is resolved entirely on the client
+    // (apps/web/lib/navigation/accountMenu.ts); the server registry now holds
+    // exactly the 4 sidebar groups.
     expect(NAVIGATION_REGISTRY.map((g) => g.id)).toEqual([
       "workspace",
       "review_governance",
       "platform_health",
       "administration",
-      "account",
     ]);
   });
 

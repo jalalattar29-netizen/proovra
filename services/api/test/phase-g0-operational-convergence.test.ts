@@ -278,11 +278,21 @@ describe("Phase G0 (B0.5) — /workspaces canonical frontend route", () => {
     );
   });
 
-  it("topbar workspace switcher actions point at /workspaces", () => {
-    expect(TOPBAR).toContain('href="/workspaces?action=create"');
-    expect(TOPBAR).toContain('href="/workspaces?action=join"');
-    expect(TOPBAR).toContain('href="/workspaces"');
+  it("/workspaces is reachable from the sidebar (admin.teams), NOT from the account-menu switcher (account-menu refactor 2026-07-21)", () => {
+    // account-menu refactor 2026-07-21 — the folded in-menu switcher switches
+    // the active workspace in place (handleSwitchWorkspace → switchWorkspace)
+    // and no longer carries create/join/manage links to /workspaces. The
+    // /workspaces admin surface stays reachable via the sidebar route
+    // (admin.teams, asserted above).
+    expect(ROUTE_REGISTRY).toMatch(
+      /id:\s*"admin\.teams"[\s\S]*?href:\s*"\/workspaces"/,
+    );
+    const topbar = stripComments(TOPBAR);
+    expect(topbar).not.toContain('href="/workspaces?action=create"');
+    expect(topbar).not.toContain('href="/workspaces?action=join"');
     // Legacy /teams hrefs must not appear in the topbar surface.
-    expect(stripComments(TOPBAR)).not.toMatch(/href="\/teams"/);
+    expect(topbar).not.toMatch(/href="\/teams"/);
+    // Switching happens in place, not via navigation.
+    expect(TOPBAR).toMatch(/handleSwitchWorkspace/);
   });
 });

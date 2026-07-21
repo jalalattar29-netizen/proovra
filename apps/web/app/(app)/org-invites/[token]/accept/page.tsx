@@ -29,6 +29,7 @@ import { useParams, useRouter } from "next/navigation";
 
 import { apiFetch } from "../../../../../lib/api";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+import { usePlatformContext } from "../../../../../lib/platform-context";
 
 type State =
   | { kind: "idle" }
@@ -55,6 +56,7 @@ export default function OrgInviteAcceptPage() {
 function OrgInviteAcceptPageInner() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
+  const { refresh } = usePlatformContext();
   const token = params?.token ?? "";
 
   const [state, setState] = useState<State>({ kind: "idle" });
@@ -87,6 +89,14 @@ function OrgInviteAcceptPageInner() {
         role: data.role,
         setupRedirect: data.setupRedirect,
       });
+      // Phase 5 (account-menu refactor, 2026-07-21) — re-fetch the canonical
+      // platform-context envelope so the newly-joined organization appears in
+      // the account-menu Workspace Switcher immediately, without a hard
+      // reload. Personal Space is untouched server-side and always remains;
+      // the account is never merged or converted — only the list of
+      // switchable spaces grows. Fire-and-forget: the redirect below does not
+      // depend on it.
+      void refresh();
     } catch (err: unknown) {
       const message =
         toSafeUserError(err, { message: "Failed to accept invite." }).message;
@@ -96,7 +106,7 @@ function OrgInviteAcceptPageInner() {
           : 0;
       setState({ kind: "error", status, message });
     }
-  }, [token]);
+  }, [token, refresh]);
 
   useEffect(() => {
     if (state.kind === "ok") {

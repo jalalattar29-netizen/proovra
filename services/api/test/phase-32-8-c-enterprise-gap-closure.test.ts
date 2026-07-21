@@ -59,6 +59,9 @@ const GOVERNANCE_TSX = readWeb(
 // Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
 // retargeted to the live AppAccountToolbar.
 const TOPBAR_TSX = readWeb("components/app-shell-v2/AppAccountToolbar.tsx");
+// account-menu refactor 2026-07-21 — the canonical account/workspace labels
+// now live in the single client resolver; the toolbar renders them by binding.
+const ACCOUNT_RESOLVER = readWeb("lib/navigation/accountMenu.ts");
 const CC_TYPES = readWeb("components/command-center/types.ts");
 const CC_TSX = readWeb("components/command-center/CommandCenter.tsx");
 
@@ -123,13 +126,19 @@ describe("Phase 32.8C FINAL-3 — Reviewer Ops + Governance gating fix", () => {
 // =============================================================================
 
 describe("Phase 32.8C FINAL-3 — header workspace display", () => {
-  it("topbar NEVER falls back to workspace.workspaceId in the display", () => {
-    // The previous broken pattern wrote `: workspace.workspaceId` as the
-    // last fallback. The new code uses a scope-derived label
-    // ("Personal Space" / "Workspace") instead.
-    const block = TOPBAR_TSX.match(/strong data-workspace-name>[\s\S]*?<\/strong>/);
+  it("topbar NEVER falls back to a raw workspace id in the display (account-menu refactor 2026-07-21)", () => {
+    // The active-workspace badge in the folded account menu renders the
+    // canonical workspace NAME (getWorkspaceLabels → "Personal Space" or the
+    // org displayName), never the raw id. Selector updated for the new DOM
+    // (data-account-menu-header-workspace replaces the retired
+    // data-workspace-name chip).
+    const block = TOPBAR_TSX.match(
+      /data-account-menu-header-workspace[\s\S]*?<\/span>/,
+    );
     expect(block).not.toBeNull();
-    expect(block![0]).not.toMatch(/workspace\.workspaceId/);
+    expect(block![0]).not.toMatch(/workspaceId/);
+    // The label is resolved by getWorkspaceLabels, not a raw id read.
+    expect(TOPBAR_TSX).toMatch(/getWorkspaceLabels/);
   });
 
   it("topbar renders scope-derived label when name is missing", () => {
@@ -143,13 +152,21 @@ describe("Phase 32.8C FINAL-3 — header workspace display", () => {
   // phase-32-8-foundation-platform-context.test.ts.
   it.skip("teams fetch does NOT fall back to the raw id as the name", () => {});
 
-  it("workspace switcher menu items render canonical labels, never raw UUIDs", () => {
-    // ENTERPRISE TENANT MODEL — the personal entry uses the bounded
-    // "Personal Space" literal; organizations fall back to their
-    // displayName / name, never to the raw id.
-    expect(TOPBAR_TSX).toMatch(/>Personal Space</);
-    expect(TOPBAR_TSX).toMatch(
-      /org\.displayName \?\?[\s\S]{0,200}Organization workspace/,
+  it("workspace switcher menu items render canonical labels, never raw UUIDs (account-menu refactor 2026-07-21)", () => {
+    // ENTERPRISE TENANT MODEL — the switcher lives inside the account menu and
+    // renders each option's resolved `label` as its visible text; the raw id
+    // is only ever a `data-account-menu-workspace={id}` attribute, never
+    // display text.
+    expect(TOPBAR_TSX).toMatch(/\{menu\.workspaces\.personal[\s\S]{0,40}\.label\}/);
+    expect(TOPBAR_TSX).toMatch(/\{org\.label\}/);
+    expect(TOPBAR_TSX).toMatch(/data-account-menu-workspace=\{/);
+    // The canonical labels themselves are produced by the client resolver:
+    // the personal entry uses the bounded "Personal Space" literal;
+    // organizations fall back to displayName / name / "Organization
+    // workspace", never to the raw id.
+    expect(ACCOUNT_RESOLVER).toMatch(/label:\s*"Personal Space"/);
+    expect(ACCOUNT_RESOLVER).toMatch(
+      /org\.displayName \?\?[\s\S]{0,80}Organization workspace/,
     );
   });
 });

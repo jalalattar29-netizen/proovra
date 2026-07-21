@@ -183,6 +183,11 @@ function sidebarRouteIds(plan: "FREE" | "PAYG" | "PRO" | "TEAM"): string[] {
         REPORTS_GENERATE: true,
         SETTINGS_MANAGE: true,
         BILLING_VIEW: true,
+        // Account-menu refactor (2026-07-21) — Billing is now a sidebar
+        // surface (same /billing route). ACCOUNT_BILLING_VIEW is granted to
+        // every authenticated user, matching the production envelope.
+        ACCOUNT_BILLING_VIEW: true,
+        ACCOUNT_SETTINGS_VIEW: true,
         TEAM_VIEW: true,
         INTAKE_LINKS_MANAGE: true,
       } as never,
@@ -221,6 +226,9 @@ test("sidebar matrix — Operations Center for every plan; only intake varies by
   // The exact per-plan visible sets (pre-remediation these lacked
   // account.inbox everywhere except PRO/TEAM; nothing else moved).
   const BASE = [
+    // Account-menu refactor (2026-07-21) — Billing joined the sidebar
+    // (Phase 6) via the same canonical /billing route; visible on every plan.
+    "account.billing",
     "account.inbox",
     "workspace.capture",
     "workspace.cases",

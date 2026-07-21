@@ -210,7 +210,11 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     advancedByDefault: false,
     commandPaletteVisible: true,
     allToolsVisible: true,
-    sidebarEligible: false,
+    // Account-menu refactor (2026-07-21) — Billing is now ALSO a sidebar
+    // surface (Phase 6). Same canonical `/billing` route and component; the
+    // account menu and the sidebar open the identical internal page. No
+    // duplicate route, no duplicate component.
+    sidebarEligible: true,
   },
 
   // Phase A.1 — Operational cohesion: register the Phase 2.7X Stage 3+4+5

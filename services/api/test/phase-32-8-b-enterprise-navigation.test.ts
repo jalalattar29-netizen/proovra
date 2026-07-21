@@ -129,21 +129,30 @@ describe("Phase 32.8B — backward-compat redirects for consolidated routes", ()
 // PART 5 — Topbar workspace/account separation
 // =============================================================================
 
-describe("Phase 32.8B — topbar separates workspace context from account context", () => {
-  it("renders a distinct workspace chip (data-app-topbar-workspace)", () => {
-    expect(TOPBAR).toMatch(/data-app-topbar-workspace/);
-    expect(TOPBAR).toMatch(/data-app-topbar-workspace-menu/);
+describe("Phase 32.8B — topbar folds workspace + account into one control", () => {
+  // account-menu refactor 2026-07-21 — the OLD design had TWO top-bar
+  // controls (a standalone workspace-switcher chip + an account menu). The NEW
+  // design folds everything into ONE avatar/account menu; the workspace
+  // switcher is a section INSIDE that menu. The old separation assertions
+  // pinned the retired two-control design and are rewritten to the new one.
+  it("no longer renders a standalone workspace chip — the switcher is folded into the account menu", () => {
+    // The retired standalone chip attributes are gone…
+    expect(TOPBAR).not.toMatch(/data-app-topbar-workspace/);
+    expect(TOPBAR).not.toMatch(/data-app-topbar-workspace-menu/);
+    // …replaced by an in-menu switcher section.
+    expect(TOPBAR).toMatch(/data-account-menu-switcher/);
+    expect(TOPBAR).toMatch(/data-account-menu-section="workspaces"/);
   });
 
-  it("renders a distinct account chip (data-app-topbar-account)", () => {
+  it("renders a single account control (data-app-topbar-account)", () => {
     expect(TOPBAR).toMatch(/data-app-topbar-account/);
     expect(TOPBAR).toMatch(/data-app-topbar-account-menu/);
   });
 
-  it("workspace chip surfaces the canonical workspace metadata (name + scope + role)", () => {
-    expect(TOPBAR).toMatch(/data-workspace-name/);
-    expect(TOPBAR).toMatch(/data-workspace-scope-line/);
-    // Scope chip on each workspace option ("Personal" or "Team").
+  it("account menu surfaces the active workspace + per-option scope chips", () => {
+    // Active-workspace badge in the menu header.
+    expect(TOPBAR).toMatch(/data-account-menu-header-workspace/);
+    // Scope chip on each workspace option ("Personal" or "Organization").
     expect(TOPBAR).toMatch(/data-workspace-scope-chip/);
   });
 
@@ -155,34 +164,41 @@ describe("Phase 32.8B — topbar separates workspace context from account contex
     expect(TOPBAR).toMatch(/envelope\?\.organizations/);
   });
 
-  it("account dropdown consumes the canonical envelope account-menu items (Profile, Notifications, Pricing, Billing, Teams, Help, Settings) + Sign out", () => {
-    // Phase ROUTE-FIX — the account menu is now sourced from the
-    // canonical envelope's `navigation.accountMenu.items` rather
-    // than being hardcoded in the topbar. The static `data-` keys
-    // are emitted dynamically with the registry item id.
-    expect(TOPBAR).toMatch(/navigation\.accountMenu\.items/);
+  it("account menu is resolved on the client via resolveAccountMenu (settings/security/notifications/billing + org + help + signout, no Pricing)", () => {
+    // account-menu refactor 2026-07-21 — the menu is now resolved by the
+    // single canonical client resolver, not sourced from the server envelope's
+    // navigation.accountMenu.items. Item data-keys are emitted with the
+    // resolver item id.
+    expect(TOPBAR).toMatch(/resolveAccountMenu/);
+    expect(TOPBAR).not.toMatch(/navigation\.accountMenu\.items/);
     expect(TOPBAR).toMatch(/data-account-menu-item=\{item\.id\}/);
     expect(TOPBAR).toMatch(/data-account-menu-item="signout"/);
+    // No Pricing entry anywhere in the toolbar.
+    expect(TOPBAR).not.toMatch(/\/pricing/);
   });
 
-  it("account dropdown does NOT include workspace switching (clean separation)", () => {
-    // Locate the account menu JSX block specifically and verify
-    // it does not include the workspace switcher hooks.
-    const acctIdx = TOPBAR.indexOf('data-app-topbar-account-menu');
+  it("account menu NOW includes the workspace switcher section (folded design)", () => {
+    // The switcher lives inside the account menu; switching calls the
+    // platform-context switchWorkspace, never navigating to a /workspaces
+    // admin page.
+    const acctIdx = TOPBAR.indexOf("data-app-topbar-account-menu");
     expect(acctIdx).toBeGreaterThan(-1);
-    // The account menu body ends at the next </div> or </button>
-    // closing the menu container. Take a generous slice.
-    const acctSlice = TOPBAR.slice(acctIdx, acctIdx + 2400);
-    expect(acctSlice).not.toMatch(/data-workspace-option/);
-    expect(acctSlice).not.toMatch(/Switch workspace/);
+    const acctSlice = TOPBAR.slice(acctIdx);
+    expect(acctSlice).toMatch(/data-account-menu-switcher/);
+    expect(acctSlice).toMatch(/handleSwitchWorkspace/);
+    // The switcher groups are Personal + Organizations (no Actions group).
+    expect(acctSlice).toMatch(/data-workspace-menu-group="PERSONAL"/);
+    expect(acctSlice).toMatch(/data-workspace-menu-group="ORGANIZATIONS"/);
+    expect(acctSlice).not.toMatch(/data-workspace-menu-group="ACTIONS"/);
   });
 
-  it("workspace chip does NOT include account actions (clean separation)", () => {
-    const wsIdx = TOPBAR.indexOf('data-app-topbar-workspace-menu');
-    expect(wsIdx).toBeGreaterThan(-1);
-    const wsSlice = TOPBAR.slice(wsIdx, wsIdx + 2400);
-    expect(wsSlice).not.toMatch(/data-account-menu-item/);
-    expect(wsSlice).not.toMatch(/Sign out/);
+  it("the folded switcher has no create/join/manage organization actions", () => {
+    // The retired standalone chip carried an "Actions" group linking to
+    // /workspaces?action=create|join and /workspaces. Those are gone from the
+    // switcher (the /workspaces admin surface is reachable from the sidebar).
+    expect(TOPBAR).not.toMatch(/\/workspaces\?action=/);
+    expect(TOPBAR).not.toMatch(/Create organization/);
+    expect(TOPBAR).not.toMatch(/Join organization/);
   });
 
   it("topbar no longer renders the deprecated horizontal duplicate-nav (Phase 32.8A finding)", () => {

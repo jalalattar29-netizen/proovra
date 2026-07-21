@@ -39,6 +39,7 @@ import { useRouter } from "next/navigation";
 
 import { apiFetch } from "../../../lib/api";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { usePlatformContext } from "../../../lib/platform-context";
 import { formatUserDate } from "../../../lib/date";
 
 type OrgRole =
@@ -104,6 +105,7 @@ export default function OrganizationsListPage() {
 
 function OrganizationsListPageInner() {
   const router = useRouter();
+  const { refresh } = usePlatformContext();
 
   const [state, setState] = useState<LoadState>({ kind: "loading" });
 
@@ -187,6 +189,11 @@ function OrganizationsListPageInner() {
       setJoinOpen(false);
       setJoinToken("");
       await load();
+      // Phase 5 (account-menu refactor, 2026-07-21) — refresh the canonical
+      // platform-context envelope so the newly-joined organization appears in
+      // the account-menu Workspace Switcher immediately. Personal Space
+      // remains; the account is never merged or converted.
+      void refresh();
       if (data.organizationId) {
         router.push(`/organizations/${data.organizationId}`);
       }
@@ -207,7 +214,7 @@ function OrganizationsListPageInner() {
     } finally {
       setJoinBusy(false);
     }
-  }, [joinToken, load, router]);
+  }, [joinToken, load, router, refresh]);
 
   const totalOrgs = state.kind === "ready" ? state.data.summary.totalOrgs : 0;
 

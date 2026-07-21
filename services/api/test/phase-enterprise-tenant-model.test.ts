@@ -54,6 +54,9 @@ const WEB_INDEX = readWeb("lib/platform-context/index.ts");
 // Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
 // retargeted to the live AppAccountToolbar.
 const WEB_TOPBAR = readWeb("components/app-shell-v2/AppAccountToolbar.tsx");
+// account-menu refactor 2026-07-21 — the folded switcher's canonical labels
+// (Personal Space / org displayName) live in the single client resolver.
+const WEB_ACCOUNT_RESOLVER = readWeb("lib/navigation/accountMenu.ts");
 // Phase Final-Closure-Remediation — the legacy duplicate
 // `app/(app)/teams/page.tsx` was deleted in favour of the canonical
 // `app/(app)/workspaces/page.tsx`. The `/teams` URL now redirects
@@ -328,26 +331,38 @@ describe("ENTERPRISE TENANT MODEL — frontend types + hooks", () => {
 // =============================================================================
 
 describe("ENTERPRISE TENANT MODEL — workspace switcher", () => {
-  it("switcher reads the canonical sections (personalSpace + organizations + activeSpace)", () => {
-    expect(WEB_TOPBAR).toMatch(/personalSpace\s*=\s*envelope\?\.personalSpace/);
-    expect(WEB_TOPBAR).toMatch(/organizations\s*=\s*envelope\?\.organizations/);
+  it("switcher reads the canonical sections (personalSpace + organizations + activeSpace) (account-menu refactor 2026-07-21)", () => {
+    // The switcher is resolved by resolveAccountMenu, which is fed the
+    // canonical envelope sections. activeSpace is also read for the header
+    // badge.
+    expect(WEB_TOPBAR).toMatch(/personalSpace:\s*envelope\?\.personalSpace/);
+    expect(WEB_TOPBAR).toMatch(/organizations:\s*envelope\?\.organizations/);
     expect(WEB_TOPBAR).toMatch(/activeSpace\s*=\s*envelope\?\.activeSpace/);
   });
 
-  it("switcher renders Personal section with the Personal Space label", () => {
+  it("switcher renders Personal section with the Personal Space label (account-menu refactor 2026-07-21)", () => {
+    // The group is rendered in the toolbar; the "Personal Space" label is
+    // produced by the client resolver and bound as the option's label.
     expect(WEB_TOPBAR).toMatch(/data-workspace-menu-group="PERSONAL"/);
-    expect(WEB_TOPBAR).toMatch(/>Personal Space</);
+    expect(WEB_TOPBAR).toMatch(/\{menu\.workspaces\.personal[\s\S]{0,40}\.label\}/);
+    expect(WEB_ACCOUNT_RESOLVER).toMatch(/label:\s*"Personal Space"/);
   });
 
-  it("switcher renders Organizations section from the envelope org list", () => {
+  it("switcher renders Organizations section from the envelope org list (account-menu refactor 2026-07-21)", () => {
     expect(WEB_TOPBAR).toMatch(/data-workspace-menu-group="ORGANIZATIONS"/);
-    expect(WEB_TOPBAR).toMatch(/organizations\.map\(/);
+    // The toolbar maps the resolved org options.
+    expect(WEB_TOPBAR).toMatch(/menu\.workspaces\.organizations\.map\(/);
   });
 
-  it("switcher renders Actions section (create / join / manage)", () => {
-    expect(WEB_TOPBAR).toMatch(/href="\/workspaces\?action=create"/);
-    expect(WEB_TOPBAR).toMatch(/href="\/workspaces\?action=join"/);
-    expect(WEB_TOPBAR).toMatch(/Manage organizations/);
+  it("switcher no longer renders an Actions section (create / join / manage removed) (account-menu refactor 2026-07-21)", () => {
+    // The folded in-menu switcher switches the active workspace in place and
+    // never navigates to a /workspaces admin surface. The retired Actions
+    // group (create/join/manage) is gone.
+    expect(WEB_TOPBAR).not.toMatch(/href="\/workspaces\?action=create"/);
+    expect(WEB_TOPBAR).not.toMatch(/href="\/workspaces\?action=join"/);
+    expect(WEB_TOPBAR).not.toMatch(/Manage organizations/);
+    // Switching happens in place via the platform-context switchWorkspace.
+    expect(WEB_TOPBAR).toMatch(/handleSwitchWorkspace/);
   });
 
   it("switcher never labels Personal Space as TEAM", () => {
