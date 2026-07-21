@@ -30,6 +30,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
+import { ProovraSystemState } from "../../../../../../components/feedback/ProovraSystemState";
 import { useToast } from "../../../../../../components/ui";
 import { ApiError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
@@ -277,37 +278,50 @@ function renderStateContent({
       );
     case "invalid":
       return (
-        <Panel
-          kicker="Team invite"
-          title="This invite is no longer valid"
-          body="The invitation link is malformed, never existed, or has been removed. Ask the team lead for a fresh invite."
-          tone="warn"
-          requestId={requestId}
-          actions={
-            <Link href="/collaboration-teams" className="app-secondary-action">
-              Back to Teams
-            </Link>
-          }
+        <ProovraSystemState
+          context="authenticated"
+          presentation="contained"
+          kind="invitation-invalid"
+          statusLabel="Team invite"
+          testId="team-invite-invalid"
+          message="The invitation link is malformed, never existed, or has been removed. Ask the team lead for a fresh invite."
+          supportReference={requestId}
+          actions={[
+            { label: "Back to Teams", href: "/collaboration-teams", variant: "primary" },
+            { label: "Return to dashboard", href: "/home", variant: "secondary" },
+          ]}
         />
       );
     case "expired":
       return (
-        <Panel
-          kicker="Team invite"
-          title="This invitation has expired"
-          body="The team lead can issue a new invite for you."
-          tone="warn"
-          requestId={requestId}
+        <ProovraSystemState
+          context="authenticated"
+          presentation="contained"
+          kind="invitation-expired"
+          statusLabel="Team invite"
+          testId="team-invite-expired"
+          message="This invitation has expired. The team lead can issue a new invite for you."
+          supportReference={requestId}
+          actions={[
+            { label: "Back to Teams", href: "/collaboration-teams", variant: "primary" },
+            { label: "Return to dashboard", href: "/home", variant: "secondary" },
+          ]}
         />
       );
     case "revoked":
       return (
-        <Panel
-          kicker="Team invite"
-          title="This invitation has been revoked"
-          body="If this was unexpected, contact the team lead."
-          tone="warn"
-          requestId={requestId}
+        <ProovraSystemState
+          context="authenticated"
+          presentation="contained"
+          kind="invitation-revoked"
+          statusLabel="Team invite"
+          testId="team-invite-revoked"
+          message="This invitation has been revoked. If this was unexpected, contact the team lead."
+          supportReference={requestId}
+          actions={[
+            { label: "Back to Teams", href: "/collaboration-teams", variant: "primary" },
+            { label: "Return to dashboard", href: "/home", variant: "secondary" },
+          ]}
         />
       );
     case "auth_required":

@@ -233,9 +233,15 @@ describe("Phase EMERGENCY-RECOVERY — frontend wiring", () => {
   it("WorkspaceRecoveryPanel renders bounded actions from envelope.recoveryActions", () => {
     expect(WEB_RECOVERY).toMatch(/envelope\?\.recoveryActions/);
     expect(WEB_RECOVERY).toMatch(/data-workspace-recovery-panel/);
-    expect(WEB_RECOVERY).toMatch(/data-workspace-recovery-action/);
+    // (2026-07-21) Migrated onto the canonical ProovraSystemState — each
+    // recovery action carries a stable per-action test id.
+    expect(WEB_RECOVERY).toMatch(/workspace-recovery-action-/);
     expect(WEB_RECOVERY).toMatch(/action\.id === "retry"/);
     expect(WEB_RECOVERY).toMatch(/refresh\(\)/);
+    // The request id now flows through the canonical support-reference,
+    // never an ad-hoc <code> element.
+    expect(WEB_RECOVERY).toMatch(/supportReference=/);
+    expect(WEB_RECOVERY).not.toMatch(/<code>\{/);
   });
 
   it("AppShellV2 swaps content for WorkspaceRecoveryPanel when recoveryActions present", () => {

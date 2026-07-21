@@ -1,19 +1,21 @@
-import { ProovraErrorState } from "../components/feedback/ProovraErrorState";
+import { ProovraSystemState } from "../components/feedback/ProovraSystemState";
 
 /**
- * Branded 404 (PROOVRA Feedback System). Calm, on-brand, useful CTAs —
- * no bare "Page not found" on an unstyled page.
+ * Public (root) 404 — rendered for unknown URLs outside the authenticated
+ * `(app)` group (which has its own in-shell boundary). Same canonical
+ * visual system as every other state; only the recovery actions are
+ * public-context.
  */
 export default function NotFound() {
   return (
-    <ProovraErrorState
-      severity="info"
-      title="Page not found"
-      message="The page may have moved, or the link may no longer be available. Let's get you back on track."
+    <ProovraSystemState
+      kind="not-found"
+      context="public"
+      testId="public-not-found"
       actions={[
-        { label: "Back to home", href: "/", variant: "primary" },
-        { label: "Open platform", href: "/platform", variant: "secondary" },
-        { label: "Contact support", href: "/support", variant: "secondary" },
+        { label: "Go to homepage", href: "/", variant: "primary" },
+        { label: "Sign in", href: "/login", variant: "secondary" },
+        { label: "Contact support", href: "/support", variant: "text" },
       ]}
     />
   );

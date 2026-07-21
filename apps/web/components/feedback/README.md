@@ -15,8 +15,8 @@ Shared severity model + icons: `severity.tsx`.
 | `ProovraInlineError` | form field problems (missing/invalid input) |
 | `ProovraAlert` / `ProovraBanner` | page-level state — degraded service, plan/quota, trust/security, report issue |
 | `ProovraModalFeedback` | user must decide — destructive failure, payment confirm/fail, irreversible workflow |
-| `ProovraErrorState` | route/page failure — 404, 500, global crash, forbidden, maintenance |
-| `ProovraEmptyState` | "nothing here yet" lists/panels (new surfaces only) |
+| `ProovraSystemState` | full-surface system state — 404, 403, 410, 500, workspace/organization unavailable, capability degraded, invitation/token failure. Public + authenticated share the design; only actions differ. `ProovraDenialState` is the contained authenticated preset used by the gates. |
+| `components/ui/EmptyState` | generic product empty state — "no records / nothing selected yet". Dense/table lists use `components/operational/OperationalEmptyState`. |
 | `ProovraLoadingState` | short indeterminate waits ("Preparing evidence record") |
 | `ProovraProgressState` | long real workflows — upload, signing, timestamping, OTS, report/package generation |
 | `ProovraSupportReference` | the ONLY way to show a request/trace id (labelled + Copy) |

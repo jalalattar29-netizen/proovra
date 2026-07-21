@@ -21,8 +21,13 @@
  * doesn't already know — it only states the requirement.
  */
 
-import Link from "next/link";
 import { type ReactNode } from "react";
+
+import { ProovraDenialState } from "../feedback/ProovraDenialState";
+import type {
+  SystemStateAction,
+  SystemStateKind,
+} from "../feedback/ProovraSystemState";
 
 export type AccessGateKind =
   | "PLAN_UPGRADE"
@@ -90,9 +95,10 @@ function defaultsFor(kind: AccessGateKind): {
         headline: "Available on a higher plan",
         reason:
           "This action is not included in your current workspace plan. Upgrading unlocks it for everyone in the workspace.",
+        // (2026-07-21) Dropped "Compare features → /pricing" — /pricing is
+        // a PUBLIC marketing page; the in-app plan surface is /billing.
         actions: [
           { label: "Review plans", href: "/billing", variant: "primary" },
-          { label: "Compare features", href: "/pricing", variant: "secondary" },
         ],
       };
     case "ASK_ADMIN":
@@ -110,9 +116,11 @@ function defaultsFor(kind: AccessGateKind): {
         headline: "Request access from your admin",
         reason:
           "Your role doesn't include the permissions this surface needs. An admin can grant access.",
+        // (2026-07-21) Dropped "Browse tools → /tools" — /tools is
+        // INTERNAL/notFound for non-admins, so it must not be offered as
+        // recovery to a user who just hit a permission wall.
         actions: [
           { label: "Open settings", href: "/settings", variant: "primary" },
-          { label: "Browse tools", href: "/tools", variant: "secondary" },
         ],
       };
     case "CONTACT_OWNER":
@@ -153,107 +161,66 @@ function defaultsFor(kind: AccessGateKind): {
   }
 }
 
-function ActionButton({ action }: { action: AccessGateAction }) {
-  const isPrimary = action.variant !== "secondary";
-  const className = isPrimary
-    ? "btn-primary"
-    : "btn-secondary";
-  if (action.href) {
-    return (
-      <Link href={action.href} className={className} data-access-gate-action>
-        {action.label}
-      </Link>
-    );
-  }
-  return (
-    <button
-      type="button"
-      className={className}
-      onClick={action.onClick}
-      data-access-gate-action
-    >
-      {action.label}
-    </button>
-  );
-}
+/** AccessGate kind → canonical system-state kind. */
+const KIND_TO_SYSTEM: Record<AccessGateKind, SystemStateKind> = {
+  PLAN_UPGRADE: "forbidden",
+  ASK_ADMIN: "forbidden",
+  REQUEST_ACCESS: "forbidden",
+  CONTACT_OWNER: "forbidden",
+  PERMISSION_REQUIRED: "forbidden",
+  WORKSPACE_REQUIRED: "workspace-unavailable",
+  FEATURE_UNAVAILABLE: "unavailable",
+};
 
+/**
+ * AccessGate — plan / role / capability / workspace denial affordance.
+ *
+ * (2026-07-21) Rebuilt onto the canonical `ProovraDenialState` — no more
+ * legacy dark gradient card, no public-marketing escapes. The public
+ * API (kinds, props, defaults, `classifyAccessError`) is unchanged; only
+ * the presentation and two wrong recovery actions changed.
+ */
 export function AccessGate(props: AccessGateProps) {
   const defaults = defaultsFor(props.kind);
   const headline = props.headline ?? defaults.headline;
   const reason = props.reason ?? defaults.reason;
   const actions = props.actions ?? defaults.actions;
   const testid = props.testid ?? `access-gate-${props.kind.toLowerCase()}`;
-  const variant = props.variant ?? "card";
 
-  const body = (
-    <div data-access-gate={testid} data-access-gate-kind={props.kind}>
-      {props.surface ? (
-        <p
-          data-access-gate-surface
-          style={{
-            margin: 0,
-            fontSize: 12,
-            letterSpacing: 0.5,
-            textTransform: "uppercase",
-            opacity: 0.6,
-          }}
-        >
-          {props.surface}
-        </p>
-      ) : null}
-      <h3
-        data-access-gate-headline
-        style={{ margin: "8px 0 6px", fontSize: 18, fontWeight: 700 }}
-      >
-        {headline}
-      </h3>
-      <p
-        data-access-gate-reason
-        style={{ margin: 0, fontSize: 14, lineHeight: 1.5, opacity: 0.85 }}
-      >
-        {reason}
-      </p>
-      {props.children ? (
-        <div data-access-gate-extra style={{ marginTop: 12 }}>{props.children}</div>
-      ) : null}
-      {actions.length > 0 ? (
-        <div
-          data-access-gate-actions
-          style={{
-            display: "flex",
-            gap: 8,
-            marginTop: 14,
-            flexWrap: "wrap",
-          }}
-        >
-          {actions.map((a) => (
-            <ActionButton key={a.label} action={a} />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-
-  if (variant === "inline") {
-    return body;
-  }
+  const systemActions: SystemStateAction[] = actions.map((a, i) => ({
+    label: a.label,
+    href: a.href,
+    onClick: a.onClick,
+    variant: a.variant ?? (i === 0 ? "primary" : "secondary"),
+    testId: "access-gate-action",
+  }));
 
   return (
-    <section
-      data-access-gate-card={testid}
-      style={{
-        background:
-          "linear-gradient(180deg, rgba(20,30,34,0.6) 0%, rgba(12,20,24,0.6) 100%)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        borderRadius: 12,
-        padding: "16px 18px",
-        color: "#dce1de",
-      }}
-    >
-      {body}
-    </section>
+    <div data-access-gate={testid} data-access-gate-kind={props.kind}>
+      <ProovraDenialState
+        kind={KIND_TO_SYSTEM[props.kind]}
+        presentation="contained"
+        statusLabel={props.surface ?? SYSTEM_LABEL[props.kind]}
+        title={headline}
+        message={reason}
+        detail={props.children}
+        actions={systemActions}
+        testId={testid}
+      />
+    </div>
   );
 }
+
+/** Quiet status label per kind when no explicit surface is provided. */
+const SYSTEM_LABEL: Record<AccessGateKind, string> = {
+  PLAN_UPGRADE: "Plan",
+  ASK_ADMIN: "Access",
+  REQUEST_ACCESS: "Access",
+  CONTACT_OWNER: "Access",
+  PERMISSION_REQUIRED: "Access",
+  WORKSPACE_REQUIRED: "Workspace",
+  FEATURE_UNAVAILABLE: "Unavailable",
+};
 
 /**
  * Classify an apiFetch / fetch failure into the appropriate AccessGate

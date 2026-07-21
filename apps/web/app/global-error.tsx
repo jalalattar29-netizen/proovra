@@ -2,15 +2,16 @@
 
 import { useEffect } from "react";
 
-import { ProovraErrorState } from "../components/feedback/ProovraErrorState";
+import { ProovraSystemState } from "../components/feedback/ProovraSystemState";
 import { captureException } from "../lib/sentry";
 
 /**
- * Branded GLOBAL error boundary — catches failures in the root layout
- * itself. Next.js renders this INSTEAD of the root layout, so it must
- * provide its own <html>/<body> and cannot rely on app CSS. The
- * ProovraErrorState surface is fully self-styled (inline). This replaces
- * the unbranded Next.js default error screen.
+ * Global error boundary — catches failures in the root layout ITSELF.
+ * Next.js renders this INSTEAD of the root layout, so it must provide its
+ * own <html>/<body> and cannot rely on app CSS. `ProovraSystemState` is
+ * fully self-styled (inline), so it renders correctly with no stylesheet.
+ * Kept intentionally self-contained + robust so a layout crash never
+ * recursively fails (no MarketingHeader/Footer here).
  */
 export default function GlobalError({
   error,
@@ -26,16 +27,18 @@ export default function GlobalError({
   return (
     <html lang="en">
       <body style={{ margin: 0, background: "#F7F8FC" }}>
-        <ProovraErrorState
-          severity="error"
+        <ProovraSystemState
+          kind="server-error"
+          context="public"
+          testId="global-error"
+          minHeight="100vh"
           title="We couldn't load PROOVRA"
           message="An unexpected error interrupted the app. Your evidence data has not been changed. Try again, or contact support if this keeps happening."
           supportReference={error.digest}
-          minHeight="100vh"
           actions={[
-            { label: "Try again", onClick: reset, variant: "primary" },
-            { label: "Back to home", href: "/", variant: "secondary" },
-            { label: "Contact support", href: "/support", variant: "secondary" },
+            { label: "Try again", onClick: () => reset(), variant: "primary" },
+            { label: "Go to homepage", href: "/", variant: "secondary" },
+            { label: "Contact support", href: "/support", variant: "text" },
           ]}
         />
       </body>

@@ -3,12 +3,12 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { Button, Card, Skeleton, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
+import { ProovraSystemState } from "../../../components/feedback/ProovraSystemState";
 
 type InviteState =
   | "loading"
@@ -134,47 +134,32 @@ export default function InviteAcceptPage() {
       );
     }
 
-    const errorTitle =
-      state === "expired"
-        ? "Invitation Expired"
-        : state === "already_accepted"
-          ? "Already Accepted"
-          : state === "mismatch"
-            ? "Email Mismatch"
-            : state === "invalid"
-              ? "Invalid Invitation"
-              : "Invitation Error";
-
+    // (2026-07-21) Failure states render through the canonical
+    // ProovraSystemState (public context) — one visual system, precise
+    // per-state copy. Sign-in is the explicit next step for an invitee.
+    const failureKind =
+      state === "expired" ? "invitation-expired" : "invitation-invalid";
+    const failureTitle =
+      state === "already_accepted"
+        ? "This invitation was already accepted"
+        : state === "mismatch"
+          ? "This invitation is for a different email"
+          : undefined; // expired / invalid use the canonical preset title
     return (
-      <Card className="relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)] bg-transparent p-0 shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
-        <img
-          src="/images/panel-silver.webp.png"
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover object-center"
+      <div className="w-full rounded-[24px] bg-white/95 shadow-[0_20px_60px_rgba(8,18,22,0.16)]">
+        <ProovraSystemState
+          context="public"
+          presentation="contained"
+          kind={failureKind}
+          title={failureTitle}
+          message={errorMessage || undefined}
+          testId="invite-failure"
+          actions={[
+            { label: "Sign in", href: "/login", variant: "primary" },
+            { label: "Go to homepage", href: "/", variant: "secondary" },
+          ]}
         />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.58)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_18%,rgba(214,184,157,0.18),transparent_38%)]" />
-
-        <div className="relative z-10 px-7 py-8 md:px-8 md:py-9">
-          <h2 className="m-0 text-[1.6rem] font-semibold tracking-[-0.03em] text-[#1d3136]">
-            {errorTitle}
-          </h2>
-
-          <p className="mt-3 text-[0.96rem] leading-[1.75] text-[#55666a]">
-            {errorMessage}
-          </p>
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/collaboration-teams" style={{ textDecoration: "none" }}>
-              <Button>Go to Teams</Button>
-            </Link>
-
-            <Link href="/" style={{ textDecoration: "none" }}>
-              <Button variant="secondary">Go Home</Button>
-            </Link>
-          </div>
-        </div>
-      </Card>
+      </div>
     );
   };
 

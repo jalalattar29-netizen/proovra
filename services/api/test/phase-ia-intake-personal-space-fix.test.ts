@@ -203,8 +203,10 @@ describe("Phase IA-intake-personal-space-fix — invariants", () => {
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/(^|[^:])\/\/.*$/gm, "$1");
     const browseCount = (stripped.match(/Browse all tools/g) ?? []).length;
+    // (2026-07-21) Migrated onto ProovraDenialState: "Browse all tools" is
+    // an admin-only action pushed via `isPlatformAdmin === true ? [ … ] : []`.
     const gated = (
-      stripped.match(/isPlatformAdmin === true \? \([\s\S]*?Browse all tools/g) ??
+      stripped.match(/isPlatformAdmin === true[\s\S]{0,40}\?\s*\[[\s\S]*?Browse all tools/g) ??
       []
     ).length;
     expect(gated).toBe(browseCount);

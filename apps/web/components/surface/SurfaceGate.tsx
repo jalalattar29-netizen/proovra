@@ -29,7 +29,7 @@ import { useEffect, type ReactNode } from "react";
 
 import { getDirectAccessDecision } from "../../lib/surface/access";
 import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
-import { ProovraErrorState } from "../feedback/ProovraErrorState";
+import { ProovraSystemState } from "../feedback/ProovraSystemState";
 
 export type SurfaceGateProps = {
   children: ReactNode;
@@ -72,13 +72,14 @@ export function SurfaceGate({
   }
   if (decision.kind === "forbidden") {
     if (forbiddenFallback) return <>{forbiddenFallback}</>;
-    // Branded access-denied — never a bare "Forbidden" heading.
+    // Canonical access-denied — never a bare "Forbidden" heading.
     return (
-      <ProovraErrorState
-        severity="warning"
-        showLogo={false}
+      <ProovraSystemState
+        kind="forbidden"
+        context="authenticated"
+        presentation="full-page"
         minHeight="60vh"
-        title="You don't have access to this area"
+        testId="surface-gate-forbidden"
         message="This workspace or feature may require additional permissions, or isn't included on your current plan. Ask a workspace admin for access, or head back to the dashboard."
         actions={[
           { label: "Back to dashboard", href: "/home", variant: "primary" },
@@ -86,7 +87,7 @@ export function SurfaceGate({
           // /support is a public page; this forbidden state renders inside
           // the authenticated App Shell, so open it in a new tab (external
           // cue) rather than replacing the app in the current tab.
-          { label: "Contact support", href: "/support", variant: "secondary", external: true },
+          { label: "Contact support", href: "/support", variant: "text", external: true },
         ]}
       />
     );

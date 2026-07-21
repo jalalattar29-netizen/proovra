@@ -10,9 +10,9 @@ import { CustodyPanel } from "./CustodyPanel";
 import { MetadataPanel } from "./MetadataPanel";
 import { ReviewerNotesPanel } from "./ReviewerNotesPanel";
 import { AiReviewPanel } from "./AiReviewPanel";
-import { EmptyState } from "./EmptyState";
-import { ErrorState } from "./ErrorState";
 import { Button, Card } from "../../../../components/ui";
+import { EmptyState } from "../../../../components/ui/EmptyState";
+import { ProovraSystemState } from "../../../../components/feedback/ProovraSystemState";
 import { formatUtcDateTime, safeText } from "../lib/evidence-library-formatters";
 
 export function ReviewWorkspace({
@@ -53,7 +53,8 @@ export function ReviewWorkspace({
       <Card className="evidence-library-review-shell">
         <EmptyState
           title="Select an evidence record"
-          description="Review preserved content, technical integrity state, custody chronology, and export readiness without leaving the library."
+          purpose="Review preserved content, technical integrity state, custody chronology, and export readiness without leaving the library."
+          compact
         />
       </Card>
     );
@@ -74,9 +75,13 @@ export function ReviewWorkspace({
   if (error || !detail) {
     return (
       <Card className="evidence-library-review-shell">
-        <ErrorState
+        <ProovraSystemState
+          kind="server-error"
+          context="authenticated"
+          presentation="contained"
+          testId="review-workspace-error"
           title="Review workspace unavailable"
-          description={error || "The selected record could not be loaded for reviewer inspection."}
+          message={error || "The selected record could not be loaded for reviewer inspection."}
         />
       </Card>
     );

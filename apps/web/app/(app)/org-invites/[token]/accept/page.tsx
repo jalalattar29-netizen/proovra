@@ -1,5 +1,6 @@
 "use client";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { ProovraSystemState } from "../../../../../components/feedback/ProovraSystemState";
 
 /**
  * Phase 2.7X Stage 4 — Organization invite acceptance page.
@@ -170,24 +171,25 @@ function OrgInviteAcceptPageInner() {
       )}
 
       {state.kind === "error" && (
-        <div
-          data-state="error"
-          role="alert"
-          style={{
-            padding: "0.75rem",
-            border: "1px solid #d44",
-            borderRadius: 6,
-            background: "rgba(220,68,68,0.06)",
-          }}
-        >
-          <strong>Couldn’t accept invite.</strong>
-          <div style={{ fontSize: 13, marginTop: 4 }}>
-            {state.status === 410
-              ? "This invite is expired, revoked, or already accepted."
-              : state.status === 404
-              ? "Invite not found — the link may be wrong."
-              : `${state.status ? `HTTP ${state.status}: ` : ""}${state.message}`}
-          </div>
+        <div data-state="error">
+          <ProovraSystemState
+            context="authenticated"
+            presentation="contained"
+            kind={state.status === 410 ? "invitation-expired" : "invitation-invalid"}
+            testId="org-invite-error"
+            title="We couldn't accept this invite"
+            message={
+              state.status === 410
+                ? "This invite is expired, revoked, or already accepted. Ask an organization administrator to send a new one."
+                : state.status === 404
+                  ? "Invite not found — the link may be incorrect. Ask an organization administrator for a new invitation."
+                  : "The invite couldn't be accepted. Ask an organization administrator for a new invitation."
+            }
+            actions={[
+              { label: "Go to organizations", href: "/organizations", variant: "primary" },
+              { label: "Return to dashboard", href: "/home", variant: "secondary" },
+            ]}
+          />
         </div>
       )}
     </main>

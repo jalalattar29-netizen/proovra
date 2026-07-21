@@ -104,13 +104,26 @@ test("toSafeUserError: known codes map to safe copy (no raw enum)", () => {
 // 3. Branded 404
 // ---------------------------------------------------------------------------
 
-test("404: branded, uses ProovraErrorState, has useful CTAs", () => {
+test("404: branded, uses the canonical ProovraSystemState, has useful CTAs", () => {
+  // (2026-07-21) Root not-found is the PUBLIC boundary now; the
+  // authenticated 404 lives in app/(app)/not-found.tsx.
   const src = read("app/not-found.tsx");
-  assert.ok(src.includes("ProovraErrorState"), "404 uses the branded error state");
-  assert.match(src, /Page not found/);
-  assert.match(src, /Back to home/);
+  assert.ok(src.includes("ProovraSystemState"), "404 uses the canonical system state");
+  assert.match(src, /kind="not-found"/);
+  assert.match(src, /context="public"/);
+  assert.match(src, /Go to homepage/);
   assert.match(src, /Contact support/);
-  assert.ok(!/does not exist\.<\/p>/.test(src), "old bare copy is gone");
+  // Public 404 must NOT default an authenticated user to marketing pages —
+  // the authenticated boundary is a separate file.
+});
+
+test("authenticated 404 lives inside the (app) group and stays in-app", () => {
+  const src = read("app/(app)/not-found.tsx");
+  assert.ok(src.includes("ProovraSystemState"), "authenticated 404 uses the canonical state");
+  assert.match(src, /context="authenticated"/);
+  assert.match(src, /href:\s*"\/home"/, "recovery goes to the in-app dashboard");
+  assert.ok(!/href:\s*"\/platform"/.test(src), "never sends authed users to public platform");
+  assert.ok(!/href:\s*"\/"[,\s}]/.test(src), "never sends authed users to the marketing homepage");
 });
 
 // ---------------------------------------------------------------------------
@@ -119,7 +132,8 @@ test("404: branded, uses ProovraErrorState, has useful CTAs", () => {
 
 test("error page: branded, safe, retry + escape, no raw message/stack", () => {
   const src = read("app/error.tsx");
-  assert.ok(src.includes("ProovraErrorState"));
+  assert.ok(src.includes("ProovraSystemState"));
+  assert.match(src, /kind="server-error"/);
   assert.match(src, /Try again/);
   assert.match(src, /Contact support/);
   assert.ok(!src.includes("{error.message}"), "must not render the raw error message");
@@ -136,7 +150,7 @@ test("global-error: exists, branded, self-contained html", () => {
   assert.ok(existsSync(resolve(APP_ROOT, "app/global-error.tsx")), "app/global-error.tsx exists");
   const src = read("app/global-error.tsx");
   assert.ok(src.includes("<html"), "renders its own html shell");
-  assert.ok(src.includes("ProovraErrorState"), "branded surface");
+  assert.ok(src.includes("ProovraSystemState"), "branded surface");
   assert.ok(!src.includes("{error.message}"), "no raw message");
 });
 
@@ -147,8 +161,11 @@ test("global-error: exists, branded, self-contained html", () => {
 test("forbidden: SurfaceGate no longer renders a bare 'Forbidden' heading", () => {
   const src = read("components/surface/SurfaceGate.tsx");
   assert.ok(!/<h1>Forbidden<\/h1>/.test(src), "bare Forbidden heading removed");
-  assert.ok(src.includes("ProovraErrorState"), "uses the branded state");
-  assert.match(src, /You don't have access to this area/);
+  assert.ok(src.includes("ProovraSystemState"), "uses the canonical system state");
+  assert.match(src, /kind="forbidden"/);
+  // The forbidden title now comes from the canonical preset; the message
+  // still explains the WHY and points at in-app recovery.
+  assert.match(src, /permissions/i);
 });
 
 // ---------------------------------------------------------------------------

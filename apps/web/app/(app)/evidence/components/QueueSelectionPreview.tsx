@@ -1,4 +1,5 @@
 import { Button, Card } from "../../../../components/ui";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 import type { DetailWorkspaceState, EvidenceListItem } from "../lib/evidence-library-types";
 import { buildReportAvailability, buildVerificationPackageAvailability, hasPublicVerification } from "../lib/evidence-library-helpers";
 import { formatUtcDateTime, shortId } from "../lib/evidence-library-formatters";
@@ -8,8 +9,7 @@ import {
   getRecordStatusLabel,
   getVerificationStatusLabel,
 } from "../lib/evidence-library-status";
-import { EmptyState } from "./EmptyState";
-import { ErrorState } from "./ErrorState";
+import { ProovraSystemState } from "../../../../components/feedback/ProovraSystemState";
 
 function PreviewMedia({
   item,
@@ -99,7 +99,8 @@ export function QueueSelectionPreview({
       <Card className="evidence-library-review-shell evidence-library-review-shell--compact">
         <EmptyState
           title="Select a queue record"
-          description="Use the queue to triage records, then open the evidence detail workspace for custody, integrity, annotations, notes, and deeper review."
+          purpose="Use the queue to triage records, then open the evidence detail workspace for custody, integrity, annotations, notes, and deeper review."
+          compact
         />
       </Card>
     );
@@ -119,9 +120,13 @@ export function QueueSelectionPreview({
   if (error || !detail) {
     return (
       <Card className="evidence-library-review-shell evidence-library-review-shell--compact">
-        <ErrorState
+        <ProovraSystemState
+          kind="server-error"
+          context="authenticated"
+          presentation="contained"
+          testId="queue-preview-error"
           title="Queue preview unavailable"
-          description={error || "The selected queue record could not be previewed."}
+          message={error || "The selected queue record could not be previewed."}
         />
       </Card>
     );

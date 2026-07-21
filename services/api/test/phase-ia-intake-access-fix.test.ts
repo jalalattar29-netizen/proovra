@@ -199,21 +199,22 @@ describe("Phase IA-intake-access-fix — Bug C: denial copy", () => {
     const browseCount = (stripped.match(/Browse all tools/g) ?? []).length;
     expect(browseCount).toBeGreaterThanOrEqual(2);
 
-    // Pair each `Browse all tools` with the nearest preceding
-    // `isPlatformAdmin === true ? (` (multiline). Every rendered
-    // occurrence must be paired with the gate.
+    // (2026-07-21) Migrated onto ProovraDenialState: "Browse all tools" is
+    // now an admin-only action pushed via an array spread
+    // `isPlatformAdmin === true ? [ … ] : []`. Every rendered occurrence
+    // must still be paired with the platform-admin gate.
     const gated = (
       stripped.match(
-        /isPlatformAdmin === true \? \([\s\S]*?Browse all tools/g,
+        /isPlatformAdmin === true[\s\S]{0,40}\?\s*\[[\s\S]*?Browse all tools/g,
       ) ?? []
     ).length;
     expect(gated).toBe(browseCount);
   });
 
   it("does not render All Tools fallback to /tools for self-serve users", () => {
-    // Look for the conditional pattern around the `/tools` link.
+    // The /tools action is only pushed inside the platform-admin array gate.
     expect(GATE).toMatch(
-      /isPlatformAdmin === true \? \([\s\S]{0,500}href="\/tools"/,
+      /isPlatformAdmin === true[\s\S]{0,60}\?\s*\[[\s\S]{0,500}href:\s*"\/tools"/,
     );
   });
 });

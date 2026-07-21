@@ -37,17 +37,20 @@ describe("Production fix — PageRouteGate PLATFORM_ADMIN_ONLY is no longer blan
   });
 
   it("renders a structured panel with primary + secondary actions on PLATFORM_ADMIN_ONLY", () => {
-    // The new panel must include the canonical structure: main element +
-    // header + actions section + Back-to-home primary + Browse-all-tools
-    // secondary. We assert the markers (data attributes + link hrefs).
+    // (2026-07-21) The panel now renders through the canonical
+    // ProovraDenialState with typed action objects (href: "…") instead of
+    // inline <Link href="…">. The structural markers are preserved: the
+    // gate <main> keeps its data attributes + route-stable testid, and the
+    // recovery actions still target /home (primary) + /tools (admin-only).
     const branchIdx = GATE.indexOf(`access.accessState === "PLATFORM_ADMIN_ONLY"`);
     expect(branchIdx).toBeGreaterThan(-1);
     const branchBlock = GATE.slice(branchIdx, branchIdx + 3000);
     expect(branchBlock).toMatch(/data-page-route-gate-state=\{access\.accessState\}/);
-    expect(branchBlock).toMatch(/href="\/home"/);
-    expect(branchBlock).toMatch(/href="\/tools"/);
-    expect(branchBlock).toMatch(/data-page-route-gate-primary-action/);
+    expect(branchBlock).toMatch(/href:\s*"\/home"/);
+    expect(branchBlock).toMatch(/href:\s*"\/tools"/);
+    expect(branchBlock).toMatch(/page-route-gate-primary-action/);
     expect(branchBlock).toMatch(/Back to home/);
+    expect(branchBlock).toMatch(/ProovraDenialState/);
   });
 
   it("uses the canonical denial vocabulary (accessStateToDenialReason)", () => {

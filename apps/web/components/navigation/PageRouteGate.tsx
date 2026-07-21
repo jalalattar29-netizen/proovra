@@ -22,7 +22,6 @@
  *      capability checks. Capability map comes from the envelope.
  */
 
-import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   accessStateToDenialReason,
@@ -37,6 +36,8 @@ import {
 } from "../../lib/platform-context";
 import { getRouteDefinition } from "../../lib/navigation/routeRegistry";
 import { resolveRouteAccess } from "../../lib/navigation/routeAccessResolver";
+import { ProovraDenialState } from "../feedback/ProovraDenialState";
+import type { SystemStateAction } from "../feedback/ProovraSystemState";
 
 export function PageRouteGate({
   routeId,
@@ -115,48 +116,44 @@ export function PageRouteGate({
         : canonicalReason
           ? denialReasonGuidance(canonicalReason)
           : "This surface is restricted to platform administrators.";
+    const adminActions: SystemStateAction[] = [
+      {
+        label: "Back to home",
+        href: "/home",
+        variant: "primary",
+        testId: "page-route-gate-primary-action",
+      },
+      // /tools is INTERNAL/notFound for everyone except platform admins;
+      // self-serve users landing here from a stale URL must not be sent
+      // to a 404 surface.
+      ...(envelope?.platform?.isPlatformAdmin === true
+        ? [
+            {
+              label: "Browse all tools",
+              href: "/tools",
+              variant: "secondary" as const,
+              testId: "page-route-gate-all-tools",
+            },
+          ]
+        : []),
+    ];
     return (
       <main
-        className="cc-page"
         data-page-route-gate
         data-page-route-gate-state={access.accessState}
         data-page-route-gate-route-id={routeId}
         data-page-route-gate-denial-reason={canonicalReason ?? ""}
+        data-page-route-gate-actions
         data-testid={`route-gate-${routeId}`}
-        style={{ maxWidth: 640, margin: "0 auto" }}
       >
-        <header className="cc-page-header">
-          <div>
-            <div className="cc-kicker">{route.label}</div>
-            <h1 className="cc-title">{headline}</h1>
-            <p className="cc-subtitle">{subtitle}</p>
-          </div>
-        </header>
-        <section className="cc-section" data-page-route-gate-actions>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Link
-              href="/home"
-              className="cc-quick-action"
-              data-page-route-gate-primary-action
-            >
-              Back to home
-            </Link>
-            {/* Phase IA-intake-access-fix — same rationale as the
-                main denied branch: /tools is INTERNAL/notFound for
-                everyone except platform admins. Self-serve users
-                landing here from a stale URL must not be sent to a
-                404 surface. */}
-            {envelope?.platform?.isPlatformAdmin === true ? (
-              <Link
-                href="/tools"
-                className="cases-filter-chip"
-                data-page-route-gate-all-tools
-              >
-                Browse all tools
-              </Link>
-            ) : null}
-          </div>
-        </section>
+        <ProovraDenialState
+          kind="forbidden"
+          statusLabel={route.label}
+          title={headline}
+          message={subtitle}
+          actions={adminActions}
+          testId={`route-gate-panel-${routeId}`}
+        />
       </main>
     );
   }
@@ -184,66 +181,60 @@ export function PageRouteGate({
         : canonicalReason
           ? denialReasonGuidance(canonicalReason)
           : "";
+  const deniedActions: SystemStateAction[] = [
+    ...(access.primaryAction
+      ? [
+          {
+            label: access.primaryAction.label,
+            href: access.primaryAction.href,
+            variant: "primary" as const,
+            testId: "page-route-gate-primary-action",
+          },
+        ]
+      : []),
+    ...(access.secondaryAction
+      ? [
+          {
+            label: access.secondaryAction.label,
+            href: access.secondaryAction.href,
+            variant: "secondary" as const,
+            testId: "page-route-gate-secondary-action",
+          },
+        ]
+      : []),
+    // /tools is INTERNAL/notFound for non-admins — only offer it to
+    // platform admins so self-serve users are never sent to a 404.
+    ...(envelope?.platform?.isPlatformAdmin === true
+      ? [
+          {
+            label: "Browse all tools",
+            href: "/tools",
+            variant: "text" as const,
+            testId: "page-route-gate-all-tools",
+          },
+        ]
+      : []),
+  ];
   return (
     <main
-      className="cc-page"
       data-page-route-gate
       data-page-route-gate-state={access.accessState}
       data-page-route-gate-route-id={routeId}
       data-page-route-gate-denial-reason={canonicalReason ?? ""}
-      // Phase 2.7Z+ — stable e2e testid. The existing
-      // `data-page-route-gate-*` attributes encode runtime state
-      // (which is useful for visual debugging but varies per
-      // envelope shape). The testid here is route-stable so e2e
-      // can wait for "the route gate panel is on screen for this
-      // route id" without coupling to access state.
+      data-page-route-gate-actions
+      // Phase 2.7Z+ — route-stable e2e testid so e2e can wait for "the
+      // gate panel is on screen for this route id" without coupling to
+      // the runtime access state.
       data-testid={`route-gate-${routeId}`}
-      style={{ maxWidth: 640, margin: "0 auto" }}
     >
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">{route.label}</div>
-          <h1 className="cc-title">{headline}</h1>
-          <p className="cc-subtitle">{subtitle}</p>
-        </div>
-      </header>
-
-      <section className="cc-section" data-page-route-gate-actions>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {access.primaryAction ? (
-            <Link
-              href={access.primaryAction.href}
-              className="cc-quick-action"
-              data-page-route-gate-primary-action
-            >
-              {access.primaryAction.label}
-            </Link>
-          ) : null}
-          {access.secondaryAction ? (
-            <Link
-              href={access.secondaryAction.href}
-              className="cases-filter-chip"
-              data-page-route-gate-secondary-action
-            >
-              {access.secondaryAction.label}
-            </Link>
-          ) : null}
-          {/* Phase IA-intake-access-fix — "Browse all tools" links to
-              /tools which is INTERNAL/notFound for self-serve users.
-              Only platform admins should see this fallback; for everyone
-              else it would route to a 404 page. Self-serve users get the
-              primary/secondary actions only. */}
-          {envelope?.platform?.isPlatformAdmin === true ? (
-            <Link
-              href="/tools"
-              className="cases-filter-chip"
-              data-page-route-gate-all-tools
-            >
-              Browse all tools
-            </Link>
-          ) : null}
-        </div>
-      </section>
+      <ProovraDenialState
+        kind="forbidden"
+        statusLabel={route.label}
+        title={headline}
+        message={subtitle}
+        actions={deniedActions}
+        testId={`route-gate-panel-${routeId}`}
+      />
     </main>
   );
 }

@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import type { EvidenceListItem } from "../lib/evidence-library-types";
 import { EvidenceLibraryRow } from "./EvidenceLibraryRow";
-import { EmptyState } from "./EmptyState";
-import { ErrorState } from "./ErrorState";
 import { Button, Card } from "../../../../components/ui";
+import { EmptyState } from "../../../../components/ui/EmptyState";
+import { ProovraSystemState } from "../../../../components/feedback/ProovraSystemState";
 
 export function EvidenceList({
   items,
@@ -87,19 +88,29 @@ export function EvidenceList({
           <div className="evidence-library-skeleton-row" />
         </div>
       ) : error ? (
-        <ErrorState
+        <ProovraSystemState
+          kind="server-error"
+          context="authenticated"
+          presentation="contained"
+          testId="evidence-list-error"
           title="Evidence list unavailable"
-          description={error}
-          onRetry={onRetry}
+          message={error}
+          actions={[{ label: "Try again", onClick: onRetry, variant: "primary" }]}
         />
       ) : items.length === 0 ? (
         <EmptyState
           title="No evidence records in this scope"
-          description="Adjust the scope or filters, or capture new evidence to populate the reviewer queue."
-          primaryHref="/capture"
-          primaryLabel="Upload / Capture Evidence"
-          secondaryHref="/cases"
-          secondaryLabel="Review Cases"
+          purpose="Adjust the scope or filters, or capture new evidence to populate the reviewer queue."
+          action={
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+              <Link href="/capture">
+                <Button variant="primary">Upload / Capture Evidence</Button>
+              </Link>
+              <Link href="/cases">
+                <Button variant="secondary">Review Cases</Button>
+              </Link>
+            </div>
+          }
         />
       ) : (
         <>

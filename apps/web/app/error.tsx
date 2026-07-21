@@ -2,15 +2,17 @@
 
 import { useEffect } from "react";
 
-import { ProovraErrorState } from "../components/feedback/ProovraErrorState";
+import { ProovraSystemState } from "../components/feedback/ProovraSystemState";
 import { captureException } from "../lib/sentry";
 
 /**
- * Branded route/page error boundary (PROOVRA Feedback System). Reassures
- * that data is unchanged, offers retry + escape, and surfaces the trace
- * id only as a copyable support reference — never a raw message/stack.
+ * Root error boundary — catches failures in public/root segments (the
+ * authenticated `(app)` group has its own in-shell boundary). Reassures
+ * that data is unchanged, offers retry + a safe public escape, and
+ * surfaces the trace id only as a copyable support reference (never a
+ * raw message/stack).
  */
-export default function GlobalError({
+export default function RootError({
   error,
   reset,
 }: {
@@ -18,19 +20,19 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    captureException(error, { feature: "web_global_error" });
+    captureException(error, { feature: "web_root_error" });
   }, [error]);
 
   return (
-    <ProovraErrorState
-      severity="error"
-      title="We couldn't load this page"
-      message="Your evidence data has not been changed. Try again, or head back — and contact support if the problem continues."
+    <ProovraSystemState
+      kind="server-error"
+      context="public"
+      testId="root-error"
       supportReference={error.digest}
       actions={[
-        { label: "Try again", onClick: reset, variant: "primary" },
-        { label: "Back to home", href: "/", variant: "secondary" },
-        { label: "Contact support", href: "/support", variant: "secondary" },
+        { label: "Try again", onClick: () => reset(), variant: "primary" },
+        { label: "Go to homepage", href: "/", variant: "secondary" },
+        { label: "Contact support", href: "/support", variant: "text" },
       ]}
     />
   );
