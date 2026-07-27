@@ -322,7 +322,7 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20260720200000_dashboard_projections",
       "20260721000000_workspace_persona_profile",
       // PHASE 3 (2026-07-21) — normalized membership-grant provenance.
-      "20260721500000_membership_grant_provenance",
+      "20270920200000_membership_grant_provenance",
       // R8.1 — MFA factor + recovery-code schema migration (append-only).
       "20260722000000_r8_1_mfa_activation",
       // R8.1.3 — durable MFA pending challenge store (append-only).
@@ -854,17 +854,17 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // P1 domain remediation (2026-07-21) — explicit workspaceKind
       // discriminator on teams + OrganizationKind on organizations, with a
       // deterministic backfill. Not Phase 32.7.2-attributable.
-      "20260721400000_workspace_kind_discriminator",
+      "20270920000000_workspace_kind_discriminator",
       // P2 domain remediation (2026-07-21) — org-invite workspace assignments
       // + acceptedByUserId (additive). Not Phase 32.7.2-attributable.
-      "20260721410000_org_invite_workspace_assignments",
+      "20270920100000_org_invite_workspace_assignments",
       // PHASE 3 (2026-07-21) — normalized membership-grant provenance
       // (additive membership_grants table). Not Phase 32.7.2-attributable.
-      "20260721500000_membership_grant_provenance",
+      "20270920200000_membership_grant_provenance",
       // PHASE 3 (2026-07-22) — LEGACY_UNKNOWN provenance backfill.
-      "20260721510000_membership_grant_legacy_backfill",
+      "20270920250000_membership_grant_legacy_backfill",
       // PHASE 4 (2026-07-22) — canonical Enterprise contract state.
-      "20260722100000_enterprise_contract_state",
+      "20270920300000_enterprise_contract_state",
       // PHASE 4 §7.1 (2026-07-22) — provisioning idempotency requests.
       "20260722110000_enterprise_provisioning_idempotency",
       // PHASE 10 §13.2 (2026-07-22) — User.identityMode (managed identity).

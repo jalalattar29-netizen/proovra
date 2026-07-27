@@ -13,7 +13,7 @@
 --   * is removed only by explicit manual revocation (revokeAllMembershipGrants).
 --
 -- Idempotent: the anti-join re-inserts nothing on re-run. Applies to BOTH
--- membership layers. Must run AFTER 20260721500000. NOT applied here.
+-- membership layers. Must run AFTER 20270920200000_membership_grant_provenance. NOT applied here.
 -- =============================================================================
 
 INSERT INTO "membership_grants"

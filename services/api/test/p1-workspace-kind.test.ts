@@ -25,7 +25,7 @@ const read = (rel: string) => readFileSync(join(API_ROOT, rel), "utf8");
 
 const SCHEMA = read("prisma/schema.prisma");
 const MIGRATION = read(
-  "prisma/migrations/20260721400000_workspace_kind_discriminator/migration.sql",
+  "prisma/migrations/20270920000000_workspace_kind_discriminator/migration.sql",
 );
 
 describe("P1 — schema discriminators", () => {

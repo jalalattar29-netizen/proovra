@@ -11,7 +11,7 @@
 --   reads today: pending_enterprise_seats → seat_count; the billing owner
 --   → contract owner; effective date = organization creation. CUSTOMER
 --   kind itself was backfilled from enterprise provenance in
---   20260721400000, so this inherits that provenance chain. SYSTEM
+--   20270920000000_workspace_kind_discriminator, so this inherits that provenance chain. SYSTEM
 --   organizations receive NOTHING (they have no contract by definition).
 --
 -- Rollback: DROP TABLE + DROP TYPE, zero data loss to pre-existing tables.

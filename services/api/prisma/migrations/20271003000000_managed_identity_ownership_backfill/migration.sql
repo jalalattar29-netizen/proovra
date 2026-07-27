@@ -23,7 +23,10 @@ WITH candidate AS (
   SELECT
     u.id                                   AS user_id,
     COUNT(DISTINCT t.organization_id)      AS org_count,
-    MIN(t.organization_id)                 AS the_org
+    -- min(uuid) does not exist in PostgreSQL (≤17); rows are only bound when
+    -- org_count = 1, so MIN over the text form selects that single value
+    -- deterministically.
+    MIN(t.organization_id::text)::uuid     AS the_org
   FROM "users" u
   JOIN "external_identity_mappings" m
     ON m."user_id" = u."id"

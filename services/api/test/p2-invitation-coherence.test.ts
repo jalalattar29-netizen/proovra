@@ -204,7 +204,7 @@ describe("P2 — accept-handler + invite-create wiring (source contracts)", () =
     expect(schema).toMatch(/workspaceAssignments Json\?\s+@map\("workspace_assignments"\)/);
     expect(schema).toMatch(/acceptedByUserId String\?\s+@map\("accepted_by_user_id"\)/);
     const migration = read(
-      "prisma/migrations/20260721410000_org_invite_workspace_assignments/migration.sql",
+      "prisma/migrations/20270920100000_org_invite_workspace_assignments/migration.sql",
     );
     expect(migration).toMatch(/ADD COLUMN "workspace_assignments" JSONB/);
     expect(migration).toMatch(/ADD COLUMN "accepted_by_user_id" UUID/);

@@ -189,7 +189,7 @@ export async function recordMembershipGrant(
  *     the membership is SUSPENDED instead (access stops immediately, the
  *     row is reversible, and an operator can review), and
  *     `legacyProvenanceUnknown: true` is returned.
- *   * After the 20260721510000 backfill every such row carries one
+ *   * After the 20270920250000_membership_grant_legacy_backfill backfill every such row carries one
  *     LEGACY_UNKNOWN grant, which this function treats as "another source
  *     remains" — removable only by explicit manual revocation
  *     (`revokeAllMembershipGrants` via the rbac revoke path).

@@ -8,7 +8,7 @@
  * directly.
  *
  * COMPATIBILITY FALLBACK (owner: billing domain; removal condition: the
- * 20260722100000 backfill applied everywhere): a CUSTOMER organization
+ * 20270920300000 backfill applied everywhere): a CUSTOMER organization
  * with no contract row resolves a LEGACY projection derived from the same
  * deterministic signals the backfill uses (pendingEnterpriseSeats →
  * seats; billingOwnerUserId → contract owner; createdAt → effective).
@@ -91,7 +91,7 @@ export async function resolveEnterpriseContract(
 
   // TEMPORARY COMPATIBILITY_INPUT_ADAPTER (classified 2026-07-23) — legacy
   // fallback synthesizing contract INPUT from the same deterministic signals
-  // as the 20260722100000 backfill. Constraints (machine-tested):
+  // as the 20270920300000 backfill. Constraints (machine-tested):
   // CUSTOMER-only (SYSTEM returned null above); a non-ACTIVE legacy org can
   // NEVER synthesize ACTIVE (else-branch → SUSPENDED, fail closed incl.
   // null/unknown status); every result is legacyDerived-marked; no
