@@ -340,6 +340,60 @@ export type LookupGrantResult =
   | { ok: false; reason: ExternalReviewGrantDenialCode };
 
 /**
+ * PHASE 5 §8.5 — does the grant's scoped resource carry an ACTIVE
+ * Legal Hold? EVIDENCE/PACKAGE resolve to one evidence row; CASE holds
+ * match either a case-scoped hold or a hold on any evidence linked to
+ * the case. FAIL OPEN only on lookup errors is NOT acceptable for a
+ * hold check — errors propagate to the caller's catch (denied as
+ * service_unavailable), never silently treated as "no hold".
+ */
+async function grantScopeHasActiveLegalHold(
+  grant: Pick<
+    ExternalReviewGrantRow,
+    "teamId" | "scopeKind" | "evidenceId" | "caseId" | "packageId"
+  >,
+  client: PrismaClient,
+): Promise<boolean> {
+  if (grant.scopeKind === "CASE" && grant.caseId) {
+    const caseHold = await client.evidenceLegalHold.findFirst({
+      where: { teamId: grant.teamId, caseId: grant.caseId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (caseHold) return true;
+    const linked = await client.caseEvidenceLink.findMany({
+      where: { teamId: grant.teamId, caseId: grant.caseId },
+      select: { evidenceId: true },
+      take: 500,
+    });
+    if (linked.length === 0) return false;
+    const held = await client.evidenceLegalHold.findFirst({
+      where: {
+        teamId: grant.teamId,
+        evidenceId: { in: linked.map((l) => l.evidenceId) },
+        status: "ACTIVE",
+      },
+      select: { id: true },
+    });
+    return held !== null;
+  }
+
+  let evidenceId = grant.evidenceId;
+  if (grant.scopeKind === "PACKAGE" && grant.packageId) {
+    const pkg = await client.verificationPackage.findFirst({
+      where: { id: grant.packageId },
+      select: { evidenceId: true },
+    });
+    evidenceId = pkg?.evidenceId ?? evidenceId;
+  }
+  if (!evidenceId) return false;
+  const hold = await client.evidenceLegalHold.findFirst({
+    where: { teamId: grant.teamId, evidenceId, status: "ACTIVE" },
+    select: { id: true },
+  });
+  return hold !== null;
+}
+
+/**
  * Look up a grant by raw token. NEVER reveals whether (team, scope)
  * exists when the token is unknown — both "token unknown" and
  * "token revoked" return the same `grant_not_active` reason code.
@@ -374,12 +428,20 @@ export async function lookupExternalReviewGrantByToken(
       return { ok: false, reason: "grant_not_active" };
     }
     const grant = projectRow(raw);
+    // PHASE 5 §8.5 (2026-07-22) — Legal Hold PREVAILS at token lookup.
+    // Previously hardcoded false ("caller-supplied via separate call")
+    // but no caller ever made that call, so a grant over held evidence
+    // still resolved. The hold is derived from the grant's own scope.
+    const hasActiveLegalHold = await grantScopeHasActiveLegalHold(
+      grant,
+      client,
+    );
     // Evaluate against the canonical shared engine. Treat expired /
     // revoked / blocked as bounded denial reasons.
     const decision = evaluateExternalReviewAccess({
       state: grant.state,
       expiresAtUtc: grant.expiresAtUtc,
-      hasActiveLegalHold: false, // caller-supplied via separate call
+      hasActiveLegalHold,
       nowIsoUtc: new Date().toISOString(),
     } as ExternalReviewAccessFacts);
     if (!decision.allowed) {

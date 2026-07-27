@@ -120,6 +120,14 @@ function makeClient(seed: {
   const tx = {
     organization: {
       findUnique: vi.fn(async ({ where }: any) => orgs.get(where.id) ?? null),
+      // (P1 domain remediation 2026-07-21) — grantEnterprisePlanToOrg now
+      // also promotes the org to kind: "CUSTOMER"; the fake supports the
+      // update so the existing behavioral assertions keep running.
+      update: vi.fn(async ({ where, data }: any) => {
+        const org = orgs.get(where.id);
+        if (org) Object.assign(org, data);
+        return org ?? {};
+      }),
       create: vi.fn(async ({ data }: any) => {
         const org: Org = {
           id: nextId("org"),
@@ -165,6 +173,9 @@ function makeClient(seed: {
       }),
     },
     organizationMembership: {
+      // PHASE 3: the canonical orchestrator checks for an existing
+      // membership before creating (idempotent grant).
+      findFirst: vi.fn(async () => null),
       create: vi.fn(async ({ data }: any) => {
         memberships.push(data);
         return { id: nextId("mem") };
@@ -176,6 +187,16 @@ function makeClient(seed: {
         invites.push(invite);
         return { id: invite.id };
       }),
+    },
+    // PHASE 10 §Step-1 — CUSTOMER-org creators now provision the baseline
+    // OrganizationSecurityPolicy (org-keyed, idempotent) and the enterprise
+    // contract transactionally. The fake supports both so provisioning runs.
+    organizationSecurityPolicy: {
+      findUnique: vi.fn(async () => null),
+      create: vi.fn(async ({ data }: any) => ({ id: nextId("osp"), ...data })),
+    },
+    enterpriseContract: {
+      upsert: vi.fn(async ({ create }: any) => ({ id: nextId("ec"), ...create })),
     },
   };
 
@@ -512,10 +533,11 @@ describe("enterprise capability + gate wiring", () => {
     expect(src).toContain("requireStepUpForSensitiveAction");
     expect(src).toContain('"/v1/admin/orgs/:id/plan"');
     expect(src).toContain('"/v1/admin/enterprise/provision"');
-    // Two step-up gates (one per endpoint).
+    // One step-up gate per endpoint: plan grant, provision, and the
+    // PHASE 4 §7.6 shared suspend/resume handler (one loop body).
     const gateCount = (src.match(/requireStepUpForSensitiveAction\(/g) ?? [])
       .length;
-    expect(gateCount).toBe(2);
+    expect(gateCount).toBe(3);
   });
 
   it("the new route is registered in server.ts", () => {

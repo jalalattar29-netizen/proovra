@@ -77,9 +77,32 @@ function projectVersions(setId: string, opts: Record<string, unknown> | true | u
 vi.mock("../src/db.js", () => ({
   prisma: {
     teamMember: {
-      findUnique: async ({ where }: { where: { teamId_userId: { teamId: string } } }) =>
-        H.memberTeams.has(where.teamId_userId.teamId) ? { role: H.role } : null,
+      // PHASE 1 (2026-07-21): the canonical primitive (used by the qc routes)
+      // reads status + accessExpiresAtUtc + team.organization.status +
+      // capabilityGrants + delegatedAdminScopes in addition to role. The
+      // reviewer-criteria routes (own gate) only read `.role`; the extra
+      // fields are harmless to them.
+      findUnique: async ({ where }: { where: { teamId_userId: { teamId: string; userId?: string } } }) =>
+        H.memberTeams.has(where.teamId_userId.teamId)
+          ? {
+              id: `tm-${where.teamId_userId.teamId}`,
+              teamId: where.teamId_userId.teamId,
+              userId: where.teamId_userId.userId ?? "u-1",
+              role: H.role,
+              status: "ACTIVE",
+              accessExpiresAtUtc: null,
+              team: {
+                isPersonal: false,
+                workspaceKind: "ORGANIZATION",
+                billingPlan: "ENTERPRISE",
+                organization: { status: "ACTIVE" },
+              },
+              capabilityGrants: [],
+              delegatedAdminScopes: [],
+            }
+          : null,
     },
+    securityEvent: { create: async () => ({ id: "se-1" }) },
     aiCopilotRun: {
       findMany: async ({ where }: { where?: { criteriaVersion?: string } } = {}) => {
         if (H.qcRunsThrow) {
@@ -285,8 +308,9 @@ describe("Phase 1 — QC sampling routes (inject)", () => {
     expect(row.qcReviewerCount).toBe(2);
   });
 
-  it("GET samples: non-member 403; invalid strategy 400", async () => {
-    expect((await call(aiReviewerRoutes, "GET", `/v1/ai/qc/samples?teamId=${TEAM_2}`)).status).toBe(403);
+  it("GET samples: non-member 404 (anti-enumeration); invalid strategy 400", async () => {
+    // PHASE 1 (2026-07-21): non-membership conceals as 404 not_found.
+    expect((await call(aiReviewerRoutes, "GET", `/v1/ai/qc/samples?teamId=${TEAM_2}`)).status).toBe(404);
     expect((await call(aiReviewerRoutes, "GET", `/v1/ai/qc/samples?teamId=${TEAM_1}&strategy=DROP_TABLE`)).status).toBe(400);
   });
 
@@ -320,10 +344,11 @@ describe("Phase 1 — QC sampling routes (inject)", () => {
     expect(H.audits.filter((e) => e.action === "ai.qc_decision").length).toBe(3);
   });
 
-  it("POST decision: unknown run 404; non-member 403; invalid decision 400", async () => {
+  it("POST decision: unknown run 404; non-member 404 (anti-enum); invalid decision 400", async () => {
     expect((await call(aiReviewerRoutes, "POST", `/v1/ai/qc/samples/99999999-9999-4999-8999-999999999999/decision`, { decision: "QC_ACCEPTED" })).status).toBe(404);
     H.memberTeams = new Set();
-    expect((await call(aiReviewerRoutes, "POST", `/v1/ai/qc/samples/${RUN_ID}/decision`, { decision: "QC_ACCEPTED" })).status).toBe(403);
+    // PHASE 1 (2026-07-21): non-membership conceals as 404 not_found.
+    expect((await call(aiReviewerRoutes, "POST", `/v1/ai/qc/samples/${RUN_ID}/decision`, { decision: "QC_ACCEPTED" })).status).toBe(404);
     H.memberTeams = new Set([TEAM_1]);
     expect((await call(aiReviewerRoutes, "POST", `/v1/ai/qc/samples/${RUN_ID}/decision`, { decision: "DELETE_RUN" })).status).toBe(400);
   });
@@ -466,9 +491,9 @@ describe("Phase 2 — Reviewer Criteria lifecycle (inject)", () => {
     const v1 = body.usage.find((u: { version: number }) => u.version === 1);
     expect(v1).toMatchObject({ runCount: 2, reviewCount: 1, reviewerCount: 2 });
     expect(v1.lastUsedAt).toBeTruthy();
-    // Non-member → 403; unknown set → 404.
+    // PHASE 1 (2026-07-21): non-member → 404 (anti-enum); unknown set → 404.
     H.memberTeams = new Set();
-    expect((await call(reviewerCriteriaRoutes, "GET", `/v1/reviewer-criteria/${setId}/usage?teamId=${TEAM_1}`)).status).toBe(403);
+    expect((await call(reviewerCriteriaRoutes, "GET", `/v1/reviewer-criteria/${setId}/usage?teamId=${TEAM_1}`)).status).toBe(404);
     H.memberTeams = new Set([TEAM_1]);
     expect((await call(reviewerCriteriaRoutes, "GET", `/v1/reviewer-criteria/99999999-9999-4999-8999-999999999999/usage?teamId=${TEAM_1}`)).status).toBe(404);
   });

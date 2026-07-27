@@ -18,6 +18,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { organizationIdForPolicy } from "../identity/org-security-policy.service.js";
 
 export async function projectGovernanceDashboard(input: {
   prisma?: PrismaClient;
@@ -217,12 +218,17 @@ export async function projectGovernanceDashboard(input: {
         },
       })
       .catch(() => 0),
-    prisma.organizationSecurityPolicy
-      .findUnique({
-        where: { teamId: input.teamId },
-        select: { ssoReadyFlag: true, scimReadyFlag: true },
-      })
-      .catch(() => null),
+    // §1.1 — resolve the parent CUSTOMER org, then read the ONE policy by
+    // AUTHORITATIVE organizationId (never teamId). Display-only readiness flags.
+    (async () => {
+      const orgId = await organizationIdForPolicy(input.teamId, prisma);
+      return orgId
+        ? prisma.organizationSecurityPolicy.findUnique({
+            where: { organizationId: orgId },
+            select: { ssoReadyFlag: true, scimReadyFlag: true },
+          })
+        : null;
+    })().catch(() => null),
   ]);
   const usersWithMfaCount = Array.isArray(usersWithMfa) ? usersWithMfa.length : 0;
   const mfaCoveragePct = totalUsers > 0

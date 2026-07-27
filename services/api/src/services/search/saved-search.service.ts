@@ -18,7 +18,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 
 // -----------------------------------------------------------------------------
 // Projection
@@ -119,22 +119,23 @@ export async function createSavedView(
         pinned: input.pinned ?? false,
       },
     });
-    await appendPlatformAuditLog({
-      userId: input.actorUserId,
-      action: "search.saved_view.create",
-      category: "search",
-      severity: "info",
-      source: "search_service",
-      outcome: "success",
-      resourceType: "saved_search_view",
-      resourceId: row.id,
-      metadata: {
-        teamId: input.teamId,
-        visibility: input.visibility,
-        pinned: input.pinned ?? false,
+    await emitTenantAudit(
+      {
+        action: "search.saved_view.create",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: input.actorUserId,
+        workspaceId: input.teamId,
+        resourceType: "saved_search_view",
+        resourceId: row.id,
+        metadata: {
+          teamId: input.teamId,
+          visibility: input.visibility,
+          pinned: input.pinned ?? false,
+        },
       },
-      db: client,
-    });
+      client,
+    );
     return projectView(row);
   } catch {
     // Likely a duplicate (uk on (team, user, name)). Return null so
@@ -173,18 +174,19 @@ export async function deleteSavedView(
       visibility: row.visibility,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "search.saved_view.delete",
-    category: "search",
-    severity: "info",
-    source: "search_service",
-    outcome: "success",
-    resourceType: "saved_search_view",
-    resourceId: row.id,
-    metadata: { teamId: input.teamId, visibility: row.visibility },
-    db: client,
-  });
+  await emitTenantAudit(
+    {
+      action: "search.saved_view.delete",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "saved_search_view",
+      resourceId: row.id,
+      metadata: { teamId: input.teamId, visibility: row.visibility },
+    },
+    client,
+  );
   return true;
 }
 
@@ -225,18 +227,19 @@ export async function renameSavedView(
     where: { id: row.id },
     data: { name: trimmed },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "search.saved_view.rename",
-    category: "search",
-    severity: "info",
-    source: "search_service",
-    outcome: "success",
-    resourceType: "saved_search_view",
-    resourceId: row.id,
-    metadata: { teamId: input.teamId, visibility: row.visibility },
-    db: client,
-  });
+  await emitTenantAudit(
+    {
+      action: "search.saved_view.rename",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "saved_search_view",
+      resourceId: row.id,
+      metadata: { teamId: input.teamId, visibility: row.visibility },
+    },
+    client,
+  );
   return projectView(updated);
 }
 

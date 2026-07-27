@@ -402,7 +402,13 @@ describe("Tenant isolation — platform-context personal/org separation", () => 
   });
 
   it("availableWorkspaces is rebuilt from canonical sections (no unscoped query)", () => {
-    expect(SVC).toMatch(/teamMember\.findMany[\s\S]{0,400}take:\s*200/);
+    // (P0/P3 remediation 2026-07-21) anchored on the ACTIVE-scoped where
+    // clause instead of a brittle char-window: the select now also carries
+    // workspaceKind + parent-organization fields. Invariant unchanged —
+    // the user-scoped ACTIVE membership query stays bounded at take: 200.
+    expect(SVC).toMatch(
+      /where: \{ userId: userRow\.id, status: "ACTIVE" \}[\s\S]{0,1800}take:\s*200/,
+    );
   });
 
   it("duplicate-personal heuristic reasons are bounded to the canonical vocabulary", () => {

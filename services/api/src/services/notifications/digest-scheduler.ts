@@ -62,6 +62,8 @@ import {
   isWithinQuietHours,
   type NotificationPreferenceType,
 } from "./notification-preferences.service.js";
+// PHASE 11 — canonical internal URL builder.
+import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 
 const CADENCES = ["HOURLY", "DAILY", "WEEKLY"] as const;
 type DigestCadence = (typeof CADENCES)[number];
@@ -475,7 +477,9 @@ export async function runDigestScheduler(
               severity: i.tone,
             })),
             totalUnread: batch.length,
-            operationsCenterUrl: appBase ? `${appBase}/inbox` : null,
+            operationsCenterUrl: appBase
+              ? absoluteInternalUrl(appBase, internalNavPath("/inbox"))
+              : null,
           },
         },
       });

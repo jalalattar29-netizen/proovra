@@ -141,11 +141,13 @@ describe("PHASE 1 — admin-only integrations diagnostics endpoint", () => {
     );
   });
 
-  it("requires OWNER or ADMIN role on the requested workspace", () => {
-    // The handler must reject non-admin members explicitly. We match the
-    // canonical denial form used elsewhere in the file.
+  it("requires OWNER or ADMIN via the canonical integration.api_key.manage capability", () => {
+    // PHASE 1 (2026-07-21): the former inline `ok.role !== OWNER && !== ADMIN`
+    // check was consolidated into the canonical primitive. The diagnostics
+    // route gates on integration.api_key.manage, which is held by OWNER + ADMIN
+    // only — the same set — via the requireMember wrapper (→ authorizeOrFail).
     expect(ROUTES).toMatch(
-      /ok\.role\s*!==\s*"OWNER"\s*&&\s*ok\.role\s*!==\s*"ADMIN"/,
+      /"\/v1\/integrations\/diagnostics"[\s\S]{0,400}requireMember\([^)]*"integration\.api_key\.manage"\)/,
     );
   });
 

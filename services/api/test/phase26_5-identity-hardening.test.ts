@@ -205,7 +205,9 @@ describe("Phase 26.5 — SCIM Groups service", () => {
 
   it("DELETE is SOFT (status ARCHIVED, demotes to MEMBER)", () => {
     expect(src).toMatch(/status: "ARCHIVED"/);
-    expect(src).toMatch(/role: "MEMBER"/);
+    // PHASE 3: bulk archive-demotion via the canonical orchestrator
+    // (demotes mapped-role members to MEMBER, provenance per member).
+    expect(src).toMatch(/demoteGroupMappedRoleOnArchive/);
     // No hard deletes.
     expect(src).not.toMatch(/scimGroup\.delete\(/);
     expect(src).not.toMatch(/teamMember\.delete\(/);
@@ -221,8 +223,10 @@ describe("Phase 26.5 — SCIM Groups service", () => {
   });
 
   it("Reuses the Phase 17 TeamMember role (no parallel table)", () => {
-    expect(src).toMatch(/teamMember\.update/);
-    expect(src).toMatch(/teamMember\.updateMany/);
+    // PHASE 3: role sync targets the SAME Phase 17 TeamMember rows via
+    // the canonical directory-role-change helper (no parallel table).
+    expect(src).toMatch(/applyDirectoryRoleChange/);
+    expect(src).not.toMatch(/scimGroupMember\b/);
   });
 });
 

@@ -59,7 +59,7 @@ import {
   verifyAccountStepUp,
   type AccountStepUpProof,
 } from "../services/identity-security/account-step-up.service.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 
 const LinkBody = z.object({
   idToken: z.string().min(16),
@@ -100,25 +100,24 @@ async function requireStepUp(
   return true;
 }
 
+// PHASE 11 §3 Batch B — account-tier login-method events (see the
+// TENANT_SCOPE_EXCEPTION note above: no workspace/tenant dimension) →
+// genuinely GLOBAL platform events, routed through `emitPlatformAudit`.
 function auditIdentityEvent(
   req: FastifyRequest,
   userId: string,
   action: string,
   metadata: Record<string, unknown>,
 ): void {
-  void appendPlatformAuditLog({
-    userId,
+  void emitPlatformAudit({
     action,
-    category: "identity",
-    severity: "info",
-    source: "api_identity_links",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: userId,
     resourceType: "user",
     resourceId: userId,
-    requestId: req.id,
+    correlationId: req.id,
     metadata,
-    ipAddress: null,
-    userAgent: null,
   }).catch(() => null);
 }
 

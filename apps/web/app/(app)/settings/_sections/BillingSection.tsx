@@ -18,7 +18,10 @@ import { Button } from "../../../../components/ui/Button";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import type { SettingsUiContext } from "../../../../lib/settings/settingsUiContext";
-import { useActiveWorkspaceId } from "../../../../lib/platform-context";
+import {
+  useActiveWorkspaceId,
+  WorkspaceContextBanner,
+} from "../../../../lib/platform-context";
 
 type OverviewSlice = {
   workspaces?: {
@@ -59,7 +62,11 @@ export function BillingSection({ ui }: { ui: SettingsUiContext }) {
   const [overview, setOverview] = useState<OverviewSlice | null>(null);
 
   useEffect(() => {
+    // PHASE 7 §10.G — re-fetch billing on workspace switch so the shown
+    // plan/seats/storage reflect the currently-active workspace, not a
+    // snapshot taken under the prior one.
     let alive = true;
+    setOverview(null);
     apiFetch("/v1/billing/overview")
       .then((r) => {
         if (alive) setOverview(r as OverviewSlice);
@@ -70,7 +77,7 @@ export function BillingSection({ ui }: { ui: SettingsUiContext }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [activeWorkspaceId]);
 
   const personal = overview?.workspaces?.personal ?? null;
   const activeTeam =
@@ -83,6 +90,9 @@ export function BillingSection({ ui }: { ui: SettingsUiContext }) {
 
   return (
     <div style={{ maxWidth: 720 }} data-cc-billing-section data-cc-billing-context={ui.billing.contextType}>
+      {/* PHASE 7 §10.5 — billing is workspace-scoped; make the owning
+          context explicit before any plan change. */}
+      <WorkspaceContextBanner action="Billing for" />
       <Row label="Current plan" value={ui.billing.displayPlan} />
       <Row label="Scope" value={ui.billing.scopeLabel} />
       <Row label="Workspace" value={ui.activeWorkspaceName} />

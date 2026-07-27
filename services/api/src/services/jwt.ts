@@ -28,7 +28,106 @@ type JwtPayload = {
    * fully-authenticated session tokens.
    */
   mfa?: "pending";
+  /**
+   * PHASE 10 §10.2 (2026-07-23) — GLOBAL authentication PROVENANCE. This JWT
+   * is a GLOBAL authentication token (no Organization binding — org context
+   * is server-side via `User.currentWorkspaceId` + the platform-context
+   * envelope, re-evaluated per request). `authMethod` records the
+   * server-VERIFIED authentication ceremony; it is assigned ONLY at the
+   * validated mint sites, NEVER from a client field/header/cookie. Absent on
+   * legacy tokens → treated as UNKNOWN (fails closed for SSO-required
+   * Organization access; independently-allowed Personal access is
+   * unaffected). NO `policyVersion` claim lives here — policy version is
+   * Organization-specific and enforced live at each org-context seam.
+   */
+  authMethod?: AuthProvenanceMethod;
+  /** Epoch seconds of the PRIMARY authentication ceremony (never reset on refresh). */
+  authAt?: number;
+  /**
+   * §10.2 correction — ORG-BOUND SSO satisfaction. For SAML/OIDC, the exact
+   * verified `SsoConnection.id` this session authenticated through. A
+   * connection uniquely binds (Organization + issuer), so the org-context gate
+   * resolves it by id and requires it to be ACTIVE and owned by the TARGET
+   * Organization — a SAML/OIDC method ALONE never satisfies an arbitrary org.
+   */
+  ssoConnId?: string;
+  /**
+   * §10.3 correction — MFA is an ADDITIONAL assurance event; it does not
+   * replace the primary `authMethod`. Epoch seconds MFA was satisfied.
+   */
+  mfaAt?: number;
 };
+
+/**
+ * The server-verified PRIMARY authentication ceremonies (Phase 10 §10.2).
+ * GUEST is intentionally NOT a member — guest login was REMOVED from runtime
+ * (2026-07-23); there is no guest authentication method. UNKNOWN is the
+ * truthful legacy class (legacy/guest/missing provenance) that fails closed
+ * for SSO-required Organization access and is never upgraded.
+ */
+export type AuthProvenanceMethod =
+  | "PASSWORD"
+  | "MAGIC_LINK"
+  | "SOCIAL_OAUTH"
+  | "SAML"
+  | "OIDC"
+  | "UNKNOWN";
+
+/**
+ * The set of SUPPORTED, server-proven interactive authentication ceremonies.
+ * A token whose `authMethod` is NOT one of these (missing, malformed, UNKNOWN,
+ * or any historical/unsupported provider such as legacy GUEST) has no proven
+ * provenance and MUST require reauthentication — it is NEVER coerced to a valid
+ * method. This is the ONE canonical rule; there is no per-provider branch.
+ */
+export type SupportedAuthProvenance =
+  | "PASSWORD"
+  | "MAGIC_LINK"
+  | "SOCIAL_OAUTH"
+  | "SAML"
+  | "OIDC";
+
+/**
+ * Canonical provenance gate: return the SUPPORTED provenance, or `null` when it
+ * is missing/malformed/UNKNOWN/unsupported (→ the caller must require
+ * reauthentication). NO fallback to PASSWORD or any valid method. A legacy
+ * GUEST/UNKNOWN token deserialized here resolves to `null` and is denied
+ * interactive access everywhere (Personal, Owned Workspace, Organization,
+ * context switch) — it is never upgraded.
+ */
+export function resolveSupportedProvenance(
+  m: string | null | undefined,
+): SupportedAuthProvenance | null {
+  switch (m) {
+    case "PASSWORD":
+    case "MAGIC_LINK":
+    case "SOCIAL_OAUTH":
+    case "SAML":
+    case "OIDC":
+      return m;
+    default:
+      return null; // missing / malformed / UNKNOWN / legacy GUEST → reauthenticate
+  }
+}
+
+/**
+ * Map a SUPPORTED provenance → the org security-policy AuthMethod vocabulary
+ * (PASSWORD | OAUTH | SSO). SAML/OIDC → SSO (org-binding checked separately in
+ * the gate); SOCIAL_OAUTH → OAUTH; PASSWORD/MAGIC_LINK → PASSWORD.
+ *
+ * Returns `null` for any non-supported provenance (missing/UNKNOWN/legacy
+ * GUEST) — the caller MUST treat `null` as "reauthenticate", never as PASSWORD.
+ * This function performs NO fail-closed coercion to a valid method.
+ */
+export function provenanceToPolicyAuthMethod(
+  m: string | null | undefined,
+): "PASSWORD" | "OAUTH" | "SSO" | null {
+  const supported = resolveSupportedProvenance(m);
+  if (supported === null) return null;
+  if (supported === "SAML" || supported === "OIDC") return "SSO";
+  if (supported === "SOCIAL_OAUTH") return "OAUTH";
+  return "PASSWORD"; // PASSWORD | MAGIC_LINK (proven, non-SSO)
+}
 
 function base64UrlEncode(input: Buffer | string) {
   const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);

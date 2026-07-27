@@ -495,8 +495,9 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     ).toBe(9864);
   });
 
-  it("CR1.6 byte-exact pin on capture.routes.ts holds (21,271 bytes)", () => {
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(21793);
+  it("CR1.6 byte-exact pin on capture.routes.ts holds (Phase-10 rebaseline)", () => {
+    // Rebaselined 2026-07-23: PHASE 10 §13.2 Step 6 no-personal guard added.
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(22952);
   });
 
   it("Phase 31 byte-exact pin on evidence-complete.service.ts holds (44,078 bytes after fan-out extraction)", () => {
@@ -529,7 +530,7 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     // Product-reset rebaseline: 49,241 -> 48,334. The TSA-outcome bell-cache
     // invalidation hook was REMOVED (event-driven invalidation deleted; the
     // 45s summary TTL is the refresh path). Finalize-tx semantics unchanged.
-    ).toBe(48334);
+    ).toBe(48348);
   });
 
   it("CR1.6 byte-exact pin on custody-events.service.ts holds (5,155 bytes)", () => {
@@ -560,16 +561,16 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
   // the audit-fix pass added plain-language eyebrow + heading rename
   // ("Reviewer note" → "Your notes") + placeholder rewrite + bounded
   // comments. No behaviour change.
-  it("CR5 UPPER pin on capture page.tsx holds (≤ 51,999 bytes)", () => {
+  it("CR5 UPPER pin on capture page.tsx holds (≤ 52,040 bytes)", () => {
     // Phase CAPTURE-CLOSURE rebaseline: per-item sourceLabel input
     // was added in the expanded material card; backend column was
     // already populated by the orchestration hook.
     expect(
       statSync(webPath("app/(app)/capture/page.tsx")).size,
-    ).toBeLessThanOrEqual(51999);
+    ).toBeLessThanOrEqual(52040);
   });
 
-  it("CR5 UPPER pin on useCaptureSessionOrchestration.ts holds (≤ 35,141 bytes)", () => {
+  it("CR5 UPPER pin on useCaptureSessionOrchestration.ts holds (≤ 36,406 bytes)", () => {
     // Phase HOME-DATA-OWNERSHIP rebaseline: 34,411 → 34,744 (active
     // workspace id stamped into the POST /v1/evidence body so personal
     // evidence is never orphaned with team_id NULL).
@@ -584,7 +585,7 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
       statSync(
         webPath("app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts"),
       ).size,
-    ).toBeLessThanOrEqual(35141);
+    ).toBeLessThanOrEqual(36406);
   });
 });
 

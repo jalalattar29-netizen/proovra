@@ -34,8 +34,14 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+// PHASE 3 (2026-07-21) — grant provenance (rbac IS the MANUAL-intent
+// lifecycle surface of the canonical membership orchestrator family).
+import {
+  recordMembershipGrant,
+  revokeAllMembershipGrants,
+} from "./membership-provisioning.service.js";
 
 // -----------------------------------------------------------------------------
 // Error surface
@@ -131,25 +137,22 @@ async function emitMemberAudit(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: input.action,
-    category: "identity.rbac",
-    severity: "info",
-    source: "identity_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "team_member",
     resourceId: input.subjectMemberId,
     metadata: {
-      teamId: input.teamId,
       subjectUserId: input.subjectUserId,
       reason: input.reason ?? null,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
       ...input.metadata,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
 }
 
 export async function suspendMember(
@@ -227,6 +230,13 @@ export async function revokeMember(
       revocationReason: input.reason ?? null,
     },
   });
+  // PHASE 3 (2026-07-21) — a manual admin revocation is authoritative over
+  // EVERY grant source (SCIM/SSO/group/invite); mark all provenance rows
+  // revoked so no automated source silently "still grants" this access.
+  await revokeAllMembershipGrants(client, {
+    teamMemberId: target.id,
+    actorUserId: input.actorUserId,
+  });
   await emitMemberAudit(client, {
     teamId: input.teamId,
     actorUserId: input.actorUserId,
@@ -273,6 +283,14 @@ export async function restoreMember(
       suspensionReason: null,
     },
   });
+  // PHASE 3 — provenance: manual reactivation restores the HELD role.
+  await recordMembershipGrant(client, {
+    teamMemberId: target.id,
+    source: "MANUAL",
+    intent: "MEMBER_REACTIVATION",
+    grantedByUserId: input.actorUserId,
+    grantedRole: target.role,
+  });
   await emitMemberAudit(client, {
     teamId: input.teamId,
     actorUserId: input.actorUserId,
@@ -307,6 +325,14 @@ export async function changeMemberRole(
   const updated = await client.teamMember.update({
     where: { id: target.id },
     data: { role: input.newRole },
+  });
+  // PHASE 3 — provenance: manual admin role assignment.
+  await recordMembershipGrant(client, {
+    teamMemberId: target.id,
+    source: "MANUAL",
+    intent: "ADMIN_ASSIGNMENT",
+    grantedByUserId: input.actorUserId,
+    grantedRole: input.newRole,
   });
   await emitMemberAudit(client, {
     teamId: input.teamId,
@@ -394,27 +420,24 @@ export async function grantCapability(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "identity.capability.grant",
-    category: "identity.rbac",
-    severity: "info",
-    source: "identity_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "member_capability_grant",
     resourceId: grant.id,
     metadata: {
-      teamId: input.teamId,
       subjectMemberId: target.id,
       subjectUserId: target.userId,
       permission: input.permission,
       expiresAtUtc: input.expiresAtUtc?.toISOString() ?? null,
       reason: input.reason ?? null,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return grant;
 }
 
@@ -458,24 +481,21 @@ export async function revokeCapability(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "identity.capability.revoke",
-    category: "identity.rbac",
-    severity: "info",
-    source: "identity_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "member_capability_grant",
     resourceId: grant.id,
     metadata: {
-      teamId: input.teamId,
       permission: grant.permission,
       reason: input.reason ?? null,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return updated;
 }
 
@@ -544,27 +564,24 @@ export async function grantDelegatedAdminScope(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "identity.delegated_admin.grant",
-    category: "identity.rbac",
-    severity: "info",
-    source: "identity_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "member_delegated_admin_scope",
     resourceId: scope.id,
     metadata: {
-      teamId: input.teamId,
       subjectMemberId: target.id,
       subjectUserId: target.userId,
       scopeKind: input.scopeKind,
       expiresAtUtc: input.expiresAtUtc?.toISOString() ?? null,
       reason: input.reason ?? null,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return scope;
 }
 
@@ -608,24 +625,21 @@ export async function revokeDelegatedAdminScope(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "identity.delegated_admin.revoke",
-    category: "identity.rbac",
-    severity: "info",
-    source: "identity_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "member_delegated_admin_scope",
     resourceId: scope.id,
     metadata: {
-      teamId: input.teamId,
       scopeKind: scope.scopeKind,
       reason: input.reason ?? null,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return updated;
 }
 

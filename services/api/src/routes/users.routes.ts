@@ -8,7 +8,7 @@ import { getUserLegalAcceptanceStatus, recordLegalAcceptances } from "../service
 // backed by `email-password-auth.service.ts::changePasswordForUser` and
 // the session-revocation services.
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 
 const LegalAcceptanceBody = z.object({
   source: z.string().min(1).max(64).optional(),
@@ -124,21 +124,17 @@ export async function usersRoutes(app: FastifyInstance) {
       const prefFields = new Set(["locale", "timezone"]);
       const changed = Object.keys(data);
       const isPreferenceOnly = changed.every((k) => prefFields.has(k));
-      await appendPlatformAuditLog({
-        userId,
+      await emitPlatformAudit({
         action: isPreferenceOnly
           ? "identity.preferences_updated"
           : "identity.profile_updated",
-        category: "identity",
-        severity: "info",
-        source: "api_users",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: userId,
         resourceType: "user",
         resourceId: userId,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: { changedFields: changed },
-        ipAddress: null,
-        userAgent: null,
       }).catch(() => null);
     }
 

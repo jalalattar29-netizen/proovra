@@ -182,6 +182,11 @@ describe("Phase 3 — evaluateSessionTimeout (age + idle decision)", () => {
 // =============================================================================
 
 type MockClient = {
+  // PHASE 10 §1.1 — the policy is now read by AUTHORITATIVE organizationId via
+  // organizationIdForPolicy(teamId), which first resolves the team's owning
+  // Customer Organization. The mock must provide team.findUnique so the
+  // adapter yields a CUSTOMER orgId and the policy lookup proceeds.
+  team: { findUnique: ReturnType<typeof vi.fn> };
   organizationSecurityPolicy: { findUnique: ReturnType<typeof vi.fn> };
   teamMember: { findUnique: ReturnType<typeof vi.fn> };
   // audit/security-event writers — best-effort in the service, stubbed here.
@@ -189,8 +194,16 @@ type MockClient = {
   platformAuditLog?: { create: ReturnType<typeof vi.fn> };
 };
 
+const POLICY_ORG = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
 function makeClient(over: Partial<MockClient> = {}): MockClient {
   return {
+    team: {
+      findUnique: vi.fn().mockResolvedValue({
+        organizationId: POLICY_ORG,
+        organization: { kind: "CUSTOMER" },
+      }),
+    },
     organizationSecurityPolicy: { findUnique: vi.fn() },
     teamMember: { findUnique: vi.fn() },
     securityEvent: { create: vi.fn().mockResolvedValue({ id: "evt_1" }) },

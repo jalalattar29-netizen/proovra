@@ -17,6 +17,7 @@ import {
   hasCaptureLocationMetadata,
   isCompleteOtsAnchor,
   formatTimestampForReportUtc,
+  absoluteInternalUrl,
 } from "@proovra/shared";
 import type { CanonicalEvidenceMaterials } from "@proovra/shared";
 import type {
@@ -115,6 +116,11 @@ type DisplayDescriptor = {
 
 const PREVIEW_DATA_URL_RE = /^data:image\/[a-z0-9.+-]+;base64,(.+)$/i;
 
+// PHASE 11 — same public /verify/:id surface as processor.ts's
+// buildVerifyUrl (see the comment there). Composed via
+// `absoluteInternalUrl` since "verify" sits outside the canonical
+// INTERNAL_RESOURCE_TYPES vocabulary. Carries only the persisted
+// evidence id — never a tenant/workspace id.
 function buildVerifyUrl(evidenceId: string, provided?: string | null): string {
   const base = (
     process.env.REPORT_VERIFY_BASE_URL ?? "https://app.proovra.com/verify"
@@ -122,7 +128,7 @@ function buildVerifyUrl(evidenceId: string, provided?: string | null): string {
     .trim()
     .replace(/\/+$/, "");
 
-  const fallback = `${base}/${encodeURIComponent(evidenceId)}`;
+  const fallback = absoluteInternalUrl(base, `/${encodeURIComponent(evidenceId)}`);
 
   const v = typeof provided === "string" ? provided.trim() : "";
   if (!v) return fallback;

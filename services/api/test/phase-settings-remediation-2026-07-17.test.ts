@@ -73,7 +73,11 @@ describe("notification timezone inheritance (§6)", () => {
 describe("AI usage allowance (§9)", () => {
   it("allowance is resolved from the SAME scope model the cost guard enforces", () => {
     expect(AI_ROUTES).toMatch(/getWorkspaceAiUsageThisMonth\(scope\)/);
-    expect(AI_ROUTES).toMatch(/team\.isPersonal\s*\n?\s*\? await getPersonalWorkspaceScope\(team\.ownerUserId\)\s*\n?\s*: await getTeamWorkspaceScope\(query\.teamId\)/);
+    // §9.7 — the allowance scope now flows through the canonical envelope
+    // with EXPLICIT subjects (personal marker → PERSONAL_ACCOUNT, else
+    // WORKSPACE-by-persisted-id).
+    expect(AI_ROUTES).toMatch(/team\.isPersonal\s*\n?\s*\?\s*\(await resolveCommercialContext\(\{ type: "PERSONAL_ACCOUNT"/);
+    expect(AI_ROUTES).toMatch(/:\s*\(await resolveCommercialContext\(\{ type: "WORKSPACE", teamId: query\.teamId/);
   });
 
   it("response carries plan + monthly cap + consumed + remaining", () => {

@@ -75,10 +75,14 @@ describe("avatar persistence — upsertUserWithEmailLink", () => {
     );
   });
 
-  it("GUEST-UPGRADE path backfills only when the guest row has none", () => {
-    expect(AUTH_SERVICE_SRC).toMatch(
-      /profile\.avatarUrl\s*&&\s*!guest\.avatarUrl[\s\S]{0,120}avatarUrl:\s*profile\.avatarUrl/,
-    );
+  it("GUEST-UPGRADE avatar path is removed (Guest Login physically deleted, PHASE 10)", () => {
+    // Guest Login is no longer an authentication concept (physically removed).
+    // There is therefore no anonymous guest row to upgrade, and the guest
+    // avatar-backfill branch is correctly gone from the auth service. The
+    // CREATE (first OAuth login) and UPDATE (repeat sign-in) paths below remain
+    // the only avatar write sites.
+    expect(AUTH_SERVICE_SRC).not.toMatch(/!guest\.avatarUrl/);
+    expect(AUTH_SERVICE_SRC).not.toMatch(/createGuestProfile|ensureGuestIdentity/);
   });
 
   it("UPDATE path never null-outs an existing avatarUrl on repeat sign-in", () => {

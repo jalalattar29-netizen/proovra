@@ -111,9 +111,8 @@ function OrganizationsListPageInner() {
 
   // Create-organization modal
   const [createOpen, setCreateOpen] = useState(false);
-  const [createName, setCreateName] = useState("");
-  const [createBusy, setCreateBusy] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  // PHASE 2 (2026-07-21): `createOpen` now opens the enterprise-provisioning
+  // info modal — self-service organization creation is retired.
 
   // Accept-invite-by-token modal
   const [joinOpen, setJoinOpen] = useState(false);
@@ -141,36 +140,6 @@ function OrganizationsListPageInner() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const submitCreate = useCallback(async () => {
-    const trimmed = createName.trim();
-    if (!trimmed) {
-      setCreateError("Name is required.");
-      return;
-    }
-    setCreateBusy(true);
-    setCreateError(null);
-    try {
-      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
-      const created = (await apiFetch("/v1/orgs", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
-      })) as { organizationId: string };
-      setCreateOpen(false);
-      setCreateName("");
-      await load();
-      if (created.organizationId) {
-        router.push(`/organizations/${created.organizationId}`);
-      }
-    } catch (err: unknown) {
-      const message =
-        toSafeUserError(err, { message: "Failed to create organization." }).message;
-      setCreateError(message);
-    } finally {
-      setCreateBusy(false);
-    }
-  }, [createName, load, router]);
 
   const submitJoin = useCallback(async () => {
     const token = joinToken.trim();
@@ -273,81 +242,56 @@ function OrganizationsListPageInner() {
           </button>
           <button
             type="button"
-            data-action="open-create-org"
-            onClick={() => {
-              setCreateError(null);
-              setCreateOpen(true);
-            }}
+            data-action="open-enterprise-info"
+            onClick={() => setCreateOpen(true)}
             style={toolbarBtn(true)}
           >
-            + Create organization
+            About Enterprise organizations
           </button>
         </div>
       </header>
 
-      {/* ---------- create-org modal ---------- */}
+      {/* ---------- enterprise-provisioning info modal ----------
+          PHASE 2 (2026-07-21): self-service organization creation is
+          retired. CUSTOMER Enterprise Organizations are provisioned
+          through a PROOVRA Enterprise agreement (sales-led); working
+          with a team is a self-service Workspace, not an Organization. */}
       {createOpen && (
         <ModalShell
-          onClose={() => !createBusy && setCreateOpen(false)}
-          dataAttr="create-org"
+          onClose={() => setCreateOpen(false)}
+          dataAttr="enterprise-info"
         >
-          <form
-            data-form="create-org"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void submitCreate();
-            }}
-            style={modalForm}
-          >
-            <h2 style={{ margin: "0 0 0.5rem" }}>Create organization</h2>
+          <div data-panel="enterprise-info" style={modalForm}>
+            <h2 style={{ margin: "0 0 0.5rem" }}>Enterprise organizations</h2>
             <p style={{ fontSize: 13, opacity: 0.85, marginTop: 0 }}>
-              You become the <strong>ORG_OWNER</strong>. You can rename,
-              invite members, and add workspaces afterwards. This action
-              is audited.
+              Organizations are the legal, billing, and governance boundary
+              for PROOVRA Enterprise customers. They are provisioned as part
+              of an Enterprise agreement — they cannot be created
+              self-service.
             </p>
-            <label style={{ display: "block", fontSize: 13, marginBottom: 4 }}>
-              Name
-              <input
-                type="text"
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-                maxLength={180}
-                required
-                disabled={createBusy}
-                autoFocus
-                data-input="create-org-name"
-                style={modalInput}
-              />
-            </label>
-            {createError && (
-              <div
-                role="alert"
-                data-state="error"
-                style={modalErrorBox}
-              >
-                {createError}
-              </div>
-            )}
+            <p style={{ fontSize: 13, opacity: 0.85 }}>
+              Want to work with your team? Create a <strong>workspace</strong>{" "}
+              from the Teams page — it has its own members, roles, and
+              billing, without an Enterprise contract.
+            </p>
             <div style={modalActions}>
+              <Link
+                href="/teams"
+                data-action="go-create-workspace"
+                style={toolbarBtn(true)}
+              >
+                Create a workspace
+              </Link>
               <button
                 type="button"
                 onClick={() => setCreateOpen(false)}
-                disabled={createBusy}
-                data-action="cancel-create-org"
+                data-action="close-enterprise-info"
                 style={toolbarBtn(false)}
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={createBusy || !createName.trim()}
-                data-action="submit-create-org"
-                style={toolbarBtn(true)}
-              >
-                {createBusy ? "Creating…" : "Create"}
+                Close
               </button>
             </div>
-          </form>
+          </div>
         </ModalShell>
       )}
 
@@ -472,14 +416,11 @@ function OrganizationsListPageInner() {
           <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
               type="button"
-              onClick={() => {
-                setCreateError(null);
-                setCreateOpen(true);
-              }}
-              data-action="empty-create-org"
+              onClick={() => setCreateOpen(true)}
+              data-action="empty-enterprise-info"
               style={toolbarBtn(true)}
             >
-              + Create organization
+              About Enterprise organizations
             </button>
             <button
               type="button"
@@ -582,7 +523,7 @@ function OrganizationsListPageInner() {
                   Open
                 </Link>
                 <Link
-                  href={`/teams?org=${org.organizationId}`}
+                  href="/teams"
                   style={cardLinkBtn(false)}
                   data-action="open-workspace-admin"
                   data-org-id={org.organizationId}

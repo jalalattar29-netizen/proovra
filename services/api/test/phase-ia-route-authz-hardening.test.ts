@@ -17,9 +17,13 @@
  *     verbatim by `projectSecurityEvent`.
  *
  *   * governance.routes.ts + governance-operations.routes.ts — every
- *     mutation calls `requirePermission(ok.role, "<canonical>")`. This
- *     was already true; the test pins the surface so a future refactor
- *     can't drop the permission gate.
+ *     mutation is gated on its canonical permission. PHASE 1 (2026-07-21)
+ *     consolidated the former `requirePermission(ok.role, "X")` pair into
+ *     the canonical primitive: the permission is now the 4th argument to
+ *     the local `requireMember` wrapper, which routes through
+ *     `authorizeOrFail` (ACTIVE membership + org lifecycle + capability +
+ *     anti-enumeration). The test pins the permission at its new call site
+ *     so a future refactor can't drop the gate.
  *
  *   * /v1/insights — no apps/web file calls it; navigation registries
  *     no longer reference `dashboard.insights`.
@@ -261,31 +265,37 @@ describe("Phase IA-route-authz — governance mutations stay gated", () => {
   const GOV = readSource("../src/routes/governance.routes.ts");
   const GOV_OPS = readSource("../src/routes/governance-operations.routes.ts");
 
-  it("every legal-hold mutation calls requirePermission with governance.legal_hold.manage", () => {
+  // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21): the `requirePermission(ok.role,
+  // "X")` pattern was consolidated into the canonical primitive — the required
+  // permission is now the 4th argument to the local `requireMember` wrapper,
+  // which routes through `authorizeOrFail` (ACTIVE membership + org lifecycle +
+  // capability + anti-enumeration). The GATING INTENT is unchanged; these
+  // assertions track the permission at its new, canonical call site.
+  const gatedOn = (src: string, permission: string): RegExpMatchArray | null =>
+    src.match(
+      new RegExp(
+        `requireMember\\(req, reply, [^,]+,\\s*"${permission.replace(/\./g, "\\.")}"\\)`,
+        "g",
+      ),
+    );
+
+  it("every legal-hold mutation gates on governance.legal_hold.manage", () => {
     // POST place + POST release + POST case-legal-holds place/release.
-    const calls = GOV.match(
-      /requirePermission\(ok\.role,\s*"governance\.legal_hold\.manage"\)/g,
-    ) ?? [];
+    const calls = gatedOn(GOV, "governance.legal_hold.manage") ?? [];
     expect(calls.length).toBeGreaterThanOrEqual(4);
   });
 
   it("evidence publish/unpublish/suspend/restore mutations gate on evidence.publish_verify", () => {
-    const calls = GOV.match(
-      /requirePermission\(ok\.role,\s*"evidence\.publish_verify"\)/g,
-    ) ?? [];
+    const calls = gatedOn(GOV, "evidence.publish_verify") ?? [];
     expect(calls.length).toBeGreaterThanOrEqual(4);
   });
 
   it("policy upsert gates on governance.policy.manage", () => {
-    expect(GOV).toMatch(
-      /requirePermission\(ok\.role,\s*"governance\.policy\.manage"\)/,
-    );
+    expect(gatedOn(GOV, "governance.policy.manage")?.length ?? 0).toBeGreaterThanOrEqual(1);
   });
 
   it("retention candidates GET gates on governance.retention.manage", () => {
-    expect(GOV).toMatch(
-      /requirePermission\(ok\.role,\s*"governance\.retention\.manage"\)/,
-    );
+    expect(gatedOn(GOV, "governance.retention.manage")?.length ?? 0).toBeGreaterThanOrEqual(1);
   });
 
   it("reconcile-retention is cron-only (requireIntegrationCronSecret)", () => {
@@ -295,15 +305,18 @@ describe("Phase IA-route-authz — governance mutations stay gated", () => {
   });
 
   it("governance-operations export-snapshots POST gates on evidence.generate_package", () => {
-    expect(GOV_OPS).toMatch(
-      /requirePermission\(ok\.role,\s*"evidence\.generate_package"\)/,
-    );
+    expect(gatedOn(GOV_OPS, "evidence.generate_package")?.length ?? 0).toBeGreaterThanOrEqual(1);
   });
 
   it("governance-operations acknowledge POST gates on governance.policy.manage", () => {
-    expect(GOV_OPS).toMatch(
-      /requirePermission\(ok\.role,\s*"governance\.policy\.manage"\)/,
-    );
+    expect(gatedOn(GOV_OPS, "governance.policy.manage")?.length ?? 0).toBeGreaterThanOrEqual(1);
+  });
+
+  it("both governance route files route through the canonical primitive", () => {
+    expect(GOV).toContain("authorizeOrFail");
+    expect(GOV_OPS).toContain("authorizeOrFail");
+    expect(GOV).not.toMatch(/const perm = requirePermission\(/);
+    expect(GOV_OPS).not.toMatch(/const perm = requirePermission\(/);
   });
 });
 

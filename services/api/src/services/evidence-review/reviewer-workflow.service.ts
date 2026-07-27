@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
   templateIdentityAuditMetadata,
   type TemplateIdentityStampSource,
@@ -249,13 +249,12 @@ export async function upsertEvidenceReviewerWorkflow(params: {
   // here MUST NOT break the upsert lifecycle (which is the canonical
   // reviewer-queue init path on capture finalize).
   if (trioProvided && trio?.templateSlug) {
-    void appendPlatformAuditLog({
-      userId: params.actorUserId,
+    void emitTenantAudit({
       action: "reviewer_workflow.template_identity.stamped",
-      category: "reviewer_workflow",
-      severity: "info",
-      source: "reviewer_workflow_upsert",
       outcome: "success",
+      sourceApp: "API",
+      actorUserId: params.actorUserId,
+      workspaceId: params.teamId ?? null,
       resourceType: "evidence_review_workflow",
       resourceId: workflow.id,
       metadata: {

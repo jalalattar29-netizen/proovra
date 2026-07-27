@@ -1,0 +1,100 @@
+/**
+ * P1 DOMAIN REMEDIATION (2026-07-21) — workspaceKind discriminator contracts.
+ *
+ * Pins the canonical classification at every layer that can be verified
+ * without a live database (migration APPLY is runtime-verified separately):
+ *
+ *   - schema declares WorkspaceKind (PERSONAL/OWNED/ORGANIZATION) on Team
+ *     and OrganizationKind (SYSTEM/CUSTOMER) on Organization;
+ *   - the migration backfills deterministically (isPersonal → PERSONAL,
+ *     ENTERPRISE plan → ORGANIZATION, remainder → OWNED) and fails loudly
+ *     on integrity violations;
+ *   - every Team-creation path sets an explicit kind — personal bootstrap
+ *     → PERSONAL/SYSTEM, self-service create → OWNED/SYSTEM, enterprise
+ *     provisioning → ORGANIZATION/CUSTOMER;
+ *   - `isPersonal=false` is never the sole "Organization" discriminator in
+ *     the creation paths.
+ */
+
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const API_ROOT = join(__dirname, "..");
+const read = (rel: string) => readFileSync(join(API_ROOT, rel), "utf8");
+
+const SCHEMA = read("prisma/schema.prisma");
+const MIGRATION = read(
+  "prisma/migrations/20260721400000_workspace_kind_discriminator/migration.sql",
+);
+
+describe("P1 — schema discriminators", () => {
+  it("declares WorkspaceKind with exactly PERSONAL / OWNED / ORGANIZATION", () => {
+    expect(SCHEMA).toMatch(
+      /enum WorkspaceKind \{\s*PERSONAL\s*OWNED\s*ORGANIZATION\s*\}/,
+    );
+    expect(SCHEMA).toMatch(/workspaceKind\s+WorkspaceKind\?\s+@map\("workspace_kind"\)/);
+    expect(SCHEMA).toMatch(/@@index\(\[workspaceKind\]\)/);
+  });
+
+  it("declares OrganizationKind SYSTEM / CUSTOMER with SYSTEM default", () => {
+    expect(SCHEMA).toMatch(/enum OrganizationKind \{\s*SYSTEM\s*CUSTOMER\s*\}/);
+    expect(SCHEMA).toMatch(
+      /kind\s+OrganizationKind\s+@default\(SYSTEM\)/,
+    );
+  });
+});
+
+describe("P1 — deterministic backfill migration", () => {
+  it("classifies PERSONAL then ENTERPRISE→ORGANIZATION then remainder→OWNED", () => {
+    const personalIdx = MIGRATION.indexOf("'PERSONAL'");
+    const orgIdx = MIGRATION.indexOf("'ORGANIZATION'\n  WHERE");
+    const ownedIdx = MIGRATION.indexOf("'OWNED'");
+    expect(personalIdx).toBeGreaterThan(-1);
+    expect(MIGRATION).toMatch(/'PERSONAL'\s*\n\s*WHERE "is_personal" = true/);
+    expect(MIGRATION).toMatch(
+      /'ORGANIZATION'\s*\n\s*WHERE "workspace_kind" IS NULL AND "billing_plan" = 'ENTERPRISE'/,
+    );
+    expect(MIGRATION).toMatch(/'OWNED'\s*\n\s*WHERE "workspace_kind" IS NULL/);
+    expect(personalIdx).toBeLessThan(orgIdx === -1 ? Infinity : orgIdx);
+    expect(ownedIdx).toBeGreaterThan(personalIdx);
+  });
+
+  it("promotes orgs with enterprise provenance to CUSTOMER", () => {
+    expect(MIGRATION).toMatch(/"kind" = 'CUSTOMER'/);
+    expect(MIGRATION).toMatch(/pending_enterprise_seats" IS NOT NULL/);
+    expect(MIGRATION).toMatch(/billing_plan" = 'ENTERPRISE'/);
+  });
+
+  it("fails loudly on backfill integrity violations (no silent bad rows)", () => {
+    expect(MIGRATION).toMatch(/RAISE EXCEPTION 'workspace_kind backfill integrity violation/);
+    expect(MIGRATION).toMatch(/"workspace_kind" IS NULL/);
+  });
+});
+
+describe("P1 — creation paths set explicit kinds", () => {
+  it("personal bootstrap → workspaceKind PERSONAL + SYSTEM container org", () => {
+    const src = read(
+      "src/services/platform-context/workspace-bootstrap.service.ts",
+    );
+    expect(src).toMatch(/workspaceKind: "PERSONAL"/);
+    expect(src).toMatch(/kind: "SYSTEM"/);
+  });
+
+  it("self-service POST /v1/teams → workspaceKind OWNED + SYSTEM container org", () => {
+    const src = read("src/routes/teams.routes.ts");
+    expect(src).toMatch(/workspaceKind: "OWNED"/);
+    expect(src).toMatch(/kind: "SYSTEM"/);
+  });
+
+  it("enterprise provisioning → workspaceKind ORGANIZATION + CUSTOMER org (both paths + grant)", () => {
+    const src = read("src/services/enterprise-provisioning.service.ts");
+    const orgKindCount = (src.match(/kind: "CUSTOMER"/g) ?? []).length;
+    const wsKindCount = (src.match(/workspaceKind: "ORGANIZATION"/g) ?? [])
+      .length;
+    // owner-exists org + owner-missing org + grant promotion
+    expect(orgKindCount).toBeGreaterThanOrEqual(3);
+    // owner-exists team + owner-accept minted team (+ grant flip)
+    expect(wsKindCount).toBeGreaterThanOrEqual(2);
+  });
+});

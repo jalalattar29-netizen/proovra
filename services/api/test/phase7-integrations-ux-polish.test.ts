@@ -81,7 +81,7 @@ describe("PHASE 7 — admin routes are permission-gated", () => {
     // exact number of api_key.manage gates currently in the file.
     const apiKeyGates =
       ROUTES.match(
-        /requirePermission\(ok\.role,\s*"integration\.api_key\.manage"\)/g,
+        /requireMember\(req, reply, [^,]+,\s*"integration\.api_key\.manage"\)/g,
       ) ?? [];
     // 5 = list, create, revoke, rotate, patch-expiry, usage.
     // Count of routes calling the api_key permission:
@@ -93,7 +93,7 @@ describe("PHASE 7 — admin routes are permission-gated", () => {
   it("every webhook route calls requirePermission with integration.webhook.manage", () => {
     const webhookGates =
       ROUTES.match(
-        /requirePermission\(ok\.role,\s*"integration\.webhook\.manage"\)/g,
+        /requireMember\(req, reply, [^,]+,\s*"integration\.webhook\.manage"\)/g,
       ) ?? [];
     // Count of webhook-permission gates:
     //   GET /webhooks, POST /webhooks, PUT /webhooks/:id,
@@ -104,8 +104,11 @@ describe("PHASE 7 — admin routes are permission-gated", () => {
     expect(webhookGates.length).toBeGreaterThanOrEqual(10);
   });
 
-  it("permission denial is reported via the stable permission_denied code", () => {
-    expect(ROUTES).toMatch(/code:\s*"permission_denied"/);
+  it("permission denial is reported via the canonical primitive (authorizeOrFail)", () => {
+    // PHASE 1 (2026-07-21): the bounded `permission_denied` code is now emitted
+    // by the canonical middleware, not inline in the route. The route composes
+    // authorizeOrFail, which owns the denial response.
+    expect(ROUTES).toMatch(/authorizeOrFail\(/);
   });
 });
 
@@ -410,7 +413,7 @@ describe("PHASE 7 — admin test-event + retry routes inherit workspace gates", 
     expect(block).not.toBeNull();
     const body = block![0];
     expect(body).toMatch(/requireMember\(/);
-    expect(body).toMatch(/requirePermission\(/);
+    expect(body).toMatch(/"integration\.webhook\.manage"/);
     expect(body).toMatch(/requireStepUpForSensitiveAction\(/);
   });
 
@@ -428,7 +431,7 @@ describe("PHASE 7 — admin test-event + retry routes inherit workspace gates", 
       nextPost > 0 ? nextPost : ROUTES.length,
     );
     expect(block).toMatch(/requireMember\(/);
-    expect(block).toMatch(/requirePermission\(/);
+    expect(block).toMatch(/"integration\.webhook\.manage"/);
   });
 });
 

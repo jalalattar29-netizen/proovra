@@ -44,6 +44,11 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import {
+  organizationLifecycleApplies,
+  resolveWorkspaceKind,
+  type ResolvedWorkspaceKind,
+} from "./workspace-kind.js";
 
 // -----------------------------------------------------------------------------
 // Snapshot types
@@ -56,6 +61,18 @@ export type MemberAccessSnapshot = {
   role: DbTeamRole;
   status: TeamMemberStatus;
   accessExpiresAtUtc: Date | null;
+  // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21, corrected) — Workspace kind +
+  // parent-Organization lifecycle. `workspaceKind` is the canonical persisted
+  // kind (or the deterministic compatibility classification), never null:
+  // UNKNOWN when the team row/fields could not be proven — which DENIES
+  // (fail closed). `organizationStatus` is the parent Organization.status, or
+  // null when the org row/status was NOT loaded. For an ORGANIZATION
+  // workspace, a null / non-ACTIVE status DENIES (no silent skip). PERSONAL /
+  // OWNED workspaces are backed by SYSTEM containers and are exempt from
+  // CUSTOMER-org lifecycle. Team.organizationId is NOT NULL in the schema, so
+  // production always loads the org.
+  workspaceKind: ResolvedWorkspaceKind;
+  organizationStatus: string | null;
   // Active (non-revoked, non-expired) per-member capability grants.
   capabilityGrants: ReadonlyArray<{
     id: string;
@@ -114,6 +131,15 @@ export type AccessDenyReason =
   | "no_actor"
   | "member_not_active"
   | "member_access_expired"
+  // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — Organization-lifecycle
+  // enforcement for ORGANIZATION workspaces. An ACTIVE membership in a
+  // workspace whose parent CUSTOMER Organization is missing / SUSPENDED /
+  // ARCHIVED is not a valid operating context. Enforced centrally here so
+  // every route that composes the canonical primitive inherits it.
+  | "organization_not_active"
+  // The workspace kind could not be proven (team row/fields not loaded).
+  // Fail closed — never silently skip Organization lifecycle.
+  | "workspace_kind_unresolved"
   | "service_account_revoked"
   | "service_account_disabled"
   | "service_account_expired"
@@ -168,6 +194,27 @@ function evaluateMember(
     actor.accessExpiresAtUtc.getTime() <= now.getTime()
   ) {
     return { allowed: false, reason: "member_access_expired" };
+  }
+  // PHASE 1 (2026-07-21, corrected) — Workspace-kind + Organization-lifecycle
+  // gate. FAIL CLOSED throughout; there is no "null means skip" path.
+  //
+  //   * UNKNOWN kind (team row/fields unprovable) → DENY.
+  //   * ORGANIZATION workspace → the parent CUSTOMER Organization must be
+  //     loaded AND ACTIVE. Missing org, missing/null status, SUSPENDED, or
+  //     ARCHIVED all DENY.
+  //   * PERSONAL / OWNED workspace → backed by an internal SYSTEM container;
+  //     CUSTOMER-org lifecycle is explicitly NOT applicable → continue.
+  if (actor.workspaceKind === "UNKNOWN") {
+    return { allowed: false, reason: "workspace_kind_unresolved" };
+  }
+  if (organizationLifecycleApplies(actor.workspaceKind)) {
+    if (actor.organizationStatus !== "ACTIVE") {
+      return {
+        allowed: false,
+        reason: "organization_not_active",
+        detail: actor.organizationStatus ?? "missing",
+      };
+    }
   }
   // 1) Canonical role floor.
   const canonical = mapTeamRoleToCanonical(actor.role);
@@ -281,6 +328,18 @@ export async function loadMemberAccessSnapshot(
   const row = await client.teamMember.findUnique({
     where: { teamId_userId: { teamId: input.teamId, userId: input.userId } },
     include: {
+      // PHASE 1 (2026-07-21, corrected) — Workspace kind + parent-Organization
+      // lifecycle. `workspaceKind`/`isPersonal`/`billingPlan` drive the
+      // canonical kind classification; `organization.status` drives the
+      // CUSTOMER-org lifecycle gate for ORGANIZATION workspaces.
+      team: {
+        select: {
+          isPersonal: true,
+          workspaceKind: true,
+          billingPlan: true,
+          organization: { select: { status: true } },
+        },
+      },
       capabilityGrants: {
         select: {
           id: true,
@@ -300,6 +359,14 @@ export async function loadMemberAccessSnapshot(
     },
   });
   if (!row) return null;
+  const team = (row as {
+    team?: {
+      isPersonal?: boolean;
+      workspaceKind?: string | null;
+      billingPlan?: string | null;
+      organization?: { status?: string | null } | null;
+    } | null;
+  }).team;
   return {
     teamMemberId: row.id,
     teamId: row.teamId,
@@ -307,6 +374,13 @@ export async function loadMemberAccessSnapshot(
     role: row.role,
     status: row.status,
     accessExpiresAtUtc: row.accessExpiresAtUtc,
+    workspaceKind: resolveWorkspaceKind({
+      workspaceKind: team?.workspaceKind ?? null,
+      isPersonal: team?.isPersonal ?? null,
+      billingPlan: team?.billingPlan ?? null,
+      teamLoaded: team != null,
+    }),
+    organizationStatus: team?.organization?.status ?? null,
     capabilityGrants: row.capabilityGrants.map((g) => ({
       id: g.id,
       permission: g.permission,

@@ -21,7 +21,7 @@ import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
 export type ContributorGovernanceErrorCode =
@@ -101,24 +101,21 @@ export async function revokeContributorSession(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "identity.contributor_session.revoke",
-    category: "identity.governance",
-    severity: "info",
-    source: "identity_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "workflow_intake_session",
     resourceId: existing.id,
     metadata: {
-      teamId: input.teamId,
       intakeLinkId: existing.intakeLinkId,
       reason: input.reason ?? null,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return updated;
 }
 

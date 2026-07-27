@@ -34,6 +34,8 @@ import {
 } from "react";
 
 import { ApiError } from "../../../lib/api";
+// PHASE 7 §10.7/§10.G — tenant-aware lifecycle fetch (re-scope on switch).
+import { usePlatformContext } from "../../../lib/platform-context";
 
 // ---------------------------------------------------------------------------
 // 1. Denial / error → resolved UI state
@@ -452,6 +454,11 @@ export function useLifecycleFetch<T>(
   const [denial, setDenial] = useState<LifecycleDenial | null>(null);
   const [loadedAtMs, setLoadedAtMs] = useState<number | null>(null);
   const mountedRef = useRef(true);
+  // PHASE 7 §10 — the active tenant. When it changes, this lifecycle data
+  // is from the PRIOR workspace and must be dropped + re-fetched, never
+  // shown under the new context.
+  const { activeWorkspaceId } = usePlatformContext();
+  const prevWorkspaceRef = useRef<string | null>(activeWorkspaceId);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -484,8 +491,15 @@ export function useLifecycleFetch<T>(
   }, deps);
 
   useEffect(() => {
+    // §10.G — on a workspace switch, discard the prior tenant's data and
+    // show a fresh load state before the re-fetch resolves.
+    if (prevWorkspaceRef.current !== activeWorkspaceId) {
+      prevWorkspaceRef.current = activeWorkspaceId;
+      setData(null);
+      setLoading(true);
+    }
     void refresh();
-  }, [refresh]);
+  }, [refresh, activeWorkspaceId]);
 
   return { data, loading, busy, denial, loadedAtMs, refresh };
 }

@@ -320,7 +320,7 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
     // Rebaselined post-G3.x/G4/G5 — auth.routes.ts grew.
     // Phase EV: rebaselined post enterprise email verification (verify +
     // resend + register-dispatch extracted into email-verification.service.ts).
-    { rel: "src/routes/auth.routes.ts", expected: 57000, tolerance: 0.05 },
+    { rel: "src/routes/auth.routes.ts", expected: 56683, tolerance: 0.05 },
   ];
   for (const { rel, expected, tolerance } of POST_E10_1_PINS) {
     it(`${rel} unchanged at the post-E10.1 baseline`, () => {

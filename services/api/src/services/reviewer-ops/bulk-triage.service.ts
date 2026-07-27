@@ -29,7 +29,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
   ReviewerOpsError,
   approveReview,
@@ -118,24 +118,25 @@ export async function executeBulkTriage(
       failed,
     },
   });
-  await appendPlatformAuditLog({
-    userId: ctx.actorUserId,
-    action: "reviewer.bulk_triage",
-    category: "review",
-    severity: failed > 0 ? "warning" : "info",
-    source: "reviewer_ops_engine",
-    outcome: failed > 0 ? "failure" : "success",
-    resourceType: "review_workflow",
-    resourceId: null,
-    metadata: {
-      teamId: ctx.teamId,
-      action: input.action,
-      total: items.length,
-      succeeded,
-      failed,
+  await emitTenantAudit(
+    {
+      action: "reviewer.bulk_triage",
+      outcome: failed > 0 ? "error" : "success",
+      severity: failed > 0 ? "warning" : "info",
+      sourceApp: "API",
+      actorUserId: ctx.actorUserId,
+      workspaceId: ctx.teamId,
+      resourceType: "review_workflow",
+      resourceId: null,
+      metadata: {
+        action: input.action,
+        total: items.length,
+        succeeded,
+        failed,
+      },
     },
-    db: client,
-  });
+    client,
+  );
 
   return {
     total: items.length,

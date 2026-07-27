@@ -7,9 +7,8 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("../src/services/internal-testers.js", () => ({
-  isInternalUnlimitedTester: () => false,
-}));
+// Phase 9 final closure — the internal-tester bypass module was REMOVED;
+// no mock needed (limits are canonical for every account).
 
 import { assertWorkspaceAllowsIntake } from "../src/services/billing-enforcement.service.js";
 import { getPlanCapabilities } from "@proovra/shared-billing";

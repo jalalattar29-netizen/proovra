@@ -4,14 +4,16 @@ import * as SecureStore from "expo-secure-store";
 
 type AuthUser = { id: string; email?: string | null; displayName?: string | null };
 
-type AuthMode = "guest" | "google" | "apple";
+// PHASE 10 (2026-07-23) — Guest Login was physically REMOVED from PROOVRA.
+// "guest" is no longer an authentication mode; the only interactive ceremonies
+// are the OAuth providers.
+type AuthMode = "google" | "apple";
 
 type AuthContextValue = {
   token: string | null;
   user: AuthUser | null;
   currentUser: AuthUser | null;
   authMode: AuthMode | null;
-  ensureGuest: () => Promise<void>;
   setToken: (token: string | null) => void;
   setSession: (payload: { token: string; user?: AuthUser | null; mode: AuthMode }) => void;
   authReady: boolean;
@@ -33,7 +35,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
 
-  const ensureGuest = async () => {
+  // Restore an existing signed-in session from secure storage on boot. There
+  // is NO guest fallback: with no stored token the app stays signed out and
+  // the user must authenticate (OAuth) — no silent global session is minted.
+  const restoreSession = async () => {
     if (token) return;
     const stored = await SecureStore.getItemAsync("proovra-token");
     if (stored) {
@@ -51,13 +56,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return;
     }
-    const data = await apiFetch("/v1/auth/guest", { method: "POST" });
-    setTokenState(data.token);
-    setUser(data.user);
-    setAuthToken(data.token);
-    await SecureStore.setItemAsync("proovra-token", data.token);
-    await SecureStore.setItemAsync("proovra-auth-mode", "guest");
-    setAuthMode("guest");
+    setTokenState(null);
+    setUser(null);
+    setAuthMode(null);
     setLoading(false);
     setAuthReady(true);
   };
@@ -87,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void (async () => {
       try {
-        await ensureGuest();
+        await restoreSession();
       } catch {
         setLoading(false);
         setAuthReady(true);
@@ -101,7 +102,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       currentUser: user,
       authMode,
-      ensureGuest,
       setToken,
       setSession,
       authReady,

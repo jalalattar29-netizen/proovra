@@ -187,7 +187,10 @@ const CAPTURE_AI_FILES = captureAiSurfaceFiles();
 // per-item sourceLabel <input> + label + disclaimer in the expanded
 // material card (the backend column already existed; Capture just
 // had no UI to populate it).
-const PRE_CR5_PAGE_BYTES = 51999;
+// PHASE 7 §10.5 rebaseline (2026-07-22): 51,999 → 52,040 — added the
+// canonical WorkspaceContextBanner (§10.5) at the capture form boundary
+// so operators see the owning workspace/org before a high-impact capture.
+const PRE_CR5_PAGE_BYTES = 52040;
 // Phase HOME-DATA-OWNERSHIP rebaseline: 34,411 → 34,744. The capture
 // orchestration now stamps the ACTIVE workspace id (useActiveSpaceId →
 // `teamId` in the POST /v1/evidence body) so personal evidence is never
@@ -206,13 +209,19 @@ const PRE_CR5_PAGE_BYTES = 51999;
 // import + the mapper call + a user-facing fallback sentence that replaces
 // the raw `err.message` passthrough). Safe copy only — no capture behaviour
 // change.
-const PRE_CR5_ORCH_BYTES = 35141;
+// PHASE 7 §10.3 rebaseline (2026-07-22): 35,141 → 36,406 — added the
+// tenant-generation guard (useTenantGuard) so a workspace switch during
+// finalize no longer auto-navigates into the evidence under the new
+// active context (§10.3/§10.E); the Evidence row stays server-bound to
+// its original workspace.
+const PRE_CR5_ORCH_BYTES = 36406;
 const PRE_CR5_RESUMABLE_BYTES = 13423;
 const PRE_CR5_CAMERA_BYTES = 12473;
 const PRE_CR5_AUDIO_BYTES = 8978;
 const HASH_UTILS_BYTES_EXACT = 3302;
 const SESSION_READINESS_BYTES_EXACT = 9864;
-const CAPTURE_ROUTES_BYTES_EXACT = 21793;
+// Rebaselined 2026-07-23: PHASE 10 §13.2 Step 6 no-personal guard added.
+const CAPTURE_ROUTES_BYTES_EXACT = 22952;
 // Baseline grows with documented phases (G3.x/G4/G5). The
 // "no shrink/regression" guarantee is the spirit; the constant
 // is rebaselined as the file legitimately grows.
@@ -251,7 +260,7 @@ const CAPTURE_ROUTES_BYTES_EXACT = 21793;
 // Product-reset rebaseline: 49,241 -> 48,334. The TSA-outcome bell-cache
 // invalidation hook was REMOVED (event-driven invalidation deleted; the
 // 45s summary TTL is the refresh path). Finalize-tx semantics unchanged.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 48334;
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 48348;
 const CUSTODY_EVENTS_SVC_BYTES_EXACT = 5155;
 const TIMESTAMP_SVC_BYTES_EXACT = 12988;
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the

@@ -47,7 +47,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -461,23 +461,20 @@ export async function transitionLifecycle(
     },
   });
   if (input.actorUserId) {
-    await appendPlatformAuditLog({
-      userId: input.actorUserId,
+    await emitTenantAudit({
       action: "lifecycle.transition",
-      category: "governance",
-      severity: input.toState === "DESTROYED" ? "warning" : "info",
-      source: "lifecycle_orchestrator",
       outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
       resourceType: "evidence",
       resourceId: input.evidenceId,
-      requestId: input.requestId ?? null,
+      correlationId: input.requestId ?? null,
       metadata: {
-        teamId: input.teamId,
         fromState,
         toState: input.toState,
       },
-      db: client,
-    });
+    }, client);
   }
 
   return {

@@ -1,6 +1,11 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { createErrorResponse, ErrorCode } from "../errors.js";
-import { verifyJwt } from "../services/jwt.js";
+import {
+  verifyJwt,
+  resolveSupportedProvenance,
+  provenanceToPolicyAuthMethod,
+} from "../services/jwt.js";
+import { evaluateOrgContextForSession } from "../services/identity/org-security-policy.service.js";
 import {
   hashSessionId,
   isSessionRevoked,
@@ -77,6 +82,28 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
         .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
     }
 
+    // PHASE 10 §10.2/§6 — CANONICAL PROVENANCE RULE (generic, no per-provider
+    // branch): an interactive session is accepted ONLY when the token carries a
+    // SUPPORTED, server-proven authentication provenance. A token whose
+    // `authMethod` is missing, malformed, UNKNOWN, or any historical/unsupported
+    // provider has no proven provenance and MUST reauthenticate — it is NEVER
+    // coerced to PASSWORD or any valid method, and it establishes NO
+    // authenticated context (Personal, Owned Workspace, Organization, or context
+    // switch). Public resource-scoped tokens use their own domain mechanisms and
+    // never reach this middleware.
+    const provenance = resolveSupportedProvenance(payload.authMethod);
+    if (provenance === null) {
+      req.log.info(
+        { requestId: req.id, userId: payload.sub },
+        "auth.reauthentication_required",
+      );
+      return reply.code(401).send(
+        createErrorResponse(ErrorCode.UNAUTHORIZED, req.id, {
+          reason: "reauthentication_required",
+        }),
+      );
+    }
+
     // Phase 19 — session revocation registry check. Fast: single
     // findFirst keyed by userId. Fails CLOSED on the rare case
     // where the deny list can't be read (Prisma outage).
@@ -126,6 +153,9 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
       // the idle-timeout computation.
       let sessionRow: { teamId: string | null; lastSeenAtUtc: Date } | null =
         null;
+      // PHASE 10 §1 — SESSION STATE READ. Infra failure here means we cannot
+      // classify the request's workspace context → FAIL CLOSED with a generic
+      // 503 (never allow-through). The route handler is not reached.
       try {
         sessionRow = await prisma.authenticatedSession.findFirst({
           where: {
@@ -134,41 +164,105 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
           },
           select: { teamId: true, lastSeenAtUtc: true },
         });
-        const teamId = sessionRow?.teamId ?? null;
-        if (teamId) {
-          const verdict = await gateSecurityAction({
+      } catch (err) {
+        req.log.error(
+          {
+            requestId: req.id,
+            errorMessage:
+              err instanceof Error ? err.message : "session_state_read_failed",
+          },
+          "auth.security_context_unavailable",
+        );
+        return reply
+          .code(503)
+          .send(createErrorResponse(ErrorCode.SECURITY_CONTEXT_UNAVAILABLE, req.id));
+      }
+
+      const teamId = sessionRow?.teamId ?? null;
+      // Only workspace-bound sessions carry Organization security policy.
+      // Personal / teamless sessions have no OrganizationSecurityPolicy to
+      // evaluate (§1: Personal/OWNED never require Organization policy).
+      if (teamId) {
+        // PHASE 10 §1 — ORGANIZATION security-policy enforcement. This is the
+        // authoritative composition: Phase-4A SECURITY gate + CONTINUOUS
+        // org-context policy (mandatory-SSO org-bound + org lifecycle + session
+        // policy) on EVERY request whose workspace is an ORGANIZATION workspace
+        // (not only the switch seam). It reads LIVE policy so a tightening
+        // affects subsequent requests. FAIL CLOSED: any infrastructure read
+        // failure (workspace / organization / policy / SSO / managed-identity /
+        // gate) yields a generic 503 and the handler is NEVER reached — infra
+        // errors are NEVER converted to allow. A COMPUTED denial (non-compliant
+        // session / ambiguous context) yields the canonical 401, ZERO mutation.
+        let verdict: Awaited<ReturnType<typeof gateSecurityAction>>;
+        let orgGate: { allowed: boolean; reason?: string };
+        try {
+          verdict = await gateSecurityAction({
             teamId,
             userId: payload.sub,
             action: "session_authenticate",
             mfaSatisfied: payload.mfa !== "pending",
           });
-          if (!verdict.ok) {
-            req.log.info(
-              {
-                requestId: req.id,
+          // Provenance is guaranteed SUPPORTED here (unsupported was rejected
+          // at the door), so policyMethod is non-null.
+          const policyMethod = provenanceToPolicyAuthMethod(payload.authMethod);
+          const authAtSec =
+            typeof payload.authAt === "number" ? payload.authAt : iat ?? 0;
+          orgGate = policyMethod
+            ? await evaluateOrgContextForSession({
                 userId: payload.sub,
-                denial: verdict.denial,
-                reason: verdict.reason,
-              },
-              "auth.security_policy_denied",
-            );
-            return reply
-              .code(401)
-              .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
-          }
+                teamId,
+                method: policyMethod,
+                ssoConnId:
+                  typeof payload.ssoConnId === "string" ? payload.ssoConnId : null,
+                authAtMs: authAtSec > 0 ? authAtSec * 1000 : Date.now(),
+                lastSeenAtMs: sessionRow?.lastSeenAtUtc
+                  ? sessionRow.lastSeenAtUtc.getTime()
+                  : Date.now(),
+              })
+            : // No supported provenance would already have been rejected above;
+              // defence-in-depth → treat as reauthenticate, not allow.
+              { allowed: false, reason: "reauthentication_required" };
+        } catch (err) {
+          // FAIL CLOSED — an Organization security-policy read failed. Generic
+          // 503, no tenant details, handler not reached. NEVER fail open.
+          req.log.error(
+            {
+              requestId: req.id,
+              errorMessage:
+                err instanceof Error ? err.message : "security_gate_failed",
+            },
+            "auth.security_context_unavailable",
+          );
+          return reply
+            .code(503)
+            .send(createErrorResponse(ErrorCode.SECURITY_CONTEXT_UNAVAILABLE, req.id));
         }
-      } catch (err) {
-        // Fail OPEN on policy-engine read failure — auth has already passed
-        // JWT + revocation checks; a Prisma outage on the policy table must
-        // not lock out every user. The failure is logged for security ops.
-        req.log.warn(
-          {
-            requestId: req.id,
-            errorMessage:
-              err instanceof Error ? err.message : "security_gate_failed",
-          },
-          "auth.security_gate_failed",
-        );
+
+        if (!verdict.ok) {
+          req.log.info(
+            {
+              requestId: req.id,
+              userId: payload.sub,
+              denial: verdict.denial,
+              reason: verdict.reason,
+            },
+            "auth.security_policy_denied",
+          );
+          return reply
+            .code(401)
+            .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
+        }
+        if (!orgGate.allowed) {
+          req.log.info(
+            { requestId: req.id, userId: payload.sub, reason: orgGate.reason },
+            "auth.org_context_policy_denied",
+          );
+          return reply.code(401).send(
+            createErrorResponse(ErrorCode.UNAUTHORIZED, req.id, {
+              reason: "reauthentication_required",
+            }),
+          );
+        }
       }
 
       // Phase 3 (Enterprise Identity) — enforce the org's role-tiered
@@ -222,6 +316,12 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
       // revocation check; we re-use that result by recomputing here
       // (cheap SHA-256). If the JWT has no `sid` we leave it null.
       sessionIdHash: sid ? hashSessionId(sid) : null,
+      // PHASE 10 §10.2 — provenance is guaranteed SUPPORTED here (unsupported
+      // was rejected above), so org/session-policy gates can trust these.
+      authMethod: provenance,
+      authAt: typeof payload.authAt === "number" ? payload.authAt : null,
+      ssoConnId: typeof payload.ssoConnId === "string" ? payload.ssoConnId : null,
+      mfaAt: typeof payload.mfaAt === "number" ? payload.mfaAt : null,
     };
     req.log = req.log.child({ userId: payload.sub });
 

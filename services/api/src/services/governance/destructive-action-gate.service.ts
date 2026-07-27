@@ -33,6 +33,7 @@
 import type { FastifyRequest } from "fastify";
 import * as prismaPkg from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+import { teamMemberStatusGrantsAccess } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { appendCustodyEvent } from "../../services/custody-events.service.js";
@@ -94,11 +95,24 @@ export async function runDestructiveActionGate(
     },
   });
 
+  // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — status-aware role.
+  // Only an ACTIVE membership contributes a role to the sensitive-action
+  // decision. A SUSPENDED / REVOKED member is treated as role-less (exactly
+  // like a non-member), so an inactive actor can never satisfy an
+  // admin-only destructive gate here. This is fail-closed defense-in-depth
+  // BENEATH the actor-authorization gate that already runs at the route
+  // boundary (evidence.routes.ts routes through the canonical primitive);
+  // for ACTIVE members the behavior is unchanged.
+  const activeRole =
+    membership !== null && teamMemberStatusGrantsAccess(membership.status)
+      ? membership.role
+      : undefined;
+
   const decision = await enforceSensitiveAction(
     input.action,
     {
       teamId: input.evidence.teamId,
-      role: membership?.role,
+      role: activeRole,
       evidence: {
         id: input.evidence.id,
         teamId: input.evidence.teamId,

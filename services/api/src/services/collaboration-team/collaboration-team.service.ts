@@ -28,6 +28,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import {
+  absoluteInternalUrl,
   COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES,
   COLLABORATION_TEAM_ASSIGNMENT_STATUSES,
   COLLABORATION_TEAM_ASSIGNMENT_TARGETS,
@@ -36,6 +37,7 @@ import {
   COLLABORATION_TEAM_ROLES,
   COLLABORATION_TEAM_TYPES,
   collaborationTeamRoleHasPermission,
+  internalNavPath,
   type CollaborationTeamActivityEventType,
   type CollaborationTeamAssignmentPriority,
   type CollaborationTeamAssignmentStatus,
@@ -898,11 +900,15 @@ export type CreatedInvite = {
 const DEFAULT_INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 
 function buildAcceptUrl(rawToken: string): string {
-  const base = (process.env.WEB_BASE_URL ?? "https://app.proovra.com").replace(
-    /\/$/,
-    "",
+  // PHASE 11 — nav path (not a resource-id family), composed via
+  // internalNavPath + absoluteInternalUrl.
+  const base = process.env.WEB_BASE_URL ?? "https://app.proovra.com";
+  return absoluteInternalUrl(
+    base,
+    internalNavPath(
+      `/collaboration-teams/invites/${encodeURIComponent(rawToken)}/accept`,
+    ),
   );
-  return `${base}/collaboration-teams/invites/${encodeURIComponent(rawToken)}/accept`;
 }
 
 export async function createEmailInvite(
@@ -1047,7 +1053,7 @@ export async function recordInviteDeliveryResult(
 export async function acceptInvite(
   input: { rawToken: string; actorUserId: string },
   client: PrismaClient = defaultPrisma,
-): Promise<{ teamId: string; memberId: string; alreadyMember: boolean }> {
+): Promise<{ teamId: string; workspaceId: string; memberId: string; alreadyMember: boolean }> {
   const hash = hashInviteToken(input.rawToken);
   const invite = await client.collaborationTeamInvite.findUnique({
     where: { tokenHash: hash },
@@ -1079,6 +1085,7 @@ export async function acceptInvite(
   if (activeMembership) {
     return {
       teamId: invite.teamId,
+      workspaceId: invite.workspaceId,
       memberId: activeMembership.id,
       alreadyMember: true,
     };
@@ -1181,7 +1188,12 @@ export async function acceptInvite(
       targetId: invite.id,
       metadata: { role },
     });
-    return { teamId: invite.teamId, memberId, alreadyMember: false };
+    return {
+      teamId: invite.teamId,
+      workspaceId: invite.workspaceId,
+      memberId,
+      alreadyMember: false,
+    };
   });
 
   return result;

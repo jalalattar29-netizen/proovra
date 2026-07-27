@@ -1,8 +1,8 @@
 /**
  * Phase 4 — Reviewer-workspace audit emission wiring.
  *
- * Locks the canonical wiring of `appendPlatformAuditLog` into the
- * three previously-silent reviewer-workspace services:
+ * Locks the canonical wiring of `emitTenantAudit` into the three
+ * previously-silent reviewer-workspace services:
  *
  *   - qc-sample.service.ts         (renderQcVerdict + sampleClosedWorkflow)
  *   - reviewer-disagreement.service.ts (fileDisagreement + transitionDisagreement)
@@ -11,9 +11,9 @@
  * Hard rules locked here:
  *
  *   1. Each successful primary mutation emits exactly one bounded
- *      audit event via the canonical platform-audit-log service.
+ *      audit event via the canonical tenant-audit facade.
  *
- *   2. Emission is best-effort — when `appendPlatformAuditLog`
+ *   2. Emission is best-effort — when `emitTenantAudit`
  *      throws, the primary mutation still succeeds (the call is
  *      wrapped in `.catch(() => {})`).
  *
@@ -22,12 +22,16 @@
  *      Only IDs, slugs, enum values, and version numbers are emitted.
  *
  *   4. Actor user id (when available on the service signature) is
- *      propagated to `userId` so the platform audit chain attributes
- *      the action to a real user.
+ *      propagated to `actorUserId` on the envelope so the tenant
+ *      audit chain attributes the action to a real user.
  *
  *   5. Source-text contract: each of the three service files imports
- *      `appendPlatformAuditLog` from the canonical
- *      `../platform-audit-log.service.js` module path.
+ *      `emitTenantAudit` from the canonical
+ *      `../audit/tenant-audit.service.js` module path.
+ *
+ *   6. Tenant scope: `teamId` is carried on the envelope's top-level
+ *      `workspaceId` field (authoritative DB column), not duplicated
+ *      into `metadata`.
  */
 
 import { readFileSync } from "node:fs";
@@ -39,9 +43,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Mocks — bound BEFORE the SUT imports so the services see the stub.
 // ---------------------------------------------------------------------------
 
-const appendPlatformAuditLogMock = vi.fn(async () => undefined);
-vi.mock("../src/services/platform-audit-log.service.js", () => ({
-  appendPlatformAuditLog: appendPlatformAuditLogMock,
+const emitTenantAuditMock = vi.fn(async () => undefined);
+vi.mock("../src/services/audit/tenant-audit.service.js", () => ({
+  emitTenantAudit: emitTenantAuditMock,
 }));
 
 // Minimal prisma stub — each test sets up the methods it needs.
@@ -91,8 +95,8 @@ const DECISION_ID = "00000000-0000-0000-0000-000000000005";
 const ORIGINAL_REVIEWER_ID = "00000000-0000-0000-0000-000000000006";
 
 beforeEach(() => {
-  appendPlatformAuditLogMock.mockReset();
-  appendPlatformAuditLogMock.mockResolvedValue(undefined);
+  emitTenantAuditMock.mockReset();
+  emitTenantAuditMock.mockResolvedValue(undefined);
   for (const model of Object.values(prismaStub)) {
     for (const fn of Object.values(model)) {
       (fn as AnyFn).mockReset();
@@ -101,19 +105,19 @@ beforeEach(() => {
 });
 
 type AuditParams = {
-  userId: string | null;
+  actorUserId: string | null;
   action: string;
-  category?: string;
   severity?: string;
-  source?: string;
+  sourceApp?: string;
   outcome?: string;
+  workspaceId?: string | null;
   resourceType?: string;
   resourceId?: string;
   metadata: Record<string, unknown>;
 };
 
 function findAuditCall(action: string): AuditParams | undefined {
-  const calls = appendPlatformAuditLogMock.mock.calls as unknown as Array<
+  const calls = emitTenantAuditMock.mock.calls as unknown as Array<
     [AuditParams]
   >;
   const found = calls.find((c) => c[0]?.action === action);
@@ -145,7 +149,7 @@ describe("Phase 4 — qc-sample.service audit emission", () => {
     expect(audit).toBeDefined();
     expect(audit!.resourceType).toBe("qc_sample");
     expect(audit!.resourceId).toBe("qc-new-1");
-    expect(audit!.metadata.teamId).toBe(TEAM_ID);
+    expect(audit!.workspaceId).toBe(TEAM_ID);
     expect(audit!.metadata.workflowId).toBe(WORKFLOW_ID);
     expect(audit!.metadata.sampleId).toBe("qc-new-1");
     expect(audit!.metadata.decision).toBe("APPROVE_INTERNAL");
@@ -189,10 +193,10 @@ describe("Phase 4 — qc-sample.service audit emission", () => {
 
     const audit = findAuditCall("reviewer.qc.verdict_rendered");
     expect(audit).toBeDefined();
-    expect(audit!.userId).toBe(ACTOR_ID);
+    expect(audit!.actorUserId).toBe(ACTOR_ID);
     expect(audit!.severity).toBe("warning"); // FAIL bumps to warning
     expect(audit!.resourceType).toBe("qc_sample");
-    expect(audit!.metadata.teamId).toBe(TEAM_ID);
+    expect(audit!.workspaceId).toBe(TEAM_ID);
     expect(audit!.metadata.sampleId).toBe("qc-1");
     expect(audit!.metadata.verdict).toBe("FAIL");
     expect(audit!.metadata.failureReason).toBe("WRONG_DECISION");
@@ -212,7 +216,7 @@ describe("Phase 4 — qc-sample.service audit emission", () => {
       qcReviewerUserId: ACTOR_ID,
     });
     prismaStub.qcSample.update.mockResolvedValueOnce({});
-    appendPlatformAuditLogMock.mockRejectedValueOnce(new Error("audit chain down"));
+    emitTenantAuditMock.mockRejectedValueOnce(new Error("audit chain down"));
 
     const result = await qcMod.renderQcVerdict({
       teamId: TEAM_ID,
@@ -254,10 +258,10 @@ describe("Phase 4 — reviewer-disagreement.service audit emission", () => {
 
     const audit = findAuditCall("reviewer.disagreement.filed");
     expect(audit).toBeDefined();
-    expect(audit!.userId).toBe(ACTOR_ID);
+    expect(audit!.actorUserId).toBe(ACTOR_ID);
     expect(audit!.resourceType).toBe("reviewer_disagreement");
     expect(audit!.resourceId).toBe("dis-1");
-    expect(audit!.metadata.teamId).toBe(TEAM_ID);
+    expect(audit!.workspaceId).toBe(TEAM_ID);
     expect(audit!.metadata.workflowId).toBe(WORKFLOW_ID);
     expect(audit!.metadata.disagreementId).toBe("dis-1");
     expect(audit!.metadata.originalDecisionId).toBe(DECISION_ID);
@@ -291,10 +295,10 @@ describe("Phase 4 — reviewer-disagreement.service audit emission", () => {
 
     const audit = findAuditCall("reviewer.disagreement.transitioned");
     expect(audit).toBeDefined();
-    expect(audit!.userId).toBe(ACTOR_ID);
+    expect(audit!.actorUserId).toBe(ACTOR_ID);
     expect(audit!.resourceType).toBe("reviewer_disagreement");
     expect(audit!.resourceId).toBe("dis-1");
-    expect(audit!.metadata.teamId).toBe(TEAM_ID);
+    expect(audit!.workspaceId).toBe(TEAM_ID);
     expect(audit!.metadata.disagreementId).toBe("dis-1");
     expect(audit!.metadata.fromState).toBe("FILED");
     expect(audit!.metadata.toState).toBe("UNDER_SECOND_REVIEW");
@@ -314,7 +318,7 @@ describe("Phase 4 — reviewer-disagreement.service audit emission", () => {
     prismaStub.reviewerDisagreement.create.mockResolvedValueOnce({
       id: "dis-2",
     });
-    appendPlatformAuditLogMock.mockRejectedValueOnce(new Error("audit chain down"));
+    emitTenantAuditMock.mockRejectedValueOnce(new Error("audit chain down"));
 
     const result = await disagreeMod.fileDisagreement({
       teamId: TEAM_ID,
@@ -365,10 +369,10 @@ describe("Phase 4 — coding-schema.service audit emission", () => {
 
     const audit = findAuditCall("reviewer.coding_schema.created");
     expect(audit).toBeDefined();
-    expect(audit!.userId).toBe(ACTOR_ID);
+    expect(audit!.actorUserId).toBe(ACTOR_ID);
     expect(audit!.resourceType).toBe("coding_schema");
     expect(audit!.resourceId).toBe("schema-1");
-    expect(audit!.metadata.teamId).toBe(TEAM_ID);
+    expect(audit!.workspaceId).toBe(TEAM_ID);
     expect(audit!.metadata.schemaId).toBe("schema-1");
     expect(audit!.metadata.slug).toBe("test-schema");
     expect(audit!.metadata.category).toBe("GENERAL_EVIDENCE");
@@ -406,7 +410,7 @@ describe("Phase 4 — coding-schema.service audit emission", () => {
     expect(audit).toBeDefined();
     expect(audit!.resourceType).toBe("coding_schema");
     expect(audit!.resourceId).toBe("schema-1");
-    expect(audit!.metadata.teamId).toBe(TEAM_ID);
+    expect(audit!.workspaceId).toBe(TEAM_ID);
     expect(audit!.metadata.schemaId).toBe("schema-1");
     expect(audit!.metadata.slug).toBe("test-schema");
     expect(audit!.metadata.version).toBe(2);
@@ -431,7 +435,7 @@ describe("Phase 4 — coding-schema.service audit emission", () => {
     expect(audit).toBeDefined();
     expect(audit!.resourceType).toBe("coding_schema");
     expect(audit!.resourceId).toBe("schema-1");
-    expect(audit!.metadata.teamId).toBe(TEAM_ID);
+    expect(audit!.workspaceId).toBe(TEAM_ID);
     expect(audit!.metadata.schemaId).toBe("schema-1");
     expect(audit!.metadata.slug).toBe("test-schema");
   });
@@ -443,7 +447,7 @@ describe("Phase 4 — coding-schema.service audit emission", () => {
       slug: "test-schema-3",
     });
     prismaStub.codingSchema.update.mockResolvedValueOnce({});
-    appendPlatformAuditLogMock.mockRejectedValueOnce(new Error("audit chain down"));
+    emitTenantAuditMock.mockRejectedValueOnce(new Error("audit chain down"));
 
     const result = await codingMod.archiveSchema({
       teamId: TEAM_ID,
@@ -488,9 +492,9 @@ describe("Phase 4 — service-source wiring contract", () => {
     "utf8",
   );
 
-  it("each service imports appendPlatformAuditLog from the canonical module", () => {
+  it("each service imports emitTenantAudit from the canonical facade module", () => {
     const importRe =
-      /import\s+\{\s*appendPlatformAuditLog\s*\}\s+from\s+"\.\.\/platform-audit-log\.service\.js"/;
+      /import\s+\{\s*emitTenantAudit\s*\}\s+from\s+"\.\.\/audit\/tenant-audit\.service\.js"/;
     expect(QC_SRC).toMatch(importRe);
     expect(DISAGREE_SRC).toMatch(importRe);
     expect(CODING_SRC).toMatch(importRe);
@@ -498,17 +502,17 @@ describe("Phase 4 — service-source wiring contract", () => {
 
   it("every audit emission is wrapped in .catch(() => {}) so it stays best-effort", () => {
     for (const src of [QC_SRC, DISAGREE_SRC, CODING_SRC]) {
-      // Match each appendPlatformAuditLog(...) call and verify that
-      // the following 60 chars include .catch(() => {}). The check
+      // Match each emitTenantAudit(...) call and verify that the
+      // following 60 chars include .catch(() => {}). The check
       // tolerates whitespace inside the empty handler.
-      const re = /appendPlatformAuditLog\(/g;
+      const re = /emitTenantAudit\(/g;
       let m: RegExpExecArray | null;
       let count = 0;
       while ((m = re.exec(src)) !== null) {
         count += 1;
         // Locate the matching closing paren by depth.
         let depth = 1;
-        let i = m.index + "appendPlatformAuditLog(".length;
+        let i = m.index + "emitTenantAudit(".length;
         while (depth > 0 && i < src.length) {
           const c = src[i];
           if (c === "(") depth += 1;

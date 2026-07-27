@@ -11,6 +11,8 @@ import { useBillingSummary } from "../../../lib/api/billing-summary";
 import { listTeams } from "../../../lib/api/collaboration-teams";
 import { captureException } from "../../../lib/sentry";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { usePlatformContext } from "../../../lib/platform-context";
+import { parseBillingWorkspaceLocator } from "../../../lib/navigation/billingWorkspaceLocator";
 import { PersonalWorkspaceCard } from "../../../components/billing/PersonalWorkspaceCard";
 import { TeamWorkspaceCard } from "../../../components/billing/TeamWorkspaceCard";
 import { CheckoutPanel } from "../../../components/billing/CheckoutPanel";
@@ -25,10 +27,6 @@ import type {
   CheckoutTargetType,
   WorkspaceStorageAddonSummary,
 } from "../../../components/billing/types";
-
-function readInitialWorkspace(value: string | null): CheckoutTargetType {
-  return value?.toLowerCase() === "team" ? "TEAM" : "PERSONAL";
-}
 
 function readInitialPlan(value: string | null): CheckoutPlan | null {
   if (value === "PAYG" || value === "PRO" || value === "TEAM") return value;
@@ -54,6 +52,10 @@ function BillingPageInner() {
   const { addToast } = useToast();
   const { confirm } = useConfirmAction();
   const searchParams = useSearchParams();
+  // PHASE 10 CLOSURE FIX 3 (2026-07-23) — client-hiding signal only; the
+  // server independently rejects a personal checkout regardless.
+  const { envelope } = usePlatformContext();
+  const personalSpaceAllowed = envelope?.personalSpaceAllowed !== false;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,18 +92,31 @@ function BillingPageInner() {
 
   const teamsSummary = useBillingSummary(collabTeamsUsed);
 
-  const initialTargetType = useMemo(
-    () => readInitialWorkspace(searchParams.get("workspace")),
-    [searchParams]
+  // PHASE 11 §5 — the ONE billing workspace locator is the single parser of
+  // the workspace-naming query param. Both the checkout KIND and the specific
+  // workspace id come from `?workspace=` (personal | team | team:<id>); the
+  // retired `?team=<uuid>` alias is no longer read.
+  const workspaceLocator = useMemo(
+    () => parseBillingWorkspaceLocator(searchParams),
+    [searchParams],
   );
 
-  const initialPlan = useMemo(() => {
-    const target = readInitialWorkspace(searchParams.get("workspace"));
-    const plan = readInitialPlan(searchParams.get("plan"));
+  const initialTargetType = useMemo<CheckoutTargetType>(() => {
+    const fromParam: CheckoutTargetType =
+      workspaceLocator.kind === "team" ? "TEAM" : "PERSONAL";
+    // PHASE 10 CLOSURE FIX 3 — a Personal deep link (`?workspace=personal`)
+    // can never select a disallowed Personal checkout target; fall back to
+    // Workspace rather than silently attempting a personal checkout the
+    // server would reject anyway.
+    if (fromParam === "PERSONAL" && !personalSpaceAllowed) return "TEAM";
+    return fromParam;
+  }, [workspaceLocator, personalSpaceAllowed]);
 
-    if (target === "TEAM") return "TEAM" satisfies CheckoutPlan;
+  const initialPlan = useMemo(() => {
+    if (initialTargetType === "TEAM") return "TEAM" satisfies CheckoutPlan;
+    const plan = readInitialPlan(searchParams.get("plan"));
     return plan ?? "PAYG";
-  }, [searchParams]);
+  }, [initialTargetType, searchParams]);
 
   const loadOverview = useCallback(async () => {
     try {
@@ -133,7 +148,10 @@ function BillingPageInner() {
       setStorageAddons(nextStorageAddons);
 
       setSelectedTeamId((current) => {
-        const queryTeamId = searchParams.get("team");
+        // §5 — the team id comes ONLY from the canonical locator
+        // (`?workspace=team:<id>`), never the retired `?team=<uuid>` alias.
+        const queryTeamId =
+          workspaceLocator.kind === "team" ? (workspaceLocator.teamId ?? null) : null;
 
         if (queryTeamId && nextTeams.some((team) => team.id === queryTeamId)) {
           return queryTeamId;
@@ -486,6 +504,7 @@ function BillingPageInner() {
               initialTargetType={initialTargetType}
               initialPlan={initialPlan}
               onCheckoutCompleted={loadOverview}
+              personalSpaceAllowed={personalSpaceAllowed}
             />
           </PageSection>
 

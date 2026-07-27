@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   Building2,
@@ -16,6 +16,7 @@ import {
   Settings,
   ShieldCheck,
   UserCircle,
+  Users,
   X,
   type LucideProps,
 } from "lucide-react";
@@ -25,10 +26,18 @@ import { LanguageSwitcher } from "../language-switcher";
 import { NotificationBell } from "./NotificationBell";
 import { GlobalRuntimeIndicator } from "../operational";
 import { usePlatformContext } from "../../lib/platform-context";
+// P3 domain remediation (2026-07-21) — tenant-boundary switch safety.
+import { getDirtyWorkLabels } from "../../lib/platform-context/dirtyWorkRegistry";
 import {
   resolveAccountMenu,
   type AccountMenuIconKey,
+  type AccountMenuWorkspaceOption,
 } from "../../lib/navigation/accountMenu";
+
+// Record-scoped routes that may not exist / not be authorized in the target
+// workspace. After a successful switch we land on the safe default instead
+// of leaving a stale cross-tenant record on screen.
+const RECORD_SCOPED_ROUTE = /^\/(evidence|cases|reports|organizations|collaboration-teams|teams|intake-links|workflows)\/[^/]+/;
 
 type LucideIcon = ForwardRefExoticComponent<
   Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>
@@ -135,10 +144,19 @@ export function AppAccountToolbar({
   onToggleMobileSidebar?: () => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const ctx = usePlatformContext();
   const { envelope, state, switchWorkspace } = ctx;
 
   const [accountOpen, setAccountOpen] = useState(false);
+  // P4 — the persistent context chip's switcher panel.
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  // P3 — a switch blocked by the dirty-work guard awaiting explicit
+  // confirmation inside the panel (repo rule: no raw browser confirm dialog).
+  const [pendingSwitch, setPendingSwitch] = useState<{
+    workspaceId: string;
+    dirtyLabels: string[];
+  } | null>(null);
   // If a provider avatar URL fails to load (Google may 403 due to
   // referrer, network hiccup, expired signed URL) we fall through to
   // the initials block. The set stores the src that failed so a later
@@ -148,11 +166,15 @@ export function AppAccountToolbar({
   );
 
   const accountRef = useRef<HTMLDivElement | null>(null);
+  const switcherRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
       if (!accountRef.current?.contains(event.target as Node)) {
         setAccountOpen(false);
+      }
+      if (!switcherRef.current?.contains(event.target as Node)) {
+        setSwitcherOpen(false);
       }
     };
 
@@ -163,6 +185,7 @@ export function AppAccountToolbar({
 
   useEffect(() => {
     setAccountOpen(false);
+    setSwitcherOpen(false);
   }, [pathname]);
 
   const isPlatformAdmin = envelope?.platform.isPlatformAdmin === true;
@@ -172,7 +195,10 @@ export function AppAccountToolbar({
       ? envelope.activeSpace.id
       : null;
 
-  const { name: workspaceName } = getWorkspaceLabels(envelope, state);
+  const { name: workspaceName, scopeLine } = getWorkspaceLabels(
+    envelope,
+    state,
+  );
   const activeSpace = envelope?.activeSpace ?? null;
 
   // ---------------------------------------------------------------------------
@@ -196,6 +222,13 @@ export function AppAccountToolbar({
           : null,
         organizations: envelope?.organizations ?? [],
         accountPlan: envelope?.account?.accountPlan ?? null,
+        // P3 — server-authorized grouped options (Personal / Your
+        // workspaces / Organizations).
+        contextOptions: envelope?.contextOptions ?? null,
+        // PHASE 10 §13.2 STEP 6 (2026-07-23) — hides the Personal Space
+        // switcher entry for a managed enterprise identity (client-hiding
+        // signal only; the server independently denies the switch).
+        personalSpaceAllowed: envelope?.personalSpaceAllowed,
       }),
     [
       envelope?.capabilities,
@@ -204,6 +237,8 @@ export function AppAccountToolbar({
       envelope?.personalSpace,
       envelope?.organizations,
       envelope?.account?.accountPlan,
+      envelope?.contextOptions,
+      envelope?.personalSpaceAllowed,
     ],
   );
 
@@ -211,13 +246,48 @@ export function AppAccountToolbar({
     openCommandPalette();
   }, []);
 
-  const handleSwitchWorkspace = useCallback(
+  // P3 — the actual switch mutation + safe landing (invoked only after the
+  // dirty-work guard has been satisfied).
+  const performSwitch = useCallback(
     (workspaceId: string) => {
       setAccountOpen(false);
-      void switchWorkspace(workspaceId);
+      setSwitcherOpen(false);
+      setPendingSwitch(null);
+      void switchWorkspace(workspaceId).then(() => {
+        // SAFE LANDING: a record-scoped route may not exist / not be
+        // authorized in the target workspace — never leave a stale
+        // cross-tenant record visible. Land on the workspace home.
+        if (RECORD_SCOPED_ROUTE.test(window.location.pathname)) {
+          router.push("/home");
+        }
+      });
     },
-    [switchWorkspace],
+    [switchWorkspace, router],
   );
+
+  const handleSwitchWorkspace = useCallback(
+    (workspaceId: string) => {
+      // P3 — tenant-boundary transition safety. DIRTY-WORK GUARD: unsaved
+      // workspace-scoped work must never silently carry into another
+      // workspace. When dirty state exists, the panel renders an explicit
+      // in-panel confirmation naming the work (no raw browser confirm dialog —
+      // repo accessibility rule); cancel aborts the switch.
+      const dirty = getDirtyWorkLabels();
+      if (dirty.length > 0) {
+        setPendingSwitch({ workspaceId, dirtyLabels: dirty });
+        setSwitcherOpen(true);
+        return;
+      }
+      performSwitch(workspaceId);
+    },
+    [performSwitch],
+  );
+
+  const openSwitcher = useCallback(() => {
+    setAccountOpen(false);
+    setPendingSwitch(null);
+    setSwitcherOpen((prev) => !prev);
+  }, []);
 
   const isMac =
     typeof navigator !== "undefined" &&
@@ -301,9 +371,159 @@ export function AppAccountToolbar({
           <span className="app-header-divider" aria-hidden="true" />
 
           {/* ------------------------------------------------------------------
-              CANONICAL ACCOUNT MENU — one control. Account management only,
-              plus the in-place Workspace Switcher (Section 2). There is NO
-              separate workspace-switcher control; switching happens here.
+              P4 — PERSISTENT ACTIVE-CONTEXT CHIP. For an evidence platform
+              the operating tenant must be unmistakable BEFORE custody-
+              sensitive actions — always visible, never hidden inside the
+              avatar menu. Opens the ONE canonical switcher panel (Personal /
+              Your workspaces / Organizations), server-authorized options
+              only. The account menu's "Switch workspace" action opens this
+              same panel — one resolver, one panel, two triggers.
+             ------------------------------------------------------------------ */}
+          <div
+            className="app-topbar-v2-workspace"
+            data-app-context-chip
+            data-platform-state={state.name}
+            ref={switcherRef}
+          >
+            <button
+              type="button"
+              className={`app-topbar-v2-workspace-button ${
+                switcherOpen ? "is-open" : ""
+              }`}
+              onClick={openSwitcher}
+              aria-haspopup="menu"
+              aria-expanded={switcherOpen}
+              aria-label={`Active workspace: ${workspaceName}. Open workspace switcher.`}
+            >
+              <span className="app-topbar-v2-workspace-icon" aria-hidden="true">
+                {activeSpace?.type === "PERSONAL" ? (
+                  <UserCircle size={16} strokeWidth={1.9} />
+                ) : (
+                  <Building2 size={16} strokeWidth={1.9} />
+                )}
+              </span>
+              <div className="app-topbar-v2-workspace-copy">
+                <strong data-context-chip-name>{workspaceName}</strong>
+                <span data-context-chip-scope-line>{scopeLine}</span>
+              </div>
+              {menu.workspaces.total > 1 ? (
+                <ChevronDown size={14} strokeWidth={1.9} />
+              ) : null}
+            </button>
+
+            {switcherOpen ? (
+              <div
+                className="app-topbar-v2-workspace-menu"
+                role="menu"
+                data-app-context-switcher
+              >
+                <div className="app-topbar-v2-workspace-menu-header">
+                  <strong>Switch workspace</strong>
+                  <span data-context-switcher-count>
+                    {menu.workspaces.total <= 1
+                      ? "Only Personal Space"
+                      : `${menu.workspaces.total} workspaces`}
+                  </span>
+                </div>
+
+                {/* P3 — dirty-work confirmation (in-panel, accessible; the
+                    repo bans raw browser confirm dialogs). Names the unsaved work
+                    that would be left behind in the CURRENT workspace. */}
+                {pendingSwitch ? (
+                  <div
+                    className="app-topbar-v2-workspace-menu-degraded"
+                    role="alertdialog"
+                    aria-label="Unsaved work warning"
+                    data-context-switch-confirm
+                  >
+                    <strong>Unsaved work in {workspaceName}</strong>
+                    {pendingSwitch.dirtyLabels.map((label) => (
+                      <div key={label}>• {label}</div>
+                    ))}
+                    <div style={{ marginTop: 6, display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => performSwitch(pendingSwitch.workspaceId)}
+                        data-context-switch-confirm-proceed
+                      >
+                        Switch anyway
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingSwitch(null)}
+                        data-context-switch-confirm-cancel
+                      >
+                        Stay here
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {menu.workspaces.personal ? (
+                  <div
+                    className="app-topbar-v2-workspace-menu-group"
+                    data-context-group="PERSONAL"
+                  >
+                    <div className="app-topbar-v2-workspace-menu-group-label">
+                      Personal
+                    </div>
+                    <SwitcherOption
+                      option={menu.workspaces.personal}
+                      icon={<UserCircle size={14} strokeWidth={1.9} />}
+                      chip="Personal"
+                      onSelect={handleSwitchWorkspace}
+                    />
+                  </div>
+                ) : null}
+
+                {menu.workspaces.owned.length > 0 ? (
+                  <div
+                    className="app-topbar-v2-workspace-menu-group"
+                    data-context-group="OWNED"
+                  >
+                    <div className="app-topbar-v2-workspace-menu-group-label">
+                      Your workspaces
+                    </div>
+                    {menu.workspaces.owned.map((w) => (
+                      <SwitcherOption
+                        key={w.id}
+                        option={w}
+                        icon={<Users size={14} strokeWidth={1.9} />}
+                        chip="Workspace"
+                        onSelect={handleSwitchWorkspace}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+
+                {menu.workspaces.organizations.map((group) => (
+                  <div
+                    key={group.organizationId}
+                    className="app-topbar-v2-workspace-menu-group"
+                    data-context-group="ORGANIZATION"
+                    data-context-organization={group.organizationId}
+                  >
+                    <div className="app-topbar-v2-workspace-menu-group-label">
+                      {group.organizationName ?? "Organizations"}
+                    </div>
+                    {group.workspaces.map((w) => (
+                      <SwitcherOption
+                        key={w.id}
+                        option={w}
+                        icon={<Building2 size={14} strokeWidth={1.9} />}
+                        chip="Organization"
+                        onSelect={handleSwitchWorkspace}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {/* ------------------------------------------------------------------
+              CANONICAL ACCOUNT MENU — account management only. Context
+              switching lives in the persistent chip; the menu links to it.
              ------------------------------------------------------------------ */}
           <div
             className="app-topbar-v2-account"
@@ -408,72 +628,23 @@ export function AppAccountToolbar({
                   </div>
                 ) : null}
 
-                {/* Section 2 — Workspace Switcher (in-place; never navigates
-                    to a Teams/Workspaces admin page). */}
+                {/* Switch workspace — opens the SAME canonical switcher
+                    panel the persistent context chip owns (one resolver,
+                    one panel, two triggers — never a second implementation). */}
                 {showSwitcher ? (
                   <div
-                    className="app-topbar-v2-account-menu-section app-topbar-v2-account-menu-switcher"
+                    className="app-topbar-v2-account-menu-section"
                     data-account-menu-section="workspaces"
-                    data-account-menu-switcher
                   >
-                    <div className="app-topbar-v2-account-menu-section-label">
-                      Workspaces
-                    </div>
-
-                    {menu.workspaces.personal ? (
-                      <div data-workspace-menu-group="PERSONAL">
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() =>
-                            handleSwitchWorkspace(menu.workspaces.personal!.id)
-                          }
-                          className={
-                            menu.workspaces.personal.active
-                              ? "app-topbar-v2-account-menu-workspace is-active"
-                              : "app-topbar-v2-account-menu-workspace"
-                          }
-                          data-account-menu-workspace={menu.workspaces.personal.id}
-                          aria-current={
-                            menu.workspaces.personal.active ? "true" : undefined
-                          }
-                        >
-                          <UserCircle size={14} strokeWidth={1.9} />
-                          <span style={{ flex: 1 }}>
-                            {menu.workspaces.personal.label}
-                          </span>
-                          <small data-workspace-scope-chip="PERSONAL">
-                            Personal
-                          </small>
-                        </button>
-                      </div>
-                    ) : null}
-
-                    {menu.workspaces.organizations.length > 0 ? (
-                      <div data-workspace-menu-group="ORGANIZATIONS">
-                        {menu.workspaces.organizations.map((org) => (
-                          <button
-                            key={org.id}
-                            type="button"
-                            role="menuitem"
-                            onClick={() => handleSwitchWorkspace(org.id)}
-                            className={
-                              org.active
-                                ? "app-topbar-v2-account-menu-workspace is-active"
-                                : "app-topbar-v2-account-menu-workspace"
-                            }
-                            data-account-menu-workspace={org.id}
-                            aria-current={org.active ? "true" : undefined}
-                          >
-                            <Building2 size={14} strokeWidth={1.9} />
-                            <span style={{ flex: 1 }}>{org.label}</span>
-                            <small data-workspace-scope-chip="ORGANIZATION">
-                              Organization
-                            </small>
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={openSwitcher}
+                      data-account-menu-item="switch-workspace"
+                    >
+                      <Users size={16} strokeWidth={1.9} />
+                      Switch workspace
+                    </button>
                   </div>
                 ) : null}
 
@@ -551,5 +722,41 @@ export function AppAccountToolbar({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * P4 — one canonical switcher-option renderer shared by every group in the
+ * context-switcher panel (Personal / Your workspaces / Organizations).
+ */
+function SwitcherOption({
+  option,
+  icon,
+  chip,
+  onSelect,
+}: {
+  option: AccountMenuWorkspaceOption;
+  icon: React.ReactNode;
+  chip: string;
+  onSelect: (workspaceId: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={() => onSelect(option.id)}
+      className={
+        option.active
+          ? "app-topbar-v2-workspace-menu-item is-active"
+          : "app-topbar-v2-workspace-menu-item"
+      }
+      data-context-option={option.id}
+      data-context-option-kind={option.kind}
+      aria-current={option.active ? "true" : undefined}
+    >
+      {icon}
+      <span style={{ flex: 1 }}>{option.label}</span>
+      <small data-workspace-scope-chip={option.kind}>{chip}</small>
+    </button>
   );
 }

@@ -528,6 +528,19 @@ async function resolveTeamIdOrDeny(
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;
   }
+  // P0 remediation (2026-07-21) — `currentWorkspaceId` is a navigation
+  // pointer, NOT authorization. It was validated at switch time, but the
+  // membership may since have been suspended/revoked; re-check ACTIVE
+  // membership at request time so a deprovisioned user cannot keep
+  // operating device/ingest/provenance surfaces off a stale pointer.
+  const membership = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId: team.id, userId } },
+    select: { status: true },
+  });
+  if (membership?.status !== "ACTIVE") {
+    reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
+    return null;
+  }
   return team.id;
 }
 

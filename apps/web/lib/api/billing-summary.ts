@@ -36,7 +36,7 @@ import {
   COLLABORATION_TEAM_PLAN_LIMITS,
   getCollaborationTeamPlanLimits,
   type CollaborationTeamPlanLimits,
-} from "@proovra/shared";
+} from "@proovra/shared-billing";
 
 export interface BillingSummary {
   /** Active plan key (e.g. "FREE", "PAYG", "PRO", "TEAM"). */

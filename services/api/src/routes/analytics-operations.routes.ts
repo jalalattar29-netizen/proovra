@@ -34,11 +34,9 @@ import type {
 } from "fastify";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { resolveCapabilities } from "../services/platform-context/capability-registry.js";
-import { isPlatformAdmin } from "../services/platform-admin.service.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import {
   ANALYTICS_DEFAULT_WINDOW_DAYS,
   ANALYTICS_MAX_WINDOW_DAYS,
@@ -74,48 +72,32 @@ type GateResult =
   | { ok: true; scope: AnalyticsScope; userId: string }
   | { ok: false };
 
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical analytics-read gate.
+ * Routes through authorizeOrFail (ACTIVE membership + org lifecycle +
+ * `intelligence.read` capability + fail-closed + anti-enumeration). This
+ * REPLACES the former `resolveCapabilities({ isPlatformAdmin })` path — a
+ * platform admin no longer satisfies the gate without ACTIVE customer-workspace
+ * membership. `scope` (PERSONAL/TEAM) is still resolved for the analytics
+ * projection, but it is NOT an authorization decision.
+ */
 async function gateAnalyticsRead(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
 ): Promise<GateResult> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission: "intelligence.read",
+    antiEnumeration: true,
   });
-  if (!membership) {
-    reply.code(403).send({ message: "Not a member of the workspace" });
-    return { ok: false };
-  }
+  if (!outcome) return { ok: false };
   const team = await prisma.team.findUnique({
     where: { id: teamId },
-    select: {
-      id: true,
-      isPersonal: true,
-      billingPlan: true,
-      ownerUserId: true,
-    },
+    select: { isPersonal: true },
   });
-  if (!team) {
-    reply.code(404).send({ message: "Workspace not found" });
-    return { ok: false };
-  }
-  const platformAdmin = await isPlatformAdmin(userId);
-  const scope: AnalyticsScope = team.isPersonal ? "PERSONAL" : "TEAM";
-  const capabilities = resolveCapabilities({
-    role: membership.role as never,
-    scope: scope as never,
-    plan: team.billingPlan as never,
-    isPlatformAdmin: platformAdmin,
-  });
-  if (!capabilities.ANALYTICS_VIEW) {
-    reply.code(403).send({
-      message: "Capability ANALYTICS_VIEW required",
-      error: { code: "permission_denied", capability: "ANALYTICS_VIEW" },
-    });
-    return { ok: false };
-  }
-  return { ok: true, scope, userId };
+  const scope: AnalyticsScope = team?.isPersonal ? "PERSONAL" : "TEAM";
+  return { ok: true, scope, userId: outcome.actorUserId };
 }
 
 function buildInput(parsed: AnalyticsQueryParsed, scope: AnalyticsScope): AnalyticsInput {

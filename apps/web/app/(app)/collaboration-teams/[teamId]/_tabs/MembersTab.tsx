@@ -21,10 +21,12 @@ import {
 } from "../../../../../lib/api/collaboration-teams";
 import {
   COLLABORATION_TEAM_ROLES,
-  getCollaborationTeamPlanLimits,
-  type CollaborationTeamPlanLimits,
   type CollaborationTeamRole,
 } from "@proovra/shared";
+import {
+  getCollaborationTeamPlanLimits,
+  type CollaborationTeamPlanLimits,
+} from "@proovra/shared-billing";
 import { useAccount } from "../../../../../lib/platform-context";
 import type { WorkspacePlan } from "../../../../../lib/platform-context/types";
 import type { TabId } from "../page";

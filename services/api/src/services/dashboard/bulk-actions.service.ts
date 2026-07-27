@@ -22,7 +22,7 @@ import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 
 export type BulkActionType =
   | "BULK_ASSIGN_WORKFLOWS"
@@ -154,32 +154,28 @@ export async function runBulkAction(
     },
   });
 
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: `observability.bulk_action.${input.actionType.toLowerCase()}`,
-    category: "observability.bulk_action",
-    severity: "info",
-    source: "bulk_action_service",
-    outcome:
-      finalStatus === "COMPLETED"
-        ? "success"
-        : finalStatus === "PARTIAL_FAILED"
-          ? "partial"
-          : "failure",
-    resourceType: "bulk_operational_action_run",
-    resourceId: run.id,
-    metadata: {
-      teamId: input.teamId,
-      actionType: input.actionType,
-      total: targets.length,
-      succeeded,
-      failed,
-      skipped,
+  await emitTenantAudit(
+    {
+      action: `observability.bulk_action.${input.actionType.toLowerCase()}`,
+      outcome: finalStatus === "FAILED" ? "error" : "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "bulk_operational_action_run",
+      resourceId: run.id,
+      metadata: {
+        actionType: input.actionType,
+        total: targets.length,
+        succeeded,
+        failed,
+        skipped,
+        runStatus: finalStatus,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+    client,
+  );
 
   return {
     runId: run.id,

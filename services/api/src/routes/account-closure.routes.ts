@@ -34,7 +34,7 @@ import {
   COOLING_OFF_MS,
 } from "../services/identity/account-closure.service.js";
 import { evaluateAccountClosurePreflight } from "../services/identity/account-lifecycle-preflight.service.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 
 /** The exact phrase the user must type. Compared case-insensitively. */
 export const CLOSURE_CONFIRMATION_PHRASE = "close my account";
@@ -146,19 +146,16 @@ export async function accountClosureRoutes(app: FastifyInstance) {
           },
           select: { id: true },
         });
-        await appendPlatformAuditLog({
-          userId,
+        await emitPlatformAudit({
           action: "identity.account_closure_blocked",
-          category: "identity.lifecycle",
-          severity: "warning",
-          source: "api_account_closure",
           outcome: "denied",
+          denialReason: "closure_blocked",
+          sourceApp: "API",
+          actorUserId: userId,
           resourceType: "account_closure_request",
           resourceId: blocked.id,
-          requestId: req.id,
+          correlationId: req.id,
           metadata: { blockers: blockers.map((b) => b.code) },
-          ipAddress: null,
-          userAgent: null,
         }).catch(() => null);
         return reply
           .code(409)
@@ -175,19 +172,15 @@ export async function accountClosureRoutes(app: FastifyInstance) {
         },
         select: REQUEST_SELECT,
       });
-      await appendPlatformAuditLog({
-        userId,
+      await emitPlatformAudit({
         action: "identity.account_closure_requested",
-        category: "identity.lifecycle",
-        severity: "warning",
-        source: "api_account_closure",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: userId,
         resourceType: "account_closure_request",
         resourceId: created.id,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: { coolingOffEndsAtUtc: coolingOffEndsAtUtc.toISOString() },
-        ipAddress: null,
-        userAgent: null,
       }).catch(() => null);
       return reply.code(201).send({ request: created });
     },
@@ -226,19 +219,15 @@ export async function accountClosureRoutes(app: FastifyInstance) {
         });
       }
 
-      await appendPlatformAuditLog({
-        userId,
+      await emitPlatformAudit({
         action: "identity.account_closure_cancelled",
-        category: "identity.lifecycle",
-        severity: "info",
-        source: "api_account_closure",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: userId,
         resourceType: "account_closure_request",
         resourceId: params.id,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: {},
-        ipAddress: null,
-        userAgent: null,
       }).catch(() => null);
 
       const row = await prisma.accountClosureRequest.findFirst({

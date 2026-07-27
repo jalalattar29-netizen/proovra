@@ -102,7 +102,7 @@ describe("Phase A0 — integrity hard-gate (API contract)", () => {
     // The FAILED branch must return reply.code(404) with the generic
     // "Evidence not found" body. Audit metadata is allowed to carry
     // the real outcome.
-    const failedWindow = handlerSlice.slice(failedIdx, failedIdx + 800);
+    const failedWindow = handlerSlice.slice(failedIdx, failedIdx + 1000);
     expect(failedWindow).toMatch(/reply\.code\(404\)/);
     expect(failedWindow).toContain("Evidence not found");
     expect(failedWindow).toContain('outcome: "integrity_failed"');

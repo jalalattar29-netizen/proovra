@@ -136,10 +136,8 @@ describe("PHASE 3 — test-event route contract", () => {
     expect(routeMatch).not.toBeNull();
     const body = routeMatch![0];
     expect(body).toMatch(/preHandler:\s*requireAuth/);
-    expect(body).toMatch(/requireMember\(/);
-    expect(body).toMatch(
-      /requirePermission\([^,]+,\s*"integration\.webhook\.manage"\)/,
-    );
+    // PHASE 1 (2026-07-21): capability is the 4th arg to requireMember (→ authorizeOrFail).
+    expect(body).toMatch(/requireMember\([^)]*"integration\.webhook\.manage"\)/);
     expect(body).toMatch(/requireStepUpForSensitiveAction\(/);
   });
 

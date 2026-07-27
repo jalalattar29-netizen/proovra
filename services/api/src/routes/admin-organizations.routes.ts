@@ -18,16 +18,16 @@
  * crosses the wire. Fields that cannot be derived are `null` and the UI
  * renders "Not measured" / "Not connected" / "—".
  *
- * Audit: a lightweight platform audit row is appended on detail access
+ * Audit: a lightweight tenant audit row is appended on detail access
  * (best-effort — an audit failure never blocks the read). Reuses the
- * existing `appendPlatformAuditLog` helper.
+ * canonical `emitTenantAudit` facade (this route acts on a specific org).
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   getAdminOrganizationDetail,
   listAdminOrganizations,
@@ -109,16 +109,15 @@ export async function adminOrganizationsRoutes(app: FastifyInstance) {
 
       // Best-effort access audit. Never blocks the read.
       try {
-        await appendPlatformAuditLog({
-          userId: req.user?.sub ?? null,
+        await emitTenantAudit({
           action: "ADMIN_ORG_DETAIL_VIEWED",
-          category: "platform_admin",
-          severity: "low",
-          source: "admin-organizations",
           outcome: "success",
+          sourceApp: "API",
+          actorUserId: req.user?.sub ?? null,
+          organizationId: orgId,
           resourceType: "organization",
           resourceId: orgId,
-          requestId: req.id,
+          correlationId: req.id,
           metadata: { orgId },
         });
       } catch {

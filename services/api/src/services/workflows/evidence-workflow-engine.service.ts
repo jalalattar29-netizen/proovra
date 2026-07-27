@@ -46,7 +46,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
@@ -153,25 +153,25 @@ export async function createWorkflowInstance(
       stepCount: input.steps.length,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.createdByUserId ?? null,
-    isPublic: input.createdByUserId === null || input.createdByUserId === undefined,
-    action: "workflow.instance.create",
-    category: "workflow",
-    severity: "info",
-    source: "evidence_workflow_engine",
-    outcome: "success",
-    resourceType: "evidence_workflow_instance",
-    resourceId: created.id,
-    metadata: {
-      teamId: input.teamId,
-      intakeMode: input.intakeMode,
-      actorRole: input.actorRole,
-      templateSlug: input.templateSlug ?? null,
-      templateVersion: input.templateVersion ?? null,
+  await emitTenantAudit(
+    {
+      action: "workflow.instance.create",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.createdByUserId ?? null,
+      workspaceId: input.teamId,
+      resourceType: "evidence_workflow_instance",
+      resourceId: created.id,
+      metadata: {
+        teamId: input.teamId,
+        intakeMode: input.intakeMode,
+        actorRole: input.actorRole,
+        templateSlug: input.templateSlug ?? null,
+        templateVersion: input.templateVersion ?? null,
+      },
     },
-    db: client,
-  });
+    client,
+  );
   return created;
 }
 
@@ -314,23 +314,25 @@ export async function waiveStep(
       required: step.required,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "workflow.step.waive",
-    category: "workflow",
-    severity: "warning",
-    source: "evidence_workflow_engine",
-    outcome: "success",
-    resourceType: "evidence_workflow_step_instance",
-    resourceId: updated.id,
-    metadata: {
-      teamId: input.teamId,
-      workflowInstanceId: instance.id,
-      stepKey: input.stepKey,
-      required: step.required,
+  await emitTenantAudit(
+    {
+      action: "workflow.step.waive",
+      outcome: "success",
+      severity: "warning",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "evidence_workflow_step_instance",
+      resourceId: updated.id,
+      metadata: {
+        teamId: input.teamId,
+        workflowInstanceId: instance.id,
+        stepKey: input.stepKey,
+        required: step.required,
+      },
     },
-    db: client,
-  });
+    client,
+  );
   return updated;
 }
 
@@ -406,23 +408,24 @@ export async function transitionInstance(
   if (input.targetStatus === "SUBMITTED") bump("workflows_submitted_total");
   if (input.targetStatus === "APPROVED") bump("workflows_approved_total");
 
-  await appendPlatformAuditLog({
-    userId: input.actorUserId ?? null,
-    isPublic: input.actorUserId === null || input.actorUserId === undefined,
-    action: `workflow.instance.transition.${input.targetStatus.toLowerCase()}`,
-    category: "workflow",
-    severity: input.targetStatus === "CANCELLED" ? "warning" : "info",
-    source: "evidence_workflow_engine",
-    outcome: "success",
-    resourceType: "evidence_workflow_instance",
-    resourceId: instance.id,
-    metadata: {
-      teamId: input.teamId,
-      from,
-      to: input.targetStatus,
+  await emitTenantAudit(
+    {
+      action: `workflow.instance.transition.${input.targetStatus.toLowerCase()}`,
+      outcome: "success",
+      severity: input.targetStatus === "CANCELLED" ? "warning" : "info",
+      sourceApp: "API",
+      actorUserId: input.actorUserId ?? null,
+      workspaceId: input.teamId,
+      resourceType: "evidence_workflow_instance",
+      resourceId: instance.id,
+      metadata: {
+        teamId: input.teamId,
+        from,
+        to: input.targetStatus,
+      },
     },
-    db: client,
-  });
+    client,
+  );
   return updated;
 }
 
@@ -483,21 +486,22 @@ export async function assignReviewer(
       reviewerUserId: input.reviewerUserId,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "workflow.review.assign",
-    category: "workflow",
-    severity: "info",
-    source: "evidence_workflow_engine",
-    outcome: "success",
-    resourceType: "evidence_workflow_instance",
-    resourceId: instance.id,
-    metadata: {
-      teamId: input.teamId,
-      reviewerUserId: input.reviewerUserId,
+  await emitTenantAudit(
+    {
+      action: "workflow.review.assign",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "evidence_workflow_instance",
+      resourceId: instance.id,
+      metadata: {
+        teamId: input.teamId,
+        reviewerUserId: input.reviewerUserId,
+      },
     },
-    db: client,
-  });
+    client,
+  );
   return updated;
 }
 

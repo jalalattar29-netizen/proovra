@@ -53,6 +53,15 @@ export type {
   ForbiddenWorkspaceKindToken,
 } from "./architecture/workspace-kinds.js";
 
+// Canonical TENANT/DOMAIN workspace-kind normalizer (relocated from
+// shared-billing 2026-07-22 — classification is a domain fact, not a
+// commercial conclusion). Single implementation for API + worker.
+export {
+  normalizeWorkspaceKind,
+  type NormalizedWorkspaceKind,
+  type WorkspaceKindNormalizationInput,
+} from "./workspace-kind.js";
+
 // PROOVRA Phase 3 — Canonical denial vocabulary (Stage 3).
 // See docs/architecture/architecture-invariants.md (INV-9).
 export {
@@ -104,10 +113,8 @@ export {
   COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES,
   COLLABORATION_TEAM_ASSIGNMENT_TARGETS,
   COLLABORATION_TEAM_ACTIVITY_EVENT_TYPES,
-  COLLABORATION_TEAM_PLAN_LIMITS,
   COLLABORATION_TEAM_INVITE_TOKEN_PREFIX,
   COLLABORATION_TEAM_INVITE_TOKEN_RANDOM_BYTES,
-  getCollaborationTeamPlanLimits,
   collaborationTeamRoleHasPermission,
   listCollaborationTeamRolePermissions,
   isWellFormedCollaborationTeamInviteToken,
@@ -140,7 +147,6 @@ export type {
   CollaborationTeamAssignmentTarget,
   CollaborationTeamActivityEventType,
   CollaborationTeamPermission,
-  CollaborationTeamPlanLimits,
   // Phase 7 type additions
   CollaborationTeamCommentTarget,
   CollaborationTeamCommentStatus,
@@ -2211,3 +2217,4 @@ export type {
 } from "./canonical-evidence-materials.js";
 
 export * from "./timestamp-format.js";
+export * from "./tenant-url.js";

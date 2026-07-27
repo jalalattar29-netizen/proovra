@@ -661,6 +661,68 @@ export type PlatformContextRecoveryAction = {
   href: string | null;
 };
 
+// P3 DOMAIN REMEDIATION (2026-07-21) — canonical grouped context options.
+export type PlatformContextWorkspaceOption = {
+  workspaceId: string;
+  name: string | null;
+  kind: "PERSONAL" | "OWNED";
+  role: WorkspaceRole | null;
+  lifecycleStatus: "active";
+};
+
+export type PlatformContextOrganizationWorkspaceOption = {
+  workspaceId: string;
+  workspaceName: string | null;
+  kind: "ORGANIZATION";
+  workspaceRole: WorkspaceRole | null;
+  lifecycleStatus: "active";
+};
+
+export type PlatformContextContextOptions = {
+  personalSpace:
+    | (Omit<PlatformContextWorkspaceOption, "kind" | "role"> & {
+        kind: "PERSONAL";
+        role: "OWNER";
+      })
+    | null;
+  ownedWorkspaces: ReadonlyArray<
+    Omit<PlatformContextWorkspaceOption, "kind"> & { kind: "OWNED" }
+  >;
+  organizations: ReadonlyArray<{
+    organizationId: string;
+    organizationName: string | null;
+    workspaces: ReadonlyArray<PlatformContextOrganizationWorkspaceOption>;
+  }>;
+  activeContext: {
+    workspaceId: string | null;
+    kind: "PERSONAL" | "OWNED" | "ORGANIZATION";
+    organizationId: string | null;
+    displayName: string | null;
+  };
+};
+
+/**
+ * PHASE 10 STEP 5 (2026-07-23) — active SUPPORT ACCESS projection.
+ *
+ * Present ONLY when the authenticated actor is a support user with an
+ * ACTIVE, unexpired, unrevoked SupportAccessGrant. Carries BOTH identities
+ * (the support actor + the customer org) so the web shell can render a
+ * persistent, visible support banner. Absent / null means no active support
+ * access — the default for every ordinary user.
+ */
+export type PlatformContextSupportAccess = {
+  active: true;
+  grantId: string;
+  supportActorUserId: string;
+  organizationId: string;
+  organizationName: string | null;
+  teamId: string | null;
+  mode: "READ_ONLY" | "ELEVATED";
+  reason: string;
+  /** ISO-8601 expiry — the banner reports the remaining window. */
+  expiresAtUtc: string;
+};
+
 export type PlatformContextEnvelope = {
   authoritySchemaVersion: typeof AUTHORITY_SCHEMA_VERSION;
   capabilitySchemaVersion: typeof CAPABILITY_SCHEMA_VERSION;
@@ -711,6 +773,14 @@ export type PlatformContextEnvelope = {
   organizations: ReadonlyArray<PlatformContextOrganization>;
   /** Resolved active space (PERSONAL or ORGANIZATION). */
   activeSpace: PlatformContextActiveSpace;
+  /**
+   * P3 DOMAIN REMEDIATION (2026-07-21) — canonical, SERVER-AUTHORIZED
+   * context options grouped by explicit workspaceKind:
+   * Personal / Your workspaces (OWNED) / Organizations (grouped by parent
+   * org). Only ACTIVE memberships in active/open contexts appear. The
+   * client may group and render but must never create additional choices.
+   */
+  contextOptions: PlatformContextContextOptions;
   // (2026-07-20) `personaProfile` (use-case workspace-persona profile)
   // was removed with the workspace-persona / workflow-personalization
   // feature. Authorization `persona` (role × scope) is unaffected.
@@ -727,4 +797,21 @@ export type PlatformContextEnvelope = {
    * Empty array when the platform context resolved normally.
    */
   recoveryActions: ReadonlyArray<PlatformContextRecoveryAction>;
+  /**
+   * PHASE 10 STEP 5 (2026-07-23) — active support access, when the actor is
+   * a support user operating within a customer org under an ACTIVE grant.
+   * `null` for every ordinary request. Additive — pre-Step-5 consumers
+   * ignore it.
+   */
+  supportAccess: PlatformContextSupportAccess | null;
+  /**
+   * PHASE 10 §13.2 STEP 6 (2026-07-23) — `false` when the authenticated
+   * identity is a MANAGED_ENTERPRISE identity (or MANAGED_UNRESOLVED, which
+   * fails closed) with no personal space. CLIENT-HIDING SIGNAL ONLY — the
+   * authoritative deny is server-side (workspace-bootstrap.service.ts,
+   * the `/v1/platform/context/switch-workspace` guard, and the personal
+   * capture/evidence/upload/checkout/export guards). `true` for every
+   * STANDARD identity (the default, unchanged behavior).
+   */
+  personalSpaceAllowed: boolean;
 };

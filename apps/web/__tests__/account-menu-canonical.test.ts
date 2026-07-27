@@ -187,6 +187,13 @@ test("a PENDING-only invitation does NOT surface org settings or a switchable or
 // 6. Workspace switcher — Personal always leads; orgs are ACTIVE memberships.
 // ---------------------------------------------------------------------------
 
+// (P3 domain remediation 2026-07-21) — the switcher is grouped Personal /
+// Your workspaces (OWNED) / Organizations (grouped by parent org). The
+// legacy flat input (no contextOptions) falls back to a single ungrouped
+// organizations bucket.
+const flatWorkspaces = (m: ReturnType<typeof resolveAccountMenu>) =>
+  m.workspaces.organizations.flatMap((g) => g.workspaces);
+
 test("switcher: Personal Space always present; ACTIVE orgs listed; active flag correct", () => {
   const m = resolveAccountMenu(
     input({
@@ -197,10 +204,29 @@ test("switcher: Personal Space always present; ACTIVE orgs listed; active flag c
   assert.ok(m.workspaces.personal, "personal space present");
   assert.equal(m.workspaces.personal!.kind, "PERSONAL");
   assert.equal(m.workspaces.personal!.active, false);
-  assert.equal(m.workspaces.organizations.length, 2);
+  assert.equal(flatWorkspaces(m).length, 2);
   assert.equal(m.workspaces.total, 3);
-  const globex = m.workspaces.organizations.find((o) => o.id === "org-2");
+  const globex = flatWorkspaces(m).find((o) => o.id === "org-2");
   assert.equal(globex!.active, true, "active org is flagged");
+});
+
+test("PHASE 10 §13.2 STEP 6: personalSpaceAllowed=false hides the Personal Space switcher entry", () => {
+  const m = resolveAccountMenu(
+    input({
+      personalSpaceAllowed: false,
+      organizations: [activeOrg("org-1", "Acme")],
+    }),
+  );
+  assert.equal(m.workspaces.personal, null, "personal space suppressed for a managed identity");
+  assert.equal(flatWorkspaces(m).length, 1, "the org entry is unaffected");
+  assert.equal(m.workspaces.total, 1);
+});
+
+test("PHASE 10 §13.2 STEP 6: personalSpaceAllowed absent/true is unaffected (STANDARD identity default)", () => {
+  const absent = resolveAccountMenu(input({}));
+  assert.ok(absent.workspaces.personal, "personal space present when the flag is absent (legacy envelope)");
+  const explicitTrue = resolveAccountMenu(input({ personalSpaceAllowed: true }));
+  assert.ok(explicitTrue.workspaces.personal, "personal space present when explicitly allowed");
 });
 
 test("invited-then-accepted user keeps Personal Space AND gains the org (never merged)", () => {
@@ -211,8 +237,52 @@ test("invited-then-accepted user keeps Personal Space AND gains the org (never m
   // After acceptance (envelope now carries the ACTIVE org): both present.
   const after = resolveAccountMenu(input({ organizations: [activeOrg("org-1")] }));
   assert.ok(after.workspaces.personal, "Personal Space still present");
-  assert.equal(after.workspaces.organizations.length, 1);
+  assert.equal(flatWorkspaces(after).length, 1);
   assert.equal(after.workspaces.total, 2);
+});
+
+test("P3: server contextOptions groups OWNED under 'Your workspaces' — never as Organizations", () => {
+  const m = resolveAccountMenu(
+    input({
+      contextOptions: {
+        personalSpace: {
+          workspaceId: "personal-1",
+          name: "Personal Space",
+          role: "OWNER",
+        },
+        ownedWorkspaces: [
+          { workspaceId: "owned-1", name: "My PRO workspace", role: "OWNER" },
+        ],
+        organizations: [
+          {
+            organizationId: "org-A",
+            organizationName: "Acme Corp",
+            workspaces: [
+              {
+                workspaceId: "ws-A1",
+                workspaceName: "Acme Investigations",
+                workspaceRole: "MEMBER",
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
+  // Self-service owned workspace: kind OWNED, in the owned group.
+  assert.equal(m.workspaces.owned.length, 1);
+  assert.equal(m.workspaces.owned[0].kind, "OWNED");
+  assert.equal(m.workspaces.owned[0].label, "My PRO workspace");
+  // Enterprise workspace: grouped under its named organization.
+  assert.equal(m.workspaces.organizations.length, 1);
+  assert.equal(m.workspaces.organizations[0].organizationName, "Acme Corp");
+  assert.equal(m.workspaces.organizations[0].workspaces[0].kind, "ORGANIZATION");
+  // The owned workspace never leaks into the Organizations group.
+  assert.ok(
+    !flatWorkspaces(m).some((w) => w.id === "owned-1"),
+    "OWNED workspace must not appear under Organizations",
+  );
+  assert.equal(m.workspaces.total, 3);
 });
 
 // ---------------------------------------------------------------------------
@@ -253,15 +323,43 @@ test("AppAccountToolbar uses the canonical resolver, not the server account-menu
   assert.ok(!/CROSS_SURFACE_SIDEBAR_HREFS/.test(src), "no client-side strip hack");
 });
 
-test("there is exactly ONE workspace switcher — folded into the account menu", () => {
+// (P3/P4 domain remediation 2026-07-21) — ARCHITECTURE DECISION REVERSED
+// with cause: for an evidence-custody platform the active context must be
+// unmistakable BEFORE custody-sensitive actions, so the switcher is now a
+// PERSISTENT visible context chip owning ONE canonical panel. The account
+// menu keeps a "Switch workspace" ACTION that opens that same panel — one
+// resolver, one panel, two triggers, never a second implementation.
+test("there is exactly ONE workspace switcher — a persistent chip + one canonical panel", () => {
   const src = read("components/app-shell-v2/AppAccountToolbar.tsx");
-  // The in-menu switcher exists…
-  assert.match(src, /data-account-menu-switcher/, "switcher lives in the account menu");
-  // …and the old standalone top-bar switcher dropdown is gone.
+  // The persistent context chip is always visible…
+  assert.match(src, /data-app-context-chip/, "persistent context chip present");
+  // …owning the single canonical switcher panel…
+  const panels = src.match(/data-app-context-switcher/g) ?? [];
+  assert.equal(panels.length, 1, "exactly one switcher panel");
+  // …grouped Personal / Your workspaces / Organizations…
+  assert.match(src, /data-context-group="PERSONAL"/);
+  assert.match(src, /data-context-group="OWNED"/);
+  assert.match(src, /data-context-group="ORGANIZATION"/);
+  assert.match(src, /Your workspaces/);
+  // …and the account menu triggers the SAME panel (no inline second
+  // switcher implementation).
+  assert.match(src, /data-account-menu-item="switch-workspace"/);
   assert.ok(
-    !/data-app-topbar-workspace-menu/.test(src),
-    "no separate standalone workspace-switcher dropdown",
+    !/data-account-menu-switcher/.test(src),
+    "no inline in-menu switcher implementation remains",
   );
+});
+
+test("switching guards dirty work and lands record-scoped routes safely", () => {
+  const src = read("components/app-shell-v2/AppAccountToolbar.tsx");
+  assert.match(src, /getDirtyWorkLabels\(\)/, "dirty-work registry consulted");
+  // In-panel accessible confirmation (repo bans raw window.confirm).
+  assert.match(src, /data-context-switch-confirm/, "in-panel confirmation");
+  assert.match(src, /Switch anyway/, "explicit proceed action");
+  assert.match(src, /Stay here/, "explicit cancel action");
+  assert.ok(!/window\.confirm/.test(src), "no raw window.confirm");
+  assert.match(src, /RECORD_SCOPED_ROUTE/, "record-scoped routes redirected");
+  assert.match(src, /router\.push\("\/home"\)/, "safe landing route");
 });
 
 test("Help & Support renders as a real new-tab external anchor in the toolbar", () => {

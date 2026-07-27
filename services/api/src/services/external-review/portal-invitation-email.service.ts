@@ -24,7 +24,9 @@
 
 import type { PrismaClient } from "@prisma/client";
 import {
+  absoluteInternalUrl,
   EXTERNAL_PORTAL_ACTIVITY_CODES,
+  internalNavPath,
   INVITATION_DELIVERY_STATUSES,
   type InvitationDeliveryStatus,
 } from "@proovra/shared";
@@ -101,11 +103,20 @@ export async function sendInvitationEmail(
   // Compose the bounded accept URL. The raw token is appended as a
   // query param so refreshing the link still works; the landing page
   // immediately exchanges it for a session and clears it from history.
+  // PHASE 11 — /portal/accept/:grantId is a public/signed nav path
+  // (classifyLink already treats /portal/ as PUBLIC_SIGNED); it is not
+  // the /share/:token shape publicShareUrl builds, so it is composed
+  // via internalNavPath + absoluteInternalUrl instead.
   const acceptUrl =
     input.portalAcceptUrl ??
-    `${webBase}/portal/accept/${encodeURIComponent(input.grantId)}?token=${encodeURIComponent(
-      input.rawToken,
-    )}`;
+    absoluteInternalUrl(
+      webBase,
+      internalNavPath(
+        `/portal/accept/${encodeURIComponent(input.grantId)}?token=${encodeURIComponent(
+          input.rawToken,
+        )}`,
+      ),
+    );
 
   const subject = `You have been invited to review materials in ${brand}`;
 

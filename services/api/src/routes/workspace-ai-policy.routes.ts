@@ -13,16 +13,16 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
+import type { Permission } from "@proovra/shared";
+
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { resolveAiCapabilityDisclosure } from "../services/ai/ai-capability-disclosure.service.js";
 import { getWorkspaceAiUsageThisMonth } from "../services/billing-enforcement.service.js";
-import {
-  getPersonalWorkspaceScope,
-  getTeamWorkspaceScope,
-} from "../services/workspace-billing.service.js";
+// §9.7 — scope via the canonical commercial envelope (explicit subjects).
+import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
 import {
   DEFAULT_WORKSPACE_AI_POLICY,
   WorkspaceAiPolicyVersionConflictError,
@@ -32,20 +32,26 @@ import {
   type WorkspaceAiPolicyPatch,
 } from "../services/ai/workspace-ai-policy.service.js";
 
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization.
+ * Routes through authorizeOrFail (ACTIVE membership + org lifecycle +
+ * operation-specific capability + fail-closed + anti-enumeration 404). Reads
+ * use `intelligence.read`; the policy mutation uses `intelligence.policy.manage`
+ * (held by OWNER + ADMIN only — the same set the former inline role check
+ * enforced).
+ */
 async function requireMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
-): Promise<{ userId: string; role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+  permission: Permission,
+): Promise<{ userId: string } | null> {
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission,
+    antiEnumeration: true,
   });
-  if (!membership) {
-    reply.code(403).send({ error: { code: "not_a_member", reason: "Not a member of the workspace" } });
-    return null;
-  }
-  return { userId, role: membership.role };
+  return outcome ? { userId: outcome.actorUserId } : null;
 }
 
 const PatchBody = z.object({
@@ -77,7 +83,7 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req, reply) => {
       const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "intelligence.read");
       if (!ok) return;
 
       const resolved = await resolveWorkspaceAiPolicy(query.teamId);
@@ -100,7 +106,7 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req, reply) => {
       const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "intelligence.read");
       if (!ok) return;
       const now = new Date();
       const day = now.toISOString().slice(0, 10);
@@ -124,9 +130,11 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
           select: { isPersonal: true, ownerUserId: true },
         });
         if (team) {
+          // §9.7 — explicit subjects: the persisted isPersonal marker names the
+          // personal-space subject; otherwise the WORKSPACE aggregate by id.
           const scope = team.isPersonal
-            ? await getPersonalWorkspaceScope(team.ownerUserId)
-            : await getTeamWorkspaceScope(query.teamId);
+            ? (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId: team.ownerUserId })).scope
+            : (await resolveCommercialContext({ type: "WORKSPACE", teamId: query.teamId, requesterUserId: team.ownerUserId })).scope;
           const { consumed, cap } = await getWorkspaceAiUsageThisMonth(scope);
           allowance = {
             plan: String(scope.plan),
@@ -175,13 +183,9 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req, reply) => {
       const body = PatchBody.parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      // intelligence.policy.manage is held by OWNER + ADMIN only.
+      const ok = await requireMember(req, reply, body.teamId, "intelligence.policy.manage");
       if (!ok) return;
-      if (ok.role !== "OWNER" && ok.role !== "ADMIN") {
-        return reply.code(403).send({
-          error: { code: "permission_denied", reason: "Only workspace owners/admins can change AI policy." },
-        });
-      }
 
       const { teamId, expectedVersion, reason, ...rest } = body;
       const patch: WorkspaceAiPolicyPatch = rest;
@@ -209,14 +213,15 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
       }
 
       // Bounded before/after audit — booleans + version only, no secrets.
-      await appendPlatformAuditLog({
-        userId: ok.userId,
+      await emitTenantAudit({
         action: "ai.workspace_policy_updated",
-        category: "ai",
-        source: "api_ai",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: ok.userId,
+        workspaceId: teamId,
         resourceType: "workspace_ai_policy",
         resourceId: teamId,
+        correlationId: req.id ?? null,
         metadata: {
           reason: reason ?? null,
           previousVersion: before?.policyVersion ?? null,

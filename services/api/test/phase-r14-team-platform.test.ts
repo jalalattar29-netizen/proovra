@@ -43,15 +43,18 @@ import {
   COLLABORATION_TEAM_INVITE_TOKEN_PREFIX,
   COLLABORATION_TEAM_INVITE_TOKEN_RANDOM_BYTES,
   COLLABORATION_TEAM_MEMBER_STATUSES,
-  COLLABORATION_TEAM_PLAN_LIMITS,
   COLLABORATION_TEAM_ROLES,
   COLLABORATION_TEAM_STATUSES,
   COLLABORATION_TEAM_TYPES,
   collaborationTeamRoleHasPermission,
-  getCollaborationTeamPlanLimits,
   isWellFormedCollaborationTeamInviteToken,
   renderCollaborationTeamInvitationSmsBody,
 } from "@proovra/shared";
+// §9.6 corrected — limits adapter relocated to the canonical billing package.
+import {
+  COLLABORATION_TEAM_PLAN_LIMITS,
+  getCollaborationTeamPlanLimits,
+} from "@proovra/shared-billing";
 
 // =============================================================================
 // Path helpers
@@ -488,10 +491,12 @@ describe("Phase R14 — Stage 4: API routes", () => {
     expect(server).toMatch(/await app\.register\(collaborationTeamsRoutes\)/);
   });
 
-  it("every mutation emits an audit event via appendPlatformAuditLog", () => {
+  it("every mutation emits a tenant-audit event via the canonical facade", () => {
     // We just spot-check that the audit helper exists and is called.
-    expect(routes).toMatch(/appendPlatformAuditLog/);
-    expect(routes).toMatch(/category: "collaboration_team"/);
+    // PHASE 11 §3 Batch C — migrated off appendPlatformAuditLog onto the
+    // canonical emitTenantAudit facade (writes category "tenant_audit").
+    expect(routes).toMatch(/emitTenantAudit/);
+    expect(routes).toMatch(/workspaceId: args\.workspaceId/);
   });
 
   it("uses the Phase 3 canonical resolveActiveOperationalWorkspace helper", () => {

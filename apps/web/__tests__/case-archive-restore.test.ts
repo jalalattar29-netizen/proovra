@@ -77,9 +77,12 @@ test("Backend status transitions: every status can move to every other status", 
 // ===========================================================================
 
 test("Restore emits a dedicated `cases.restored` audit event when from===ARCHIVED && to===OPEN", () => {
+  // PHASE 11 — audit emission converged onto the ONE canonical facade
+  // (emitTenantAudit). The invariant is unchanged: a dedicated
+  // `cases.restored` event fires exactly on the ARCHIVED → OPEN transition.
   assert.match(
     LIFECYCLE,
-    /if \(from === "ARCHIVED" && input\.toStatus === "OPEN"\) \{\s*\n?\s*await appendPlatformAuditLog\(\{[\s\S]{0,400}?action:\s*"cases\.restored"/,
+    /if \(from === "ARCHIVED" && input\.toStatus === "OPEN"\) \{\s*\n?\s*await emitTenantAudit\(\s*\{[\s\S]{0,400}?action:\s*"cases\.restored"/,
   );
   for (const field of [
     "caseId: existing.id",
@@ -94,12 +97,12 @@ test("Restore emits a dedicated `cases.restored` audit event when from===ARCHIVE
   }
 });
 
-test("Restore audit event reuses the canonical appendPlatformAuditLog infrastructure (no parallel logger)", () => {
-  assert.match(LIFECYCLE, /import \{ appendPlatformAuditLog \} from/);
-  assert.match(
-    LIFECYCLE,
-    /action:\s*"cases\.restored",\s*\n?\s*category:\s*"cases\.lifecycle"/,
-  );
+test("Restore audit event reuses the canonical audit facade (no parallel logger)", () => {
+  // PHASE 11 — the canonical infrastructure IS the tenant-audit facade; a
+  // direct appendPlatformAuditLog import here would now BE the parallel path.
+  assert.match(LIFECYCLE, /import \{ emitTenantAudit \} from "\.\.\/audit\/tenant-audit\.service\.js"/);
+  assert.doesNotMatch(LIFECYCLE, /appendPlatformAuditLog/);
+  assert.match(LIFECYCLE, /action:\s*"cases\.restored"/);
 });
 
 test("Existing `cases.status_changed` audit event STILL fires on every transition (back-compat)", () => {

@@ -40,7 +40,7 @@ import { resolveSecret } from "../../config/index.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { recordIncident } from "../observability/incident.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 
 const STATE_HASH_SECRET_ENV = "IDENTITY_SECURITY_HASH_SECRET";
 
@@ -326,22 +326,20 @@ export async function noteSsoFailure(
     } catch {
       /* incident creation is best-effort */
     }
-    await appendPlatformAuditLog({
-      userId: null,
+    await emitTenantAudit({
       action: "sso.idp_outage.detected",
-      category: "identity",
-      severity: "warning",
-      source: "sso_hardening",
-      outcome: "failure",
+      outcome: "error",
+      sourceApp: "SSO",
+      actorUserId: null,
+      serviceActor: "sso_hardening",
+      workspaceId: row.teamId,
       resourceType: "sso_connection",
       resourceId: row.id,
       metadata: {
-        teamId: row.teamId,
         provider: row.provider,
         consecutiveFailures: newCount,
       },
-      db: client,
-    });
+    }, client);
   }
   return { consecutiveFailures: newCount, outageOpened: crossed };
 }

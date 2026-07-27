@@ -129,18 +129,26 @@ describe("Phase 32.8B — backward-compat redirects for consolidated routes", ()
 // PART 5 — Topbar workspace/account separation
 // =============================================================================
 
-describe("Phase 32.8B — topbar folds workspace + account into one control", () => {
-  // account-menu refactor 2026-07-21 — the OLD design had TWO top-bar
-  // controls (a standalone workspace-switcher chip + an account menu). The NEW
-  // design folds everything into ONE avatar/account menu; the workspace
-  // switcher is a section INSIDE that menu. The old separation assertions
-  // pinned the retired two-control design and are rewritten to the new one.
-  it("no longer renders a standalone workspace chip — the switcher is folded into the account menu", () => {
-    // The retired standalone chip attributes are gone…
-    expect(TOPBAR).not.toMatch(/data-app-topbar-workspace/);
+describe("Phase 32.8B — topbar persistent context chip + account menu separation", () => {
+  // (P3/P4 domain remediation 2026-07-21) — the folded design is REVERSED
+  // WITH CAUSE: an evidence-custody platform must keep the active operating
+  // context unmistakable BEFORE custody-sensitive actions, so a PERSISTENT
+  // context chip lives in the header and owns the ONE canonical switcher
+  // panel. The account menu returns to account management plus a
+  // "Switch workspace" ACTION that opens that same panel.
+  it("renders the persistent context chip; the folded in-menu switcher is retired (P3/P4 domain remediation 2026-07-21)", () => {
+    // The persistent chip exists with its bounded label slots.
+    expect(TOPBAR).toMatch(/data-app-context-chip/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/data-context-chip-name/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/data-context-chip-scope-line/); // (P3/P4 domain remediation 2026-07-21)
+    // The retired OLD standalone-menu attr stays gone (the chip wrapper is
+    // data-app-context-chip, not the legacy data-app-topbar-workspace-menu)…
     expect(TOPBAR).not.toMatch(/data-app-topbar-workspace-menu/);
-    // …replaced by an in-menu switcher section.
-    expect(TOPBAR).toMatch(/data-account-menu-switcher/);
+    // …and the retired FOLDED in-menu switcher attrs are gone too.
+    expect(TOPBAR).not.toMatch(/data-account-menu-switcher/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).not.toMatch(/data-account-menu-workspace=/); // (P3/P4 domain remediation 2026-07-21)
+    // The account menu keeps a workspaces SECTION — now carrying the
+    // switch-workspace action, not an inline switcher.
     expect(TOPBAR).toMatch(/data-account-menu-section="workspaces"/);
   });
 
@@ -177,22 +185,30 @@ describe("Phase 32.8B — topbar folds workspace + account into one control", ()
     expect(TOPBAR).not.toMatch(/\/pricing/);
   });
 
-  it("account menu NOW includes the workspace switcher section (folded design)", () => {
-    // The switcher lives inside the account menu; switching calls the
-    // platform-context switchWorkspace, never navigating to a /workspaces
-    // admin page.
+  it("context chip owns the ONE canonical switcher panel; account menu links to it (P3/P4 domain remediation 2026-07-21)", () => {
+    // Exactly ONE canonical panel — one resolver, one panel, two triggers,
+    // never a second switcher implementation.
+    const panels = TOPBAR.match(/data-app-context-switcher/g) ?? []; // (P3/P4 domain remediation 2026-07-21)
+    expect(panels.length).toBe(1); // (P3/P4 domain remediation 2026-07-21)
+    // Switching calls the platform-context switchWorkspace flow, never
+    // navigating to a /workspaces admin page.
+    expect(TOPBAR).toMatch(/handleSwitchWorkspace/);
+    expect(TOPBAR).toMatch(/switchWorkspace\(workspaceId\)/); // (P3/P4 domain remediation 2026-07-21)
+    // Groups: Personal / Your workspaces / per-organization (no Actions).
+    expect(TOPBAR).toMatch(/data-context-group="PERSONAL"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/data-context-group="OWNED"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/data-context-group="ORGANIZATION"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).not.toMatch(/data-context-group="ACTIONS"/); // (P3/P4 domain remediation 2026-07-21)
+    // The account menu carries a switch-workspace ACTION that opens the
+    // SAME panel (openSwitcher) — not an inline switcher.
     const acctIdx = TOPBAR.indexOf("data-app-topbar-account-menu");
     expect(acctIdx).toBeGreaterThan(-1);
     const acctSlice = TOPBAR.slice(acctIdx);
-    expect(acctSlice).toMatch(/data-account-menu-switcher/);
-    expect(acctSlice).toMatch(/handleSwitchWorkspace/);
-    // The switcher groups are Personal + Organizations (no Actions group).
-    expect(acctSlice).toMatch(/data-workspace-menu-group="PERSONAL"/);
-    expect(acctSlice).toMatch(/data-workspace-menu-group="ORGANIZATIONS"/);
-    expect(acctSlice).not.toMatch(/data-workspace-menu-group="ACTIONS"/);
+    expect(acctSlice).toMatch(/data-account-menu-item="switch-workspace"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(acctSlice).toMatch(/onClick=\{openSwitcher\}/); // (P3/P4 domain remediation 2026-07-21)
   });
 
-  it("the folded switcher has no create/join/manage organization actions", () => {
+  it("the switcher has no create/join/manage organization actions", () => {
     // The retired standalone chip carried an "Actions" group linking to
     // /workspaces?action=create|join and /workspaces. Those are gone from the
     // switcher (the /workspaces admin surface is reachable from the sidebar).

@@ -96,9 +96,9 @@ describe("Internal reindex — route + middleware wiring", () => {
     expect(src).not.toMatch(/FROM\s+evidence_search_documents/i);
   });
 
-  it("route writes a platform audit log entry per invocation", () => {
+  it("route writes a tenant audit log entry per invocation", () => {
     const src = read(ROUTE);
-    expect(src).toMatch(/appendPlatformAuditLog\(/);
+    expect(src).toMatch(/emitTenantAudit\(/);
     expect(src).toMatch(/search\.internal_reindex/);
   });
 

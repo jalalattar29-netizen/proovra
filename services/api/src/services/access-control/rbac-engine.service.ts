@@ -49,7 +49,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
   evaluateMemberAccess,
   loadMemberAccessSnapshot,
@@ -318,23 +318,20 @@ export async function grantTemporaryElevation(
       grantedByUserId: input.grantedByUserId,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.grantedByUserId,
+  await emitTenantAudit({
     action: "rbac.temporary_elevation.grant",
-    category: "identity",
-    severity: "warning",
-    source: "rbac_engine",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.grantedByUserId,
+    workspaceId: input.teamId,
     resourceType: "member_capability_grant",
     resourceId: grant.id,
     metadata: {
-      teamId: input.teamId,
       subjectUserId: input.userId,
       permission: input.permission,
       ttlSeconds: input.ttlSeconds,
     },
-    db: client,
-  });
+  }, client);
   return {
     grantId: grant.id,
     expiresAtUtc: expiresAt.toISOString(),

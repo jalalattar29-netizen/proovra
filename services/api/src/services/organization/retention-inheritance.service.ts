@@ -24,10 +24,16 @@
  *   * The resolver is read-only. It never creates a team-level
  *     policy by copying an inherited org template; inheritance is
  *     virtual at lookup time.
- *   * The org template's `immutable: true` flag tells the calling
- *     resolver to treat the inherited value as a floor — workspaces
- *     may not scale retention DOWN. Today this is informational
- *     only; the retention engine will consume it in a follow-up.
+ *   * PHASE 6 §9.4 (2026-07-22) — the org template's `immutable: true`
+ *     flag is now ENFORCED as a mandatory floor via the canonical
+ *     policy-precedence engine (`governance/policy-precedence.ts`):
+ *     a WEAKER team-level policy (shorter retention than the immutable
+ *     org template; `null` = indefinite is the strongest value) cannot
+ *     displace it — the effective retention is raised to the floor and
+ *     the resolution is flagged `mandatoryFloorApplied` so surfaces
+ *     render "enforced by organization". Team policies at least as
+ *     strong as the floor keep winning (child may strengthen, never
+ *     weaken — §9.4 rule 2).
  *
  * Used by:
  *   * `services/governance-lifecycle/retention-engine.service.ts`
@@ -40,6 +46,11 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+// PHASE 6 §9.4 — canonical precedence engine (first adopter).
+import {
+  resolveEffectivePolicyValue,
+  strongerRetentionDays,
+} from "../governance/policy-precedence.js";
 
 const RETENTION_POLICY_KEY = "retention.default";
 
@@ -56,6 +67,13 @@ export type RetentionResolution =
       policyId: string;
       retentionDays: number | null;
       immutable: boolean;
+      /**
+       * PHASE 6 §9.4 — true when the team policy was WEAKER than an
+       * immutable org template and the effective `retentionDays` was
+       * raised to the org floor (the team row itself is untouched —
+       * enforcement is virtual at resolution time, like inheritance).
+       */
+      mandatoryFloorApplied?: boolean;
     }
   | {
       source: "org_policy_inherited";
@@ -124,18 +142,9 @@ export async function resolveTeamRetentionPolicy(
   } catch {
     teamPolicy = null;
   }
-  if (teamPolicy) {
-    return {
-      source: "team_policy",
-      teamId,
-      policyId: teamPolicy.id,
-      retentionDays: teamPolicy.retentionDays,
-      immutable: teamPolicy.immutable,
-    };
-  }
-
-  // Step 2 — look up the team's organization and check for an
-  // org-level template.
+  // Step 2 — look up the team's organization and any org-level
+  // template. Needed even when a team policy exists: an IMMUTABLE org
+  // template is a mandatory floor over the team value (§9.4).
   let organizationId: string | null = null;
   try {
     const team = await client.team.findUnique({
@@ -146,27 +155,61 @@ export async function resolveTeamRetentionPolicy(
   } catch {
     organizationId = null;
   }
-  if (!organizationId) {
-    return { source: "none", teamId };
-  }
 
   let template: RetentionTemplateValue | null = null;
-  try {
-    const orgPolicy = await client.organizationPolicy.findUnique({
-      where: {
-        organization_policies_org_key_uniq: {
-          organizationId,
-          key: RETENTION_POLICY_KEY,
+  if (organizationId) {
+    try {
+      const orgPolicy = await client.organizationPolicy.findUnique({
+        where: {
+          organization_policies_org_key_uniq: {
+            organizationId,
+            key: RETENTION_POLICY_KEY,
+          },
         },
-      },
-      select: { value: true },
-    });
-    template = readRetentionTemplate(orgPolicy?.value ?? null);
-  } catch {
-    template = null;
+        select: { value: true },
+      });
+      template = readRetentionTemplate(orgPolicy?.value ?? null);
+    } catch {
+      template = null;
+    }
   }
 
-  if (!template) {
+  if (teamPolicy) {
+    // PHASE 6 §9.4 — canonical precedence: the workspace value wins
+    // unless a mandatory (immutable) org floor is stronger.
+    if (template?.immutable) {
+      const effective = resolveEffectivePolicyValue<number | null>(
+        [
+          {
+            scope: "ORGANIZATION",
+            value: template.retentionDays,
+            mandatory: true,
+          },
+          { scope: "WORKSPACE", value: teamPolicy.retentionDays },
+        ],
+        strongerRetentionDays,
+      );
+      if (effective.defined && effective.parentPrevailed) {
+        return {
+          source: "team_policy",
+          teamId,
+          policyId: teamPolicy.id,
+          retentionDays: effective.value,
+          immutable: teamPolicy.immutable,
+          mandatoryFloorApplied: true,
+        };
+      }
+    }
+    return {
+      source: "team_policy",
+      teamId,
+      policyId: teamPolicy.id,
+      retentionDays: teamPolicy.retentionDays,
+      immutable: teamPolicy.immutable,
+    };
+  }
+
+  if (!organizationId || !template) {
     return { source: "none", teamId };
   }
 

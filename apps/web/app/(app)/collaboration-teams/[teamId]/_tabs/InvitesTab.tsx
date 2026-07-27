@@ -21,10 +21,12 @@ import {
 } from "../../../../../lib/api/collaboration-teams";
 import {
   COLLABORATION_TEAM_ROLES,
-  getCollaborationTeamPlanLimits,
-  type CollaborationTeamPlanLimits,
   type CollaborationTeamRole,
 } from "@proovra/shared";
+import {
+  getCollaborationTeamPlanLimits,
+  type CollaborationTeamPlanLimits,
+} from "@proovra/shared-billing";
 import {
   useAccount,
   useActiveSpace,

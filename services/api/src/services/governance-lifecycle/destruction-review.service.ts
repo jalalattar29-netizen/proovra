@@ -45,7 +45,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { canonicalJson, sha256Hex } from "../../crypto.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { recordIncident } from "../observability/incident.service.js";
 import {
   preflightLifecycleTransition,
@@ -272,23 +272,20 @@ export async function createDestructionReview(
       actorUserId: input.actorUserId,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "destruction.review.create",
-    category: "governance",
-    severity: "warning",
-    source: "destruction_review",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "destruction_review",
     resourceId: created.id,
-    requestId: input.requestId ?? null,
+    correlationId: input.requestId ?? null,
     metadata: {
-      teamId: input.teamId,
       evidenceId: input.evidenceId,
       reason: input.reason,
     },
-    db: client,
-  });
+  }, client);
   return projectReview(created);
 }
 
@@ -536,24 +533,21 @@ export async function transitionDestructionReview(
         actorUserId: input.actorUserId,
       },
     });
-    await appendPlatformAuditLog({
-      userId: input.actorUserId,
+    await emitTenantAudit({
       action: `destruction.review.${input.nextStatus.toLowerCase()}`,
-      category: "governance",
-      severity: "warning",
-      source: "destruction_review",
       outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
       resourceType: "destruction_review",
       resourceId: existing.id,
-      requestId: input.requestId ?? null,
+      correlationId: input.requestId ?? null,
       metadata: {
-        teamId: input.teamId,
         evidenceId: existing.evidenceId,
         from,
         to: input.nextStatus,
       },
-      db: client,
-    });
+    }, client);
   }
 
   return projectReview(updated);
@@ -713,23 +707,20 @@ async function executeApprovedReview(
       actorUserId: input.actorUserId,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "destruction.review.execute",
-    category: "governance",
-    severity: "critical",
-    source: "destruction_review",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "destruction_review",
     resourceId: existing.id,
-    requestId: input.requestId ?? null,
+    correlationId: input.requestId ?? null,
     metadata: {
-      teamId: input.teamId,
       evidenceId: existing.evidenceId,
       certificateHash,
     },
-    db: client,
-  });
+  }, client);
 
   // Governance incident at the moment of destruction so the /ops
   // dashboard records it alongside other operator-visible events.

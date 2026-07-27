@@ -58,6 +58,12 @@ export type RequireStepUpFailure = {
 
 export type RequireStepUpSuccess = {
   sent: false;
+  /**
+   * The SERVER-VERIFIED challenge id (consumed via `consumeApprovedChallenge`,
+   * bound to actor + org + purpose). Callers that must record a strong-auth
+   * proof reference (break-glass, high-security) use THIS, never a raw header.
+   */
+  verifiedChallengeId: string;
 };
 
 /**
@@ -169,7 +175,7 @@ export async function requireStepUpForSensitiveAction(
       },
       client,
     );
-    return { sent: false };
+    return { sent: false, verifiedChallengeId: challengeId };
   } catch (err) {
     if (err instanceof StepUpError) {
       safeEmitSecurityEvent(

@@ -22,7 +22,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
 import { hashRecipientPhone } from "./communication.service.js";
@@ -211,26 +211,22 @@ export async function startVerification(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.initiatedByUserId ?? null,
-    isPublic: input.initiatedByUserId === null,
+  await emitTenantAudit({
     action: "communications.verify.start",
-    category: "communications.verify",
-    severity: "info",
-    source: "communications_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.initiatedByUserId ?? null,
+    workspaceId: input.teamId,
     resourceType: "verification_attempt",
     resourceId: row.id,
     metadata: {
-      teamId: input.teamId,
       channel: input.channel,
       recipientHash,
       recipientPreview,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return { attempt: row, status: "started" };
 }
 
@@ -323,25 +319,21 @@ export async function checkVerification(
       },
       client,
     );
-    await appendPlatformAuditLog({
-      userId: input.initiatedByUserId ?? null,
-      isPublic: input.initiatedByUserId === null,
+    await emitTenantAudit({
       action: "communications.verify.check.approved",
-      category: "communications.verify",
-      severity: "info",
-      source: "communications_service",
       outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.initiatedByUserId ?? null,
+      workspaceId: input.teamId,
       resourceType: "verification_attempt",
       resourceId: approved.id,
       metadata: {
-        teamId: input.teamId,
         channel: open.channel,
         recipientHash,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
       },
-      ipAddress: input.ipAddress ?? null,
-      userAgent: input.userAgent ?? null,
-      db: client,
-    });
+    }, client);
     return { attempt: approved, status: "approved" };
   }
 
@@ -361,26 +353,22 @@ export async function checkVerification(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.initiatedByUserId ?? null,
-    isPublic: input.initiatedByUserId === null,
+  await emitTenantAudit({
     action: "communications.verify.check.denied",
-    category: "communications.verify",
-    severity: "warning",
-    source: "communications_service",
-    outcome: "failure",
+    outcome: "denied",
+    denialReason: result.reason,
+    sourceApp: "API",
+    actorUserId: input.initiatedByUserId ?? null,
+    workspaceId: input.teamId,
     resourceType: "verification_attempt",
     resourceId: incremented.id,
     metadata: {
-      teamId: input.teamId,
       channel: open.channel,
       recipientHash,
-      providerReason: result.reason,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return { attempt: incremented, status: "denied" };
 }
 

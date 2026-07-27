@@ -357,8 +357,8 @@ describe("Phase 32.8C FINAL-2 — workflow lifecycle service", () => {
     expect(audits!.length).toBeGreaterThanOrEqual(6);
   });
 
-  it("audit action category is observability.workflow", () => {
-    expect(WF_SVC).toMatch(/category:\s*"observability\.workflow"/);
+  it("audit action uses the canonical tenant-audit facade with the workflow action template", () => {
+    expect(WF_SVC).toMatch(/emitTenantAudit\(/);
     expect(WF_SVC).toMatch(/action:\s*`observability\.workflow\.\$\{verb\}`/);
   });
 

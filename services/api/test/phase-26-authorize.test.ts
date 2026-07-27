@@ -55,6 +55,9 @@ describe("Phase 26 — bounded authorization denial codes", () => {
       "no_actor",
       "member_not_active",
       "member_access_expired",
+      // PHASE 1 (2026-07-21) — org-lifecycle + workspace-kind deny reasons.
+      "organization_not_active",
+      "workspace_kind_unresolved",
       "service_account_revoked",
       "service_account_disabled",
       "service_account_expired",
@@ -236,6 +239,16 @@ describe("Phase 26 — authorize helper source contract", () => {
     // anti-enumeration.
     expect(src).toMatch(
       /isMembershipFailure\s*=[\s\S]*?"no_actor"[\s\S]*?"member_not_active"[\s\S]*?"member_access_expired"/,
+    );
+    // PHASE 1 (2026-07-21) — an unavailable parent organization is a
+    // "context you cannot enter" failure and must conceal as 404 too.
+    expect(src).toMatch(
+      /isMembershipFailure\s*=[\s\S]*?"organization_not_active"/,
+    );
+    // A workspace whose kind cannot be proven is also a membership-class
+    // (context-you-cannot-enter) failure and conceals as 404.
+    expect(src).toMatch(
+      /isMembershipFailure\s*=[\s\S]*?"workspace_kind_unresolved"/,
     );
     expect(src).toMatch(
       /options\.antiEnumeration && isMembershipFailure\s*\?\s*404\s*:\s*403/,

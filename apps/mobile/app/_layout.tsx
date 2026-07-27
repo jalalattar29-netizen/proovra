@@ -1,8 +1,13 @@
 import { Tabs } from "expo-router";
 import React from "react";
 
+import { DeepLinkGate } from "../src/DeepLinkGate";
+
 export default function TabsLayout() {
   return (
+    <>
+    {/* PHASE 11 §5 — the ONE universal/deep-link consumer (server-resolved). */}
+    <DeepLinkGate />
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -35,5 +40,6 @@ export default function TabsLayout() {
   options={{ title: "Locked Evidence" }}
 />
     </Tabs>
+    </>
   );
 }

@@ -26,10 +26,10 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-// Phase 4 — wire audit emission via the canonical platform audit log.
+// Phase 4 — wire audit emission via the canonical tenant-audit facade.
 // `.catch(() => {})` keeps emission best-effort so audit failure cannot
 // roll back the primary disagreement mutation.
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 
 export type FileDisagreementInput = {
   prisma?: PrismaClient;
@@ -76,17 +76,15 @@ export async function fileDisagreement(
   // Phase 4 — best-effort audit emission. Bounded metadata: IDs only.
   // Raw rationale text is intentionally NOT included (would leak
   // reviewer commentary into the platform audit chain).
-  await appendPlatformAuditLog({
-    userId: input.challengerUserId,
+  await emitTenantAudit({
     action: "reviewer.disagreement.filed",
-    category: "review",
-    severity: "info",
-    source: "reviewer_workspace.disagreement",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.challengerUserId,
+    workspaceId: input.teamId,
     resourceType: "reviewer_disagreement",
     resourceId: created.id,
     metadata: {
-      teamId: input.teamId,
       workflowId: input.workflowId,
       disagreementId: created.id,
       originalDecisionId: input.originalDecisionId,
@@ -191,17 +189,15 @@ export async function transitionDisagreement(
   // Bounded metadata: IDs, enum states, and (when present) the
   // bounded verdict enum. Raw rationale text is intentionally NOT
   // included.
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "reviewer.disagreement.transitioned",
-    category: "review",
-    severity: input.to.startsWith("RESOLVED_") ? "info" : "info",
-    source: "reviewer_workspace.disagreement",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "reviewer_disagreement",
     resourceId: row.id,
     metadata: {
-      teamId: input.teamId,
       disagreementId: row.id,
       fromState: row.state,
       toState: input.to,

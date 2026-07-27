@@ -812,6 +812,28 @@ model User {
   email                         String?                        @db.VarChar(320)
   displayName                   String?                        @map("display_name") @db.VarChar(120)
   platformRole                  String?                        @map("platform_role") @db.VarChar(32)
+  // PHASE 10 §13.2 (2026-07-22) — identity/account mode. STANDARD is the
+  // normal self-service identity (personal space, personal export,
+  // self-managed lifecycle). MANAGED_ENTERPRISE is an org-controlled
+  // identity: NO personal space, SSO-only authentication, no personal
+  // data export, org-controlled lifecycle + immediate deprovisioning.
+  // Default STANDARD — existing accounts are never silently converted;
+  // conversion is an explicit, audited admin action (never a login side
+  // effect). §13.1/§13.3 (mandatory SSO, government mode) build on this.
+  identityMode                  UserIdentityMode               @default(STANDARD) @map("identity_mode")
+  // PHASE 10 §0B (2026-07-23) — MANAGED IDENTITY OWNERSHIP. `identityMode` is a
+  // global flag; these bind it to the ONE managing Organization + the verified
+  // provenance that established management. MANAGED_ENTERPRISE is authoritative
+  // ONLY when `managingOrganizationId` is set. A managing Org governs ONLY this
+  // identity's managed policy (no-personal, mandatory-SSO) — never an unrelated
+  // Organization the user also belongs to. ON DELETE SET NULL: releasing the
+  // managing Org / connection never deletes the User, Personal custody, or
+  // other memberships. (Migration 20271002000000, authored NOT applied.)
+  managingOrganizationId        String?                        @map("managing_organization_id") @db.Uuid
+  managedIdentitySource         ManagedIdentitySource?         @map("managed_identity_source")
+  managedBySsoConnectionId      String?                        @map("managed_by_sso_connection_id") @db.Uuid
+  managingOrganization          Organization?                  @relation("ManagedIdentityOrg", fields: [managingOrganizationId], references: [id], onDelete: SetNull)
+  managedBySsoConnection        SsoConnection?                 @relation("ManagedIdentityConn", fields: [managedBySsoConnectionId], references: [id], onDelete: SetNull)
   provider                      AuthProvider
   providerUserId                String                         @map("provider_user_id") @db.VarChar(128)
   // Lifecycle Phase 3 — linked login methods (see UserIdentityLink).
@@ -925,6 +947,8 @@ model User {
   grantedDelegatedAdminScopes         MemberDelegatedAdminScope[]  @relation("MemberDelegatedAdminScopeGrantedBy")
   revokedDelegatedAdminScopes         MemberDelegatedAdminScope[]  @relation("MemberDelegatedAdminScopeRevokedBy")
   updatedOrganizationSecurityPolicies OrganizationSecurityPolicy[] @relation("OrganizationSecurityPolicyUpdatedBy")
+  // PHASE 10 §10.8 — support-access grants where this user is the actor.
+  supportAccessGrantsAsActor          SupportAccessGrant[]         @relation("SupportAccessActor")
   initiatedAccessReviews              AccessReview[]               @relation("AccessReviewInitiatedBy")
   completedAccessReviews              AccessReview[]               @relation("AccessReviewCompletedBy")
   reviewedAccessReviewSubjects        AccessReview[]               @relation("AccessReviewSubjectUser")
@@ -1063,6 +1087,21 @@ model Team {
   // Defaults to `false` — all existing teams are TEAM-scoped.
   isPersonal Boolean @default(false) @map("is_personal")
 
+  // P1 DOMAIN REMEDIATION (2026-07-21) — EXPLICIT workspace-kind
+  // discriminator. `isPersonal=false` is NOT a valid "Organization
+  // workspace" signal: self-service PRO/TEAM owned workspaces are also
+  // isPersonal=false. The canonical classification is:
+  //
+  //   PERSONAL     — the owner's bootstrap Personal Space (isPersonal=true)
+  //   OWNED        — a self-service user-owned workspace (FREE/PRO/TEAM)
+  //   ORGANIZATION — an enterprise-organization operational workspace
+  //
+  // Nullable during rollout; the backfill migration classifies existing
+  // rows deterministically (isPersonal→PERSONAL, ENTERPRISE plan→
+  // ORGANIZATION, else OWNED). Readers must FAIL CLOSED on NULL when
+  // presenting switch targets. Creation paths always set it explicitly.
+  workspaceKind WorkspaceKind? @map("workspace_kind")
+
   // Phase 2.7X Stage 1 — nullable Organization FK.
   //
   // Phase 1 of the staged Organization migration: this column is
@@ -1107,7 +1146,9 @@ model Team {
   queueTelemetrySnapshots QueueTelemetrySnapshot[]
 
   // Phase 17 — identity & access platform back-relations.
-  securityPolicy           OrganizationSecurityPolicy?
+  // §policy-lifecycle — teamId is nullable compatibility metadata now (the
+  // Organization owns the policy), so this is a one-to-many back-relation.
+  securityPolicies         OrganizationSecurityPolicy[]
   accessReviews            AccessReview[]
   capabilityGrants         MemberCapabilityGrant[]
   delegatedAdminScopes     MemberDelegatedAdminScope[]
@@ -1203,6 +1244,7 @@ model Team {
   @@index([verificationState])
   @@index([verifiedAtUtc])
   @@index([workspaceCategory])
+  @@index([workspaceKind])
   @@map("teams")
 }
 
@@ -1728,6 +1770,126 @@ model TeamMember {
   @@map("team_members")
 }
 
+/// PHASE 3 (2026-07-21) — normalized membership-grant provenance.
+///
+/// A user may hold the SAME membership through multiple sources (e.g. a
+/// manual admin assignment AND an IdP group mapping). Each source is one
+/// grant row; revoking one source revokes only that grant, and the
+/// membership itself is deactivated only when NO active grant remains
+/// (source-aware revocation — services/identity/membership-provisioning).
+/// Exactly one of `teamMemberId` / `organizationMembershipId` is set.
+model MembershipGrant {
+  id                       String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamMemberId             String?               @map("team_member_id") @db.Uuid
+  organizationMembershipId String?               @map("organization_membership_id") @db.Uuid
+  source                   MembershipGrantSource
+  /// Canonical provisioning intent that created this grant (bounded
+  /// vocabulary from the orchestrator; stored as text for forward compat).
+  intent                   String                @db.VarChar(60)
+  grantedByUserId          String?               @map("granted_by_user_id") @db.Uuid
+  /// External correlation: SCIM externalId, IdP group id, invite id, …
+  externalRef              String?               @map("external_ref") @db.VarChar(200)
+  /// Role carried by THIS grant source (precedence resolution input).
+  grantedRole              String?               @map("granted_role") @db.VarChar(40)
+  revokedAtUtc             DateTime?             @map("revoked_at_utc") @db.Timestamptz(6)
+  revokedByUserId          String?               @map("revoked_by_user_id") @db.Uuid
+  createdAt                DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([teamMemberId, revokedAtUtc])
+  @@index([organizationMembershipId, revokedAtUtc])
+  @@index([source, externalRef])
+  @@map("membership_grants")
+}
+
+/// PHASE 4 (2026-07-22) — canonical Enterprise contract state (§7.2).
+/// ONE authoritative record of an Enterprise customer's commercial scope.
+/// Plan strings on workspaces and `pendingEnterpriseSeats` are LEGACY
+/// signals consumed only by the resolver's compatibility fallback until the
+/// contract backfill migration is applied.
+model EnterpriseContract {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId         String                   @unique @map("organization_id") @db.Uuid
+  status                 EnterpriseContractStatus @default(PENDING_ACTIVATION)
+  /// Owner-onboarding progress: PENDING_OWNER | OWNER_INVITED | ACTIVATED.
+  activationState        String?                  @map("activation_state") @db.VarChar(40)
+  effectiveAtUtc         DateTime?                @map("effective_at_utc") @db.Timestamptz(6)
+  endsAtUtc              DateTime?                @map("ends_at_utc") @db.Timestamptz(6)
+  seatCount              Int?                     @map("seat_count")
+  storageGb              Int?                     @map("storage_gb")
+  region                 String?                  @db.VarChar(40)
+  planVersion            String?                  @map("plan_version") @db.VarChar(40)
+  billingCustomerRef     String?                  @map("billing_customer_ref") @db.VarChar(200)
+  billingSubscriptionRef String?                  @map("billing_subscription_ref") @db.VarChar(200)
+  contractOwnerUserId    String?                  @map("contract_owner_user_id") @db.Uuid
+  terminatedAtUtc        DateTime?                @map("terminated_at_utc") @db.Timestamptz(6)
+  terminationReason      String?                  @map("termination_reason") @db.VarChar(400)
+  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation("OrganizationEnterpriseContract", fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("enterprise_contracts")
+}
+
+enum EnterpriseContractStatus {
+  DRAFT
+  PENDING_ACTIVATION
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+/// PHASE 4 §7.1 (2026-07-22) — Enterprise provisioning idempotency.
+/// The canonical duplicate-prevention identity is the IMMUTABLE
+/// `idempotencyKey` (caller-supplied provisioning-request id / CRM contract
+/// reference) — NEVER normalized names or emails (names are not unique, an
+/// owner may own several Organizations, and both may change). The DB unique
+/// constraint makes concurrent same-key requests collapse to exactly one
+/// provisioning result.
+model EnterpriseProvisioningRequest {
+  id                   String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  idempotencyKey       String                              @unique @map("idempotency_key") @db.VarChar(120)
+  /// SHA-256 of the canonicalized payload — same key + different payload
+  /// is an idempotency CONFLICT, never a partial mutation.
+  payloadHash          String                              @map("payload_hash") @db.VarChar(64)
+  status               EnterpriseProvisioningRequestStatus @default(PENDING)
+  /// CRM / contract system reference when supplied.
+  externalContractRef  String?                             @map("external_contract_ref") @db.VarChar(200)
+  resultOrganizationId String?                             @map("result_organization_id") @db.Uuid
+  /// Bounded JSON snapshot of the returned provisioning result so a
+  /// same-key retry can return the ORIGINAL result verbatim.
+  resultJson           Json?                               @map("result_json")
+  failureReason        String?                             @map("failure_reason") @db.VarChar(400)
+  requestedByUserId    String                              @map("requested_by_user_id") @db.Uuid
+  createdAt            DateTime                            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([externalContractRef])
+  @@map("enterprise_provisioning_requests")
+}
+
+enum EnterpriseProvisioningRequestStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum MembershipGrantSource {
+  MANUAL
+  INVITATION
+  SSO_JIT
+  SCIM
+  IDP_GROUP
+  ENTERPRISE_BOOTSTRAP
+  SELF_SERVICE_OWNER
+  SYSTEM_REPAIR
+  /// Backfilled marker for memberships created BEFORE provenance existed.
+  /// Historical source is unprovable; source-scoped revocation can never
+  /// remove a LEGACY_UNKNOWN grant — only explicit manual revocation can.
+  LEGACY_UNKNOWN
+}
+
 model CaseAccess {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   caseId    String   @map("case_id") @db.Uuid
@@ -2047,6 +2209,12 @@ model AdminAuditLog {
   outcome      String?   @db.VarChar(24)
   resourceType String?   @map("resource_type") @db.VarChar(64)
   resourceId   String?   @map("resource_id") @db.VarChar(128)
+  // PHASE 11 — authoritative tenant columns for DB-level scope filtering (NOT
+  // part of the hash chain — additive, so historical hashes stay valid). The
+  // canonical tenant-audit facade populates these from persisted context; the
+  // query authority filters on the COLUMN, never on arbitrary JSON metadata.
+  organizationId String? @map("organization_id") @db.Uuid
+  workspaceId    String? @map("workspace_id") @db.Uuid
   requestId    String?   @map("request_id") @db.VarChar(64)
   metadata     Json
   ipAddress    String?   @map("ip_address") @db.VarChar(45)
@@ -2064,6 +2232,8 @@ model AdminAuditLog {
   @@index([severity, createdAt])
   @@index([requestId])
   @@index([resourceType, resourceId])
+  @@index([workspaceId, createdAt])
+  @@index([organizationId, createdAt])
   @@index([hash])
   @@index([prevHash])
   @@map("admin_audit_logs")
@@ -2550,6 +2720,22 @@ enum AuthProvider {
   EMAIL
 }
 
+// PHASE 10 §13.2 (2026-07-22) — identity/account mode.
+enum UserIdentityMode {
+  STANDARD
+  MANAGED_ENTERPRISE
+}
+
+// PHASE 10 §0B (2026-07-23) — how an Organization's management of an identity
+// was established. Recorded alongside `managingOrganizationId` so the managed
+// binding always carries verified provenance (never an unowned global flag).
+enum ManagedIdentitySource {
+  SAML
+  OIDC
+  SCIM
+  DOMAIN
+}
+
 // Lifecycle Phase 3 (2026-07-17) — linked login methods.
 //
 // Replaces the single-provider-only assumption (User.provider +
@@ -2756,6 +2942,25 @@ enum TeamRole {
 enum EvidenceCommentVisibility {
   INTERNAL
   TEAM
+}
+
+// P1 DOMAIN REMEDIATION (2026-07-21) — canonical workspace-kind
+// discriminator (see Team.workspaceKind).
+enum WorkspaceKind {
+  PERSONAL
+  OWNED
+  ORGANIZATION
+}
+
+// P1 DOMAIN REMEDIATION (2026-07-21) — distinguishes REAL customer
+// Enterprise Organizations from the internal 1:1 bootstrap containers
+// every Team receives (Phase 2.7X made Team.organizationId NOT NULL, so
+// even a FREE personal space is Organization-backed at the DB level).
+// Only CUSTOMER organizations are governance/contract boundaries; SYSTEM
+// containers must never surface as "Organizations" in any product UI.
+enum OrganizationKind {
+  SYSTEM
+  CUSTOMER
 }
 
 enum EvidenceLegalNoteType {
@@ -4881,7 +5086,23 @@ model MemberDelegatedAdminScope {
 // challenge, no actual SAML/OIDC flow). The session-timeout values ARE
 // enforced (existing JWT layer reads them).
 model OrganizationSecurityPolicy {
-  teamId String @id @map("team_id") @db.Uuid
+  // PHASE 10 §policy-convergence (2026-07-23) — the policy is a CUSTOMER
+  // ORGANIZATION policy. `teamId` is retained ONLY as a zero-decision
+  // compatibility key during the migration window (Phase-12 removal); the
+  // AUTHORITATIVE key is `organizationId` — exactly ONE policy per Customer
+  // Organization, inherited by all its WorkspaceKind.ORGANIZATION workspaces.
+  // Personal/OWNED workspaces and SYSTEM organizations get NO policy row.
+  //
+  // §policy-lifecycle (2026-07-23) — the ORGANIZATION owns the policy lifecycle.
+  // The PK is a synthetic `id` so `teamId` can be NULLABLE compatibility metadata
+  // with an `onDelete: SetNull` relation: deleting/archiving a Workspace can NEVER
+  // delete or re-parent the org policy. Writers upsert by `organizationId` (the
+  // authoritative unique key) and never mutate `teamId` during ordinary patching.
+  // Org deletion cascades the policy (org owns it). (Migrations 20271005000000 +
+  // 20271006000000, authored NOT applied.)
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId         String? @map("team_id") @db.Uuid
+  organizationId String? @unique @map("organization_id") @db.Uuid
 
   // MFA readiness — when true, the org has DECLARED an intent to require
   // MFA. Enforcement lands in a later phase; the flag is exposed in audit
@@ -4945,10 +5166,107 @@ model OrganizationSecurityPolicy {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
 
-  team      Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  updatedBy User? @relation("OrganizationSecurityPolicyUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  // PHASE 10 (§10.1–§10.7, 2026-07-23) — advanced enterprise identity policy.
+  // This is the ONE canonical org security-policy aggregate; Phase 10 EXTENDS
+  // it rather than adding parallel tables. Migration
+  // 20271001000000_org_security_policy_phase10 (authored, NOT applied).
+  //
+  // §10.1 versioning — bumped on every canonical update; sessions issued
+  // before the current version are re-evaluated (stale-policy revocation).
+  policyVersion Int @default(1) @map("policy_version")
+  // §10.2 mandatory SSO — managed internal identities must authenticate via
+  // the org SSO connection; password/social OAuth into the org is denied.
+  ssoRequired Boolean @default(false) @map("sso_required")
+  // §10.3 managed identity required — new org members are provisioned as
+  // MANAGED_ENTERPRISE (org-controlled, no personal space/export).
+  managedIdentityRequired Boolean @default(false) @map("managed_identity_required")
+  // §10.5 no personal space — managed sessions never bootstrap/route into a
+  // personal workspace; existing personal Evidence is preserved, never seized.
+  noPersonalSpace Boolean @default(false) @map("no_personal_space")
+  // §10.4 bundled security mode — STANDARD | HIGH_SECURITY. HIGH_SECURITY
+  // composes ssoRequired + managedIdentityRequired + noPersonalSpace + strict
+  // session controls, activated atomically after prerequisite validation.
+  securityMode String @default("STANDARD") @map("security_mode") @db.VarChar(32)
+  // §10.7 session/domain controls (supported set only). Null = unset.
+  maxSessionAgeSeconds  Int?     @map("max_session_age_seconds")
+  idleTimeoutSeconds    Int?     @map("idle_timeout_seconds")
+  concurrentSessionLimit Int?    @map("concurrent_session_limit")
+  stepUpIntervalSeconds Int?     @map("step_up_interval_seconds")
+  // §10.7 allowed authentication methods (empty = no restriction). Values:
+  // PASSWORD | OAUTH | SSO.
+  allowedAuthMethods String[] @default([]) @map("allowed_auth_methods")
+
+  // §policy-lifecycle (§1.2) — Workspace deletion NEVER deletes the policy
+  // (SetNull). Organization deletion does NOT cascade the policy either: it is
+  // RESTRICTed, so the policy + its audit history are preserved through
+  // Organization archive/suspend/cancellation (no physical Organization purge in
+  // Phase 10). The Organization owns the policy as the authoritative unique key.
+  team         Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  organization Organization? @relation("OrganizationSecurityPolicyOrg", fields: [organizationId], references: [id], onDelete: Restrict)
+  updatedBy    User?         @relation("OrganizationSecurityPolicyUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
   @@map("organization_security_policies")
+}
+
+// PHASE 10 §10.6 (2026-07-23) — Organization-scoped BREAK-GLASS emergency
+// access. NOT a universal backdoor: a pre-configured emergency identity, a
+// bounded time window, a restricted role, mandatory reason, immutable audit
+// and owner notification. Destructive Evidence/legal-hold/retention/security/
+// billing actions are denied by default (enforced at the action layer via the
+// grant's restricted role). Migration 20271001000000 (authored, NOT applied).
+model EmergencyAccessGrant {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  // The pre-configured emergency identity actually using the grant.
+  emergencyUserId String   @map("emergency_user_id") @db.Uuid
+  // Restricted role the grant confers (default read-only diagnostic).
+  grantedRole    String    @default("EMERGENCY_READ_ONLY") @map("granted_role") @db.VarChar(48)
+  reason         String    @db.VarChar(600)
+  status         String    @default("ACTIVE") @map("status") @db.VarChar(24)
+  requestedByUserId String @map("requested_by_user_id") @db.Uuid
+  // Strong-auth / step-up proof id recorded at activation.
+  stepUpProofId  String?   @map("step_up_proof_id") @db.VarChar(128)
+  startedAtUtc   DateTime  @default(now()) @map("started_at_utc") @db.Timestamptz(6)
+  expiresAtUtc   DateTime  @map("expires_at_utc") @db.Timestamptz(6)
+  revokedAtUtc   DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
+  revokedByUserId String?  @map("revoked_by_user_id") @db.Uuid
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([emergencyUserId])
+  @@map("emergency_access_grants")
+}
+
+// PHASE 10 §10.8 (2026-07-23) — DUAL-IDENTITY support access. A support actor
+// operates within an explicit customer Organization/Workspace scope for a
+// bounded window with a visible banner and immutable audit — NEVER an
+// invisible impersonation token minted as the customer user. Read-only /
+// minimal by default; destructive & security/billing/ownership actions denied.
+// Migration 20271001000000 (authored, NOT applied).
+model SupportAccessGrant {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // The support actor (a distinct identity — never the customer user).
+  supportUserId  String    @map("support_user_id") @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  // Optional narrower workspace scope within the org.
+  teamId         String?   @map("team_id") @db.Uuid
+  reason         String    @db.VarChar(600)
+  // READ_ONLY (default) | ELEVATED (requires separate explicit capability).
+  accessLevel    String    @default("READ_ONLY") @map("access_level") @db.VarChar(24)
+  status         String    @default("ACTIVE") @map("status") @db.VarChar(24)
+  // Customer/admin approval where policy requires (approver identity).
+  approvedByUserId String? @map("approved_by_user_id") @db.Uuid
+  startedAtUtc   DateTime  @default(now()) @map("started_at_utc") @db.Timestamptz(6)
+  expiresAtUtc   DateTime  @map("expires_at_utc") @db.Timestamptz(6)
+  revokedAtUtc   DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
+
+  supportUser  User         @relation("SupportAccessActor", fields: [supportUserId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([supportUserId, status])
+  @@map("support_access_grants")
 }
 
 // AccessReview — single row in the access-review queue. Kind drives
@@ -7274,6 +7592,9 @@ model SsoConnection {
   /// Phase 26.5 — replay-protection back-relation.
   callbackAttempts SsoCallbackAttempt[]
 
+  /// PHASE 10 §0B — identities this connection established management for.
+  managedIdentities User[] @relation("ManagedIdentityConn")
+
   /// One team can have ONE active connection per provider at a time.
   @@unique([teamId, provider, status])
   @@index([teamId, status])
@@ -7399,12 +7720,27 @@ model AuthenticatedSession {
   /// configured window to bound cost.
   lastRiskRecomputedAtUtc DateTime? @map("last_risk_recomputed_at_utc") @db.Timestamptz(6)
 
-  team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  /// PHASE 10 §2 (2026-07-23) — ORGANIZATION SESSION CONTEXT. `teamId` is the
+  /// issue-time workspace; it is NOT the org-context this session currently
+  /// occupies. `organizationContextId` is the ONE Organization whose context
+  /// this global session currently holds (set when the session establishes an
+  /// ORGANIZATION context — switch/SSO/invite/deep-link; NULL for Personal/OWNED
+  /// or no context). It is the canonical binding for the Organization-scoped
+  /// concurrent-session limit: distinct active sessionIds per (userId,
+  /// organizationContextId). Switching Org-A→Org-B moves this pointer (Org-A
+  /// count drops, Org-B re-evaluated). Same session across Org-A workspaces keeps
+  /// the same value → counted ONCE. (Migration 20271004000000, NOT applied.)
+  organizationContextId String? @map("organization_context_id") @db.Uuid
+
+  team                Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  organizationContext Organization? @relation("AuthenticatedSessionOrgContext", fields: [organizationContextId], references: [id], onDelete: SetNull)
   user User  @relation("AuthenticatedSessionUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, sessionIdHash])
   @@index([teamId, revokedAtUtc])
   @@index([userId, expiresAtUtc])
+  // PHASE 10 §2 — org-scoped concurrent-session count (userId, org, still-active).
+  @@index([userId, organizationContextId, revokedAtUtc, expiresAtUtc])
   @@index([ssoConnectionId])
   @@index([expiresAtUtc])
   // Phase 26.5 — stale-session sweep + adaptive auth risk lookup.
@@ -9417,6 +9753,15 @@ model Organization {
   timezone               String?                        @db.VarChar(64)
   logoUrl                String?                        @map("logo_url") @db.VarChar(512)
   status                 OrganizationStatus             @default(ACTIVE)
+  /// P1 DOMAIN REMEDIATION (2026-07-21) — SYSTEM = internal 1:1
+  /// bootstrap container (every Team gets one); CUSTOMER = a real
+  /// enterprise customer organization (sales-provisioned). Only
+  /// CUSTOMER orgs are governance boundaries; SYSTEM containers never
+  /// surface as "Organizations" in product UI. Default SYSTEM — the
+  /// backfill promotes orgs with enterprise provenance (an ENTERPRISE
+  /// workspace or pendingEnterpriseSeats) to CUSTOMER, and the
+  /// enterprise provisioning path sets CUSTOMER explicitly.
+  kind                   OrganizationKind               @default(SYSTEM)
   /// Org-level billing owner. Distinct from per-Team billing
   /// ownership; Team billing fields stay for transition compatibility
   /// until Stage 5 cutover.
@@ -9451,6 +9796,16 @@ model Organization {
   evidence             Evidence[]                       @relation("EvidenceOrganization")
   // Lifecycle Phase 6 — closure request back-relation.
   closureRequests      OrganizationClosureRequest[]     @relation("OrganizationClosureRequests")
+  enterpriseContract   EnterpriseContract?              @relation("OrganizationEnterpriseContract")
+  // PHASE 10 §10.6/§10.8 — emergency + support access grants scoped to this org.
+  emergencyAccessGrants EmergencyAccessGrant[]
+  supportAccessGrants   SupportAccessGrant[]
+  // PHASE 10 §0B — identities this Organization manages (MANAGED_ENTERPRISE).
+  managedIdentities     User[]                          @relation("ManagedIdentityOrg")
+  // PHASE 10 §2 — sessions currently holding this Organization's context.
+  sessionContexts       AuthenticatedSession[]          @relation("AuthenticatedSessionOrgContext")
+  // PHASE 10 §policy-convergence — the ONE security policy for this Customer Org.
+  securityPolicy        OrganizationSecurityPolicy?     @relation("OrganizationSecurityPolicyOrg")
 
   @@index([status])
   @@map("organizations")
@@ -9535,6 +9890,18 @@ model OrganizationInvite {
   lastResentAt    DateTime?        @map("last_resent_at") @db.Timestamptz(6)
   resendCount     Int              @default(0) @map("resend_count")
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  /// P2 DOMAIN REMEDIATION (2026-07-21) — explicit per-invite WORKSPACE
+  /// assignments: `[{ "teamId": uuid, "role": TeamRole }]`. Governance-only
+  /// invites carry NULL/[] (OrganizationMembership only — the previous, and
+  /// still valid, behavior). When present, the atomic accept transaction
+  /// ALSO upserts an ACTIVE TeamMember per assignment, after validating the
+  /// team belongs to this organization. Organization membership never
+  /// implies all-workspace access; access is exactly what was assigned.
+  workspaceAssignments Json? @map("workspace_assignments")
+
+  /// P2 — who consumed the invite (audit/idempotency completeness).
+  acceptedByUserId String? @map("accepted_by_user_id") @db.Uuid
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 

@@ -2,10 +2,8 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import {
-  createGuestProfile,
   exchangeAppleCodeForIdToken,
   exchangeGoogleCodeForIdToken,
-  ensureGuestIdentity,
   upsertUser,
   upsertUserWithEmailLink,
   verifyAppleIdToken,
@@ -37,8 +35,9 @@ import {
   verifyMfaPendingTokenSignature,
   MFA_PENDING_TTL_SECONDS,
 } from "../services/jwt.js";
+import type { AuthProvenanceMethod } from "../services/jwt.js";
 import { getAuthUserId } from "../auth.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import {
   readMfaStatus,
@@ -60,8 +59,11 @@ import {
 } from "../services/auth-test-bypass.js";
 // Phase 2.5 — record the AuthenticatedSession row for non-SAML/SSO
 // login paths so the user-facing `/v1/users/me/sessions` list is not
-// empty for guest + email-password users (Phase 2.4 finding).
+// empty for email-password users (Phase 2.4 finding).
 import { recordAuthenticatedSession } from "../services/access-control/session-inventory.service.js";
+// PHASE 11 — canonical internal URL builder (destination-URL construction
+// only; this file's identity/session/MFA logic is untouched).
+import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 
 // Phase E10.1 — DEF-037 closure. Per-IP rate limits on the public,
 // unauthenticated email login and password-reset-request surfaces.
@@ -82,13 +84,6 @@ const AUTH_EMAIL_AVAILABILITY_RATE_LIMIT_PER_IP_PER_MIN = 30;
 // route stays thin.
 const AUTH_EMAIL_VERIFY_RATE_LIMIT_PER_IP_PER_MIN = 10;
 const AUTH_EMAIL_RESEND_RATE_LIMIT_PER_IP_PER_MIN = 3;
-// Phase 1 — guest-auth rate limit. Anonymous /v1/auth/guest creates a
-// new User row and JWT every call. Without a bucket an attacker can
-// inflate the user table arbitrarily, exhaust signing-key bucket
-// references, and abuse downstream guest-tier evidence quotas. 5/min/IP
-// is generous for legitimate flows (one human + a handful of retries)
-// but cuts off scripted creation. The bucket is configurable via env.
-const AUTH_GUEST_RATE_LIMIT_PER_IP_PER_MIN = 5;
 
 function readClientIp(req: FastifyRequest): string {
   // `req.ip` is normalised by Fastify; fall back to "unknown" so the
@@ -137,9 +132,9 @@ function authUaPreview(req: FastifyRequest): string | null {
  * Phase 2.5 — record an AuthenticatedSession row after signing a
  * non-SAML/SSO JWT.
  *
- * Pre-Phase-2.5 the guest + email-password login paths called
- * `signJwt()` directly and skipped the session-inventory write. This
- * meant `GET /v1/users/me/sessions` returned `[]` for those users
+ * Pre-Phase-2.5 the email-password login path called `signJwt()`
+ * directly and skipped the session-inventory write. This meant
+ * `GET /v1/users/me/sessions` returned `[]` for those users
  * (Phase 2.4 finding). The recording is best-effort: an inventory
  * write failure must NEVER break login.
  *
@@ -148,7 +143,7 @@ function authUaPreview(req: FastifyRequest): string | null {
  * change to signJwt's signature and keeps every existing caller's
  * behavior identical for the token value.
  *
- * `teamId` is NULL for guest / fresh email-password tokens — the
+ * `teamId` is NULL for fresh email-password tokens — the
  * AuthenticatedSession schema permits null teamId rows (workspace-less
  * sessions). The user-facing sessions endpoint already handles that
  * case (Phase 2.4).
@@ -272,6 +267,13 @@ function readUserAgent(req: FastifyRequest): string | null {
   return Array.isArray(ua) ? ua[0] ?? null : ua ?? null;
 }
 
+/**
+ * PHASE 11 §3 Batch B — genuinely GLOBAL platform auth events: login,
+ * registration, password reset, MFA gate. None of these carry a proven
+ * Workspace/Organization subject at this layer (pre-session, or the user's
+ * own account) → routed through `emitPlatformAudit`, never a fabricated
+ * tenant scope.
+ */
 function auditAuthEvent(
   req: FastifyRequest,
   params: {
@@ -283,19 +285,24 @@ function auditAuthEvent(
     metadata?: Record<string, unknown>;
   }
 ): void {
-  void appendPlatformAuditLog({
-    userId: params.userId,
+  const outcome =
+    params.outcome === "failure" ? "error" : params.outcome === "blocked" ? "denied" : "success";
+  const reason = params.metadata?.["reason"];
+  void emitPlatformAudit({
     action: params.action,
-    category: "auth",
-    severity: params.severity ?? "info",
-    source: "api_auth",
-    outcome: params.outcome ?? "success",
+    outcome,
+    denialReason: outcome === "denied" ? (typeof reason === "string" ? reason : params.action) : null,
+    sourceApp: "API",
+    actorUserId: params.userId,
     resourceType: "user_auth",
     resourceId: params.resourceId ?? params.userId ?? null,
-    requestId: req.id,
-    metadata: params.metadata ?? {},
-    ipAddress: req.ip,
-    userAgent: readUserAgent(req),
+    correlationId: req.id,
+    metadata: {
+      ...(params.metadata ?? {}),
+      severity: params.severity ?? "info",
+      ipAddress: req.ip,
+      userAgent: readUserAgent(req),
+    },
   }).catch(() => null);
 }
 
@@ -343,16 +350,24 @@ export async function authRoutes(app: FastifyInstance) {
     throw new Error("AUTH_JWT_SECRET is not set");
   }
 
-  function jwtPayloadFromUser(user: {
-    id: string;
-    provider: string;
-    email: string | null;
-    platformRole?: string | null;
-  }) {
+  function jwtPayloadFromUser(
+    user: {
+      id: string;
+      provider: string;
+      email: string | null;
+      platformRole?: string | null;
+    },
+    // PHASE 10 §10.2 — server-verified authentication provenance. REQUIRED at
+    // every mint so no session is ambiguous (provider "EMAIL" no longer
+    // implies the ceremony).
+    authMethod: AuthProvenanceMethod,
+  ) {
     return {
       sub: user.id,
       provider: user.provider,
       email: user.email,
+      authMethod,
+      authAt: Math.floor(Date.now() / 1000),
       ...(user.platformRole === "admin" ? { role: "admin" as const } : {}),
     };
   }
@@ -462,10 +477,6 @@ export async function authRoutes(app: FastifyInstance) {
   // and the browser is instructed to keep it in component state
   // ONLY — not localStorage. The frontend exchanges it at
   // `POST /v1/auth/mfa/verify`.
-  //
-  // Guest sessions are EXEMPT: they have no primary credentials to
-  // tie a second factor to. Guest is the only auth flow that bypasses
-  // this gate by design.
   // ---------------------------------------------------------------------------
   async function gateLoginWithMfa(
     req: FastifyRequest,
@@ -573,7 +584,7 @@ export async function authRoutes(app: FastifyInstance) {
       metadata: { loginMethod },
     });
     const pendingToken = signMfaPendingToken(
-      jwtPayloadFromUser(user),
+      jwtPayloadFromUser(user, "PASSWORD"),
       jwtSecret as string,
       challenge.jti,
     );
@@ -619,86 +630,6 @@ export async function authRoutes(app: FastifyInstance) {
     return { mfaIssued: true };
   }
 
-  app.post("/v1/auth/guest", async (req, reply) => {
-    // Phase 1 — per-IP rate limit on guest-account creation. Each call
-    // inserts a User row + JWT signing; unprotected the endpoint is a
-    // free guest-account fountain that breaks plan enforcement and
-    // inflates the audit log.
-    //
-    // Phase 2.7Z+ — E2E bypass: when `E2E_AUTH_BYPASS_SECRET` is set
-    // (test environments only) AND the request includes a matching
-    // `X-E2E-Auth-Bypass` header AND `NODE_ENV !== "production"`,
-    // the rate limit is skipped for this request only. Each bypass
-    // is logged so any unexpected use in non-test environments is
-    // discoverable post-hoc. Production NEVER honors the bypass
-    // regardless of env or header.
-    const bypassed = shouldBypassAuthRateLimit(req);
-    if (bypassed) {
-      req.log.info(
-        buildBypassLogPayload(req),
-        "auth.guest.rate_limit_bypassed_e2e",
-      );
-    }
-
-    const rl = bypassed
-      ? { allowed: true, remaining: AUTH_GUEST_RATE_LIMIT_PER_IP_PER_MIN, resetAtMs: Date.now() }
-      : await enforceRateLimit({
-          key: `auth:guest:ip:${readClientIp(req)}`,
-          max: AUTH_GUEST_RATE_LIMIT_PER_IP_PER_MIN,
-          windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
-        });
-    if (!rl.allowed) {
-      const retryAfter = Math.max(
-        1,
-        Math.ceil((rl.resetAtMs - Date.now()) / 1000),
-      );
-      req.log.warn(
-        { ip: readClientIp(req), bucket: "ip", retryAfterSec: retryAfter },
-        "auth.guest.rate_limited",
-      );
-      auditAuthEvent(req, {
-        userId: null,
-        action: "auth.guest_session_created",
-        outcome: "failure",
-        severity: "warning",
-        metadata: { reason: "rate_limited" },
-      });
-      reply.header("Retry-After", String(retryAfter));
-      return reply
-        .code(429)
-        .send({ code: "RATE_LIMITED", message: "Rate limit exceeded" });
-    }
-
-    const profile = await createGuestProfile();
-    const user = await upsertUser(profile);
-    await ensureGuestIdentity(user.id);
-
-    const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
-    // Phase 2.5 — record AuthenticatedSession row so /v1/users/me/sessions
-    // surfaces guest sessions (Phase 2.4 closed the read path; this
-    // closes the write path). Best-effort; never blocks login.
-    await recordSessionFromSignedToken(req, user, token);
-    maybeSetWebCookie(req, reply, token);
-
-    auditAuthEvent(req, {
-      userId: user.id,
-      action: "auth.guest_session_created",
-      outcome: "success",
-      resourceId: user.id,
-      metadata: {
-        provider: user.provider,
-        email: user.email,
-      },
-    });
-
-    fireRegisterCompletedAnalytics(user.id, req, {
-      provider: user.provider,
-      method: "guest",
-    });
-
-    return reply.code(201).send({ token, user });
-  });
-
   app.post("/v1/auth/google", async (req, reply) => {
     try {
       const body = TokenBody.parse(req.body);
@@ -734,7 +665,7 @@ export async function authRoutes(app: FastifyInstance) {
       );
       if (gate.mfaIssued) return;
 
-      const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
+      const token = signJwt(jwtPayloadFromUser(user, "SOCIAL_OAUTH"), jwtSecret, 60 * 60 * 24 * 30);
 
       fireLoginCompletedAnalytics(user.id, req, {
         provider: user.provider,
@@ -759,8 +690,8 @@ export async function authRoutes(app: FastifyInstance) {
       // for Google users while they were signed in. Recording happens
       // AFTER the MFA gate (an mfa-required response returns early
       // above, so an incomplete login never creates a session row) and
-      // uses the SAME canonical helper as the email-password + guest
-      // paths — one session model for every provider.
+      // uses the SAME canonical helper as the email-password path —
+      // one session model for every provider.
       await recordSessionFromSignedToken(req, user, token);
       maybeSetWebCookie(req, reply, token);
       return reply.code(200).send({ token, user });
@@ -830,7 +761,7 @@ export async function authRoutes(app: FastifyInstance) {
       );
       if (gate.mfaIssued) return;
 
-      const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
+      const token = signJwt(jwtPayloadFromUser(user, "SOCIAL_OAUTH"), jwtSecret, 60 * 60 * 24 * 30);
 
       fireLoginCompletedAnalytics(user.id, req, {
         provider: user.provider,
@@ -1089,7 +1020,7 @@ export async function authRoutes(app: FastifyInstance) {
     const gate = await gateLoginWithMfa(req, reply, user, "email_password");
     if (gate.mfaIssued) return;
 
-    const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
+    const token = signJwt(jwtPayloadFromUser(user, "PASSWORD"), jwtSecret, 60 * 60 * 24 * 30);
     // Phase 2.5 — record AuthenticatedSession for the user-facing
     // sessions inventory. Best-effort; never blocks login.
     await recordSessionFromSignedToken(req, user, token);
@@ -1160,9 +1091,14 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       const webBase = process.env.WEB_BASE_URL || "https://www.proovra.com";
-      const resetUrl = `${webBase.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(
-        result.rawToken
-      )}`;
+      // PHASE 11 — /reset-password is a nav path (query-carried token, not a
+      // resource id), composed via the canonical internalNavPath + the ONE
+      // absolute-internal-URL builder (same pattern as
+      // email-verification.service.ts's buildVerifyUrl).
+      const resetUrl = absoluteInternalUrl(
+        webBase,
+        internalNavPath(`/reset-password?token=${encodeURIComponent(result.rawToken)}`),
+      );
 
       try {
         const emailService = getEmailService();
@@ -1284,7 +1220,11 @@ export async function authRoutes(app: FastifyInstance) {
       });
     }
 
-    const token = signJwt(jwtPayloadFromUser(fullUser), jwtSecret, 60 * 60 * 24 * 30);
+    // §10.2 correction — email-verification proves EMAIL POSSESSION, not a
+    // password credential for this session; classify MAGIC_LINK (fails closed
+    // for SSO-required Organizations; independently-allowed Personal use
+    // unchanged).
+    const token = signJwt(jwtPayloadFromUser(fullUser, "MAGIC_LINK"), jwtSecret, 60 * 60 * 24 * 30);
     await recordSessionFromSignedToken(req, fullUser, token);
     maybeSetWebCookie(req, reply, token);
 
@@ -1512,12 +1452,21 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(401).send({ message: "user_not_found" });
     }
     const token = signJwt(
-      jwtPayloadFromUser({
-        id: user.id,
-        provider: user.provider,
-        email: user.email,
-        platformRole: user.platformRole,
-      }),
+      {
+        // §10.3 correction — MFA AUGMENTS the primary method (here PASSWORD —
+        // the MFA gate is reached only from email/password login), it does not
+        // replace it. Preserve PASSWORD provenance + record mfaAt.
+        ...jwtPayloadFromUser(
+          {
+            id: user.id,
+            provider: user.provider,
+            email: user.email,
+            platformRole: user.platformRole,
+          },
+          "PASSWORD",
+        ),
+        mfaAt: Math.floor(Date.now() / 1000),
+      },
       jwtSecret,
       60 * 60 * 24 * 30,
     );

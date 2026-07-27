@@ -67,9 +67,25 @@ vi.mock("../src/db.js", () => {
         select && "team" in select
           ? [{ team: { id: H.teamId, name: "Workspace A" } }]
           : [{ teamId: H.teamId, role: H.role }],
+      // PHASE 1 (2026-07-21): full canonical-primitive snapshot shape.
       findUnique: async () =>
         H.wsMember
-          ? { teamId: H.teamId, userId: H.userId, role: H.role }
+          ? {
+              id: "tm-1",
+              teamId: H.teamId,
+              userId: H.userId,
+              role: H.role,
+              status: "ACTIVE",
+              accessExpiresAtUtc: null,
+              team: {
+                isPersonal: false,
+                workspaceKind: "ORGANIZATION",
+                billingPlan: "ENTERPRISE",
+                organization: { status: "ACTIVE" },
+              },
+              capabilityGrants: [],
+              delegatedAdminScopes: [],
+            }
           : null,
     },
     team: { findMany: async () => [] },

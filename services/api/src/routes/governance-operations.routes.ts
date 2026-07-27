@@ -32,10 +32,11 @@ import type {
 } from "fastify";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
+import type { Permission } from "@proovra/shared";
+
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { requirePermission } from "../services/governance.service.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import {
   computeGovernanceAnalytics,
   type GovernanceAnalyticsResult,
@@ -65,24 +66,28 @@ import {
 
 const ParamsId = z.object({ id: z.string().uuid() });
 
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization.
+ *
+ * Replaces the former status-blind `requireMember` + role-only
+ * `requirePermission` pair. Routes through `authorizeOrFail`, gaining ACTIVE
+ * membership + parent-Organization lifecycle + access-expiry + capability /
+ * delegated-admin resolution + fail-closed + anti-enumeration (404 for
+ * non-members / cross-tenant probes) + audit — in one call. The permission
+ * passed at each call site is UNCHANGED from the pre-Phase-1 gate.
+ */
 async function requireMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
-): Promise<{ userId: string; role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+  permission: Permission,
+): Promise<{ actorUserId: string } | null> {
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission,
+    antiEnumeration: true,
   });
-  if (!membership) {
-    reply.code(403).send({ message: "Not a member of the workspace" });
-    return null;
-  }
-  return { userId, role: membership.role };
-}
-
-function denyByPermission(reply: FastifyReply, reason: string) {
-  reply.code(403).send({ error: { code: "permission_denied", reason } });
+  return outcome ? { actorUserId: outcome.actorUserId } : null;
 }
 
 export async function governanceOperationsRoutes(app: FastifyInstance) {
@@ -100,10 +105,8 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
           window: z.enum(ANALYTICS_WINDOWS).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
 
       const result: GovernanceAnalyticsResult = await computeGovernanceAnalytics({
         teamId: query.teamId,
@@ -133,10 +136,8 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
 
       const [notifications, pendingCount, failedCount] = await Promise.all([
         listGovernanceNotifications({
@@ -165,15 +166,13 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
       const body = z
         .object({ teamId: z.string().uuid() })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "governance.policy.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.manage");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       try {
         const notification = await acknowledgeGovernanceNotification({
           id,
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
         });
         return reply.code(200).send({ notification });
       } catch (err) {
@@ -202,19 +201,17 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
           snapshotKind: z.enum(GOVERNANCE_EXPORT_SNAPSHOT_KINDS),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "evidence.generate_package");
       if (!ok) return;
       // Capturing a snapshot is the documentary side of an export — the
       // caller already has the right to export. Require the same
       // permission as report/package generation to keep things tight.
-      const perm = requirePermission(ok.role, "evidence.generate_package");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       try {
         const snapshot = await captureExportSnapshot({
           teamId: body.teamId,
           evidenceId: body.evidenceId ?? null,
           snapshotKind: body.snapshotKind,
-          createdByUserId: ok.userId,
+          createdByUserId: ok.actorUserId,
         });
         return reply.code(201).send({ snapshot });
       } catch (err) {
@@ -240,10 +237,8 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       const snapshots = await listExportSnapshots({
         teamId: query.teamId,
         snapshotKind: query.snapshotKind,
@@ -260,10 +255,8 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsId.parse(req.params);
       const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       const snapshot = await getExportSnapshot({ teamId: query.teamId, id });
       if (!snapshot) {
         return reply.code(404).send({
@@ -280,10 +273,8 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsId.parse(req.params);
       const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       const snapshot = await getExportSnapshot({ teamId: query.teamId, id });
       if (!snapshot) {
         return reply.code(404).send({
@@ -312,10 +303,8 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       const limit = Math.min(query.limit ?? 50, 200);
       const rows = await prisma.governanceReconciliationRun.findMany({
         where: {
@@ -361,10 +350,8 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       const rows = await prisma.destructionExecution.findMany({
         where: {
           teamId: query.teamId,
@@ -410,10 +397,8 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       const rows = await prisma.immutableStorageCheck.findMany({
         where: {
           teamId: query.teamId,

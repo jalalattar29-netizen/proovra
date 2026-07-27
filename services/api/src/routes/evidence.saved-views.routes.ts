@@ -32,7 +32,10 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 
+import { teamMemberStatusGrantsAccess } from "@proovra/shared";
+
 import { prisma } from "../db.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 
@@ -95,9 +98,14 @@ type ParamsId = { id: string };
 async function getTeamMembershipRole(teamId: string, userId: string) {
   const membership = await prisma.teamMember.findUnique({
     where: { teamId_userId: { teamId, userId } },
-    select: { role: true },
+    select: { role: true, status: true },
   });
-  return membership?.role ?? null;
+  // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — only an ACTIVE membership
+  // resolves to a role; a SUSPENDED/REVOKED member is treated as a non-member
+  // for team-scoped saved-view access (fail-closed).
+  return membership && teamMemberStatusGrantsAccess(membership.status)
+    ? membership.role
+    : null;
 }
 
 function toJsonSafe<T>(value: T): T {
@@ -175,8 +183,12 @@ export async function evidenceSavedViewsRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply) => {
       const userId = getAuthUserId(req);
+      // PHASE 1 (2026-07-21) — this personal aggregation of the caller's own
+      // saved views is NOT a per-workspace authorization gate; it scopes the
+      // list to teams the caller belongs to. Restrict to ACTIVE memberships so
+      // a suspended member no longer sees that team's shared views.
       const memberTeams = await prisma.teamMember.findMany({
-        where: { userId },
+        where: { userId, status: "ACTIVE" },
         select: { teamId: true },
       });
       const memberTeamIds = memberTeams.map((item) => item.teamId);
@@ -207,12 +219,15 @@ export async function evidenceSavedViewsRoutes(app: FastifyInstance) {
       const body = CreateSavedViewBody.parse(req.body);
 
       if (body.teamId) {
-        const membership = await prisma.teamMember.findUnique({
-          where: { teamId_userId: { teamId: body.teamId, userId } },
+        // PHASE 1 (2026-07-21) — creating a team-scoped saved view is gated by
+        // the canonical primitive (ACTIVE membership + org lifecycle +
+        // evidence.read + fail-closed + anti-enumeration 404).
+        const authz = await authorizeOrFail(req, reply, {
+          teamId: body.teamId,
+          permission: "evidence.read",
+          antiEnumeration: true,
         });
-        if (!membership) {
-          return reply.code(403).send({ message: "Forbidden" });
-        }
+        if (!authz) return;
       }
 
       if (body.isDefault) {

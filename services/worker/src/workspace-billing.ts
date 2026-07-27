@@ -1,6 +1,12 @@
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "./db.js";
-import { getPlanCapabilities } from "@proovra/shared-billing";
+import {
+  getPlanCapabilities,
+  resolveWorkspaceEffectivePlan,
+  type WorkspaceBillingStatus,
+} from "@proovra/shared-billing";
+// Domain classifier — single implementation in the general domain package.
+import { normalizeWorkspaceKind } from "@proovra/shared";
 
 export type WorkerWorkspaceScope = {
   workspaceType: "PERSONAL" | "TEAM";
@@ -119,6 +125,9 @@ export async function getTeamWorkspaceScope(
       billingStatus: true,
       includedSeats: true,
       storageBytesOverride: true,
+      // §9.4 corrected — subject-aware policy inputs.
+      workspaceKind: true,
+      isPersonal: true,
     },
   });
 
@@ -126,36 +135,31 @@ export async function getTeamWorkspaceScope(
     throw new Error("TEAM_NOT_FOUND_FOR_EVIDENCE");
   }
 
-  // Phase WORKER-PLAN-PARITY-FIX — mirror the API's three-tier
-  // effective-plan rule (services/api/src/services/
-  // workspace-billing.service.ts:174-180):
-  //
-  //   1. Team billing is ACTIVE / PAST_DUE → use team.billingPlan
-  //   2. Otherwise, if the owner's entitlement supports team
-  //      workspaces (PRO / TEAM at owner grade) → use that
-  //   3. Otherwise → FREE
-  //
-  // The middle tier is the one the worker was missing. A personal
-  // capture lives on the user's auto-bootstrapped personal-team
-  // whose billingStatus is rarely ACTIVE/PAST_DUE; without this
-  // fallback the worker resolved every such evidence as FREE and
-  // denied the report job that the API had already enqueued under
-  // the owner's real (PRO/TEAM) entitlement.
+  // PHASE 9 §9.4/§9.11 CORRECTED (2026-07-22) — the worker uses the SAME
+  // subject-correct canonical pure policy as the API
+  // (`resolveWorkspaceEffectivePlan` + `normalizeWorkspaceKind`,
+  // shared-billing; one implementation each). OWNED workspaces resolve from
+  // their OWN commercial state only; the owner's entitlement participates
+  // ONLY for the PERSONAL workspace kind (the personal-space subject — this
+  // is what keeps personal captures on auto-bootstrapped personal teams
+  // resolving at the owner's real plan).
   const ownerEntitlement = await prisma.entitlement.findFirst({
     where: { userId: team.ownerUserId, active: true },
     orderBy: { createdAt: "desc" },
     select: { plan: true },
   });
   const ownerPlan = ownerEntitlement?.plan ?? prismaPkg.PlanType.FREE;
-  const ownerPlanSupportsTeams =
-    getPlanCapabilities(ownerPlan).allowsTeamWorkspace;
-  const effectivePlan =
-    team.billingStatus === prismaPkg.TeamBillingStatus.ACTIVE ||
-    team.billingStatus === prismaPkg.TeamBillingStatus.PAST_DUE
-      ? team.billingPlan
-      : ownerPlanSupportsTeams
-        ? ownerPlan
-        : prismaPkg.PlanType.FREE;
+  const effectivePlan = resolveWorkspaceEffectivePlan({
+    workspaceKind: normalizeWorkspaceKind({
+      workspaceKind: (team as { workspaceKind?: string | null }).workspaceKind ?? null,
+      isPersonal: (team as { isPersonal?: boolean | null }).isPersonal ?? null,
+      billingPlan: team.billingPlan,
+      teamLoaded: true,
+    }),
+    billingPlan: team.billingPlan as prismaPkg.PlanType,
+    billingStatus: team.billingStatus as WorkspaceBillingStatus,
+    ownerPlan: ownerPlan as prismaPkg.PlanType,
+  }).plan as prismaPkg.PlanType;
 
   const activeStorageAddonBytes = await getActiveStorageAddonBytes({
     ownerUserId: team.ownerUserId,

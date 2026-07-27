@@ -336,8 +336,12 @@ describe("Phase IA-surface-tier-pricing — topbar workspace switcher", () => {
     expect(RESOLVER).toMatch(/membershipStatus === "ACTIVE"/);
   });
 
-  it("Organizations switcher group is gated on the resolved active-org options (account-menu refactor 2026-07-21)", () => {
-    expect(TOPBAR).toMatch(/menu\.workspaces\.organizations\.length > 0/);
+  it("Organizations switcher groups are gated on the resolved active-org options (P3/P4 domain remediation 2026-07-21)", () => {
+    // The toolbar renders EXACTLY the resolver's organization groups by
+    // mapping them (an empty resolved list renders no ORGANIZATION group);
+    // it never builds org options from anything but the resolved menu.
+    expect(TOPBAR).toMatch(/menu\.workspaces\.organizations\.map\(/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/data-context-group="ORGANIZATION"/); // (P3/P4 domain remediation 2026-07-21)
   });
 
   it("Organization settings is membership-gated in the resolver; create/join/manage actions removed (account-menu refactor 2026-07-21)", () => {

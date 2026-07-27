@@ -25,6 +25,7 @@
 import type { PrismaClient } from "@prisma/client";
 import {
   REDACTION_CAPABILITY_MATRIX,
+  teamMemberStatusGrantsAccess,
   type RedactionCapability,
   type RedactionDenialReason,
   type RedactionRole,
@@ -88,9 +89,13 @@ export async function resolveRedactionRoles(
   // empty set and the higher-level gate refuses with NOT_PERMITTED.
   const member = await prisma.teamMember.findFirst({
     where: { userId, teamId },
-    select: { role: true },
+    select: { role: true, status: true },
   });
-  if (!member) return new Set();
+  // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — status-aware. Only an ACTIVE
+  // membership resolves to any redaction role; a SUSPENDED / REVOKED member
+  // gets the empty set (fail-closed), so the higher-level gate refuses with
+  // NOT_PERMITTED — the same outcome as a non-member.
+  if (!member || !teamMemberStatusGrantsAccess(member.status)) return new Set();
   const roleString = String(member.role ?? "").toUpperCase();
   const granted = new Set<RedactionRole>();
   for (const rule of PLATFORM_ROLE_TO_REDACTION) {

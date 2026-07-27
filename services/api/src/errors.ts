@@ -56,6 +56,13 @@ export enum ErrorCode {
   RATE_LIMITED = "RATE_LIMITED",
   PROVIDER_ERROR = "PROVIDER_ERROR",
   PRODUCTION_CONFIG_VIOLATION = "PRODUCTION_CONFIG_VIOLATION",
+
+  // PHASE 10 §1 — the Organization security context could not be evaluated
+  // because of an INFRASTRUCTURE failure (policy/workspace/org/SSO/session read
+  // threw). Enforcement FAILS CLOSED with this generic, non-enumerating 503 —
+  // the request never reaches the route handler. Distinct from 401
+  // (reauthenticate) which means an invalid/non-compliant session.
+  SECURITY_CONTEXT_UNAVAILABLE = "SECURITY_CONTEXT_UNAVAILABLE",
 }
 
 export interface ErrorDetails {
@@ -108,6 +115,9 @@ export function getStatusCode(code: ErrorCode): number {
       return 502;
 
     case ErrorCode.PRODUCTION_CONFIG_VIOLATION:
+      return 503;
+
+    case ErrorCode.SECURITY_CONTEXT_UNAVAILABLE:
       return 503;
 
     case ErrorCode.NOT_FOUND:
@@ -205,6 +215,8 @@ export function getErrorMessage(code: ErrorCode): string {
       "Upstream provider returned an error. Try again later.",
     [ErrorCode.PRODUCTION_CONFIG_VIOLATION]:
       "Service is misconfigured. Contact an operator.",
+    [ErrorCode.SECURITY_CONTEXT_UNAVAILABLE]:
+      "The security context is temporarily unavailable. Please retry.",
   };
 
   return messages[code] ?? "An unexpected error occurred";

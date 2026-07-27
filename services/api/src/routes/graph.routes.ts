@@ -62,7 +62,7 @@ import {
   MANUAL_EDGE_TYPES,
 } from "../services/graph/graph-catalog.js";
 import { bump } from "../services/ops/metrics.service.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 // Wave 3 Phase 7B — bounded custody emit for Investigation-mutation
 // surfaces. Best-effort; never blocks the operator action. See
 // services/investigation-custody.service.ts for the swallow contract.
@@ -216,21 +216,19 @@ export async function graphRoutes(app: FastifyInstance) {
       }
       // Wave 2 Phase 6 — bounded audit emit on successful create.
       // Never write AdminAuditLog directly per dedup register; always
-      // go through appendPlatformAuditLog. Best-effort — never blocks
+      // go through emitTenantAudit. Best-effort — never blocks
       // the operator action.
       try {
-        await appendPlatformAuditLog({
-          userId: actor.actorUserId,
+        await emitTenantAudit({
           action: "GRAPH_MANUAL_RELATIONSHIP_CREATED",
-          category: "investigation_graph",
-          severity: "info",
-          source: "investigation_graph_routes",
-          outcome: "created",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: actor.actorUserId,
+          workspaceId: actor.teamId,
           resourceType: "graph_edge",
           resourceId: result.edgeId,
-          requestId: req.id,
+          correlationId: req.id ?? null,
           metadata: {
-            teamId: body.teamId,
             manualRelationshipId: result.manualRelationshipId,
             edgeId: result.edgeId,
             sourceNodeId: body.sourceNodeId,
@@ -296,18 +294,16 @@ export async function graphRoutes(app: FastifyInstance) {
       // Wave 2 Phase 6 — bounded audit emit on successful retract.
       // Best-effort — never blocks the operator action.
       try {
-        await appendPlatformAuditLog({
-          userId: actor.actorUserId,
+        await emitTenantAudit({
           action: "GRAPH_MANUAL_RELATIONSHIP_RETRACTED",
-          category: "investigation_graph",
-          severity: "info",
-          source: "investigation_graph_routes",
-          outcome: "retracted",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: actor.actorUserId,
+          workspaceId: actor.teamId,
           resourceType: "manual_relationship",
           resourceId: manualRelationshipId,
-          requestId: req.id,
+          correlationId: req.id ?? null,
           metadata: {
-            teamId: body.teamId,
             manualRelationshipId,
             reason: body.reason ?? null,
           },
@@ -631,20 +627,18 @@ export async function graphRoutes(app: FastifyInstance) {
       }
 
       // Bounded audit emit. Never write AdminAuditLog directly per
-      // dedup register; always go through appendPlatformAuditLog.
+      // dedup register; always go through emitTenantAudit.
       try {
-        await appendPlatformAuditLog({
-          userId: actor.actorUserId,
+        await emitTenantAudit({
           action: "DUPLICATE_DECISION_RECORDED",
-          category: "investigation_graph",
-          severity: "info",
-          source: "investigation_graph_routes",
-          outcome: "recorded",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: actor.actorUserId,
+          workspaceId: actor.teamId,
           resourceType: "graph_edge",
           resourceId: edgeRow.id,
-          requestId: req.id,
+          correlationId: req.id ?? null,
           metadata: {
-            teamId: body.teamId,
             edgeId: edgeRow.id,
             edgeType: edgeRow.edge_type,
             decision: body.decision,
@@ -726,7 +720,7 @@ export async function graphRoutes(app: FastifyInstance) {
   // edges. Bounded to 500 nodes + 500 edges per response (truncation
   // flag exposed) so even large workspaces never produce an unbounded
   // payload. Permission: evidence.read. Anti-enumeration via team scope.
-  // Audited via appendPlatformAuditLog action INVESTIGATION_EXPORT_GENERATED.
+  // Audited via emitTenantAudit action INVESTIGATION_EXPORT_GENERATED.
   // ---------------------------------------------------------------------------
   app.post(
     "/v1/graph/export",
@@ -802,18 +796,16 @@ export async function graphRoutes(app: FastifyInstance) {
       const generatedAt = new Date().toISOString();
       // Bounded audit emit on every export.
       try {
-        await appendPlatformAuditLog({
-          userId: actor.actorUserId,
+        await emitTenantAudit({
           action: "INVESTIGATION_EXPORT_GENERATED",
-          category: "investigation_graph",
-          severity: "info",
-          source: "investigation_graph_routes",
-          outcome: "generated",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: actor.actorUserId,
+          workspaceId: actor.teamId,
           resourceType: "team",
-          resourceId: body.teamId,
-          requestId: req.id,
+          resourceId: actor.teamId,
+          correlationId: req.id ?? null,
           metadata: {
-            teamId: body.teamId,
             exportKind: "graph",
             nodeCount: trimmedNodes.length,
             edgeCount: trimmedEdges.length,
@@ -915,18 +907,16 @@ export async function graphRoutes(app: FastifyInstance) {
       }
       const generatedAt = new Date().toISOString();
       try {
-        await appendPlatformAuditLog({
-          userId: actor.actorUserId,
+        await emitTenantAudit({
           action: "INVESTIGATION_EXPORT_GENERATED",
-          category: "investigation_graph",
-          severity: "info",
-          source: "investigation_graph_routes",
-          outcome: "generated",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: actor.actorUserId,
+          workspaceId: actor.teamId,
           resourceType: "team",
-          resourceId: body.teamId,
-          requestId: req.id,
+          resourceId: actor.teamId,
+          correlationId: req.id ?? null,
           metadata: {
-            teamId: body.teamId,
             exportKind: "timeline",
             eventCount: result.events.length,
             truncated: result.truncated,
@@ -997,18 +987,16 @@ export async function graphRoutes(app: FastifyInstance) {
       });
       const generatedAt = new Date().toISOString();
       try {
-        await appendPlatformAuditLog({
-          userId: actor.actorUserId,
+        await emitTenantAudit({
           action: "INVESTIGATION_EXPORT_GENERATED",
-          category: "investigation_graph",
-          severity: "info",
-          source: "investigation_graph_routes",
-          outcome: "generated",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: actor.actorUserId,
+          workspaceId: actor.teamId,
           resourceType: "team",
-          resourceId: body.teamId,
-          requestId: req.id,
+          resourceId: actor.teamId,
+          correlationId: req.id ?? null,
           metadata: {
-            teamId: body.teamId,
             exportKind: "duplicates",
             edgeCount: result.edges.length,
             truncated: result.truncated,
@@ -1100,7 +1088,7 @@ export async function graphRoutes(app: FastifyInstance) {
   // Operator-triggered manual graph reconcile. Enqueues a worker job
   // (the worker is the source of truth for actually running
   // `reconcileTeamGraph`). Anti-enumeration: non-workspace members
-  // get a 404, not a 403. Bounded auditing via appendPlatformAuditLog
+  // get a 404, not a 403. Bounded auditing via emitTenantAudit
   // with code `GRAPH_MANUAL_RECONCILE_REQUESTED`.
   // ---------------------------------------------------------------------------
   app.post(
@@ -1121,21 +1109,23 @@ export async function graphRoutes(app: FastifyInstance) {
       });
       const queuedAt = new Date().toISOString();
       // Bounded audit emit — never write AdminAuditLog directly per
-      // dedup register; always go through appendPlatformAuditLog.
+      // dedup register; always go through emitTenantAudit.
       try {
-        await appendPlatformAuditLog({
-          userId: actor.userId,
+        await emitTenantAudit({
           action: "GRAPH_MANUAL_RECONCILE_REQUESTED",
-          category: "investigation_graph",
-          severity: "info",
-          source: "investigation_graph_routes",
-          outcome: enqueueResult.queued ? "queued" : "noop",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: actor.userId,
+          // requireGraphAdminActor already proved membership on q.teamId
+          // before returning — this is the authorized workspace, not a
+          // raw client-declared value.
+          workspaceId: q.teamId,
           resourceType: "team",
           resourceId: q.teamId,
-          requestId: req.id,
+          correlationId: req.id ?? null,
           metadata: {
-            teamId: q.teamId,
             jobId: enqueueResult.jobId,
+            queued: enqueueResult.queued,
             queueReason: enqueueResult.reason,
             requestedReason: body.reason ?? null,
           },

@@ -225,7 +225,9 @@ export async function activateTeamPlan(params: {
     select: {
       id: true,
       ownerUserId: true,
-      _count: { select: { members: true } },
+      // P5 domain remediation (2026-07-21) — seat counting is ACTIVE-only
+      // (suspended/revoked members are access-denied and release their seat).
+      _count: { select: { members: { where: { status: "ACTIVE" } } } },
     },
   });
 
@@ -479,8 +481,48 @@ export async function upsertSubscription(params: {
       status: true,
       plan: true,
       teamId: true,
+      currentPeriodEnd: true,
+      userId: true,
     },
   });
+
+  // §9.10 STALE/OUT-OF-ORDER PROTECTION (2026-07-23): a provider event whose
+  // billing period is OLDER than the stored row's cannot restore an older
+  // entitlement state. Provider events for the same subscription advance
+  // monotonically in currentPeriodEnd; an event carrying an earlier period
+  // end than what we already recorded is a late/retried delivery of an
+  // older state — skip the write (idempotent no-op) and keep the newer row.
+  if (
+    existing &&
+    existing.currentPeriodEnd &&
+    params.currentPeriodEnd &&
+    params.currentPeriodEnd.getTime() < existing.currentPeriodEnd.getTime()
+  ) {
+    return prisma.subscription.findUniqueOrThrow({
+      where: {
+        provider_providerSubId: {
+          provider: params.provider,
+          providerSubId: params.providerSubId,
+        },
+      },
+    });
+  }
+
+  // §9.10 SUBJECT BINDING: a provider subscription id maps to exactly ONE
+  // commercial subject. A retried/late event may not silently REBIND the
+  // stored row to a different user or workspace — fail closed instead.
+  if (
+    existing &&
+    (existing.userId !== params.userId ||
+      (existing.teamId ?? null) !== (params.teamId ?? null))
+  ) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "Provider subscription is bound to a different commercial subject"
+    );
+    err.statusCode = 409;
+    err.code = "PROVIDER_SUBSCRIPTION_SUBJECT_MISMATCH";
+    throw err;
+  }
 
   const subscription = await prisma.subscription.upsert({
     where: {
@@ -722,7 +764,8 @@ export async function refreshTeamSeatState(teamId: string) {
       billingPlan: true,
       includedSeats: true,
       _count: {
-        select: { members: true },
+        // P5 domain remediation (2026-07-21) — ACTIVE-only seat counting.
+        select: { members: { where: { status: "ACTIVE" } } },
       },
     },
   });

@@ -30,11 +30,10 @@ import type {
 } from "fastify";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
+import type { Permission } from "@proovra/shared";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { resolveCapabilities } from "../services/platform-context/capability-registry.js";
-import { isPlatformAdmin } from "../services/platform-admin.service.js";
 import {
   AUTOMATION_ACTION_TYPES,
   AUTOMATION_TRIGGER_TYPES,
@@ -63,9 +62,22 @@ const ListRunsQuery = z.object({
 
 type Capability = "AUTOMATION_VIEW" | "AUTOMATION_MANAGE";
 
+// PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — automation rules are an
+// integration/config surface; both viewing and managing them map to the
+// canonical `integration.webhook.manage` capability (held by OWNER + ADMIN).
+const CAPABILITY_TO_PERMISSION: Record<Capability, Permission> = {
+  AUTOMATION_VIEW: "integration.webhook.manage",
+  AUTOMATION_MANAGE: "integration.webhook.manage",
+};
+
 /**
- * Resolve team membership + capability. Returns either the
- * authenticated userId (allowed) or null (already replied to client).
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization.
+ * Routes through authorizeOrFail (ACTIVE membership + org lifecycle +
+ * capability + fail-closed + anti-enumeration 404). This REPLACES the former
+ * `resolveCapabilities({ isPlatformAdmin })` path, which let a platform admin
+ * satisfy the gate WITHOUT ACTIVE customer-workspace membership — an implicit
+ * platform-admin bypass. A platform admin now has NO special standing here;
+ * they must be an ACTIVE member holding the capability like anyone else.
  */
 async function requireTeamCapability(
   req: FastifyRequest,
@@ -73,45 +85,12 @@ async function requireTeamCapability(
   teamId: string,
   capability: Capability,
 ): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission: CAPABILITY_TO_PERMISSION[capability],
+    antiEnumeration: true,
   });
-  if (!membership) {
-    reply.code(403).send({ message: "Not a member of the workspace" });
-    return null;
-  }
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: {
-      id: true,
-      isPersonal: true,
-      billingPlan: true,
-      ownerUserId: true,
-    },
-  });
-  if (!team) {
-    reply.code(404).send({ message: "Workspace not found" });
-    return null;
-  }
-  const platformAdmin = await isPlatformAdmin(userId);
-  // The capability resolver uses scope = "PERSONAL" | "TEAM" (legacy
-  // shape carried since CR0 baseline). Personal Space → "PERSONAL";
-  // organisation workspace → "TEAM".
-  const capabilities = resolveCapabilities({
-    role: membership.role as never,
-    scope: team.isPersonal ? "PERSONAL" : ("TEAM" as never),
-    plan: team.billingPlan as never,
-    isPlatformAdmin: platformAdmin,
-  });
-  if (!capabilities[capability]) {
-    reply.code(403).send({
-      message: `Capability ${capability} required`,
-      error: { code: "permission_denied", capability },
-    });
-    return null;
-  }
-  return { userId };
+  return outcome ? { userId: outcome.actorUserId } : null;
 }
 
 function projectRule(row: {

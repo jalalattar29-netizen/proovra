@@ -18,6 +18,12 @@ import Link from "next/link";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../lib/api";
+// PHASE 7 §10 — canonical context-safety primitives.
+import {
+  WorkspaceContextBanner,
+  useWorkspaceContextSafety,
+  usePlatformContext,
+} from "../../../lib/platform-context";
 import { formatUserDateTime } from "../../../lib/date";
 import { PageShell, PageHeader, PageSection } from "../../../components/ui/PageShell";
 import { Card } from "../../../components/ui/Card";
@@ -64,6 +70,10 @@ function RedactionProjectsShell() {
   const [summary, setSummary] = useState<WorkspaceSummary | null>(null);
   const [providers, setProviders] = useState<ProviderHealthRow[] | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
+  // PHASE 7 §10.7 — redaction projects are workspace-anchored; re-scope
+  // the whole page on a workspace switch (never show the prior tenant's
+  // projects/summary/provider health).
+  const { activeWorkspaceId } = usePlatformContext();
 
   const refresh = useCallback(async () => {
     try {
@@ -91,8 +101,12 @@ function RedactionProjectsShell() {
   }, []);
 
   useEffect(() => {
+    // §10.G — drop the prior tenant's data on switch before re-fetch.
+    setRows(null);
+    setSummary(null);
+    setProviders(null);
     void refresh();
-  }, [refresh]);
+  }, [refresh, activeWorkspaceId]);
 
   return (
     <PageShell
@@ -261,36 +275,50 @@ function RedactionOpenForm({
   >("IMAGE");
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
+  // PHASE 7 §10.1/§10.3 — unsaved open-form content is dirty work; guard
+  // the open against a mid-flight workspace switch.
+  const { runGuarded } = useWorkspaceContextSafety({
+    isDirty: evidenceId.trim().length > 0 || title.trim().length > 0,
+    dirtyLabel: "Unsaved redaction project",
+  });
   const onOpen = useCallback(async () => {
     if (!evidenceId) return;
     setBusy(true);
     try {
-      const res = await apiFetch("/v1/redaction/projects", {
-        method: "POST",
-        body: JSON.stringify({
-          evidenceId: evidenceId.trim(),
-          artifactKind,
-          title: title.trim() || undefined,
-        }),
-      });
-      onOpened(
-        `Opened redaction project ${(res?.projectId ?? "").slice(0, 8)}…`,
+      await runGuarded(
+        () =>
+          apiFetch("/v1/redaction/projects", {
+            method: "POST",
+            body: JSON.stringify({
+              evidenceId: evidenceId.trim(),
+              artifactKind,
+              title: title.trim() || undefined,
+            }),
+          }),
+        (res) => {
+          onOpened(
+            `Opened redaction project ${(res?.projectId ?? "").slice(0, 8)}…`,
+          );
+          setEvidenceId("");
+          setTitle("");
+        },
       );
-      setEvidenceId("");
-      setTitle("");
     } catch (err) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onRefuse(((err as any)?.denial ?? "POLICY_REJECTED") as string);
     } finally {
       setBusy(false);
     }
-  }, [evidenceId, artifactKind, title, onOpened, onRefuse]);
+  }, [evidenceId, artifactKind, title, onOpened, onRefuse, runGuarded]);
   return (
     <Card
       data-redaction-open-form
       title="Open a redaction project"
       subtitle="Original evidence is never modified — this opens a bounded, workspace-anchored project."
     >
+      {/* PHASE 7 §10.5 — show the owning workspace before opening a
+          redaction project against evidence in it. */}
+      <WorkspaceContextBanner action="Redaction project will open in" />
       <div
       style={{
         display: "grid",

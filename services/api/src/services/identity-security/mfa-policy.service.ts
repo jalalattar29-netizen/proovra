@@ -34,7 +34,8 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { organizationIdForPolicy } from "../identity/org-security-policy.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
 // Sensitive actions that ALWAYS require step-up regardless of policy
@@ -129,18 +130,22 @@ export async function getMfaPolicy(
   teamId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<ResolvedMfaPolicy> {
-  const row = await client.organizationSecurityPolicy.findUnique({
-    where: { teamId },
-    select: {
-      mfaPolicyLevel: true,
-      mfaRequiredFlag: true,
-      ssoReadyFlag: true,
-      scimReadyFlag: true,
-      stepUpTtlSeconds: true,
-      trustedDeviceTtlDays: true,
-      mfaEnforcementFailMode: true,
-    },
-  });
+  // §1.1 — read the ONE org policy by AUTHORITATIVE organizationId (never teamId).
+  const organizationId = await organizationIdForPolicy(teamId, client);
+  const row = organizationId
+    ? await client.organizationSecurityPolicy.findUnique({
+        where: { organizationId },
+        select: {
+          mfaPolicyLevel: true,
+          mfaRequiredFlag: true,
+          ssoReadyFlag: true,
+          scimReadyFlag: true,
+          stepUpTtlSeconds: true,
+          trustedDeviceTtlDays: true,
+          mfaEnforcementFailMode: true,
+        },
+      })
+    : null;
   const baseLevel = normaliseLevel(row?.mfaPolicyLevel ?? null);
   // If the legacy mfaRequiredFlag is on but the new level was never
   // set, default to ADMINS_ONLY. Operators can override later via
@@ -305,17 +310,29 @@ export async function updateMfaPolicy(
     }
   }
 
-  // Read prior fail mode so we can emit the change event only when
-  // it actually changed (avoids noisy SIEM rows).
+  // §1.1/§policy-lifecycle — the ONE org policy is keyed by organizationId.
+  // Resolve the parent CUSTOMER Organization via the zero-decision adapter; a
+  // workspace with no such parent cannot own an org security policy.
+  const mfaOrganizationId = await organizationIdForPolicy(input.teamId, client);
+  if (!mfaOrganizationId) {
+    throw Object.assign(new Error("org_security_policy_not_applicable"), {
+      statusCode: 400,
+      code: "ORG_SECURITY_POLICY_NOT_APPLICABLE",
+    });
+  }
+
+  // Read prior fail mode (by organizationId) so we emit the change event only
+  // when it actually changed (avoids noisy SIEM rows).
   const prior = await client.organizationSecurityPolicy.findUnique({
-    where: { teamId: input.teamId },
+    where: { organizationId: mfaOrganizationId },
     select: { mfaEnforcementFailMode: true },
   });
   const priorFailMode = prior?.mfaEnforcementFailMode ?? null;
 
   const updated = await client.organizationSecurityPolicy.upsert({
-    where: { teamId: input.teamId },
+    where: { organizationId: mfaOrganizationId },
     create: {
+      organizationId: mfaOrganizationId,
       teamId: input.teamId,
       mfaPolicyLevel: input.level,
       stepUpTtlSeconds: stepUpTtl ?? null,
@@ -378,13 +395,12 @@ export async function updateMfaPolicy(
       client,
     );
   }
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "identity_security.mfa_policy.update",
-    category: "identity_security.policy",
-    severity: "info",
-    source: "identity_security_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "organization_security_policy",
     resourceId: input.teamId,
     metadata: {
@@ -394,10 +410,7 @@ export async function updateMfaPolicy(
       mfaEnforcementFailMode:
         failModeForWrite === undefined ? priorFailMode : (failModeForWrite ?? null),
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
 
   // R8.1.5 — return the persisted fail-mode in the post-update view.
   const persistedFm = updated.mfaEnforcementFailMode ?? null;
@@ -413,7 +426,7 @@ export async function updateMfaPolicy(
     }
   }
   return {
-    teamId: updated.teamId,
+    teamId: input.teamId,
     level: normaliseLevel(updated.mfaPolicyLevel),
     stepUpTtlSeconds: updated.stepUpTtlSeconds ?? DEFAULT_STEP_UP_TTL_SECONDS,
     trustedDeviceTtlDays:

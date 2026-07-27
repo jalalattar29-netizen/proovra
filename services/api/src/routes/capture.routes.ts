@@ -24,6 +24,8 @@ import {
   PROOVRA_SPAN_NAMES,
   withProovraSpan,
 } from "../observability/otel.js";
+// PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
+import { assertPersonalSpaceAllowed } from "../services/identity/identity-mode.service.js";
 
 /*
  * Capture routes.
@@ -232,6 +234,26 @@ export async function captureRoutes(app: FastifyInstance) {
   ) {
       const ownerUserId = getAuthUserId(req);
       const body = CreateSessionBody.parse(req.body ?? {});
+
+      // PHASE 10 §13.2 STEP 6 (2026-07-23) — NO-PERSONAL enforcement. A capture
+      // DRAFT with no `teamId` is PERSONAL-scoped (it finalizes into personal
+      // Evidence). A managed enterprise identity has no personal space, so deny
+      // the personal draft BEFORE any CaptureSession row is written (fail closed
+      // for MANAGED + MANAGED_UNRESOLVED). Team drafts (explicit teamId) are
+      // unaffected — their membership + plan gates apply downstream.
+      if (!body.teamId) {
+        try {
+          await assertPersonalSpaceAllowed(ownerUserId);
+        } catch (err) {
+          const e = err as { statusCode?: number; code?: string; message?: string };
+          return reply.code(e.statusCode ?? 403).send({
+            code: e.code ?? "MANAGED_IDENTITY_NO_PERSONAL_SPACE",
+            message:
+              e.message ??
+              "Managed enterprise identities do not have a personal workspace.",
+          });
+        }
+      }
 
       let templateSnapshot: ReturnType<typeof snapshotIntakeTemplate> | null =
         null;

@@ -14,11 +14,14 @@
  *
  *   GET   /v1/review/queue                                         — review queue
  *
- * All routes require authentication and workspace membership of the
- * request's teamId. Mutations require role >= MEMBER (any member can
- * create or move a request through review states; the existing /capture
- * uses the same baseline). Reviewer notes are visible to MEMBER+ via the
- * authenticated projection.
+ * All routes require authentication + canonical authorization against the
+ * request's teamId (ACTIVE membership + org lifecycle + anti-enumeration).
+ * PHASE 1 (2026-07-21) made the capability OPERATION-SPECIFIC rather than
+ * bare membership: reads → evidence.read; create/send/patch →
+ * evidence_request.create; cancel → evidence_request.cancel; close →
+ * evidence_request.close; review/needs-info/waive → evidence_request.review;
+ * assign → evidence_request.assign. Reviewer notes are visible to holders of
+ * evidence.read via the authenticated projection.
  */
 
 import type {
@@ -29,17 +32,20 @@ import type {
 import { z } from "zod";
 import {
   assertWorkspaceAllowsIntake,
-  resolveWorkspaceScopeForUser,
+  resolveEnforcementScopeForRequester,
 } from "../services/billing-enforcement.service.js";
 import {
+  absoluteInternalUrl,
   EVIDENCE_REQUEST_PRIORITIES,
   EVIDENCE_REQUEST_STATUSES,
   EvidenceRequestInputSchema,
+  internalNavPath,
+  type Permission,
 } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import { resendNotificationDelivery } from "../services/notifications/index.js";
 import {
   createEvidenceRequest,
@@ -61,26 +67,40 @@ import {
 // Helpers
 // -----------------------------------------------------------------------------
 
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21, capability-precise) — canonical
+ * authorization. Routes through authorizeOrFail (ACTIVE membership + org
+ * lifecycle + the OPERATION-SPECIFIC capability + fail-closed +
+ * anti-enumeration 404). Reads use `evidence.read` (no `evidence_request.read`
+ * exists in the vocabulary; evidence.read is the canonical evidence-domain
+ * read every member holds). Mutations use their specific evidence_request.*
+ * capability: create/send/patch → create; cancel → cancel; close → close;
+ * review/needs-info/waive → review; assign → assign.
+ */
 async function requireMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
+  permission: Permission,
 ): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission,
+    antiEnumeration: true,
   });
-  if (!membership) {
-    reply.code(403).send({ message: "Not a member of the workspace" });
-    return null;
-  }
-  return { userId };
+  return outcome ? { userId: outcome.actorUserId } : null;
 }
 
 function intakeUrlFromToken(rawToken: string | null): string | null {
   if (!rawToken) return null;
-  const base = process.env.WEB_BASE_URL?.replace(/\/+$/, "") ?? "";
-  return `${base}/intake/${encodeURIComponent(rawToken)}`;
+  // PHASE 11 — /intake/:token is a public token-scoped nav path, not
+  // the /share/:token shape publicShareUrl builds; composed via
+  // internalNavPath + absoluteInternalUrl instead.
+  const base = process.env.WEB_BASE_URL ?? "";
+  return absoluteInternalUrl(
+    base,
+    internalNavPath(`/intake/${encodeURIComponent(rawToken)}`),
+  );
 }
 
 function errorToReply(err: EvidenceRequestError, reply: FastifyReply): void {
@@ -150,14 +170,14 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       if (sendFeatureDisabled(reply)) return;
       const body = EvidenceRequestInputSchema.parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "evidence_request.create");
       if (!ok) return;
 
       // Secure-intake plan gate (2026-07-15) — submission requests are
       // excluded from FREE per the Pricing contract. Enforced before any
       // DB write; a known plan restriction, never a generic failure.
       {
-        const scope = await resolveWorkspaceScopeForUser({
+        const scope = await resolveEnforcementScopeForRequester({
           ownerUserId: ok.userId,
           teamId: body.teamId,
         });
@@ -206,7 +226,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         })
         .parse(req.query ?? {});
 
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "evidence.read");
       if (!ok) return;
 
       const rows = await listEvidenceRequests({
@@ -234,7 +254,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const { id } = ParamsId.parse(req.params);
       const row = await getEvidenceRequest(id);
       if (!row) return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, row.teamId);
+      const ok = await requireMember(req, reply, row.teamId, "evidence.read");
       if (!ok) return;
       return reply.code(200).send({
         request: projectRequestForAuthenticatedView(row),
@@ -256,7 +276,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const { id } = ParamsId.parse(req.params);
       const row = await getEvidenceRequest(id);
       if (!row) return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, row.teamId);
+      const ok = await requireMember(req, reply, row.teamId, "evidence.read");
       if (!ok) return;
       const deliveries = await prisma.notificationDelivery.findMany({
         where: { evidenceRequestId: id },
@@ -300,7 +320,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         .parse(req.params);
       const row = await getEvidenceRequest(params.id);
       if (!row) return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, row.teamId);
+      const ok = await requireMember(req, reply, row.teamId, "evidence_request.create");
       if (!ok) return;
       // The delivery must belong to THIS request (cross-workspace /
       // cross-request retries are impossible by construction).
@@ -335,7 +355,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId);
+      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.create");
       if (!ok) return;
 
       try {
@@ -369,7 +389,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId);
+      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.cancel");
       if (!ok) return;
 
       try {
@@ -399,7 +419,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId);
+      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.close");
       if (!ok) return;
 
       try {
@@ -433,7 +453,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId);
+      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.review");
       if (!ok) return;
 
       try {
@@ -473,7 +493,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(params.id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId);
+      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.review");
       if (!ok) return;
 
       try {
@@ -520,7 +540,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(params.id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId);
+      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.review");
       if (!ok) return;
 
       try {
@@ -571,7 +591,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(params.id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId);
+      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.create");
       if (!ok) return;
 
       try {
@@ -664,7 +684,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId);
+      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.create");
       if (!ok) return;
 
       try {
@@ -694,7 +714,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId);
+      const ok = await requireMember(req, reply, existing.teamId, "evidence.read");
       if (!ok) return;
 
       const events = await listEvidenceRequestEvents(id);
@@ -718,7 +738,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId);
+      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.assign");
       if (!ok) return;
 
       // Verify the target is a workspace member (when not null).
@@ -786,7 +806,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         })
         .parse(req.query ?? {});
 
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "evidence.read");
       if (!ok) return;
 
       const rows = await listEvidenceRequests({

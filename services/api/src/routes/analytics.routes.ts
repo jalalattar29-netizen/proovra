@@ -19,7 +19,7 @@ import {
   writeAnalyticsEvent,
 } from "../services/analytics-event.service.js";
 import { classifyRouteType } from "../lib/route-classification.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
@@ -142,19 +142,23 @@ function auditAdminAnalyticsAction(
     metadata?: Record<string, unknown>;
   }
 ): void {
-  void appendPlatformAuditLog({
-    userId: req.user?.sub ?? null,
+  const outcome =
+    params.outcome === "failure" ? "error" : params.outcome === "blocked" ? "denied" : "success";
+  void emitPlatformAudit({
     action: params.action,
-    category: "admin_analytics",
-    severity: params.severity ?? "info",
-    source: "api_admin_analytics",
-    outcome: params.outcome ?? "success",
+    outcome,
+    denialReason: outcome === "denied" ? params.action : null,
+    sourceApp: "API",
+    actorUserId: req.user?.sub ?? null,
     resourceType: "analytics_dashboard",
     resourceId: null,
-    requestId: req.id,
-    metadata: params.metadata ?? {},
-    ipAddress: req.ip,
-    userAgent: readUserAgent(req),
+    correlationId: req.id,
+    metadata: {
+      ...(params.metadata ?? {}),
+      severity: params.severity ?? "info",
+      ipAddress: req.ip,
+      userAgent: readUserAgent(req),
+    },
   }).catch(() => null);
 }
 

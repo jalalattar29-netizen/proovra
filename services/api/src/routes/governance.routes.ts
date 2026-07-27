@@ -8,9 +8,11 @@
  *   POST  /v1/governance/legal-holds/:id/release      — release hold (ADMIN+)
  *   GET   /v1/governance/evidence/:id/holds           — list holds on an evidence record
  *
- * All routes require authentication AND workspace membership. Mutating
- * routes additionally require the appropriate canonical permission via
- * `requirePermission`.
+ * All routes require authentication AND authorization through the canonical
+ * primitive (`authorizeOrFail`, via the local `requireMember` wrapper):
+ * ACTIVE membership + parent-Organization lifecycle + capability + fail-closed
+ * + anti-enumeration. Mutating routes pass the appropriate canonical
+ * permission; read routes pass `governance.policy.read`.
  */
 
 import type {
@@ -20,9 +22,11 @@ import type {
 } from "fastify";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
+import type { Permission } from "@proovra/shared";
+
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import {
   runGovernanceHandler,
   isPrismaTableOrColumnMissing,
@@ -37,7 +41,6 @@ import {
   projectEffectivePolicy,
   projectLegalHold,
   releaseLegalHold,
-  requirePermission,
   upsertWorkspaceGovernancePolicy,
 } from "../services/governance.service.js";
 import {
@@ -65,32 +68,28 @@ import { requireStepUpForSensitiveAction } from "../services/identity-security/s
 
 const ParamsId = z.object({ id: z.string().uuid() });
 
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization.
+ *
+ * Replaces the former status-blind `requireMember` + role-only
+ * `requirePermission` pair. Routes through `authorizeOrFail`, gaining ACTIVE
+ * membership + parent-Organization lifecycle + access-expiry + capability /
+ * delegated-admin resolution + fail-closed + anti-enumeration (404 for
+ * non-members / cross-tenant probes) + audit — in one call. The permission
+ * passed at each call site is UNCHANGED from the pre-Phase-1 gate.
+ */
 async function requireMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
-): Promise<{ userId: string; role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+  permission: Permission,
+): Promise<{ actorUserId: string } | null> {
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission,
+    antiEnumeration: true,
   });
-  if (!membership) {
-    reply.code(403).send({ message: "Not a member of the workspace" });
-    return null;
-  }
-  return { userId, role: membership.role };
-}
-
-function denyByPermission(
-  reply: FastifyReply,
-  reason: string,
-): void {
-  reply.code(403).send({
-    error: {
-      code: "permission_denied",
-      reason,
-    },
-  });
+  return outcome ? { actorUserId: outcome.actorUserId } : null;
 }
 
 export async function governanceRoutes(app: FastifyInstance) {
@@ -102,14 +101,9 @@ export async function governanceRoutes(app: FastifyInstance) {
       const query = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
 
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
 
       // Phase 32.5 — bounded schema-drift handling. When the
       // governance schema is missing on this environment, return a
@@ -154,18 +148,13 @@ export async function governanceRoutes(app: FastifyInstance) {
           requireLegalHoldReleaseApproval: z.boolean().optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "governance.policy.manage");
       if (!ok) return;
 
-      const perm = requirePermission(ok.role, "governance.policy.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "GOVERNANCE_POLICY_UPDATE",
         resourceKind: "workspace_governance_policy",
         resourceId: body.teamId,
@@ -175,7 +164,7 @@ export async function governanceRoutes(app: FastifyInstance) {
       const { teamId, ...patch } = body;
       const row = await upsertWorkspaceGovernancePolicy({
         teamId,
-        actorUserId: ok.userId,
+        actorUserId: ok.actorUserId,
         patch,
       });
       const policy = await loadWorkspaceGovernancePolicy(teamId);
@@ -197,15 +186,11 @@ export async function governanceRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      // Reading the list does NOT require manage permission — every ACTIVE
+      // member should be able to see that a hold exists. Only place/release
+      // (below) require governance.legal_hold.manage. Read-level gate here.
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-
-      const perm = requirePermission(ok.role, "governance.legal_hold.manage");
-      // Reading the list does NOT require manage permission — every member
-      // should be able to see that a hold exists. Only place/release
-      // requires the manage permission. (Permission is checked again at
-      // mutation time below.)
-      void perm;
 
       // Phase 32.5 — bounded schema-drift handling.
       await runGovernanceHandler(reply, async () => {
@@ -235,14 +220,9 @@ export async function governanceRoutes(app: FastifyInstance) {
           caseId: z.string().uuid().nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
 
-      const perm = requirePermission(ok.role, "governance.legal_hold.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Phase 3 (Enterprise Identity) — placing a legal hold is a
       // sensitive governance action (LEGAL_HOLD_PLACE is in the MFA
       // force-list). Its sibling RELEASE route already gates on
@@ -254,7 +234,7 @@ export async function governanceRoutes(app: FastifyInstance) {
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "LEGAL_HOLD_PLACE",
         resourceKind: "evidence_legal_hold",
         resourceId: body.evidenceId,
@@ -265,7 +245,7 @@ export async function governanceRoutes(app: FastifyInstance) {
         const hold = await placeLegalHold({
           teamId: body.teamId,
           evidenceId: body.evidenceId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           title: body.title,
           reason: body.reason ?? null,
           caseId: body.caseId ?? null,
@@ -298,18 +278,13 @@ export async function governanceRoutes(app: FastifyInstance) {
           releaseNote: z.string().min(1).max(4000),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
 
-      const perm = requirePermission(ok.role, "governance.legal_hold.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "LEGAL_HOLD_RELEASE",
         resourceKind: "evidence_legal_hold",
         resourceId: id,
@@ -320,7 +295,7 @@ export async function governanceRoutes(app: FastifyInstance) {
         const released = await releaseLegalHold({
           id,
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           releaseNote: body.releaseNote,
         });
         return reply
@@ -353,7 +328,7 @@ export async function governanceRoutes(app: FastifyInstance) {
       const query = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
 
       const evidence = await prisma.evidence.findUnique({
@@ -407,7 +382,7 @@ export async function governanceRoutes(app: FastifyInstance) {
       const query = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
 
       // Verify the evidence is in this workspace.
@@ -444,7 +419,7 @@ export async function governanceRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
       // Reading list is workspace-member visible (legal hold existence
       // is a governance fact every member should see).
@@ -540,18 +515,13 @@ export async function governanceRoutes(app: FastifyInstance) {
           reason: z.string().max(4000).nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.legal_hold.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       try {
         const hold = await placeCaseLegalHold({
           teamId: body.teamId,
           caseId: body.caseId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           title: body.title,
           reason: body.reason ?? null,
         });
@@ -581,13 +551,8 @@ export async function governanceRoutes(app: FastifyInstance) {
           approvalAcknowledged: z.boolean().optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.legal_hold.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Phase 14 — release-approval gate. When the workspace requires
       // explicit approval, the caller MUST pass approvalAcknowledged.
       const policy = await loadWorkspaceGovernancePolicy(body.teamId);
@@ -603,7 +568,7 @@ export async function governanceRoutes(app: FastifyInstance) {
         const released = await releaseCaseLegalHold({
           id,
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           releaseNote: body.releaseNote,
         });
         return reply
@@ -635,17 +600,12 @@ export async function governanceRoutes(app: FastifyInstance) {
           reason: z.string().max(400).nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "evidence.publish_verify");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "evidence.publish_verify");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "PUBLIC_VERIFY_PUBLISH",
         resourceKind: "evidence",
         resourceId: id,
@@ -655,7 +615,7 @@ export async function governanceRoutes(app: FastifyInstance) {
         const updated = await publishPublicVerify({
           evidenceId: id,
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           reason: body.reason ?? null,
         });
         return reply
@@ -678,17 +638,12 @@ export async function governanceRoutes(app: FastifyInstance) {
           reason: z.string().max(400).nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "evidence.publish_verify");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "evidence.publish_verify");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "PUBLIC_VERIFY_UNPUBLISH",
         resourceKind: "evidence",
         resourceId: id,
@@ -698,7 +653,7 @@ export async function governanceRoutes(app: FastifyInstance) {
         const updated = await unpublishPublicVerify({
           evidenceId: id,
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           reason: body.reason ?? null,
         });
         return reply
@@ -721,17 +676,12 @@ export async function governanceRoutes(app: FastifyInstance) {
           reason: z.string().min(1).max(400),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "evidence.publish_verify");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "evidence.publish_verify");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "PUBLIC_VERIFY_SUSPEND",
         resourceKind: "evidence",
         resourceId: id,
@@ -741,7 +691,7 @@ export async function governanceRoutes(app: FastifyInstance) {
         const updated = await suspendPublicVerify({
           evidenceId: id,
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           reason: body.reason,
         });
         return reply
@@ -764,18 +714,13 @@ export async function governanceRoutes(app: FastifyInstance) {
           reason: z.string().max(400).nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "evidence.publish_verify");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "evidence.publish_verify");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       try {
         const updated = await restorePublicVerify({
           evidenceId: id,
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           reason: body.reason ?? null,
         });
         return reply
@@ -801,13 +746,8 @@ export async function governanceRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.retention.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.retention.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Phase 32.5 — bounded schema-drift handling.
       await runGovernanceHandler(reply, async () => {
         const rows = await listRetentionCandidates({
@@ -850,7 +790,7 @@ export async function governanceRoutes(app: FastifyInstance) {
       const query = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
       const evidence = await prisma.evidence.findUnique({
         where: { id },

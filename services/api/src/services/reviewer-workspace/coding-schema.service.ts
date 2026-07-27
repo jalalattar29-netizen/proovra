@@ -35,12 +35,12 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-// Phase 4 — wire audit emission via the canonical platform audit log.
+// Phase 4 — wire audit emission via the canonical tenant-audit facade.
 // `.catch(() => {})` keeps emission best-effort so audit failure cannot
 // roll back the primary schema mutation. Bounded metadata only — field
 // definitions are intentionally NOT included (could leak sensitive
 // template structure into the platform audit chain).
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 
 // =============================================================================
 // Public input/output types
@@ -138,17 +138,15 @@ export async function createSchema(
   // Phase 4 — best-effort audit emission. Bounded metadata: IDs,
   // slug, version, and category enum. Field definitions are
   // intentionally NOT included.
-  await appendPlatformAuditLog({
-    userId: input.authorUserId,
+  await emitTenantAudit({
     action: "reviewer.coding_schema.created",
-    category: "review",
-    severity: "info",
-    source: "reviewer_workspace.coding_schema",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.authorUserId,
+    workspaceId: input.teamId,
     resourceType: "coding_schema",
     resourceId: schema.id,
     metadata: {
-      teamId: input.teamId,
       schemaId: schema.id,
       slug: input.slug,
       category: input.category,
@@ -178,18 +176,15 @@ export async function publishSchema(
   // slug and published version. No actor is available on the
   // service signature (the route binds requireAuth + requireCap);
   // userId is null since this is workspace-anchored to teamId.
-  await appendPlatformAuditLog({
-    userId: null,
-    isPublic: true,
+  await emitTenantAudit({
     action: "reviewer.coding_schema.published",
-    category: "review",
-    severity: "info",
-    source: "reviewer_workspace.coding_schema",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: null,
+    workspaceId: input.teamId,
     resourceType: "coding_schema",
     resourceId: schema.id,
     metadata: {
-      teamId: input.teamId,
       schemaId: schema.id,
       slug: schema.slug,
       version: schema.version,
@@ -213,18 +208,15 @@ export async function archiveSchema(
   });
   // Phase 4 — best-effort audit emission. Bounded metadata: IDs and
   // slug. No actor on the service signature.
-  await appendPlatformAuditLog({
-    userId: null,
-    isPublic: true,
+  await emitTenantAudit({
     action: "reviewer.coding_schema.archived",
-    category: "review",
-    severity: "info",
-    source: "reviewer_workspace.coding_schema",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: null,
+    workspaceId: input.teamId,
     resourceType: "coding_schema",
     resourceId: schema.id,
     metadata: {
-      teamId: input.teamId,
       schemaId: schema.id,
       slug: schema.slug,
     },

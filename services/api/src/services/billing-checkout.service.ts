@@ -15,6 +15,10 @@ import {
   getStripeStorageAddonPriceId,
   resolveCheckoutCurrency,
 } from "./billing-pricing.service.js";
+// PHASE 11 — canonical internal URL builder. Used ONLY to compose the
+// checkout success/cancel return URLs; the Stripe/PayPal session-creation
+// logic itself is untouched.
+import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 
 function appBaseUrl(): string {
   return (
@@ -27,6 +31,16 @@ function appBaseUrl(): string {
 
 function normalizedBaseUrl(): string {
   return appBaseUrl().replace(/\/+$/, "");
+}
+
+/**
+ * PHASE 11 — the checkout success/cancel return URL always targets the
+ * fixed in-app /billing nav path (never a caller-supplied destination);
+ * composed via the canonical absolute-internal-URL builder for consistency
+ * with every other post-auth/checkout redirect in the app.
+ */
+function billingReturnUrl(appBase: string, query: string): string {
+  return `${absoluteInternalUrl(appBase, internalNavPath("/billing"))}?${query}`;
 }
 
 export async function createPayPalStorageAddonCheckout(params: {
@@ -79,8 +93,8 @@ export async function createStripeCheckoutSession(params: {
 
   const searchParams = new URLSearchParams();
   searchParams.append("mode", mode);
-  searchParams.append("success_url", `${appBase}/billing?success=1`);
-  searchParams.append("cancel_url", `${appBase}/billing?canceled=1`);
+  searchParams.append("success_url", billingReturnUrl(appBase, "success=1"));
+  searchParams.append("cancel_url", billingReturnUrl(appBase, "canceled=1"));
   searchParams.append("metadata[userId]", params.userId);
   searchParams.append("metadata[plan]", params.plan);
   searchParams.append("metadata[currency]", currency);
@@ -169,11 +183,11 @@ export async function createStripeStorageAddonCheckoutSession(params: {
   searchParams.append("mode", mode);
   searchParams.append(
     "success_url",
-    `${appBase}/billing?success=1&kind=storage-addon`
+    billingReturnUrl(appBase, "success=1&kind=storage-addon")
   );
   searchParams.append(
     "cancel_url",
-    `${appBase}/billing?canceled=1&kind=storage-addon`
+    billingReturnUrl(appBase, "canceled=1&kind=storage-addon")
   );
   searchParams.append("payment_method_types[]", "card");
   searchParams.append("metadata[userId]", params.userId);
@@ -235,8 +249,8 @@ export async function createPayPalCheckout(params: {
   const amount = (amountCents / 100).toFixed(2);
   const appBase = normalizedBaseUrl();
 
-  const successUrl = `${appBase}/billing?success=1&provider=paypal`;
-  const cancelUrl = `${appBase}/billing?canceled=1&provider=paypal`;
+  const successUrl = billingReturnUrl(appBase, "success=1&provider=paypal");
+  const cancelUrl = billingReturnUrl(appBase, "canceled=1&provider=paypal");
 
   if (params.plan === prismaPkg.PlanType.PAYG) {
     const order = await createPayPalOrder({

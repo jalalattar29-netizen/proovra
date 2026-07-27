@@ -10,7 +10,11 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
 import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import {
+  emitTenantAudit,
+  emitPlatformAudit,
+  type TenantAuditOutcome,
+} from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import {
   changeCaseStatus,
@@ -98,6 +102,19 @@ function getRequestPath(req: FastifyRequest): string {
   return qIndex >= 0 ? url.slice(0, qIndex) : url;
 }
 
+// PHASE 11 §3 Batch A — cases.* audit events are TENANT_EVENTs. `teamId`
+// MUST be the caller's PERSISTED case-row teamId (never request body/URL);
+// callers that have no persisted case in scope (not-found / pre-resource
+// denials) omit it and the event is recorded without a workspace column —
+// anti-enumeration precedent from phase11-tenant.routes.ts.
+function mapCaseOutcome(
+  outcome: "success" | "failure" | "blocked" | undefined,
+): TenantAuditOutcome {
+  if (outcome === "blocked") return "denied";
+  if (outcome === "failure") return "error";
+  return "success";
+}
+
 function auditCaseAction(
   req: FastifyRequest,
   params: {
@@ -106,23 +123,30 @@ function auditCaseAction(
     outcome?: "success" | "failure" | "blocked";
     severity?: "info" | "warning" | "critical";
     resourceId?: string | null;
+    teamId?: string | null;
     metadata?: Record<string, unknown>;
   }
 ) {
-  void appendPlatformAuditLog({
-    userId: params.userId,
+  const outcome = mapCaseOutcome(params.outcome);
+  const reason =
+    typeof params.metadata?.reason === "string" ? params.metadata.reason : null;
+  void emitTenantAudit({
     action: params.action,
-    category: "cases",
-    severity: params.severity ?? "info",
-    source: "api_cases",
-    outcome: params.outcome ?? "success",
+    outcome,
+    denialReason: outcome !== "success" ? reason : null,
+    sourceApp: "API",
+    actorUserId: params.userId,
+    workspaceId: params.teamId ?? null,
     resourceType: "case",
     resourceId: params.resourceId ?? null,
-    requestId: req.id,
-    metadata: params.metadata ?? {},
-    ipAddress: req.ip,
-    userAgent: readUserAgent(req),
-  }).catch(() => null);
+    correlationId: req.id ?? null,
+    metadata: {
+      ...(params.metadata ?? {}),
+      severity: params.severity ?? "info",
+      ipAddress: req.ip,
+      userAgent: readUserAgent(req),
+    },
+  }).catch(() => undefined);
 }
 
 function fireCaseAnalyticsEvent(params: {
@@ -155,9 +179,12 @@ export async function casesRoutes(app: FastifyInstance) {
     if (body.teamId) {
       const member = await prisma.teamMember.findUnique({
         where: { teamId_userId: { teamId: body.teamId, userId: ownerUserId } },
+        select: { status: true },
       });
 
-      if (!member) {
+      // P0 remediation (2026-07-21) — only ACTIVE membership may create
+      // records into a workspace; suspended/revoked members are denied.
+      if (member?.status !== "ACTIVE") {
         auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.create",
@@ -201,6 +228,7 @@ export async function casesRoutes(app: FastifyInstance) {
       action: "cases.create",
       outcome: "success",
       resourceId: created.id,
+      teamId: created.teamId,
       metadata: {
         name: created.name,
         teamId: created.teamId,
@@ -380,6 +408,7 @@ export async function casesRoutes(app: FastifyInstance) {
         userId: ownerUserId,
         action: "cases.list",
         outcome: "success",
+        teamId: evidence.teamId,
         metadata: {
           count: eligibleItems.length,
           mode: "eligibility",
@@ -404,7 +433,8 @@ export async function casesRoutes(app: FastifyInstance) {
 
     // Default behaviour — unchanged from before the eligibility flag.
     const memberTeams = await prisma.teamMember.findMany({
-      where: { userId: ownerUserId },
+      // P0 remediation (2026-07-21) — ACTIVE memberships only.
+      where: { userId: ownerUserId, status: "ACTIVE" },
       select: { teamId: true },
     });
     const memberTeamIds = memberTeams.map((t) => t.teamId);
@@ -491,6 +521,7 @@ export async function casesRoutes(app: FastifyInstance) {
           action: "cases.view",
           outcome: "success",
           resourceId: id,
+          teamId: item.teamId,
         });
 
         fireCaseAnalyticsEvent({
@@ -509,6 +540,7 @@ export async function casesRoutes(app: FastifyInstance) {
           action: "cases.view",
           outcome: "success",
           resourceId: id,
+          teamId: item.teamId,
           metadata: { accessMode: "direct_share" },
         });
 
@@ -526,13 +558,16 @@ export async function casesRoutes(app: FastifyInstance) {
       if (item.teamId && item.access.length === 0) {
         const member = await prisma.teamMember.findUnique({
           where: { teamId_userId: { teamId: item.teamId, userId: ownerUserId } },
+          select: { status: true },
         });
-        if (member) {
+        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+        if (member?.status === "ACTIVE") {
           auditCaseAction(req, {
             userId: ownerUserId,
             action: "cases.view",
             outcome: "success",
             resourceId: id,
+            teamId: item.teamId,
             metadata: { accessMode: "team" },
           });
 
@@ -554,6 +589,7 @@ export async function casesRoutes(app: FastifyInstance) {
         outcome: "blocked",
         severity: "warning",
         resourceId: id,
+        teamId: item.teamId,
         metadata: { reason: "forbidden" },
       });
 
@@ -593,6 +629,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: item.teamId,
           metadata: { reason: "not_team_case" },
         });
         return reply.code(400).send({ message: "Case is not a team case" });
@@ -600,15 +637,22 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const actor = await prisma.teamMember.findUnique({
         where: { teamId_userId: { teamId: item.teamId, userId: ownerUserId } },
+        select: { role: true, status: true },
       });
 
-      if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
+      // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+      if (
+        !actor ||
+        actor.status !== "ACTIVE" ||
+        !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)
+      ) {
         auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.access_grant",
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: item.teamId,
           metadata: { reason: "forbidden", targetUserId: body.userId },
         });
         return reply.code(403).send({ message: "Forbidden" });
@@ -625,6 +669,7 @@ export async function casesRoutes(app: FastifyInstance) {
         action: "cases.access_grant",
         outcome: "success",
         resourceId: id,
+        teamId: item.teamId,
         metadata: { targetUserId: body.userId, accessId: access.id },
       });
 
@@ -670,8 +715,10 @@ export async function casesRoutes(app: FastifyInstance) {
         if (!hasAccess && item.teamId && item.access.length === 0) {
           const member = await prisma.teamMember.findUnique({
             where: { teamId_userId: { teamId: item.teamId, userId: ownerUserId } },
+            select: { status: true },
           });
-          hasAccess = Boolean(member);
+          // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+          hasAccess = member?.status === "ACTIVE";
         }
 
         if (!hasAccess) {
@@ -681,6 +728,7 @@ export async function casesRoutes(app: FastifyInstance) {
             outcome: "blocked",
             severity: "warning",
             resourceId: id,
+            teamId: item.teamId,
             metadata: { reason: "forbidden" },
           });
           return reply.code(403).send({ message: "Forbidden" });
@@ -697,6 +745,7 @@ export async function casesRoutes(app: FastifyInstance) {
         action: "cases.export",
         outcome: "success",
         resourceId: id,
+        teamId: item.teamId,
         metadata: { evidenceCount: evidence.length },
       });
 
@@ -782,6 +831,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "forbidden" },
         });
         return reply.code(403).send({ message: "Forbidden" });
@@ -794,6 +844,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "not_team_case" },
         });
         return reply.code(400).send({ message: "Case is not a team case" });
@@ -817,6 +868,7 @@ export async function casesRoutes(app: FastifyInstance) {
         action: "cases.team_members_list",
         outcome: "success",
         resourceId: id,
+        teamId: caseItem.teamId,
         metadata: { count: members.length },
       });
 
@@ -867,6 +919,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: item.teamId,
           metadata: {
             reason: "forbidden",
             denyReason: renameGate.reason,
@@ -900,6 +953,7 @@ export async function casesRoutes(app: FastifyInstance) {
         action: "cases.rename",
         outcome: "success",
         resourceId: id,
+        teamId: item.teamId,
         metadata: { name: body.name },
       });
 
@@ -946,6 +1000,7 @@ export async function casesRoutes(app: FastifyInstance) {
             outcome: "blocked",
             severity: "critical",
             resourceId: id,
+            teamId: item.teamId,
             metadata: { reason: "legal_hold_blocked", holdIds: holdChk.holdIds },
           });
           return reply.code(403).send({ denial: "LEGAL_HOLD_BLOCKED", holdIds: holdChk.holdIds });
@@ -970,6 +1025,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "critical",
           resourceId: id,
+          teamId: item.teamId,
           metadata: {
             reason: "forbidden",
             denyReason: deleteGate.reason,
@@ -998,6 +1054,7 @@ export async function casesRoutes(app: FastifyInstance) {
         action: "cases.delete",
         outcome: "success",
         resourceId: id,
+        teamId: item.teamId,
       });
 
       fireCaseAnalyticsEvent({
@@ -1037,8 +1094,10 @@ export async function casesRoutes(app: FastifyInstance) {
       if (!hasPermission && caseItem.teamId) {
         const member = await prisma.teamMember.findUnique({
           where: { teamId_userId: { teamId: caseItem.teamId, userId } },
+          select: { status: true },
         });
-        hasPermission = Boolean(member);
+        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+        hasPermission = member?.status === "ACTIVE";
       }
 
       if (!hasPermission) {
@@ -1048,6 +1107,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "forbidden", evidenceId: body.evidenceId },
         });
         return reply.code(403).send({ message: "Forbidden" });
@@ -1064,6 +1124,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "failure",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "evidence_not_found", evidenceId: body.evidenceId },
         });
         return reply.code(404).send({ message: "Evidence not found" });
@@ -1076,6 +1137,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "evidence_not_owned", evidenceId: body.evidenceId },
         });
         return reply.code(403).send({ message: "Evidence does not belong to you" });
@@ -1100,6 +1162,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "critical",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: {
             reason: "forbidden",
             denyCode: crossTeam.code,
@@ -1124,6 +1187,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "evidence_deleted", evidenceId: body.evidenceId },
         });
         return reply.code(400).send({ message: "Cannot add deleted evidence" });
@@ -1150,6 +1214,7 @@ export async function casesRoutes(app: FastifyInstance) {
         action: "cases.add_evidence",
         outcome: "success",
         resourceId: id,
+        teamId: caseItem.teamId,
         metadata: { evidenceId: body.evidenceId },
       });
 
@@ -1194,8 +1259,10 @@ export async function casesRoutes(app: FastifyInstance) {
       if (!hasPermission && caseItem.teamId) {
         const member = await prisma.teamMember.findUnique({
           where: { teamId_userId: { teamId: caseItem.teamId, userId } },
+          select: { status: true },
         });
-        hasPermission = Boolean(member);
+        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+        hasPermission = member?.status === "ACTIVE";
       }
 
       if (!hasPermission) {
@@ -1205,6 +1272,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "forbidden", evidenceId },
         });
         return reply.code(403).send({ message: "Forbidden" });
@@ -1221,6 +1289,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "failure",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "evidence_not_found", evidenceId },
         });
         return reply.code(404).send({ message: "Evidence not found" });
@@ -1233,6 +1302,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "evidence_not_in_case", evidenceId },
         });
         return reply.code(400).send({ message: "Evidence is not in this case" });
@@ -1259,6 +1329,7 @@ export async function casesRoutes(app: FastifyInstance) {
         action: "cases.remove_evidence",
         outcome: "success",
         resourceId: id,
+        teamId: caseItem.teamId,
         metadata: { evidenceId },
       });
 
@@ -1301,6 +1372,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "forbidden" },
         });
         return reply.code(403).send({ message: "Forbidden" });
@@ -1364,6 +1436,7 @@ export async function casesRoutes(app: FastifyInstance) {
         action: "cases.available_evidence_list",
         outcome: "success",
         resourceId: id,
+        teamId: caseItem.teamId,
         metadata: { count: items.length },
       });
 
@@ -1399,6 +1472,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "forbidden", targetUserId: body.userId },
         });
         return reply.code(403).send({ message: "Forbidden" });
@@ -1411,6 +1485,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "not_team_case", targetUserId: body.userId },
         });
         return reply.code(400).send({ message: "Case is not a team case" });
@@ -1418,15 +1493,20 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const teamMember = await prisma.teamMember.findUnique({
         where: { teamId_userId: { teamId: caseItem.teamId, userId: body.userId } },
+        select: { status: true },
       });
 
-      if (!teamMember) {
+      // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+      // Granting CaseAccess confers standing access, so a suspended /
+      // revoked target member must not be shareable-to.
+      if (teamMember?.status !== "ACTIVE") {
         auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.share_team",
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "user_not_in_team", targetUserId: body.userId },
         });
         return reply.code(400).send({ message: "User is not in this team" });
@@ -1443,6 +1523,7 @@ export async function casesRoutes(app: FastifyInstance) {
         action: "cases.share_team",
         outcome: "success",
         resourceId: id,
+        teamId: caseItem.teamId,
         metadata: { targetUserId: body.userId, accessId: access.id },
       });
 
@@ -1486,6 +1567,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "forbidden", email: body.email },
         });
         return reply.code(403).send({ message: "Forbidden" });
@@ -1502,6 +1584,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "failure",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "user_not_found", email: body.email },
         });
         return reply.code(404).send({ message: "No user found with that email" });
@@ -1514,6 +1597,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "multiple_users_found", email: body.email },
         });
         return reply
@@ -1534,6 +1618,7 @@ export async function casesRoutes(app: FastifyInstance) {
         action: "cases.share_email",
         outcome: "success",
         resourceId: id,
+        teamId: caseItem.teamId,
         metadata: { targetUserId: targetUser.id, email: body.email, accessId: access.id },
       });
 
@@ -1580,6 +1665,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "forbidden", accessId },
         });
         return reply.code(403).send({ message: "Forbidden" });
@@ -1596,6 +1682,7 @@ export async function casesRoutes(app: FastifyInstance) {
           outcome: "failure",
           severity: "warning",
           resourceId: id,
+          teamId: caseItem.teamId,
           metadata: { reason: "access_not_found", accessId },
         });
         return reply.code(404).send({ message: "Access record not found" });
@@ -1608,6 +1695,7 @@ export async function casesRoutes(app: FastifyInstance) {
         action: "cases.access_revoke",
         outcome: "success",
         resourceId: id,
+        teamId: caseItem.teamId,
         metadata: { accessId, targetUserId: access.userId },
       });
 
@@ -1666,7 +1754,8 @@ export async function casesRoutes(app: FastifyInstance) {
       // Resolve which cases the caller can actually mutate. Mirrors
       // the access predicate in GET /v1/cases.
       const memberTeams = await prisma.teamMember.findMany({
-        where: { userId },
+        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+        where: { userId, status: "ACTIVE" },
         select: { teamId: true },
       });
       const memberTeamIds = memberTeams.map((t) => t.teamId);
@@ -1754,26 +1843,29 @@ export async function casesRoutes(app: FastifyInstance) {
       ).length;
       const skippedCount = results.length - successCount;
 
-      // Single audit row summarising the bulk operation. Per-id
-      // success rows are already written by changeCaseStatus.
-      await appendPlatformAuditLog({
-        userId,
+      // Single audit row summarising the bulk operation. Per-id success
+      // rows are already written (with their own authoritative workspace)
+      // by changeCaseStatus. The batch can legitimately span MULTIPLE
+      // workspaces (any case the caller has access to, across teams), so
+      // this summary has no single tenant subject — PLATFORM_GLOBAL_EVENT,
+      // never fabricating one workspaceId for a cross-tenant batch.
+      await emitPlatformAudit({
         action: "cases.bulk_status_changed",
-        category: "cases.lifecycle",
-        severity: "info",
-        source: "cases_routes_bulk",
-        outcome: skippedCount === results.length ? "failure" : "success",
+        outcome: skippedCount === results.length ? "error" : "success",
+        sourceApp: "API",
+        actorUserId: userId,
         resourceType: "case",
         resourceId: null,
+        correlationId: req.id ?? null,
         metadata: {
           action,
           requestedCount: ids.length,
           successCount,
           skippedCount,
           targetStatus,
+          ipAddress: req.ip ?? null,
+          userAgent: readUserAgent(req) ?? null,
         },
-        ipAddress: req.ip ?? null,
-        userAgent: readUserAgent(req) ?? null,
       });
 
       return reply.code(200).send({
@@ -1813,7 +1905,8 @@ export async function casesRoutes(app: FastifyInstance) {
 
       // Permission check: the case must be visible to the caller.
       const memberTeams = await prisma.teamMember.findMany({
-        where: { userId },
+        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+        where: { userId, status: "ACTIVE" },
         select: { teamId: true },
       });
       const memberTeamIds = memberTeams.map((t) => t.teamId);

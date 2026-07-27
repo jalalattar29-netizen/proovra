@@ -39,11 +39,15 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { bump } from "../services/ops/metrics.service.js";
+import { prisma } from "../db.js";
+// PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
+import { assertPersonalSpaceAllowed } from "../services/identity/identity-mode.service.js";
 import {
   abortStorageMultipart,
   abortUploadSession,
@@ -262,6 +266,54 @@ function projectPart(part: UploadSessionPartRow) {
 }
 
 // =============================================================================
+// PHASE 10 §13.2 STEP 6 (2026-07-23) — NO-PERSONAL enforcement for resumable
+// uploads. Every route above is keyed on a `teamId`; when that team is the
+// caller's PERSONAL team (`isPersonal`), adding/verifying/finalizing parts is
+// a personal-scope mutation. `authorizeOrFail` alone only proves membership —
+// it does not know the identity-mode. This check runs AFTER authorizeOrFail
+// (so anti-enumeration is preserved) and BEFORE any session/part mutation,
+// fails closed for MANAGED + MANAGED_UNRESOLVED, and is a complete no-op for
+// TEAM (non-personal) uploads and for STANDARD identities on their own
+// personal team (existing behavior unchanged).
+// =============================================================================
+export async function assertPersonalUploadMutationAllowed(
+  teamId: string,
+  actorUserId: string,
+  // Injectable for testability (mirrors the identity-mode.service.ts DI
+  // pattern); defaults to the shared client in production.
+  client: PrismaClient = prisma,
+): Promise<{ statusCode: number; code: string; message: string } | null> {
+  const team = await client.team.findUnique({
+    where: { id: teamId },
+    select: { isPersonal: true },
+  });
+  if (!team?.isPersonal) return null;
+  try {
+    await assertPersonalSpaceAllowed(actorUserId, client);
+    return null;
+  } catch (err) {
+    const e = err as { statusCode?: number; code?: string; message?: string };
+    return {
+      statusCode: e.statusCode ?? 403,
+      code: e.code ?? "MANAGED_IDENTITY_NO_PERSONAL_SPACE",
+      message:
+        e.message ??
+        "Managed enterprise identities do not have a personal workspace.",
+    };
+  }
+}
+
+function sendPersonalDenial(
+  reply: FastifyReply,
+  denial: { statusCode: number; code: string; message: string },
+) {
+  return reply.code(denial.statusCode).send({
+    code: denial.code,
+    message: denial.message,
+  });
+}
+
+// =============================================================================
 // Routes
 // =============================================================================
 
@@ -280,6 +332,12 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+
+      const personalDenial = await assertPersonalUploadMutationAllowed(
+        body.teamId,
+        actor.actorUserId,
+      );
+      if (personalDenial) return sendPersonalDenial(reply, personalDenial);
 
       const result = await createUploadSession({
         teamId: body.teamId,
@@ -391,6 +449,12 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
 
+      const personalDenial = await assertPersonalUploadMutationAllowed(
+        body.teamId,
+        actor.actorUserId,
+      );
+      if (personalDenial) return sendPersonalDenial(reply, personalDenial);
+
       const result = await markPartUploaded({
         teamId: body.teamId,
         sessionId,
@@ -445,6 +509,12 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
 
+      const personalDenial = await assertPersonalUploadMutationAllowed(
+        body.teamId,
+        actor.actorUserId,
+      );
+      if (personalDenial) return sendPersonalDenial(reply, personalDenial);
+
       const result = await markPartVerified({
         teamId: body.teamId,
         sessionId,
@@ -477,6 +547,12 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+
+      const personalDenial = await assertPersonalUploadMutationAllowed(
+        body.teamId,
+        actor.actorUserId,
+      );
+      if (personalDenial) return sendPersonalDenial(reply, personalDenial);
 
       const result = await completeUploadSession({
         teamId: body.teamId,
@@ -511,6 +587,12 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+
+      const personalDenial = await assertPersonalUploadMutationAllowed(
+        body.teamId,
+        actor.actorUserId,
+      );
+      if (personalDenial) return sendPersonalDenial(reply, personalDenial);
 
       const result = await abortUploadSession({
         teamId: body.teamId,
@@ -550,6 +632,12 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
 
+      const personalDenial = await assertPersonalUploadMutationAllowed(
+        body.teamId,
+        actor.actorUserId,
+      );
+      if (personalDenial) return sendPersonalDenial(reply, personalDenial);
+
       const result = await initiateStorageMultipart({
         teamId: body.teamId,
         sessionId,
@@ -587,6 +675,12 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+
+      const personalDenial = await assertPersonalUploadMutationAllowed(
+        body.teamId,
+        actor.actorUserId,
+      );
+      if (personalDenial) return sendPersonalDenial(reply, personalDenial);
 
       const result = await presignStorageUploadPart({
         teamId: body.teamId,
@@ -628,6 +722,12 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+
+      const personalDenial = await assertPersonalUploadMutationAllowed(
+        body.teamId,
+        actor.actorUserId,
+      );
+      if (personalDenial) return sendPersonalDenial(reply, personalDenial);
 
       const result = await completeStorageMultipart({
         teamId: body.teamId,
@@ -671,6 +771,12 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+
+      const personalDenial = await assertPersonalUploadMutationAllowed(
+        body.teamId,
+        actor.actorUserId,
+      );
+      if (personalDenial) return sendPersonalDenial(reply, personalDenial);
 
       const result = await abortStorageMultipart({
         teamId: body.teamId,

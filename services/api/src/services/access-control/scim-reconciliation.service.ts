@@ -59,6 +59,8 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+// PHASE 3 (2026-07-22) — canonical membership orchestrator.
+import { applyDirectoryRoleChange } from "../identity/membership-provisioning.service.js";
 
 // ---------------------------------------------------------------------------
 // Drift report types (operator-safe projection)
@@ -538,11 +540,23 @@ export async function executeScimReconciliation(
           select: { role: true },
         });
         if (prior) {
-          await client.teamMember.update({
+          // PHASE 3 — canonical orchestrator: reconciliation demotion to
+          // VIEWER (SCIM provenance; prior role is carried in the audit
+          // event below for operator restore).
+          const member = await client.teamMember.findUnique({
             where: {
               teamId_userId: { teamId: input.teamId, userId: item.subject.id },
             },
-            data: { role: "VIEWER" },
+            select: { id: true },
+          });
+          if (!member) continue;
+          await applyDirectoryRoleChange(client, {
+            teamMemberId: member.id,
+            currentRole: prior.role,
+            desiredRole: "VIEWER",
+            source: "SCIM",
+            externalRef: "scim-reconciliation",
+            allowPrivilegedChange: true,
           });
           bump("scim_reconciliation_applied_total");
           safeEmitSecurityEvent({

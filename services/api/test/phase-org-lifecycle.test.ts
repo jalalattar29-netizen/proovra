@@ -38,8 +38,11 @@ describe("ownership transfer", () => {
     const transferStart = ROUTES.indexOf("/v1/orgs/:id/transfer-ownership");
     const block = ROUTES.slice(transferStart, transferStart + 6000);
     expect(block).toMatch(/\$transaction/);
-    expect(block).toMatch(/data:\s*\{\s*role:\s*"ORG_OWNER"\s*\}/);
-    expect(block).toMatch(/data:\s*\{\s*role:\s*"ORG_ADMIN"\s*\}/);
+    // PHASE 3: atomic swap via the canonical orchestrator (both legs in
+    // the same tx, provenance-recorded).
+    expect(block).toMatch(/role:\s*"ORG_OWNER"/);
+    expect(block).toMatch(/role:\s*"ORG_ADMIN"/);
+    expect(block).toMatch(/updateOrganizationMembershipRole/);
   });
 
   it("billing ownership follows the owner when it pointed at the caller", () => {
@@ -103,15 +106,17 @@ describe("closure execution", () => {
     expect(SCHEDULER).toMatch(/processOrganizationClosures\(now\)/);
   });
 
-  it("ARCHIVES the org and checkOrgAccess denies archived orgs", () => {
+  it("ARCHIVES the org and checkOrgAccess denies archived AND suspended orgs", () => {
     expect(CLOSURE).toMatch(/data:\s*\{\s*status:\s*"ARCHIVED"\s*\}/);
+    // PHASE 4 §7.6 (2026-07-22) — SUSPENDED joined ARCHIVED in the deny.
     expect(ORG_ACCESS).toMatch(
-      /org\.status === "ARCHIVED"\) return \{ kind: "forbidden" \}/,
+      /org\.status === "ARCHIVED" \|\| org\.status === "SUSPENDED"/,
     );
   });
 
   it("revokes workspace memberships + machine credentials/webhooks", () => {
-    expect(CLOSURE).toMatch(/teamMember\.updateMany[\s\S]{0,200}"REVOKED"/);
+    // PHASE 3: closure revocation via the canonical mass helper.
+    expect(CLOSURE).toMatch(/massRevokeWorkspaceMemberships/);
     expect(CLOSURE).toMatch(/apiCredential\.updateMany[\s\S]{0,300}"REVOKED"/);
     expect(CLOSURE).toMatch(/webhookEndpoint\.updateMany[\s\S]{0,200}"DISABLED"/);
   });

@@ -340,18 +340,29 @@ describe("ENTERPRISE TENANT MODEL — workspace switcher", () => {
     expect(WEB_TOPBAR).toMatch(/activeSpace\s*=\s*envelope\?\.activeSpace/);
   });
 
-  it("switcher renders Personal section with the Personal Space label (account-menu refactor 2026-07-21)", () => {
-    // The group is rendered in the toolbar; the "Personal Space" label is
-    // produced by the client resolver and bound as the option's label.
-    expect(WEB_TOPBAR).toMatch(/data-workspace-menu-group="PERSONAL"/);
-    expect(WEB_TOPBAR).toMatch(/\{menu\.workspaces\.personal[\s\S]{0,40}\.label\}/);
+  it("switcher renders Personal section with the Personal Space label (P3/P4 domain remediation 2026-07-21)", () => {
+    // The persistent context chip's panel renders the PERSONAL group; its
+    // option is the shared SwitcherOption bound to the resolver's personal
+    // entry, whose label is the bounded "Personal Space" literal.
+    expect(WEB_TOPBAR).toMatch(/data-context-group="PERSONAL"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(WEB_TOPBAR).toMatch(/option=\{menu\.workspaces\.personal\}/); // (P3/P4 domain remediation 2026-07-21)
     expect(WEB_ACCOUNT_RESOLVER).toMatch(/label:\s*"Personal Space"/);
   });
 
-  it("switcher renders Organizations section from the envelope org list (account-menu refactor 2026-07-21)", () => {
-    expect(WEB_TOPBAR).toMatch(/data-workspace-menu-group="ORGANIZATIONS"/);
-    // The toolbar maps the resolved org options.
+  it("switcher renders Organization groups from the server-authorized contextOptions (P3/P4 domain remediation 2026-07-21)", () => {
+    // The resolver consumes the envelope's SERVER-AUTHORIZED contextOptions
+    // section (the legacy flat `organizations` list survives only as a
+    // rollout fallback grouped under one bucket)…
+    expect(WEB_TOPBAR).toMatch(/contextOptions:\s*envelope\?\.contextOptions/); // (P3/P4 domain remediation 2026-07-21)
+    expect(WEB_ACCOUNT_RESOLVER).toMatch(/input\.contextOptions\.organizations\.map\(/); // (P3/P4 domain remediation 2026-07-21)
+    expect(WEB_ACCOUNT_RESOLVER).toMatch(/organizationId:\s*"legacy"/); // (P3/P4 domain remediation 2026-07-21)
+    // …and the toolbar renders one ORGANIZATION group per organization,
+    // labelled with the organization name — while still mapping the
+    // resolved org options.
     expect(WEB_TOPBAR).toMatch(/menu\.workspaces\.organizations\.map\(/);
+    expect(WEB_TOPBAR).toMatch(/data-context-group="ORGANIZATION"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(WEB_TOPBAR).toMatch(/data-context-organization=\{group\.organizationId\}/); // (P3/P4 domain remediation 2026-07-21)
+    expect(WEB_TOPBAR).toMatch(/\{group\.organizationName \?\? "Organizations"\}/); // (P3/P4 domain remediation 2026-07-21)
   });
 
   it("switcher no longer renders an Actions section (create / join / manage removed) (account-menu refactor 2026-07-21)", () => {
@@ -436,6 +447,12 @@ describe("ENTERPRISE TENANT MODEL — tenant isolation invariants", () => {
   }
 
   it("availableWorkspaces query is bounded (take: 200)", () => {
-    expect(SVC).toMatch(/teamMember\.findMany[\s\S]{0,400}take:\s*200/);
+    // (P0/P3 remediation 2026-07-21) anchored on the ACTIVE-scoped where
+    // clause instead of a brittle char-window: the select now also carries
+    // workspaceKind + parent-organization fields. Invariant unchanged —
+    // the user-scoped ACTIVE membership query stays bounded at take: 200.
+    expect(SVC).toMatch(
+      /where: \{ userId: userRow\.id, status: "ACTIVE" \}[\s\S]{0,1800}take:\s*200/,
+    );
   });
 });

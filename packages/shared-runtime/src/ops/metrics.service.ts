@@ -372,6 +372,8 @@ export const COUNTER_NAMES = [
   "scim_user_reactivated_total",
   "scim_user_deactivated_total",
   "scim_invalid_token_total",
+  // P0 remediation (2026-07-21) — unsafe existing-account link denials.
+  "scim_account_link_denied_total",
   "rbac_permission_eval_total",
   "rbac_temporary_elevation_total",
   "rbac_explicit_deny_total",

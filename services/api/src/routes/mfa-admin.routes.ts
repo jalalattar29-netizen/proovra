@@ -100,7 +100,11 @@ import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { verifyJwt } from "../services/jwt.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { getEmailService } from "../services/email.service.js";
-import { MfaPolicyLevelSchema } from "@proovra/shared";
+import {
+  absoluteInternalUrl,
+  internalNavPath,
+  MfaPolicyLevelSchema,
+} from "@proovra/shared";
 
 function readUserAgent(req: FastifyRequest): string | null {
   const ua = req.headers["user-agent"];
@@ -1112,12 +1116,11 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         return { ok: false, error: "user_email_missing" };
       }
 
-      const adminSpaUrl = `${
-        (process.env.WEB_BASE_URL || "https://www.proovra.com").replace(
-          /\/$/,
-          "",
-        )
-      }/security-center/mfa-recovery`;
+      // PHASE 11 — nav path, composed via internalNavPath + absoluteInternalUrl.
+      const adminSpaUrl = absoluteInternalUrl(
+        process.env.WEB_BASE_URL || "https://www.proovra.com",
+        internalNavPath("/security-center/mfa-recovery"),
+      );
 
       // Build a one-click snooze URL for the test email so the
       // admin can see and validate the snooze link flow. Uses the

@@ -46,7 +46,24 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+// PHASE 10 §3 — atomic managed-identity binding (persistence-verified SCIM token).
+import { setManagedIdentity } from "../identity/identity-mode.service.js";
+import { organizationIdForPolicy } from "../identity/org-security-policy.service.js";
+// P0 remediation (2026-07-21) — canonical guard for linking a directory-
+// asserted email to a PRE-EXISTING User (cross-tenant takeover fix).
+import { evaluateExistingAccountLink } from "../security/enterprise-account-linking.service.js";
+// P0 remediation (2026-07-21) — SCIM deactivation revokes sessions
+// immediately (same primitive as RBAC suspend).
+import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
+// PHASE 3 (2026-07-21) — canonical membership orchestrator.
+import {
+  applyDirectoryRoleChange,
+  provisionMembership,
+  provisionManagedMembership,
+  suspendWorkspaceMembership,
+} from "../identity/membership-provisioning.service.js";
+import { enforceScimManagedOwnership } from "./scim-managed-ownership.service.js";
 
 // -----------------------------------------------------------------------------
 // Token hashing
@@ -161,18 +178,16 @@ export async function createScimToken(
       actorUserId: input.actorUserId,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "scim.token.create",
-    category: "identity",
-    severity: "warning",
-    source: "scim_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "scim_provisioning_token",
     resourceId: row.id,
-    metadata: { teamId: input.teamId, scopes: input.scopes },
-    db: client,
-  });
+    metadata: { scopes: input.scopes },
+  }, client);
   return { projection: projectToken(row), tokenOnce: raw };
 }
 
@@ -425,6 +440,35 @@ export async function scimCreateUser(
     where: { email: email.toLowerCase() },
     select: { id: true, createdAt: true, updatedAt: true },
   });
+  if (user) {
+    // P0 remediation (2026-07-21) — linking a directory-asserted email to a
+    // PRE-EXISTING account requires the domain to be DNS-verified by exactly
+    // this token's own organization (globally-unique claim). Without this
+    // gate, a SCIM push could bind a mapping onto an arbitrary existing
+    // user's account — and the SSO repeat-login path would then mint
+    // sessions AS that user for the directory's subject. Fail closed.
+    const link = await evaluateExistingAccountLink(
+      { teamId: ctx.teamId, email },
+      client,
+    );
+    if (!link.ok) {
+      bump("scim_account_link_denied_total");
+      safeEmitSecurityEvent({
+        teamId: ctx.teamId,
+        eventType: "scim_account_link_denied",
+        severity: "HIGH",
+        details: {
+          reason: `unsafe_account_link:${link.reason}`,
+          externalId,
+        },
+      });
+      return {
+        ok: false as const,
+        status: 409,
+        detail: "unsafe_account_link",
+      };
+    }
+  }
   if (!user) {
     user = await client.user.create({
       data: {
@@ -449,22 +493,46 @@ export async function scimCreateUser(
     },
   });
 
-  // Idempotent membership.
-  await client.teamMember.upsert({
-    where: { teamId_userId: { teamId: ctx.teamId, userId: user.id } },
-    update: { status: "ACTIVE" },
-    create: {
-      teamId: ctx.teamId,
-      userId: user.id,
-      role:
-        parsed.data.userType === "VIEWER"
-          ? "VIEWER"
-          : parsed.data.userType === "REVIEWER"
-            ? "MEMBER"
-            : "MEMBER",
-      status: "ACTIVE",
-      accessReason: "SCIM provisioning",
-    },
+  // PHASE 3 (2026-07-21) + PHASE 10 §3 (2026-07-23) — ATOMIC managed provisioning.
+  // SCIM is the authoritative directory. Membership (Membership Orchestrator) +
+  // grant provenance + MANAGED-IDENTITY binding are ONE atomic outcome: if the
+  // managed binding fails (e.g. the identity is already managed by ANOTHER
+  // Organization → conflict), the membership/grant rolls back too — no partial
+  // managed/membership write. The managed source is the AUTHENTICATED SCIM token
+  // credential (`ctx.tokenId`), persistence-verified inside setManagedIdentity
+  // (never findFirst/caller-declared). SCIM only manages CUSTOMER-org workspaces.
+  await client.$transaction(async (tx) => {
+    const workspaceRole = parsed.data.userType === "VIEWER" ? "VIEWER" : "MEMBER";
+    const scimOrgId = await organizationIdForPolicy(ctx.teamId, tx as unknown as typeof client);
+    if (scimOrgId) {
+      // PATH 1/9 — SCIM CREATE via the ONE atomic managed-provisioning intent:
+      // managed binding (evidence = authenticated SCIM token) + fail-closed seat
+      // enforcement + membership/grant provenance, all atomic (zero partial).
+      await provisionManagedMembership(tx, {
+        userId: user.id,
+        managingTeamId: ctx.teamId,
+        evidence: { source: "SCIM", scimTokenId: ctx.tokenId },
+        membershipIntent: "SCIM_PROVISIONING",
+        source: "SCIM",
+        workspace: { teamId: ctx.teamId, role: workspaceRole },
+        actorUserId: null, // the directory, not a member, is the actor
+        externalRef: externalId ? `scim:${externalId}`.slice(0, 200) : null,
+        accessReason: "SCIM provisioning",
+        seatPolicy: "ENFORCE",
+        seatTeamId: ctx.teamId,
+      });
+    } else {
+      // Non-CUSTOMER SCIM target (no managing org to bind) — membership only.
+      await provisionMembership(tx as unknown as typeof client, {
+        intent: "SCIM_PROVISIONING",
+        source: "SCIM",
+        userId: user.id,
+        workspace: { teamId: ctx.teamId, role: workspaceRole },
+        actorUserId: null,
+        externalRef: externalId ? `scim:${externalId}`.slice(0, 200) : null,
+        accessReason: "SCIM provisioning",
+      });
+    }
   });
 
   bump("scim_user_created_total");
@@ -475,19 +543,17 @@ export async function scimCreateUser(
     severity: "INFO",
     details: { tokenId: ctx.tokenId, userId: user.id, externalId },
   });
-  await appendPlatformAuditLog({
-    userId: null,
-    isPublic: true,
+  await emitTenantAudit({
     action: "scim.user.create",
-    category: "identity",
-    severity: "info",
-    source: "scim_service",
     outcome: "success",
+    sourceApp: "SCIM",
+    actorUserId: null,
+    serviceActor: "scim_service",
+    workspaceId: ctx.teamId,
     resourceType: "user",
     resourceId: user.id,
-    metadata: { teamId: ctx.teamId, externalId },
-    db: client,
-  });
+    metadata: { externalId },
+  }, client);
 
   return {
     ok: true,
@@ -627,19 +693,50 @@ export async function scimDeactivateUser(
     where: { teamId_userId: { teamId: ctx.teamId, userId } },
   });
   if (!member) return { ok: false };
-  await client.teamMember.update({
-    where: { id: member.id },
-    data: {
-      status: "SUSPENDED",
-      suspendedAtUtc: new Date(),
-      suspensionReason: "SCIM deactivation",
-    },
+  // PHASE 3 (2026-07-21) — canonical orchestrator: MEMBER_SUSPENSION.
+  await suspendWorkspaceMembership(client, {
+    teamMemberId: member.id,
+    actorUserId: null, // directory-driven
+    reason: "SCIM deactivation",
   });
   // Unlink the external mapping (soft).
   await client.externalIdentityMapping.updateMany({
     where: { teamId: ctx.teamId, userId, unlinkedAtUtc: null },
     data: { unlinkedAtUtc: new Date() },
   });
+
+  // -------------------------------------------------------------------------
+  // P0 remediation (2026-07-21) — IdP-driven deprovisioning must stop access
+  // RAPIDLY, not at 30-day JWT expiry:
+  //
+  //   1. Revoke every active session for the user (deny-list, ALL_FOR_USER —
+  //      same primitive the RBAC suspend path already uses). Sessions are
+  //      account-global JWTs, so this forces a re-login; the user can log
+  //      back into their untouched Personal Space immediately.
+  //   2. Heal the active-context pointer when it points at the team the
+  //      directory just deactivated them from, so the next login lands in
+  //      their Personal Space instead of a 403 loop.
+  //
+  // Both are best-effort-ordered AFTER the membership suspension so access
+  // is already denied server-side even if a later step fails.
+  // -------------------------------------------------------------------------
+  try {
+    await revokeAllSessionsForUser(
+      { teamId: ctx.teamId, userId, reason: "SCIM_DEACTIVATED" },
+      client,
+    );
+  } catch {
+    bump("security_event_emit_failed");
+  }
+  try {
+    await client.user.updateMany({
+      where: { id: userId, currentWorkspaceId: ctx.teamId },
+      data: { currentWorkspaceId: null },
+    });
+  } catch {
+    /* pointer healing is best-effort; buildPlatformContext also heals */
+  }
+
   bump("scim_user_deactivated_total");
   bump("scim_sync_total");
   safeEmitSecurityEvent({
@@ -648,19 +745,17 @@ export async function scimDeactivateUser(
     severity: "INFO",
     details: { tokenId: ctx.tokenId, userId },
   });
-  await appendPlatformAuditLog({
-    userId: null,
-    isPublic: true,
+  await emitTenantAudit({
     action: "scim.user.deactivate",
-    category: "identity",
-    severity: "info",
-    source: "scim_service",
     outcome: "success",
+    sourceApp: "SCIM",
+    actorUserId: null,
+    serviceActor: "scim_service",
+    workspaceId: ctx.teamId,
     resourceType: "user",
     resourceId: userId,
-    metadata: { teamId: ctx.teamId },
-    db: client,
-  });
+    metadata: {},
+  }, client);
   return { ok: true };
 }
 
@@ -687,13 +782,36 @@ export async function scimReactivateUser(
   if (!member) return { ok: false, notFound: true };
 
   if (member.status !== "ACTIVE") {
-    await client.teamMember.update({
-      where: { id: member.id },
-      data: {
-        status: "ACTIVE",
-        suspendedAtUtc: null,
-        suspensionReason: null,
-      },
+    // PATH 5/9 — SCIM REACTIVATE. Directory-driven re-activation is an explicit
+    // SCIM re-grant (covers SUSPENDED + legacy REVOKED). §1.5: revalidate token
+    // (ctx is the authenticated token), RECHECK seat (fail-closed), re-affirm
+    // managed binding (idempotent — same org is a no-op), provision through the
+    // orchestrator. All atomic: seat exhaustion rolls back the reactivation.
+    const scimOrgId = await organizationIdForPolicy(ctx.teamId, client);
+    await client.$transaction(async (tx) => {
+      if (scimOrgId) {
+        await provisionManagedMembership(tx, {
+          userId,
+          managingTeamId: ctx.teamId,
+          evidence: { source: "SCIM", scimTokenId: ctx.tokenId },
+          membershipIntent: "SCIM_PROVISIONING",
+          source: "SCIM",
+          workspace: { teamId: ctx.teamId, role: member.role as never },
+          actorUserId: null,
+          accessReason: "SCIM reactivation",
+          seatPolicy: "ENFORCE",
+          seatTeamId: ctx.teamId,
+        });
+      } else {
+        await provisionMembership(tx as unknown as typeof client, {
+          intent: "SCIM_PROVISIONING",
+          source: "SCIM",
+          userId,
+          workspace: { teamId: ctx.teamId, role: member.role as never },
+          actorUserId: null,
+          accessReason: "SCIM reactivation",
+        });
+      }
     });
   }
   // Re-link the most recent external mapping so the resource is
@@ -717,19 +835,17 @@ export async function scimReactivateUser(
     severity: "INFO",
     details: { tokenId: ctx.tokenId, userId },
   });
-  await appendPlatformAuditLog({
-    userId: null,
-    isPublic: true,
+  await emitTenantAudit({
     action: "scim.user.reactivate",
-    category: "identity",
-    severity: "info",
-    source: "scim_service",
     outcome: "success",
+    sourceApp: "SCIM",
+    actorUserId: null,
+    serviceActor: "scim_service",
+    workspaceId: ctx.teamId,
     resourceType: "user",
     resourceId: userId,
-    metadata: { teamId: ctx.teamId },
-    db: client,
-  });
+    metadata: {},
+  }, client);
   return { ok: true };
 }
 
@@ -773,49 +889,77 @@ export async function scimUpdateUserAttributes(
     return { ok: false, status: 404, detail: "user_not_found" };
   }
 
+  // No supported attribute target at all → 400 BEFORE any work (zero mutation,
+  // no reconciliation for a no-op PATCH).
+  if (update.displayName === undefined && update.role === undefined) {
+    return { ok: false, status: 400, detail: "no_supported_attribute_target", scimType: "noTarget" };
+  }
+
+  // PATH 2/9 — ATOMIC: managed-ownership reconciliation + attribute/role
+  // transition share ONE transaction. Ownership is ENFORCED (never assumed):
+  // cross-org / unresolved / schema-unavailable throw with ZERO mutation; a
+  // STANDARD user in a managed-required org is reconciled first — and if the
+  // later role transition fails, that reconciliation ROLLS BACK too (no partial
+  // ownership→role state). An unsupported-target outcome also rolls back.
+  const NO_TARGET = "__SCIM_UPDATE_NO_TARGET__";
   const appliedFields: string[] = [];
+  try {
+    await client.$transaction(async (tx) => {
+      appliedFields.length = 0;
+      await enforceScimManagedOwnership(
+        ctx,
+        { userId, workspaceRole: update.role ?? (member.role === "VIEWER" ? "VIEWER" : "MEMBER") },
+        tx,
+      );
 
-  if (update.displayName !== undefined) {
-    // Only persist against a live (non-unlinked) mapping.
-    const mapping = await client.externalIdentityMapping.findFirst({
-      where: { teamId: ctx.teamId, userId, unlinkedAtUtc: null },
-      orderBy: { linkedAtUtc: "desc" },
+      if (update.displayName !== undefined) {
+        const mapping = await tx.externalIdentityMapping.findFirst({
+          where: { teamId: ctx.teamId, userId, unlinkedAtUtc: null },
+          orderBy: { linkedAtUtc: "desc" },
+        });
+        if (mapping) {
+          await tx.externalIdentityMapping.update({
+            where: { id: mapping.id },
+            data: { displayName: update.displayName?.slice(0, 180) ?? null },
+          });
+          appliedFields.push("displayName");
+        }
+      }
+
+      if (update.role !== undefined) {
+        // SCIM never assigns/demotes OWNER/ADMIN — explicit operator action only.
+        if (member.role === "OWNER" || member.role === "ADMIN") {
+          // cannot honour a privileged role change; not an applied field.
+        } else if (member.role !== update.role) {
+          await applyDirectoryRoleChange(tx as unknown as typeof client, {
+            teamMemberId: member.id,
+            currentRole: member.role,
+            desiredRole: update.role,
+            source: "SCIM",
+            externalRef: "scim-patch",
+            allowPrivilegedChange: false,
+          });
+          appliedFields.push("role");
+        } else {
+          appliedFields.push("role"); // no-op change still an honoured target
+        }
+      }
+
+      // Nothing applied → roll back the reconciliation too (zero mutation).
+      if (appliedFields.length === 0) throw new Error(NO_TARGET);
     });
-    if (mapping) {
-      await client.externalIdentityMapping.update({
-        where: { id: mapping.id },
-        data: { displayName: update.displayName?.slice(0, 180) ?? null },
-      });
-      appliedFields.push("displayName");
+  } catch (err) {
+    const e = err as { code?: string; message?: string };
+    if (e.message === NO_TARGET) {
+      return { ok: false, status: 400, detail: "no_supported_attribute_target", scimType: "noTarget" };
     }
-  }
-
-  if (update.role !== undefined) {
-    // SCIM never assigns OWNER/ADMIN and never silently *demotes* an
-    // existing privileged member — those transitions require explicit
-    // operator action, mirroring the Groups service invariant.
-    if (member.role === "OWNER" || member.role === "ADMIN") {
-      // Skip the role write but do not fail the whole PATCH; the
-      // attribute simply cannot be honoured for a privileged member.
-    } else if (member.role !== update.role) {
-      await client.teamMember.update({
-        where: { id: member.id },
-        data: { role: update.role },
-      });
-      appliedFields.push("role");
-    } else {
-      // No-op change still counts as an honoured target.
-      appliedFields.push("role");
+    if (e.code === "SCIM_MANAGED_CROSS_ORG_CONFLICT") {
+      return { ok: false, status: 409, detail: "managed_cross_org_conflict", scimType: "mutability" };
     }
-  }
-
-  if (appliedFields.length === 0) {
-    return {
-      ok: false,
-      status: 400,
-      detail: "no_supported_attribute_target",
-      scimType: "noTarget",
-    };
+    if (e.code === "SCIM_MANAGED_UNRESOLVED") {
+      return { ok: false, status: 409, detail: "managed_identity_unresolved", scimType: "mutability" };
+    }
+    throw err; // schema-unavailability / seat exhaustion — fail closed
   }
 
   bump("scim_user_updated_total");
@@ -826,19 +970,17 @@ export async function scimUpdateUserAttributes(
     severity: "INFO",
     details: { tokenId: ctx.tokenId, userId, fields: appliedFields },
   });
-  await appendPlatformAuditLog({
-    userId: null,
-    isPublic: true,
+  await emitTenantAudit({
     action: "scim.user.update",
-    category: "identity",
-    severity: "info",
-    source: "scim_service",
     outcome: "success",
+    sourceApp: "SCIM",
+    actorUserId: null,
+    serviceActor: "scim_service",
+    workspaceId: ctx.teamId,
     resourceType: "user",
     resourceId: userId,
-    metadata: { teamId: ctx.teamId, fields: appliedFields },
-    db: client,
-  });
+    metadata: { fields: appliedFields },
+  }, client);
   return { ok: true, appliedFields };
 }
 

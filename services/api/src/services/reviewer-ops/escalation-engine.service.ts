@@ -43,7 +43,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { recordIncident } from "../observability/incident.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -371,29 +371,30 @@ export async function createEscalation(
     },
   });
 
-  await appendPlatformAuditLog({
-    userId: input.createdByUserId ?? null,
-    action: "reviewer.escalation.create",
-    category: "review",
-    severity: severity === "CRITICAL" || severity === "HIGH" ? "warning" : "info",
-    source: "reviewer_ops_engine",
-    outcome: "success",
-    resourceType: "review_escalation",
-    resourceId: created.id,
-    metadata: {
-      teamId: input.teamId,
-      workflowId: input.workflowId,
-      reason: input.reason,
-      severity,
-      incidentId: linkedIncidentId,
-      // Phase 6 — template provenance trio for downstream
-      // traceability. Identity-only; never drives policy.
-      templateSlug: templateProvenance.templateSlug,
-      templateVersion: templateProvenance.templateVersion,
-      templateDbId: templateProvenance.templateDbId,
+  await emitTenantAudit(
+    {
+      action: "reviewer.escalation.create",
+      outcome: "success",
+      severity: severity === "CRITICAL" || severity === "HIGH" ? "warning" : "info",
+      sourceApp: "API",
+      actorUserId: input.createdByUserId ?? null,
+      workspaceId: input.teamId,
+      resourceType: "review_escalation",
+      resourceId: created.id,
+      metadata: {
+        workflowId: input.workflowId,
+        reason: input.reason,
+        severity,
+        incidentId: linkedIncidentId,
+        // Phase 6 — template provenance trio for downstream
+        // traceability. Identity-only; never drives policy.
+        templateSlug: templateProvenance.templateSlug,
+        templateVersion: templateProvenance.templateVersion,
+        templateDbId: templateProvenance.templateDbId,
+      },
     },
-    db: client,
-  });
+    client,
+  );
 
   return {
     ok: true,
@@ -524,18 +525,19 @@ export async function resolveEscalation(
       actorUserId: input.actorUserId,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "reviewer.escalation.resolve",
-    category: "review",
-    severity: "info",
-    source: "reviewer_ops_engine",
-    outcome: "success",
-    resourceType: "review_escalation",
-    resourceId: row.id,
-    metadata: { teamId: input.teamId, workflowId: row.workflowId },
-    db: client,
-  });
+  await emitTenantAudit(
+    {
+      action: "reviewer.escalation.resolve",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "review_escalation",
+      resourceId: row.id,
+      metadata: { workflowId: row.workflowId },
+    },
+    client,
+  );
   return projectEscalation(updated);
 }
 

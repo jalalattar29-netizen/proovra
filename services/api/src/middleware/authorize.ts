@@ -46,13 +46,33 @@
 import type { FastifyReply, FastifyRequest, preHandlerAsyncHookHandler } from "fastify";
 import type { Permission } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
+import { getAuthUserId, getAuthSessionId } from "../auth.js";
 import { bump } from "../services/ops/metrics.service.js";
+import { prisma } from "../db.js";
 import {
   evaluateMemberAccess,
   type AccessDecision,
   type AccessDenyReason,
 } from "../services/identity/access-policy.service.js";
+// PHASE 10 HARDENING FIX 1 (2026-07-23) — the persisted-session liveness
+// check re-run on every support-context request (see `isBoundSessionActive`
+// below): a token bound to a session that has since been revoked or has
+// naturally expired must stop authorizing support-scoped operations, even
+// though its own short TTL has not yet elapsed and the underlying grant is
+// still perfectly valid.
+import { isSessionRevoked } from "../services/identity-security/session-revocation.service.js";
+// PHASE 10 STEP 5 / CLOSURE FIX 1 (2026-07-23) — REAL-OPERATION
+// support-access enforcement. Composed here (not forked):
+// `applySupportAccessGuard` re-defers scope / expiry / revocation /
+// action-permission entirely to the ONE support authority chain
+// (`resolveSupportRuntimeContextByGrantId` + `authorizeSupportAction` in
+// support-runtime.service.ts). This import is the ONLY new coupling.
+import { applySupportAccessGuard } from "../services/identity/support-runtime.service.js";
+// CLOSURE FIX 1 (2026-07-23) — the client can transport ONLY this opaque,
+// server-issued, server-verified token. Verification never trusts the
+// request; a forged/invalid/expired token is treated as "not support
+// context", never as a permissive or client-declared signal.
+import { verifySupportContextToken } from "../services/identity/support-context-token.service.js";
 
 // =============================================================================
 // Bounded denial vocabulary surfaced to route callers + tests.
@@ -76,6 +96,9 @@ export const AUTHORIZATION_DENIAL_CODES = [
   "no_actor",
   "member_not_active",
   "member_access_expired",
+  // PHASE 1 (2026-07-21) — org-lifecycle + workspace-kind denials.
+  "organization_not_active",
+  "workspace_kind_unresolved",
   "service_account_revoked",
   "service_account_disabled",
   "service_account_expired",
@@ -86,6 +109,14 @@ export const AUTHORIZATION_DENIAL_CODES = [
   "permission_not_granted",
   // Route-side: unexpected failure → fail-closed.
   "authorization_unavailable",
+  // PHASE 10 STEP 5 / CLOSURE FIX 1 (2026-07-23) — a request carrying a
+  // valid, server-verified support-context token that the composed
+  // support-runtime guard denies (this also covers a missing/forged/
+  // wrong-actor token — see `evaluateAuthorize` below). The bounded
+  // internal reason (scope/expiry/revocation/read-only/elevated gate) is
+  // audited via `authorizeSupportAction`; this single code is all an
+  // operator/client ever sees on the canonical route response.
+  "support_access_denied",
 ] as const;
 
 export type AuthorizationDenialCode =
@@ -95,6 +126,8 @@ const ACCESS_DENY_REASON_SET: ReadonlySet<string> = new Set<AccessDenyReason>([
   "no_actor",
   "member_not_active",
   "member_access_expired",
+  "organization_not_active",
+  "workspace_kind_unresolved",
   "service_account_revoked",
   "service_account_disabled",
   "service_account_expired",
@@ -104,6 +137,93 @@ const ACCESS_DENY_REASON_SET: ReadonlySet<string> = new Set<AccessDenyReason>([
   "contributor_unsupported_permission",
   "permission_not_granted",
 ]);
+
+// =============================================================================
+// PHASE 10 CLOSURE FIX 1 (2026-07-23) — server-authoritative support-context
+// token.
+//
+// The former design armed support enforcement off a CLIENT-CONTROLLED
+// boolean header (`x-proovra-support-mode`) — any caller could decide for
+// itself whether the guard ran. That header is DELETED. The client may now
+// transport ONLY an OPAQUE, SERVER-ISSUED, SERVER-VERIFIED token, minted by
+// `POST /v1/support-access/enter` (enterprise-security.routes.ts) after the
+// server has already validated the caller's ACTIVE `SupportAccessGrant`
+// against the DB. Ordinary customer sessions never carry this header, so the
+// guard below is skipped entirely for them — zero extra behaviour, zero
+// extra DB reads. A present-but-invalid (missing signature, forged,
+// wrong-actor, expired) token is NEVER treated as a valid support-context
+// request — it denies the operation outright (see `evaluateAuthorize`
+// below) rather than silently falling through to an ordinary allow.
+// =============================================================================
+
+const SUPPORT_CONTEXT_HEADER = "x-proovra-support-context";
+// Same header `requireStepUpForSensitiveAction` (step-up-middleware.ts)
+// reads. Presence-only check here — this guard never consumes/verifies the
+// challenge itself; it is an ADDITIONAL gate before permitting an ELEVATED
+// support action, layered on top of (not a replacement for) the route-level
+// step-up enforcement that already runs for sensitive mutations.
+const STEP_UP_PROOF_HEADER = "x-proovra-step-up-challenge-id";
+
+/**
+ * PHASE 10 HARDENING FIX 1 (2026-07-23) — is the persisted session backing
+ * `sessionIdHash` still active? Two independent fail-closed checks:
+ *
+ *   1. `isSessionRevoked` (the SAME registry `requireAuth` consults on
+ *      every request) — catches an explicit single-session or
+ *      log-out-everywhere revocation issued AFTER the support-context
+ *      token was minted.
+ *   2. The persisted `AuthenticatedSession` row itself — catches the
+ *      session's own natural expiry (or the row being entirely absent,
+ *      which we treat as "cannot prove liveness" → deny, never "assume
+ *      alive").
+ *
+ * Any lookup failure denies (fail closed) — never falls through to
+ * "assume active".
+ */
+async function isBoundSessionActive(
+  userId: string,
+  sessionIdHash: string,
+): Promise<boolean> {
+  try {
+    const revoked = await isSessionRevoked({
+      userId,
+      sessionIdHash,
+      // ALL_FOR_USER revocation is already enforced on every request by
+      // `requireAuth` (which has the JWT's real `iat`); this call adds the
+      // SINGLE_SESSION check specific to the exact session the token is
+      // bound to. Passing `iat: null` intentionally skips re-deriving
+      // ALL_FOR_USER here rather than threading a redundant claim through.
+      iat: null,
+    });
+    if (revoked) return false;
+
+    const sessionRow = await prisma.authenticatedSession.findFirst({
+      where: { userId, sessionIdHash },
+      select: { expiresAtUtc: true, revokedAtUtc: true },
+    });
+    if (!sessionRow) return false;
+    if (sessionRow.revokedAtUtc) return false;
+    if (sessionRow.expiresAtUtc.getTime() <= Date.now()) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function headerPresent(req: FastifyRequest, name: string): boolean {
+  const raw = req.headers[name];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+/** Returns the trimmed header value, or `null` when absent/blank. */
+function readHeaderValue(req: FastifyRequest, name: string): string | null {
+  const raw = req.headers[name];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 // =============================================================================
 // Public surface
@@ -232,6 +352,115 @@ export async function evaluateAuthorize(
   }
 
   if (decision.allowed) {
+    // PHASE 10 STEP 5 / CLOSURE FIX 1 (2026-07-23) — EVERY authorized
+    // operation additionally runs the support-access runtime guard WHEN the
+    // request carries a support-context token. Ordinary customer sessions
+    // carry no such header and fall straight through to the unchanged allow
+    // below — zero extra behaviour, zero extra DB reads.
+    const supportContextToken = readHeaderValue(req, SUPPORT_CONTEXT_HEADER);
+    if (supportContextToken !== null) {
+      // CLOSURE FIX 1 — the token is SERVER-VERIFIED here, never trusted at
+      // face value. An invalid/forged/expired token is NOT a support
+      // context — it denies the operation outright rather than either (a)
+      // enforcing with attacker-declared values or (b) silently falling
+      // through to an ordinary allow.
+      const verified = verifySupportContextToken(supportContextToken);
+      if (!verified.valid) {
+        bump("authorize_denied_total");
+        return {
+          allowed: false,
+          reasonCode: "support_access_denied",
+          httpStatus: 403,
+        };
+      }
+      // Wrong-actor check: a token minted for a different authenticated
+      // user (stolen, replayed, or copy-pasted) must never be honoured for
+      // this session, even though its signature verifies.
+      if (verified.payload.supportUserId !== actorUserId) {
+        bump("authorize_denied_total");
+        return {
+          allowed: false,
+          reasonCode: "support_access_denied",
+          httpStatus: 403,
+        };
+      }
+      // PHASE 10 HARDENING FIX 1 (2026-07-23) — SESSION BINDING. A token
+      // minted in Session A must be rejected when presented from Session B,
+      // even for the SAME support actor. `getAuthSessionId` throws when the
+      // current request has no resolvable session (e.g. a pre-Phase-19
+      // token) — that fails closed identically to a mismatch, never to an
+      // unbound allow.
+      let currentSessionIdHash: string;
+      try {
+        currentSessionIdHash = getAuthSessionId(req);
+      } catch {
+        bump("authorize_denied_total");
+        return {
+          allowed: false,
+          reasonCode: "support_access_denied",
+          httpStatus: 403,
+        };
+      }
+      if (verified.payload.sessionIdHash !== currentSessionIdHash) {
+        bump("authorize_denied_total");
+        return {
+          allowed: false,
+          reasonCode: "support_access_denied",
+          httpStatus: 403,
+        };
+      }
+      // The persisted session backing this (now-matched) hash must still
+      // be provably active — a session revoked or naturally expired AFTER
+      // the token was minted must not continue to authorize support-scoped
+      // operations, independent of the token's own (longer-lived) TTL.
+      const sessionActive = await isBoundSessionActive(
+        actorUserId,
+        currentSessionIdHash,
+      );
+      if (!sessionActive) {
+        bump("authorize_denied_total");
+        return {
+          allowed: false,
+          reasonCode: "support_access_denied",
+          httpStatus: 403,
+        };
+      }
+      try {
+        const guard = await applySupportAccessGuard({
+          actorUserId,
+          // The token pins the request to the EXACT grant validated at
+          // entry time (`POST /v1/support-access/enter`) — never "any
+          // active grant for this actor", which would let a client widen
+          // its own effective scope.
+          grantId: verified.payload.grantId,
+          teamId: options.teamId,
+          // SERVER-DERIVED action: the canonical permission already being
+          // authorized for this route — never a client-supplied body field.
+          permission: options.permission,
+          hasStepUpProof: headerPresent(req, STEP_UP_PROOF_HEADER),
+          ipAddress: (req.ip as string | undefined) ?? null,
+          userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
+        });
+        if (!guard.allowed) {
+          bump("authorize_denied_total");
+          return {
+            allowed: false,
+            reasonCode: "support_access_denied",
+            httpStatus: 403,
+          };
+        }
+      } catch {
+        // Fail closed: any unexpected failure evaluating the support
+        // authority denies the operation — never a silent fallthrough to
+        // ordinary allow, and never a 500 leak.
+        bump("authorize_denied_total");
+        return {
+          allowed: false,
+          reasonCode: "support_access_denied",
+          httpStatus: 403,
+        };
+      }
+    }
     bump("authorize_allowed_total");
     return {
       allowed: true,
@@ -257,7 +486,12 @@ export async function evaluateAuthorize(
   const isMembershipFailure =
     reasonCode === "no_actor" ||
     reasonCode === "member_not_active" ||
-    reasonCode === "member_access_expired";
+    reasonCode === "member_access_expired" ||
+    // PHASE 1 (2026-07-21) — an unavailable org, or a workspace whose kind
+    // cannot be proven, is a "context you cannot enter" failure; under
+    // anti-enumeration both conceal as 404 too.
+    reasonCode === "organization_not_active" ||
+    reasonCode === "workspace_kind_unresolved";
   const httpStatus: 403 | 404 =
     options.antiEnumeration && isMembershipFailure ? 404 : 403;
 

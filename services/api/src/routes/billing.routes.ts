@@ -1,3 +1,4 @@
+import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import * as prismaPkg from "@prisma/client";
@@ -21,18 +22,18 @@ import {
   createPayPalStorageAddonCheckout,
 } from "../services/billing-checkout.service.js";
 import { prisma } from "../db.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { readBillingOverview } from "../services/billing-overview.service.js";
-import {
-  getPersonalWorkspaceScope,
-  getTeamWorkspaceScope,
-} from "../services/workspace-billing.service.js";
+// §9.7 — scope consumed via the resolveCommercialContext envelope (explicit
+// subjects); the scope adapter is no longer imported here.
 import {
   buildPricingCatalogResponse,
   resolveCheckoutCurrency,
 } from "../services/billing-pricing.service.js";
 import { getPlanCapabilities } from "../services/plan-catalog.service.js";
+// PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
+import { assertPersonalSpaceAllowed } from "../services/identity/identity-mode.service.js";
 
 const PlanTypeSchema = prismaPkg.PlanType
   ? z.nativeEnum(prismaPkg.PlanType)
@@ -97,22 +98,46 @@ function auditBillingAction(
     outcome?: "success" | "failure" | "blocked";
     severity?: "info" | "warning" | "critical";
     resourceId?: string | null;
+    /** The authoritative Workspace (teamId) this billing action targets, when
+     * one applies — MUST already be validated (e.g. via
+     * `assertOwnedTeamForCheckout` or a DB-fetched, ownership-checked record).
+     * Personal-scope / user-aggregate billing actions pass null. */
+    workspaceId?: string | null;
+    /** The provider's own identifier for the event/resource (Stripe/PayPal
+     * checkout session, subscription, order, or externalSubscriptionId). */
+    providerEventId?: string | null;
     metadata?: Record<string, unknown>;
   }
 ) {
-  void appendPlatformAuditLog({
-    userId: params.userId,
+  const outcome =
+    params.outcome === "blocked"
+      ? "denied"
+      : params.outcome === "failure"
+        ? "error"
+        : "success";
+
+  const denialReason =
+    outcome !== "success"
+      ? (typeof params.metadata?.reason === "string" ? params.metadata.reason : params.action)
+      : null;
+
+  void emitTenantAudit({
     action: params.action,
-    category: "billing",
-    severity: params.severity ?? "info",
-    source: "api_billing",
-    outcome: params.outcome ?? "success",
+    outcome,
+    denialReason,
+    sourceApp: "API",
+    actorUserId: params.userId,
+    workspaceId: params.workspaceId ?? null,
     resourceType: "billing",
     resourceId: params.resourceId ?? null,
-    requestId: req.id,
-    metadata: params.metadata ?? {},
-    ipAddress: req.ip,
-    userAgent: readUserAgent(req),
+    correlationId: req.id ?? null,
+    providerEventId: params.providerEventId ?? null,
+    metadata: {
+      ...(params.metadata ?? {}),
+      severity: params.severity ?? "info",
+      ipAddress: req.ip,
+      userAgent: readUserAgent(req),
+    },
   }).catch(() => null);
 }
 
@@ -190,6 +215,21 @@ function assertCheckoutTarget(params: {
   }
 }
 
+/**
+ * PHASE 10 §13.2 STEP 6 (2026-07-23) — NO-PERSONAL enforcement on CHECKOUT.
+ * A checkout with NO `teamId` is a PERSONAL-scope subscription (PRO/personal
+ * base plan). A managed enterprise identity has no personal space and the
+ * organization controls its billing/lifecycle, so deny a personal checkout
+ * BEFORE any provider session is created. TEAM checkout (`teamId` present) is
+ * gated by `assertOwnedTeamForCheckout` instead. Fails closed for MANAGED +
+ * MANAGED_UNRESOLVED.
+ */
+async function assertPersonalCheckoutAllowed(userId: string, teamId?: string) {
+  if (!teamId) {
+    await assertPersonalSpaceAllowed(userId);
+  }
+}
+
 function assertPurchasablePlan(plan: prismaPkg.PlanType) {
   if (plan === prismaPkg.PlanType.FREE) {
     const err: Error & { statusCode?: number } = new Error(
@@ -234,7 +274,10 @@ async function assertStorageAddonAllowed(params: {
   if (params.teamId) {
     await assertOwnedTeamForCheckout(params.userId, params.teamId);
 
-    const scope = await getTeamWorkspaceScope(params.teamId);
+    // §9.7 — explicit WORKSPACE subject; ownership already asserted above.
+    const scope = (
+      await resolveCommercialContext({ type: "WORKSPACE", teamId: params.teamId, requesterUserId: params.userId })
+    ).scope;
     const caps = getPlanCapabilities(scope.plan);
 
     if (definition.workspaceType !== "TEAM") {
@@ -270,7 +313,17 @@ async function assertStorageAddonAllowed(params: {
     };
   }
 
-  const scope = await getPersonalWorkspaceScope(params.userId);
+  // PHASE 10 §13.2 STEP 6 (2026-07-23) — NO-PERSONAL enforcement on the
+  // PERSONAL_ACCOUNT storage-addon checkout target. A managed enterprise
+  // identity has no personal space, so deny BEFORE resolving commercial
+  // context or creating any provider session. Fails closed for MANAGED +
+  // MANAGED_UNRESOLVED. TEAM addon checkout (above) is unaffected.
+  await assertPersonalSpaceAllowed(params.userId);
+
+  // §9.7 — explicit PERSONAL_ACCOUNT subject.
+  const scope = (
+    await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId: params.userId })
+  ).scope;
 
   if (definition.workspaceType !== "PERSONAL") {
     const err: Error & { statusCode?: number } = new Error(
@@ -510,6 +563,7 @@ export async function billingRoutes(app: FastifyInstance) {
           action: "billing.subscription_cancel",
           outcome: "failure",
           severity: "warning",
+          workspaceId: body.teamId ?? null,
           metadata: {
             reason: "no_active_subscription",
             teamId: body.teamId ?? null,
@@ -547,6 +601,8 @@ export async function billingRoutes(app: FastifyInstance) {
           outcome: "blocked",
           severity: "warning",
           resourceId: subscription.id,
+          workspaceId: body.teamId ?? null,
+          providerEventId: subscription.providerSubId ?? null,
           metadata: {
             reason: "unsupported_provider",
             provider: subscription.provider,
@@ -593,6 +649,8 @@ export async function billingRoutes(app: FastifyInstance) {
         action: "billing.subscription_cancel",
         outcome: "success",
         resourceId: updated.id,
+        workspaceId: body.teamId ?? null,
+        providerEventId: subscription.providerSubId ?? null,
         metadata: {
           provider: updated.provider,
           plan: updated.plan,
@@ -701,6 +759,8 @@ export async function billingRoutes(app: FastifyInstance) {
         action: "billing.storage_addon_cancel",
         outcome: "success",
         resourceId: updated.id,
+        workspaceId: updated.teamId ?? null,
+        providerEventId: addon.externalSubscriptionId ?? null,
         metadata: {
           addonKey: updated.addonKey,
           teamId: updated.teamId ?? null,
@@ -758,6 +818,10 @@ export async function billingRoutes(app: FastifyInstance) {
         teamId: body.teamId,
       });
 
+      // PHASE 10 §13.2 STEP 6 — deny personal (no-teamId) checkout for managed
+      // identities BEFORE creating any provider session.
+      await assertPersonalCheckoutAllowed(userId, body.teamId);
+
       if (body.teamId) {
         await assertOwnedTeamForCheckout(userId, body.teamId);
       }
@@ -774,6 +838,8 @@ export async function billingRoutes(app: FastifyInstance) {
         action: "billing.checkout_stripe_created",
         outcome: "success",
         resourceId: String(result.session?.id ?? ""),
+        workspaceId: body.teamId ?? null,
+        providerEventId: result.session?.id ? String(result.session.id) : null,
         metadata: {
           plan: body.plan,
           currency: result.currency,
@@ -840,6 +906,8 @@ export async function billingRoutes(app: FastifyInstance) {
         action: "billing.storage_addon_checkout_stripe_created",
         outcome: "success",
         resourceId: String(result.session?.id ?? ""),
+        workspaceId: body.teamId ?? null,
+        providerEventId: result.session?.id ? String(result.session.id) : null,
         metadata: {
           addonKey: body.addonKey,
           billingCycle: body.billingCycle,
@@ -887,6 +955,10 @@ export async function billingRoutes(app: FastifyInstance) {
         teamId: body.teamId,
       });
 
+      // PHASE 10 §13.2 STEP 6 — deny personal (no-teamId) checkout for managed
+      // identities BEFORE creating any provider session.
+      await assertPersonalCheckoutAllowed(userId, body.teamId);
+
       if (body.teamId) {
         await assertOwnedTeamForCheckout(userId, body.teamId);
       }
@@ -908,6 +980,8 @@ export async function billingRoutes(app: FastifyInstance) {
         action: "billing.checkout_paypal_created",
         outcome: "success",
         resourceId,
+        workspaceId: body.teamId ?? null,
+        providerEventId: resourceId || null,
         metadata: {
           mode: result.mode,
           plan: body.plan,
@@ -987,6 +1061,8 @@ export async function billingRoutes(app: FastifyInstance) {
         action: "billing.storage_addon_checkout_paypal_created",
         outcome: "success",
         resourceId,
+        workspaceId: body.teamId ?? null,
+        providerEventId: resourceId || null,
         metadata: {
           addonKey: body.addonKey,
           billingCycle: body.billingCycle,
@@ -1099,6 +1175,12 @@ export async function billingRoutes(app: FastifyInstance) {
             .send({ message: "teamId is only allowed for TEAM plan" });
         }
 
+        // PHASE 10 §13.2 STEP 6 (2026-07-23) — dev-only direct personal-plan
+        // change is still a personal-scope mutation; deny for managed
+        // identities before the plan write (defense-in-depth alongside the
+        // checkout-provider guards above; this route is 403'd in production).
+        await assertPersonalCheckoutAllowed(userId, undefined);
+
         await setPersonalPlan(userId, body.plan);
       }
 
@@ -1108,6 +1190,7 @@ export async function billingRoutes(app: FastifyInstance) {
         userId,
         action: "billing.plan_changed",
         outcome: "success",
+        workspaceId: body.teamId ?? null,
         metadata: { plan: body.plan, teamId: body.teamId ?? null },
       });
 

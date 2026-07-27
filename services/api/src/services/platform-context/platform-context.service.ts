@@ -56,6 +56,17 @@ import {
   type WorkspaceRole,
 } from "./types.js";
 import { ensurePersonalWorkspace } from "./workspace-bootstrap.service.js";
+// PHASE 2 (2026-07-21) — the ONE canonical workspace-kind classifier.
+import { resolveWorkspaceKind } from "../identity/workspace-kind.js";
+// PHASE 10 STEP 5 (2026-07-23) — active support-access envelope projection.
+// The ONE authority (support-access.service) evaluates the grant; this
+// builder only reads + shapes it. Additive envelope section.
+import { buildSupportAccessEnvelopeSection } from "../identity/support-runtime.service.js";
+// PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal-space
+// signal for CLIENT-SIDE hiding (defense in depth; the server guards in
+// workspace-bootstrap.service.ts + platform-context.routes.ts are the
+// enforcement). Read-only call — never a fork of the identity-mode authority.
+import { personalSpaceAllowed as resolvePersonalSpaceAllowed } from "../identity/identity-mode.service.js";
 
 // Locked product model: only the ENTERPRISE plan (ORGANIZATION workspace)
 // is an enterprise workspace. TEAM is a subscription plan inside a PERSONAL
@@ -497,6 +508,18 @@ export async function buildPlatformContext(
   // -------------------------------------------------------------------------
   let availableWorkspacesStatus: SectionStatus = "ok";
   const organizations: PlatformContextOrganization[] = [];
+  // P3 domain remediation (2026-07-21) — canonical, server-authorized
+  // context options (grouped into ownedWorkspaces vs organizations by the
+  // explicit workspaceKind). The client may group/render but NEVER widens
+  // this set.
+  const contextOptionRows: Array<{
+    workspaceId: string;
+    name: string | null;
+    kind: "PERSONAL" | "OWNED" | "ORGANIZATION";
+    role: ReturnType<typeof coerceRole>;
+    organizationId: string | null;
+    organizationName: string | null;
+  }> = [];
   type PersonalTeamRow = {
     id: string;
     name: string | null;
@@ -518,6 +541,17 @@ export async function buildPlatformContext(
             isPersonal: true,
             ownerUserId: true,
             billingPlan: true,
+            // P0 remediation (2026-07-21) — parent-organization lifecycle,
+            // consulted below so ARCHIVED/SUSPENDED orgs never surface as
+            // switch targets.
+            // P3 domain remediation (2026-07-21) — explicit kinds + the
+            // parent organization identity for the canonical contextOptions
+            // grouping (Personal / Your workspaces / Organizations).
+            workspaceKind: true,
+            organizationId: true,
+            organization: {
+              select: { status: true, kind: true, name: true },
+            },
             _count: { select: { members: true } },
           },
         },
@@ -527,6 +561,35 @@ export async function buildPlatformContext(
 
     for (const m of memberRows) {
       if (!m.team) continue;
+      // P0 remediation (2026-07-21) — an ACTIVE membership in a workspace
+      // whose parent organization is not ACTIVE is not a valid operating
+      // context; exclude it from the switcher (the switch mutation denies
+      // it server-side too). Personal teams are exempt (bootstrap
+      // container orgs are not lifecycle-managed).
+      if (
+        !m.team.isPersonal &&
+        m.team.organization &&
+        m.team.organization.status !== "ACTIVE"
+      ) {
+        continue;
+      }
+
+      // PHASE 2 (2026-07-21) — ONE canonical workspace-kind classifier.
+      // The former inline migration-window fallback is replaced by the
+      // shared `resolveWorkspaceKind` (services/identity/workspace-kind.ts),
+      // which applies the SAME deterministic backfill rule for NULL rows and
+      // fails closed (UNKNOWN) when the row is unprovable. UNKNOWN rows are
+      // excluded from the switcher — an unclassifiable workspace is not a
+      // valid switch target.
+      const resolvedKindOrUnknown = resolveWorkspaceKind({
+        workspaceKind: (m.team.workspaceKind as string | null) ?? null,
+        isPersonal: m.team.isPersonal,
+        billingPlan: (m.team.billingPlan as unknown as string) ?? null,
+        teamLoaded: true,
+      });
+      if (resolvedKindOrUnknown === "UNKNOWN") continue;
+      const resolvedKind = resolvedKindOrUnknown;
+
       if (m.team.isPersonal) {
         personalTeams.push({
           id: m.team.id,
@@ -537,6 +600,18 @@ export async function buildPlatformContext(
         });
         continue;
       }
+
+      // P3 — canonical context option (grouped later into ownedWorkspaces
+      // vs organizations by `resolvedKind`).
+      contextOptionRows.push({
+        workspaceId: m.team.id,
+        name: m.team.name ?? null,
+        kind: resolvedKind,
+        role: coerceRole(m.role as unknown as string),
+        organizationId: (m.team.organizationId as unknown as string) ?? null,
+        organizationName: m.team.organization?.name ?? null,
+      });
+
       organizations.push({
         id: m.team.id,
         name: m.team.name ?? null,
@@ -702,6 +777,100 @@ export async function buildPlatformContext(
   }
 
   // ===========================================================================
+  // P3 DOMAIN REMEDIATION (2026-07-21) — canonical server-authorized
+  // context options. Grouping is by the EXPLICIT workspaceKind, never by
+  // isPersonal alone:
+  //   personalSpace     — the bootstrap Personal Space
+  //   ownedWorkspaces   — self-service OWNED workspaces ("Your workspaces")
+  //   organizations     — ORGANIZATION workspaces grouped by parent org
+  // Governance-only org membership (OrganizationMembership without an
+  // ACTIVE TeamMember) intentionally does NOT appear here — it belongs to
+  // the /organizations management list, not the switcher.
+  // ===========================================================================
+  const ownedWorkspaceOptions = contextOptionRows
+    .filter((r) => r.kind === "OWNED")
+    .map((r) => ({
+      workspaceId: r.workspaceId,
+      name: r.name,
+      kind: "OWNED" as const,
+      role: r.role,
+      lifecycleStatus: "active" as const,
+    }));
+  const orgGroups = new Map<
+    string,
+    {
+      organizationId: string;
+      organizationName: string | null;
+      workspaces: Array<{
+        workspaceId: string;
+        workspaceName: string | null;
+        kind: "ORGANIZATION";
+        workspaceRole: ReturnType<typeof coerceRole>;
+        lifecycleStatus: "active";
+      }>;
+    }
+  >();
+  for (const r of contextOptionRows) {
+    if (r.kind !== "ORGANIZATION" || !r.organizationId) continue;
+    const group = orgGroups.get(r.organizationId) ?? {
+      organizationId: r.organizationId,
+      organizationName: r.organizationName,
+      workspaces: [],
+    };
+    group.workspaces.push({
+      workspaceId: r.workspaceId,
+      workspaceName: r.name,
+      kind: "ORGANIZATION",
+      workspaceRole: r.role,
+      lifecycleStatus: "active",
+    });
+    orgGroups.set(r.organizationId, group);
+  }
+  // PHASE 10 §13.2 STEP 6 (2026-07-23) — a managed enterprise identity has NO
+  // personal space, even when a personal Team row exists from before it
+  // became managed (grandfathered). `personalTeamId` alone is NOT enough:
+  // it stays populated for a grandfathered row (the bootstrap only blocks
+  // NEW creation, not an existing row's read). Suppress the switcher option
+  // here so the client never offers a Personal choice the server guards
+  // (workspace-bootstrap.service.ts / platform-context.routes.ts
+  // switch-workspace) would deny. Read-only signal; degrades to `true`
+  // (unchanged legacy behavior) on any resolution failure — the mutation
+  // guards remain the authority, this only affects what the UI offers.
+  let personalSpaceAllowedFlag = true;
+  try {
+    personalSpaceAllowedFlag = await resolvePersonalSpaceAllowed(userRow.id);
+  } catch {
+    personalSpaceAllowedFlag = true;
+  }
+
+  const contextOptions = {
+    personalSpace: personalTeamId && personalSpaceAllowedFlag
+      ? {
+          workspaceId: personalTeamId,
+          name: "Personal Space" as const,
+          kind: "PERSONAL" as const,
+          role: "OWNER" as const,
+          lifecycleStatus: "active" as const,
+        }
+      : null,
+    ownedWorkspaces: ownedWorkspaceOptions,
+    organizations: Array.from(orgGroups.values()),
+    activeContext: {
+      workspaceId: activeSpace.id,
+      kind:
+        activeSpace.type === "PERSONAL"
+          ? ("PERSONAL" as const)
+          : (contextOptionRows.find(
+              (r) => r.workspaceId === activeSpace.id,
+            )?.kind ?? ("ORGANIZATION" as const)),
+      organizationId:
+        contextOptionRows.find((r) => r.workspaceId === activeSpace.id)
+          ?.organizationId ?? null,
+      displayName: activeSpace.displayName,
+    },
+  };
+
+  // ===========================================================================
   // Legacy `availableWorkspaces` — kept for backward compatibility. Rebuilt
   // from the canonical organizations + personal space so it no longer
   // duplicates personal rows under TEAM or pushes a synthetic id.
@@ -801,6 +970,27 @@ export async function buildPlatformContext(
   });
 
   // -------------------------------------------------------------------------
+  // PHASE 10 STEP 5 (2026-07-23) — active support-access projection.
+  //
+  // When the authenticated actor is a support user with an ACTIVE grant, the
+  // envelope exposes BOTH identities so the shell renders a persistent
+  // support banner. The evaluation is owned entirely by the support-access
+  // authority (via buildSupportAccessEnvelopeSection); a missing grant, an
+  // expired/revoked grant, or an unapplied table all heal to `null`.
+  // -------------------------------------------------------------------------
+  let supportAccess: Awaited<
+    ReturnType<typeof buildSupportAccessEnvelopeSection>
+  > = null;
+  try {
+    supportAccess = await buildSupportAccessEnvelopeSection(
+      { supportActorUserId: userRow.id, nowMs: now.getTime() },
+      prisma,
+    );
+  } catch {
+    supportAccess = null;
+  }
+
+  // -------------------------------------------------------------------------
   // Envelope
   // -------------------------------------------------------------------------
   //
@@ -857,6 +1047,9 @@ export async function buildPlatformContext(
     personalSpace,
     organizations,
     activeSpace,
+    // P3 domain remediation (2026-07-21) — canonical grouped context
+    // options (Personal / Your workspaces / Organizations).
+    contextOptions,
     duplicatePersonalCandidates,
 
     diagnostics: {
@@ -889,6 +1082,13 @@ export async function buildPlatformContext(
       bootstrapAttempted: bootstrap.attempted,
       personalTeamPresent: !!personalTeamId,
     }),
+    // PHASE 10 STEP 5 — active support access (null for ordinary users).
+    supportAccess,
+    // PHASE 10 §13.2 STEP 6 (2026-07-23) — client-hiding signal only; the
+    // authoritative deny lives server-side (workspace-bootstrap.service.ts,
+    // platform-context.routes.ts switch-workspace, evidence/capture/billing
+    // guards). `true` for every STANDARD identity (unchanged behavior).
+    personalSpaceAllowed: personalSpaceAllowedFlag,
   };
 
   return { ok: true, envelope };

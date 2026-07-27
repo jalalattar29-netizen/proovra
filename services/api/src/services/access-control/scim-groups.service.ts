@@ -41,7 +41,16 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+// PHASE 3 (2026-07-22) — canonical membership orchestrator.
+import {
+  applyDirectoryRoleChange,
+  demoteGroupMappedRoleOnArchive,
+} from "../identity/membership-provisioning.service.js";
+import {
+  enforceScimManagedOwnership,
+  ScimManagedOwnershipError,
+} from "./scim-managed-ownership.service.js";
 
 // -----------------------------------------------------------------------------
 // Group resource construction
@@ -179,22 +188,19 @@ export async function scimCreateGroup(
       mappedRole: parsed.data.mappedRole,
     },
   });
-  await appendPlatformAuditLog({
-    userId: null,
-    isPublic: true,
+  await emitTenantAudit({
     action: "scim.group.create",
-    category: "identity",
-    severity: "info",
-    source: "scim_service",
     outcome: "success",
+    sourceApp: "SCIM",
+    actorUserId: null,
+    serviceActor: "scim_service",
+    workspaceId: ctx.teamId,
     resourceType: "scim_group",
     resourceId: row.id,
     metadata: {
-      teamId: ctx.teamId,
       mappedRole: parsed.data.mappedRole,
     },
-    db: client,
-  });
+  }, client);
 
   return {
     ok: true,
@@ -291,42 +297,54 @@ export async function scimPatchGroup(
     return { ok: false, status: 404, detail: "group_not_found" };
   }
 
-  for (const op of parsed.data.Operations) {
-    const path = op.path.toLowerCase();
-    if (op.op === "replace" && path === "displayname") {
-      if (typeof op.value !== "string") continue;
-      await client.scimGroup.update({
-        where: { id: row.id },
-        data: { displayName: op.value.slice(0, 180) },
-      });
-      continue;
-    }
-    if (
-      op.op === "replace" &&
-      path === "mappedrole" &&
-      typeof op.value === "string" &&
-      (SCIM_GROUP_MAPPED_ROLES as ReadonlyArray<string>).includes(op.value)
-    ) {
-      await client.scimGroup.update({
-        where: { id: row.id },
-        data: { mappedRole: op.value },
-      });
-      continue;
-    }
-    if (op.op === "add" && path.startsWith("members")) {
-      const valueUserIds = extractMemberUserIds(op.value);
-      if (valueUserIds.length > 0) {
-        await applyGroupMembership(ctx, row, valueUserIds, "add", client);
+  // ATOMIC group PATCH: the whole Operation set runs in ONE transaction. If any
+  // affected member fails managed-ownership validation (cross-org / unresolved /
+  // schema-unavailable / seat exhaustion), the ENTIRE PATCH rolls back and
+  // returns an explicit SCIM error — never a silent skipped-member / partial
+  // group state. Concurrent retries are idempotent (role no-ops short-circuit).
+  try {
+    await client.$transaction(async (tx) => {
+      const txc = tx as unknown as PrismaClient;
+      for (const op of parsed.data.Operations) {
+        const path = op.path.toLowerCase();
+        if (op.op === "replace" && path === "displayname") {
+          if (typeof op.value !== "string") continue;
+          await txc.scimGroup.update({ where: { id: row.id }, data: { displayName: op.value.slice(0, 180) } });
+          continue;
+        }
+        if (
+          op.op === "replace" &&
+          path === "mappedrole" &&
+          typeof op.value === "string" &&
+          (SCIM_GROUP_MAPPED_ROLES as ReadonlyArray<string>).includes(op.value)
+        ) {
+          await txc.scimGroup.update({ where: { id: row.id }, data: { mappedRole: op.value } });
+          continue;
+        }
+        if (op.op === "add" && path.startsWith("members")) {
+          const valueUserIds = extractMemberUserIds(op.value);
+          if (valueUserIds.length > 0) await applyGroupMembership(ctx, row, valueUserIds, "add", txc);
+          continue;
+        }
+        if (op.op === "remove" && path.startsWith("members")) {
+          const valueUserIds = extractMemberUserIds(op.value);
+          if (valueUserIds.length > 0) await applyGroupMembership(ctx, row, valueUserIds, "remove", txc);
+          continue;
+        }
       }
-      continue;
+    });
+  } catch (err) {
+    if (err instanceof ScimManagedOwnershipError) {
+      return {
+        ok: false,
+        status: 409,
+        detail:
+          err.code === "SCIM_MANAGED_CROSS_ORG_CONFLICT"
+            ? "managed_cross_org_conflict"
+            : "managed_identity_unresolved",
+      };
     }
-    if (op.op === "remove" && path.startsWith("members")) {
-      const valueUserIds = extractMemberUserIds(op.value);
-      if (valueUserIds.length > 0) {
-        await applyGroupMembership(ctx, row, valueUserIds, "remove", client);
-      }
-      continue;
-    }
+    throw err; // schema-unavailability / seat exhaustion — fail closed
   }
 
   bump("scim_group_sync_total");
@@ -368,13 +386,12 @@ export async function scimDeleteGroup(
     data: { status: "ARCHIVED" },
   });
   if (row.mappedRole !== "MEMBER") {
-    const affected = await client.teamMember.updateMany({
-      where: {
-        teamId: ctx.teamId,
-        role: row.mappedRole as TeamRole,
-        status: "ACTIVE",
-      },
-      data: { role: "MEMBER" },
+    // PHASE 3 — canonical orchestrator: bulk group-archive demotion
+    // (IDP_GROUP provenance per affected member).
+    const affected = await demoteGroupMappedRoleOnArchive(client, {
+      teamId: ctx.teamId,
+      mappedRole: row.mappedRole,
+      externalRef: `scim-group:${row.id}`,
     });
     if (affected.count > 0) {
       safeEmitSecurityEvent({
@@ -399,19 +416,17 @@ export async function scimDeleteGroup(
     severity: "WARNING",
     details: { tokenId: ctx.tokenId, groupId: row.id },
   });
-  await appendPlatformAuditLog({
-    userId: null,
-    isPublic: true,
+  await emitTenantAudit({
     action: "scim.group.delete",
-    category: "identity",
-    severity: "warning",
-    source: "scim_service",
     outcome: "success",
+    sourceApp: "SCIM",
+    actorUserId: null,
+    serviceActor: "scim_service",
+    workspaceId: ctx.teamId,
     resourceType: "scim_group",
     resourceId: row.id,
-    metadata: { teamId: ctx.teamId },
-    db: client,
-  });
+    metadata: {},
+  }, client);
   return { ok: true };
 }
 
@@ -452,6 +467,20 @@ async function applyGroupMembership(
       select: { id: true, role: true, status: true },
     });
     if (!member || member.status !== "ACTIVE") continue;
+
+    // PATH 3/9 — enforce the managed-ownership invariant BEFORE the group role
+    // change (never assume "already managed"). This runs INSIDE the group PATCH
+    // transaction: a cross-org / unresolved member THROWS (no silent skip) so
+    // the ENTIRE PATCH rolls back atomically with an explicit SCIM error — zero
+    // partial group/member/role state. A STANDARD user in a managed-required org
+    // is reconciled through the atomic intent first (also rolled back if a later
+    // member fails). Schema/seat failures propagate (fail closed).
+    await enforceScimManagedOwnership(
+      { teamId: ctx.teamId, tokenId: ctx.tokenId },
+      { userId, workspaceRole: member.role === "VIEWER" ? "VIEWER" : "MEMBER" },
+      client,
+    );
+
     const desiredRole =
       op === "add" ? (group.mappedRole as TeamRole) : ("MEMBER" as TeamRole);
     if (member.role === desiredRole) continue;
@@ -460,11 +489,20 @@ async function applyGroupMembership(
     if (op === "remove" && (member.role === "OWNER" || member.role === "ADMIN")) {
       continue;
     }
-    await client.teamMember.update({
-      where: { id: member.id },
-      data: { role: desiredRole },
+    // PHASE 3 — canonical orchestrator: directory role change. Privileged
+    // (OWNER/ADMIN) rows were already excluded by the guard above for
+    // removals; adds may map ADMIN-tier group roles, so privileged change
+    // is allowed here exactly as before.
+    const applied = await applyDirectoryRoleChange(client, {
+      teamMemberId: member.id,
+      currentRole: member.role,
+      desiredRole,
+      source: "IDP_GROUP",
+      externalRef: `scim-group:${group.id}`,
+      allowPrivilegedChange: true,
     });
-    changed += 1;
+    if (applied.changed) changed += 1;
+    else continue;
   }
   if (changed > 0) {
     bump("scim_group_membership_total", changed);

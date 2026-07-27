@@ -69,7 +69,11 @@ export async function checkOrgAccess(
   // Lifecycle Phase 6 — a closed (ARCHIVED) organization is dark for
   // every org surface at once. Memberships are retained for history but
   // grant nothing anymore.
-  if (org.status === "ARCHIVED") return { kind: "forbidden" };
+  // PHASE 4 §7.6 (2026-07-22) — SUSPENDED halts every org surface too;
+  // unlike ARCHIVED it is reversible (platform-operator resume).
+  if (org.status === "ARCHIVED" || org.status === "SUSPENDED") {
+    return { kind: "forbidden" };
+  }
 
   const membership = await prisma.organizationMembership.findFirst({
     where: { organizationId: input.orgId, userId: input.userId },

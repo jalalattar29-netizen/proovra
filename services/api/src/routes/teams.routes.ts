@@ -1,3 +1,4 @@
+import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
 /**
  * PROOVRA — Workspace / Tenancy / Billing API (mounted at `/v1/teams`).
  *
@@ -30,28 +31,41 @@ import {
   assertTeamSeatAvailable,
   getWorkspaceUsage,
 } from "../services/workspace-usage.service.js";
-import {
-  getPersonalWorkspaceScope,
-  getTeamWorkspaceScope,
-} from "../services/workspace-billing.service.js";
+// §9.7 — scope consumed via the resolveCommercialContext envelope (explicit
+// subjects); the scope adapter is no longer imported here.
 import { refreshTeamSeatState } from "../services/billing.service.js";
 import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+// PHASE 11 — canonical internal URL builder.
+import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { hasRole } from "../services/rbac.js";
 import { getAuthUserId } from "../auth.js";
 import { getEmailService } from "../services/email.service.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit, emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { verifyAccountStepUp } from "../services/identity-security/account-step-up.service.js";
 import { evaluateWorkspaceClosurePreflight } from "../services/identity/account-lifecycle-preflight.service.js";
+// PHASE 3 (2026-07-21) — canonical membership orchestrator.
+import {
+  grantOrganizationMembership,
+  provisionMembership,
+  purgeWorkspaceMembershipsForTeamDeletion,
+  removeWorkspaceMembershipPhysical,
+  updateWorkspaceMembershipRole,
+} from "../services/identity/membership-provisioning.service.js";
 import {
   ACTIVE_WORKSPACE_CLOSURE_STATUSES,
   CANCELLABLE_WORKSPACE_CLOSURE_STATUSES,
   WORKSPACE_CLOSURE_COOLING_OFF_MS,
 } from "../services/workspace/workspace-closure.service.js";
+// PHASE 4 §7.4 (2026-07-22) — owned-workspace lifecycle.
+import {
+  reopenClosedWorkspace,
+  transferWorkspaceOwnership,
+} from "../services/workspace/workspace-lifecycle.service.js";
 
 const CreateTeamBody = z.object({
   name: z.string().min(1).max(120),
@@ -89,8 +103,13 @@ function normalizeEmail(value: string): string {
 }
 
 function buildInviteUrl(token: string): string {
+  // PHASE 11 — nav path (not a resource-id family), composed via
+  // internalNavPath + absoluteInternalUrl.
   const base = process.env.WEB_BASE_URL ?? "https://www.proovra.com";
-  return `${base.replace(/\/+$/, "")}/invite/${token}`;
+  return absoluteInternalUrl(
+    base,
+    internalNavPath(`/invite/${encodeURIComponent(token)}`),
+  );
 }
 
 async function getActorMembership(teamId: string, userId: string) {
@@ -169,17 +188,20 @@ async function checkWorkspaceLegalHold(
   }
 }
 
-function readUserAgent(req: FastifyRequest): string | null {
-  const ua = req.headers["user-agent"];
-  return Array.isArray(ua) ? ua[0] ?? null : ua ?? null;
-}
-
 function getRequestPath(req: FastifyRequest): string {
   const url = req.url || "";
   const qIndex = url.indexOf("?");
   return qIndex >= 0 ? url.slice(0, qIndex) : url;
 }
 
+// PHASE 11 §3 Batch C — every `auditTeamAction` call in this file operates
+// on the tenancy `Team` model (resourceType is always "team"), so whenever
+// a resourceId is present it IS the Workspace (teamId) subject — never
+// fabricated, always the same id already being read/written by the
+// handler. The few callers with no resourceId (e.g. "teams.list" across
+// all of a user's workspaces, or a "teams.create" failure before any row
+// exists) have no tenant subject yet, so those fall back to the PLATFORM
+// arm of the facade.
 function auditTeamAction(
   req: FastifyRequest,
   params: {
@@ -191,20 +213,35 @@ function auditTeamAction(
     metadata?: Record<string, unknown>;
   }
 ) {
-  void appendPlatformAuditLog({
-    userId: params.userId,
-    action: params.action,
-    category: "teams",
-    severity: params.severity ?? "info",
-    source: "api_teams",
-    outcome: params.outcome ?? "success",
-    resourceType: "team",
-    resourceId: params.resourceId ?? null,
-    requestId: req.id,
-    metadata: params.metadata ?? {},
-    ipAddress: req.ip,
-    userAgent: readUserAgent(req),
-  }).catch(() => null);
+  const outcome =
+    params.outcome === "blocked" ? "denied" : params.outcome === "failure" ? "error" : "success";
+  const metadata = { ...(params.metadata ?? {}), severity: params.severity ?? "info" };
+  if (params.resourceId) {
+    void emitTenantAudit({
+      action: params.action,
+      outcome,
+      denialReason: outcome === "denied" ? params.action : undefined,
+      sourceApp: "API",
+      actorUserId: params.userId,
+      workspaceId: params.resourceId,
+      resourceType: "team",
+      resourceId: params.resourceId,
+      correlationId: req.id,
+      metadata,
+    }).catch(() => null);
+  } else {
+    void emitPlatformAudit({
+      action: params.action,
+      outcome,
+      denialReason: outcome === "denied" ? params.action : undefined,
+      sourceApp: "API",
+      actorUserId: params.userId,
+      resourceType: "team",
+      resourceId: null,
+      correlationId: req.id,
+      metadata,
+    }).catch(() => null);
+  }
 }
 
 function fireTeamAnalyticsEvent(params: {
@@ -230,7 +267,8 @@ function fireTeamAnalyticsEvent(params: {
 }
 
 async function assertUserCanCreateAnotherTeam(ownerUserId: string) {
-  const personalScope = await getPersonalWorkspaceScope(ownerUserId);
+  // §9.7 — Owned-Workspace CREATION allowance is a PERSONAL_ACCOUNT decision.
+  const personalScope = (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId: ownerUserId })).scope;
   const caps = getPlanCapabilities(personalScope.plan);
   const maxOwnedTeams = Math.max(0, caps.maxOwnedTeams ?? 0);
 
@@ -329,21 +367,31 @@ export async function teamsRoutes(app: FastifyInstance) {
             name: body.name.trim(),
             billingOwnerUserId: ownerUserId,
             status: "ACTIVE",
+            // P1 domain remediation (2026-07-21) — self-service workspaces
+            // get an internal SYSTEM container org, never a customer
+            // Enterprise Organization.
+            kind: "SYSTEM",
           },
           select: { id: true },
         });
-        await tx.organizationMembership.create({
-          data: {
-            organizationId: org.id,
-            userId: ownerUserId,
-            role: "ORG_OWNER",
-          },
+        // PHASE 3 (2026-07-21) — canonical orchestrator (SYSTEM-container
+        // governance row for the self-service owner).
+        await grantOrganizationMembership(tx, {
+          organizationId: org.id,
+          userId: ownerUserId,
+          role: "ORG_OWNER",
+          source: "SELF_SERVICE_OWNER",
+          intent: "OWNED_WORKSPACE_OWNER",
         });
         return tx.team.create({
           data: {
             name: body.name.trim(),
             ownerUserId,
             organizationId: org.id,
+            // P1 domain remediation (2026-07-21) — a self-service created
+            // workspace is OWNED, regardless of plan. Never presented as an
+            // "Organization" merely because isPersonal=false.
+            workspaceKind: "OWNED",
             members: {
               create: {
                 userId: ownerUserId,
@@ -555,7 +603,8 @@ export async function teamsRoutes(app: FastifyInstance) {
         where: { teamId },
       });
 
-      const workspaceScope = await getTeamWorkspaceScope(teamId);
+      // §9.7 — explicit WORKSPACE subject (existing-workspace seat display).
+      const workspaceScope = (await resolveCommercialContext({ type: "WORKSPACE", teamId, requesterUserId: userId })).scope;
       const workspaceUsage = await getWorkspaceUsage(workspaceScope);
       const effectiveSeatLimit = workspaceUsage.seatLimit;
 
@@ -866,8 +915,11 @@ export async function teamsRoutes(app: FastifyInstance) {
         where: { teamId },
       });
 
-      await prisma.teamMember.deleteMany({
-        where: { teamId },
+      // PHASE 3 — canonical orchestrator: team-deletion membership purge
+      // (provenance closed before physical removal).
+      await purgeWorkspaceMembershipsForTeamDeletion(prisma, {
+        teamId,
+        actorUserId: userId,
       });
 
       await prisma.case.updateMany({
@@ -926,7 +978,8 @@ export async function teamsRoutes(app: FastifyInstance) {
        *
        * We still require the workspace to support teams at all.
        */
-      const scope = await getTeamWorkspaceScope(teamId);
+      // §9.7 — explicit WORKSPACE subject (existing-workspace capability check).
+      const scope = (await resolveCommercialContext({ type: "WORKSPACE", teamId, requesterUserId: userId })).scope;
       const scopeCaps = getPlanCapabilities(scope.plan);
 
       if (!scopeCaps.allowsTeamWorkspace) {
@@ -1232,10 +1285,13 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ message: "Owner role cannot be changed" });
       }
 
-      const updated = await prisma.teamMember.update({
-        where: { id: target.id },
-        data: { role: body.role },
+      // PHASE 3 — canonical orchestrator: manual workspace role change.
+      await updateWorkspaceMembershipRole(prisma, {
+        teamMemberId: target.id,
+        role: body.role,
+        actorUserId: userId,
       });
+      const updated = { ...target, role: body.role };
 
       await createActivity(teamId, "member_role_changed", "member", userId, target.userId, {
         role: body.role,
@@ -1518,7 +1574,11 @@ export async function teamsRoutes(app: FastifyInstance) {
             data: { ownerUserId: transferToUserId },
           });
         }
-        await tx.teamMember.delete({ where: { id: target.id } });
+        // PHASE 3 — canonical orchestrator: physical removal (provenance closed).
+        await removeWorkspaceMembershipPhysical(tx, {
+          teamMemberId: target.id,
+          actorUserId: userId,
+        });
       });
 
       await refreshTeamSeatState(teamId);
@@ -1652,7 +1712,8 @@ export async function teamsRoutes(app: FastifyInstance) {
          * Acceptance is where the member cap is enforced.
          * Invite creation itself must not be blocked for a full team.
          */
-        const scope = await getTeamWorkspaceScope(invite.teamId);
+        // §9.7 — explicit WORKSPACE subject (invite-acceptance member cap).
+        const scope = (await resolveCommercialContext({ type: "WORKSPACE", teamId: invite.teamId, requesterUserId: userId })).scope;
         const scopeCaps = getPlanCapabilities(scope.plan);
 
         if (!scopeCaps.allowsTeamWorkspace) {
@@ -1677,25 +1738,48 @@ export async function teamsRoutes(app: FastifyInstance) {
         await assertTeamSeatAvailable(scope);
       }
 
-      await prisma.teamMember.upsert({
-        where: {
-          teamId_userId: {
-            teamId: invite.teamId,
-            userId,
-          },
-        },
-        update: { role: invite.role },
-        create: {
-          teamId: invite.teamId,
+      // PHASE 5 §8.4 (2026-07-22) — guarded atomic claim + grant in ONE
+      // transaction (mirrors the org-invite acceptance reference). The
+      // previous shape read `acceptedAt` up top and only wrote it AFTER
+      // provisioning, so two concurrent accepts both passed the check
+      // and both provisioned. Now the row-locked claim collapses the
+      // race to one winner; the loser sees count 0 and is rejected. A
+      // provisioning failure rolls the claim back (invite stays usable).
+      const accepted = await prisma.$transaction(async (tx) => {
+        const claimed = await tx.teamInvite.updateMany({
+          where: { id: invite.id, acceptedAt: null },
+          data: { acceptedAt: new Date() },
+        });
+        if (claimed.count === 0) return null;
+        // PHASE 3 (2026-07-21) — canonical orchestrator:
+        // WORKSPACE_DIRECT_INVITE. FIXES an invite-driven role overwrite:
+        // accepting an invite as an EXISTING member no longer demotes/
+        // changes the held role (§6.3 — INVITATION-source precedence
+        // keeps the existing role); a NEW member receives the invited
+        // role (never OWNER-tier via an invite).
+        await provisionMembership(tx, {
+          intent: "WORKSPACE_DIRECT_INVITE",
+          source: "INVITATION",
           userId,
-          role: invite.role,
-        },
+          workspace: { teamId: invite.teamId, role: invite.role as never },
+          externalRef: `team-invite:${invite.id}`,
+          accessReason: "team invite acceptance",
+        });
+        return tx.teamInvite.findUnique({ where: { id: invite.id } });
       });
 
-      const updated = await prisma.teamInvite.update({
-        where: { id: invite.id },
-        data: { acceptedAt: new Date() },
-      });
+      if (!accepted) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_accept",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: invite.teamId,
+          metadata: { reason: "already_accepted", inviteId: invite.id },
+        });
+        return reply.code(400).send({ message: "Invite already accepted" });
+      }
+      const updated = accepted;
 
       await refreshTeamSeatState(invite.teamId);
 
@@ -2803,19 +2887,17 @@ export async function teamsRoutes(app: FastifyInstance) {
           },
           select: { id: true },
         });
-        await appendPlatformAuditLog({
-          userId,
+        await emitTenantAudit({
           action: "identity.workspace_closure_blocked",
-          category: "identity.lifecycle",
-          severity: "warning",
-          source: "api_teams",
           outcome: "denied",
+          denialReason: "closure_blocked",
+          sourceApp: "API",
+          actorUserId: userId,
+          workspaceId: teamId,
           resourceType: "workspace_closure_request",
           resourceId: blocked.id,
-          requestId: req.id,
-          metadata: { teamId, blockers: blockers.map((b) => b.code) },
-          ipAddress: null,
-          userAgent: null,
+          correlationId: req.id,
+          metadata: { blockers: blockers.map((b) => b.code) },
         }).catch(() => null);
         return reply
           .code(409)
@@ -2835,22 +2917,18 @@ export async function teamsRoutes(app: FastifyInstance) {
         },
         select: WORKSPACE_CLOSURE_SELECT,
       });
-      await appendPlatformAuditLog({
-        userId,
+      await emitTenantAudit({
         action: "identity.workspace_closure_requested",
-        category: "identity.lifecycle",
-        severity: "warning",
-        source: "api_teams",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: userId,
+        workspaceId: teamId,
         resourceType: "workspace_closure_request",
         resourceId: created.id,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: {
-          teamId,
           coolingOffEndsAtUtc: coolingOffEndsAtUtc.toISOString(),
         },
-        ipAddress: null,
-        userAgent: null,
       }).catch(() => null);
       return reply.code(201).send({ request: created });
     },
@@ -2889,25 +2967,106 @@ export async function teamsRoutes(app: FastifyInstance) {
           .send({ error: { code: "closure_not_cancellable" } });
       }
 
-      await appendPlatformAuditLog({
-        userId,
+      await emitTenantAudit({
         action: "identity.workspace_closure_cancelled",
-        category: "identity.lifecycle",
-        severity: "info",
-        source: "api_teams",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: userId,
+        workspaceId: params.id,
         resourceType: "workspace_closure_request",
         resourceId: params.requestId,
-        requestId: req.id,
-        metadata: { teamId: params.id },
-        ipAddress: null,
-        userAgent: null,
+        correlationId: req.id,
+        metadata: {},
       }).catch(() => null);
       const row = await prisma.workspaceClosureRequest.findFirst({
         where: { id: params.requestId, teamId: params.id },
         select: WORKSPACE_CLOSURE_SELECT,
       });
       return reply.code(200).send({ request: row });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 §7.4 (2026-07-22) — OWNED-workspace ownership transfer + reopen.
+  // Both flows live in workspace-lifecycle.service.ts (fail-closed kind
+  // matrix + orchestrated membership legs); routes gate identity + step-up.
+  // ---------------------------------------------------------------------------
+
+  app.post(
+    "/v1/teams/:id/transfer-ownership",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const teamId = z.string().uuid().parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+      const body = z
+        .object({
+          newOwnerUserId: z.string().uuid(),
+          stepUp: z
+            .object({
+              method: z.enum(["password", "mfa"]).optional(),
+              currentPassword: z.string().optional(),
+              code: z.string().optional(),
+            })
+            .optional(),
+        })
+        .parse(req.body ?? {});
+
+      if (!(await requireWorkspaceOwner(teamId, userId))) {
+        return reply.code(403).send({ error: { code: "owner_required" } });
+      }
+
+      const stepUp = await verifyAccountStepUp({
+        req,
+        reply,
+        userId,
+        action: "workspace_ownership_transfer",
+        proof: body.stepUp,
+      });
+      if (!stepUp.ok) {
+        return reply.code(stepUp.denial.status).send(stepUp.denial.body);
+      }
+
+      try {
+        const result = await transferWorkspaceOwnership({
+          teamId,
+          actorUserId: userId,
+          newOwnerUserId: body.newOwnerUserId,
+        });
+        return reply.code(200).send({ transfer: result });
+      } catch (err) {
+        const e = err as Error & { statusCode?: number; code?: string };
+        if (typeof e.statusCode === "number" && typeof e.code === "string") {
+          return reply
+            .code(e.statusCode)
+            .send({ error: { code: e.code.toLowerCase() } });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/teams/:id/reopen",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const teamId = z.string().uuid().parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+
+      try {
+        const result = await reopenClosedWorkspace({
+          teamId,
+          actorUserId: userId,
+        });
+        return reply.code(200).send({ reopened: result });
+      } catch (err) {
+        const e = err as Error & { statusCode?: number; code?: string };
+        if (typeof e.statusCode === "number" && typeof e.code === "string") {
+          return reply
+            .code(e.statusCode)
+            .send({ error: { code: e.code.toLowerCase() } });
+        }
+        throw err;
+      }
     },
   );
 }

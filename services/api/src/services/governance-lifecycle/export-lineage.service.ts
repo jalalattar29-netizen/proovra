@@ -45,7 +45,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { canonicalJson, sha256Hex } from "../../crypto.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { checkExportEligibility } from "./export-governance.service.js";
 
 // -----------------------------------------------------------------------------
@@ -336,22 +336,19 @@ export async function captureExportSnapshot(
     },
   });
   if (input.createdByUserId) {
-    await appendPlatformAuditLog({
-      userId: input.createdByUserId,
+    await emitTenantAudit({
       action: "governance.export_snapshot.create",
-      category: "governance",
-      severity: exportEligibility.outcome === "ALLOWED" ? "info" : "warning",
-      source: "export_lineage",
       outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.createdByUserId,
+      workspaceId: input.teamId,
       resourceType: "governance_export_snapshot",
       resourceId: row.id,
       metadata: {
-        teamId: input.teamId,
         snapshotKind: input.snapshotKind,
         exportEligibilityOutcome: exportEligibility.outcome,
       },
-      db: client,
-    });
+    }, client);
   }
 
   return projectSnapshot(row);

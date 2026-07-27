@@ -28,7 +28,9 @@
  */
 
 import { prisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+// PHASE 3 (2026-07-22) — canonical membership orchestrator.
+import { massRevokeWorkspaceMemberships } from "../identity/membership-provisioning.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { evaluateWorkspaceClosurePreflight } from "../identity/account-lifecycle-preflight.service.js";
 
 export const WORKSPACE_CLOSURE_COOLING_OFF_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -59,9 +61,11 @@ export async function executeWorkspaceClosure(input: {
 
   await prisma.$transaction(async (tx) => {
     // Collaboration consequence — every membership goes dark at once.
-    const revoked = await tx.teamMember.updateMany({
-      where: { teamId, status: "ACTIVE" },
-      data: { status: "REVOKED" },
+    // PHASE 3 — canonical orchestrator (provenance closed per member).
+    const revoked = await massRevokeWorkspaceMemberships(tx, {
+      where: { teamId },
+      actorUserId: requestedByUserId,
+      reason: "workspace closure",
     });
 
     await tx.apiCredential.updateMany({
@@ -117,13 +121,14 @@ export async function processWorkspaceClosures(now: Date): Promise<void> {
         where: { id: req.id, status: req.status },
         data: { status: "BLOCKED", blockersJson: JSON.stringify(blockers) },
       });
-      await appendPlatformAuditLog({
-        userId: req.requestedByUserId,
+      await emitTenantAudit({
         action: "identity.workspace_closure_blocked",
-        category: "identity.lifecycle",
-        severity: "warning",
-        source: "workspace_closure_worker",
         outcome: "denied",
+        denialReason: "closure_blocked",
+        sourceApp: "API",
+        actorUserId: req.requestedByUserId,
+        serviceActor: "workspace_closure_worker",
+        workspaceId: req.teamId,
         resourceType: "workspace_closure_request",
         resourceId: req.id,
         metadata: { blockers: blockers.map((b) => b.code) },
@@ -146,16 +151,16 @@ export async function processWorkspaceClosures(now: Date): Promise<void> {
         where: { id: req.id },
         data: { status: "COMPLETED", completedAtUtc: new Date() },
       });
-      await appendPlatformAuditLog({
-        userId: req.requestedByUserId,
+      await emitTenantAudit({
         action: "identity.workspace_closure_completed",
-        category: "identity.lifecycle",
-        severity: "warning",
-        source: "workspace_closure_worker",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: req.requestedByUserId,
+        serviceActor: "workspace_closure_worker",
+        workspaceId: req.teamId,
         resourceType: "workspace_closure_request",
         resourceId: req.id,
-        metadata: { teamId: req.teamId },
+        metadata: {},
       }).catch(() => null);
     } catch {
       await prisma.workspaceClosureRequest
@@ -164,13 +169,13 @@ export async function processWorkspaceClosures(now: Date): Promise<void> {
           data: { status: "FAILED", failureCode: "closure_failed" },
         })
         .catch(() => null);
-      await appendPlatformAuditLog({
-        userId: req.requestedByUserId,
+      await emitTenantAudit({
         action: "identity.workspace_closure_failed",
-        category: "identity.lifecycle",
-        severity: "error",
-        source: "workspace_closure_worker",
-        outcome: "failure",
+        outcome: "error",
+        sourceApp: "API",
+        actorUserId: req.requestedByUserId,
+        serviceActor: "workspace_closure_worker",
+        workspaceId: req.teamId,
         resourceType: "workspace_closure_request",
         resourceId: req.id,
         metadata: { failureCode: "closure_failed" },

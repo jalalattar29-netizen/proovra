@@ -1,6 +1,12 @@
 /**
  * Internal search-reindex endpoint.
  *
+ * TENANT_SCOPE_EXCEPTION: platform_admin_global — a secret-gated
+ * (x-internal-secret) SYSTEM operation, not a user-authorized request; it has
+ * no user tenant context. The reindex target teamId is the operator-supplied
+ * maintenance target, never a user-forgeable authorization input, and the audit
+ * is emitted as a SYSTEM actor (sourceApp:"SYSTEM", actorUserId:null).
+ *
  *   POST /v1/internal/search/reindex
  *   Header:  x-internal-secret: <SEARCH_REINDEX_SECRET>
  *   Body:    { "teamId": "<uuid>", "includeCases"?: bool, "batch"?: int, "dryRun"?: bool }
@@ -43,7 +49,7 @@ import { z } from "zod";
 
 import { requireSearchReindexSecret } from "../middleware/cron-secret.js";
 import { runWorkspaceReindex } from "../services/search/reindex.service.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 
 export async function internalReindexRoutes(app: FastifyInstance) {
   app.post(
@@ -98,18 +104,19 @@ export async function internalReindexRoutes(app: FastifyInstance) {
 
       // Fire-and-forget audit. Same surface label the cron-secret
       // routes use so compliance dashboards bucket internal-triggered
-      // ops together.
-      void appendPlatformAuditLog({
-        userId: null,
-        isPublic: true,
+      // ops together. Tenant-scoped: the reindex targets exactly one
+      // workspace (body.teamId), even though the actor is the internal
+      // service identity rather than an authenticated human.
+      void emitTenantAudit({
         action: "search.internal_reindex",
-        category: "search",
-        severity: "info",
-        source: "internal",
-        outcome: result.dryRun ? "dry_run" : "success",
+        outcome: "success",
+        sourceApp: "SYSTEM",
+        actorUserId: null,
+        serviceActor: "internal:search-reindex",
+        workspaceId: body.teamId,
         resourceType: "evidence_search_documents",
         resourceId: body.teamId,
-        requestId: req.id ?? null,
+        correlationId: req.id ?? null,
         metadata: {
           surface: "POST /v1/internal/search/reindex",
           teamId: body.teamId,

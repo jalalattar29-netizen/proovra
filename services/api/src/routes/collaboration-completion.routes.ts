@@ -6,7 +6,7 @@
  *
  *   - resolves the active workspace via the Phase 3 canonical helper,
  *   - calls the canonical Phase 7 service module,
- *   - emits an audit event via `appendPlatformAuditLog`.
+ *   - emits an audit event via the canonical `emitTenantAudit` facade.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -15,7 +15,7 @@ import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { resolveActiveOperationalWorkspace } from "../services/access/canonical-workspace-resolver.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { CollaborationTeamError } from "../services/collaboration-team/collaboration-team.service.js";
 import {
   completeAccessReview,
@@ -80,21 +80,22 @@ async function audit(args: {
   resourceType: string;
   resourceId: string | null;
   requestId: string | null;
+  // PHASE 11 §3 Batch A — the authoritative workspace, from the caller's
+  // already-resolved `ctx.workspaceId` (requireWorkspaceCtx), never a
+  // raw request param.
+  workspaceId: string;
   metadata?: Record<string, unknown>;
 }): Promise<void> {
-  await appendPlatformAuditLog({
-    userId: args.userId,
+  await emitTenantAudit({
     action: args.action,
-    category: "collaboration_team",
-    severity: "info",
-    source: "api_collaboration_completion",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: args.userId,
+    workspaceId: args.workspaceId,
     resourceType: args.resourceType,
     resourceId: args.resourceId,
-    requestId: args.requestId,
-    metadata: (args.metadata ?? {}) as never,
-    ipAddress: null,
-    userAgent: null,
+    correlationId: args.requestId,
+    metadata: args.metadata ?? {},
   });
 }
 
@@ -195,8 +196,8 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_comment",
             resourceId: result.id,
             requestId: req.id ?? null,
+            workspaceId: req.params.teamId,
             metadata: {
-              teamId: req.params.teamId,
               mentionCount: result.mentionCount,
               notificationCount: result.notificationCount,
             },
@@ -234,6 +235,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_comment",
             resourceId: req.params.commentId,
             requestId: req.id ?? null,
+            workspaceId: req.params.teamId,
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -262,6 +264,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_comment",
             resourceId: req.params.commentId,
             requestId: req.id ?? null,
+            workspaceId: req.params.teamId,
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -380,6 +383,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_notification_preference",
             resourceId: req.params.teamId,
             requestId: req.id ?? null,
+            workspaceId: req.params.teamId,
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -439,7 +443,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_guest",
             resourceId: result.id,
             requestId: req.id ?? null,
-            metadata: { teamId: req.params.teamId },
+            workspaceId: req.params.teamId,
           });
           return reply.code(201).send({ guest: { id: result.id } });
         } catch (err) {
@@ -468,6 +472,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_guest",
             resourceId: req.params.guestId,
             requestId: req.id ?? null,
+            workspaceId: req.params.teamId,
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -525,6 +530,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_access_review",
             resourceId: result.id,
             requestId: req.id ?? null,
+            workspaceId: req.params.teamId,
             metadata: { itemCount: result.itemCount },
           });
           return reply.code(201).send({ review: result });
@@ -561,6 +567,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_access_review_item",
             resourceId: req.params.itemId,
             requestId: req.id ?? null,
+            workspaceId: req.params.teamId,
             metadata: { decision: parsed.data.decision },
           });
           return reply.send({ ok: true });
@@ -590,6 +597,7 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             resourceType: "collaboration_team_access_review",
             resourceId: req.params.reviewId,
             requestId: req.id ?? null,
+            workspaceId: req.params.teamId,
           });
           return reply.send({ ok: true });
         } catch (err) {

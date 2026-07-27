@@ -199,13 +199,15 @@ describe("R8.1.5 — admin approval is not a session bypass", () => {
   // ---------------------------------------------------------------------------
   // 10. Admin reject is audited.
   // ---------------------------------------------------------------------------
-  it("test 10: rejectRecoveryRequest appends a platform audit log row", () => {
+  it("test 10: rejectRecoveryRequest appends a tenant audit log row", () => {
+    // PHASE 11 §3 Batch C — migrated off appendPlatformAuditLog onto the
+    // canonical emitTenantAudit facade (writes category "tenant_audit").
     const block = RECOVERY_SVC.match(
       /export async function rejectRecoveryRequest[\s\S]*?\n\}/,
     );
     expect(block).toBeTruthy();
     expect(block![0]).toMatch(
-      /appendPlatformAuditLog\(\{[\s\S]*?action:\s*["']mfa\.recovery\.rejected["']/,
+      /emitTenantAudit\(\{[\s\S]*?action:\s*["']mfa\.recovery\.rejected["']/,
     );
   });
 });

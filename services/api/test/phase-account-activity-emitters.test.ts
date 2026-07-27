@@ -25,14 +25,19 @@ describe("profile/preference mutation emitters", () => {
 
   it("PATCH /v1/users/me emits one identity.* audit event after a successful update", () => {
     expect(at).toBeGreaterThan(-1);
-    expect(H).toMatch(/appendPlatformAuditLog/);
+    // Re-pointed to the canonical PLATFORM facade (Phase 11 §3): the
+    // route now calls `emitPlatformAudit`, which composes
+    // `appendPlatformAuditLog` as its sink under category
+    // "platform_audit" with null tenant columns (this event has no
+    // workspace scope — it's a pure identity/profile event).
+    expect(H).toMatch(/emitPlatformAudit/);
     expect(H).toMatch(/"identity\.profile_updated"/);
     expect(H).toMatch(/"identity\.preferences_updated"/);
     // Emitted only when something actually changed.
     expect(H).toMatch(/Object\.keys\(data\)\.length > 0/);
     // AFTER the mutation (no event for a failed update).
     expect(H.indexOf("prisma.user.update")).toBeLessThan(
-      H.indexOf("appendPlatformAuditLog"),
+      H.indexOf("emitPlatformAudit"),
     );
   });
 

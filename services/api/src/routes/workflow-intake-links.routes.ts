@@ -1,3 +1,4 @@
+import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
 /**
  * Phase 4 — Authenticated admin routes for workflow intake links.
  *
@@ -26,14 +27,14 @@ import {
   INTAKE_LINK_LOCATION_POLICIES,
   WORKFLOW_INTAKE_LINK_STATUSES,
   WORKFLOW_INTAKE_MODES,
+  type Permission,
 } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
   assertWorkspaceAllowsIntake,
-  resolveWorkspaceScopeForUser,
 } from "../services/billing-enforcement.service.js";
 import { hasRole } from "../services/rbac.js";
 import {
@@ -48,7 +49,7 @@ import {
   unarchiveWorkflowIntakeLink,
   WorkflowIntakeLinkError,
 } from "../services/workflow-intake-link.service.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   loadIntakeLinkSubmissions,
   projectIntakeLinkList,
@@ -204,46 +205,54 @@ function sendFeatureDisabled(reply: FastifyReply): void {
   });
 }
 
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical intake-link admin.
+ * Routes through authorizeOrFail (ACTIVE membership + org lifecycle +
+ * operation capability [workflow.intake_link.create / .revoke] + fail-closed
+ * + anti-enumeration 404), THEN preserves the stricter OWNER/ADMIN-only
+ * restriction the former hasRole(ADMIN) enforced (the intake_link.* caps are
+ * also held by REVIEWER, so the role check is retained via an informational
+ * lookup to avoid widening this administration surface).
+ */
 async function requireAdmin(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
+  permission: Permission,
 ): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission,
+    antiEnumeration: true,
   });
-  if (!membership) {
-    reply
-      .code(403)
-      .send({ message: "Not a member of the requested workspace" });
+  if (!outcome) return null;
+  const membership = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId: outcome.actorUserId } },
+    select: { role: true },
+  });
+  if (!membership || !hasRole(membership.role, "ADMIN")) {
+    reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
-  if (!hasRole(membership.role, "ADMIN")) {
-    reply
-      .code(403)
-      .send({ message: "Admin role required for intake link administration" });
-    return null;
-  }
-  return { userId };
+  return { userId: outcome.actorUserId };
 }
 
+/**
+ * PHASE 1 — member read gate. Reads use `evidence.read` (the base
+ * evidence-domain read every member holds; intake links are an evidence-intake
+ * surface with no dedicated read permission).
+ */
 async function requireMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
 ): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission: "evidence.read",
+    antiEnumeration: true,
   });
-  if (!membership) {
-    reply
-      .code(403)
-      .send({ message: "Not a member of the requested workspace" });
-    return null;
-  }
-  return { userId };
+  return outcome ? { userId: outcome.actorUserId } : null;
 }
 
 function bigintFromOptional(
@@ -270,17 +279,29 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       }
 
       const body = CreateBody.parse(req.body ?? {});
-      const ok = await requireAdmin(req, reply, body.teamId);
+      const ok = await requireAdmin(req, reply, body.teamId, "workflow.intake_link.create");
       if (!ok) return;
 
       // Secure-intake plan gate (2026-07-15) — intake links are excluded
       // from FREE per the Pricing contract. Enforced before any DB write;
       // a known plan restriction surfaced as a stable code.
       {
-        const scope = await resolveWorkspaceScopeForUser({
-          ownerUserId: ok.userId,
-          teamId: body.teamId,
-        });
+        // §9.7 — explicit subject: workspace when the request targets one,
+        // else the requester's personal account.
+        const scope = body.teamId
+          ? (
+              await resolveCommercialContext({
+                type: "WORKSPACE",
+                teamId: body.teamId,
+                requesterUserId: ok.userId,
+              })
+            ).scope
+          : (
+              await resolveCommercialContext({
+                type: "PERSONAL_ACCOUNT",
+                userId: ok.userId,
+              })
+            ).scope;
         try {
           await assertWorkspaceAllowsIntake(scope);
         } catch (err) {
@@ -358,16 +379,15 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
 
         // Intake-links-e2e (Phase 7) — audit the create. Fire-and-
         // forget; a failure to log MUST NOT break the create.
-        void appendPlatformAuditLog({
-          userId: ok.userId,
+        void emitTenantAudit({
           action: "intake.link.created",
-          category: "intake",
-          severity: "info",
-          source: "api",
           outcome: "success",
+          sourceApp: "API",
+          actorUserId: ok.userId,
+          workspaceId: body.teamId,
           resourceType: "workflow_intake_link",
           resourceId: result.link.id,
-          requestId: req.id ?? null,
+          correlationId: req.id ?? null,
           metadata: {
             teamId: body.teamId,
             workflowTemplateSlug: body.workflowTemplateSlug,
@@ -448,19 +468,19 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
             };
           }
           // Audit the send attempt.
-          void appendPlatformAuditLog({
-            userId: ok.userId,
+          void emitTenantAudit({
             action:
               delivery.status === "sent"
                 ? "intake.link.sent"
                 : "intake.link.delivery_failed",
-            category: "intake",
+            outcome: delivery.status === "sent" ? "success" : "error",
             severity: delivery.status === "sent" ? "info" : "warning",
-            source: "api",
-            outcome: delivery.status === "sent" ? "success" : "failure",
+            sourceApp: "API",
+            actorUserId: ok.userId,
+            workspaceId: body.teamId,
             resourceType: "workflow_intake_link",
             resourceId: result.link.id,
-            requestId: req.id ?? null,
+            correlationId: req.id ?? null,
             metadata: {
               teamId: body.teamId,
               method: delivery.method,
@@ -730,7 +750,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
 
-      const ok = await requireAdmin(req, reply, existing.teamId);
+      const ok = await requireAdmin(req, reply, existing.teamId, "workflow.intake_link.revoke");
       if (!ok) return;
 
       const updated = await revokeWorkflowIntakeLink({
@@ -745,16 +765,16 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
 
       // Phase 7 — audit the revoke. Fire-and-forget; never block
       // the user-visible response on the audit row.
-      void appendPlatformAuditLog({
-        userId: ok.userId,
+      void emitTenantAudit({
         action: "intake.link.revoked",
-        category: "intake",
-        severity: "warning",
-        source: "api",
         outcome: "success",
+        severity: "warning",
+        sourceApp: "API",
+        actorUserId: ok.userId,
+        workspaceId: existing.teamId,
         resourceType: "workflow_intake_link",
         resourceId: id,
-        requestId: req.id ?? null,
+        correlationId: req.id ?? null,
         metadata: {
           teamId: existing.teamId,
           // Reason is operator-supplied free text capped at 400 chars
@@ -791,7 +811,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       if (!existing) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
-      const ok = await requireAdmin(req, reply, existing.teamId);
+      const ok = await requireAdmin(req, reply, existing.teamId, "workflow.intake_link.revoke");
       if (!ok) return;
 
       const updated = await archiveWorkflowIntakeLink({
@@ -803,16 +823,15 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
 
-      void appendPlatformAuditLog({
-        userId: ok.userId,
+      void emitTenantAudit({
         action: "intake.link.archived",
-        category: "intake",
-        severity: "info",
-        source: "api",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: ok.userId,
+        workspaceId: existing.teamId,
         resourceType: "workflow_intake_link",
         resourceId: id,
-        requestId: req.id ?? null,
+        correlationId: req.id ?? null,
         metadata: {
           teamId: existing.teamId,
           priorStatus: existing.status,
@@ -837,7 +856,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       if (!existing) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
-      const ok = await requireAdmin(req, reply, existing.teamId);
+      const ok = await requireAdmin(req, reply, existing.teamId, "workflow.intake_link.create");
       if (!ok) return;
 
       const updated = await unarchiveWorkflowIntakeLink({
@@ -849,16 +868,15 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
 
-      void appendPlatformAuditLog({
-        userId: ok.userId,
+      void emitTenantAudit({
         action: "intake.link.unarchived",
-        category: "intake",
-        severity: "info",
-        source: "api",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: ok.userId,
+        workspaceId: existing.teamId,
         resourceType: "workflow_intake_link",
         resourceId: id,
-        requestId: req.id ?? null,
+        correlationId: req.id ?? null,
         metadata: { teamId: existing.teamId },
       }).catch(() => {});
 
@@ -899,7 +917,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       if (!existing) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
-      const ok = await requireAdmin(req, reply, existing.teamId);
+      const ok = await requireAdmin(req, reply, existing.teamId, "workflow.intake_link.create");
       if (!ok) return;
 
       // Phase 7 — per-link resend rate limit. 10/min per
@@ -944,18 +962,18 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         : { ok: false as const, reason: dispatched.reason };
 
       // Audit the resend attempt regardless of channel.
-      void appendPlatformAuditLog({
-        userId: ok.userId,
+      void emitTenantAudit({
         action: sendResult.ok
           ? "intake.link.sent"
           : "intake.link.delivery_failed",
-        category: "intake",
+        outcome: sendResult.ok ? "success" : "error",
         severity: sendResult.ok ? "info" : "warning",
-        source: "api",
-        outcome: sendResult.ok ? "success" : "failure",
+        sourceApp: "API",
+        actorUserId: ok.userId,
+        workspaceId: existing.teamId,
         resourceType: "workflow_intake_link",
         resourceId: id,
-        requestId: req.id ?? null,
+        correlationId: req.id ?? null,
         metadata: {
           teamId: existing.teamId,
           method: body.channel,

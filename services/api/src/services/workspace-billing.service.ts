@@ -1,12 +1,19 @@
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { ensureEntitlement } from "./billing.service.js";
+// §9.4 corrected — the canonical API classifier entry (delegates to the
+// shared single implementation).
+import { resolveWorkspaceKind } from "./identity/workspace-kind.js";
 import { getPlanCapabilities } from "./plan-catalog.service.js";
 import {
   type BillingWorkspaceScope,
   type WorkspaceScopeType,
   getEffectiveSeatLimit,
   assertWorkspacePlanCompatible,
+  // PHASE 9 §9.4 — the canonical PURE commercial policy (the decisions
+  // formerly made inline in this file now live in shared-billing).
+  resolveWorkspaceEffectivePlan,
+  type WorkspaceBillingStatus,
 } from "@proovra/shared-billing";
 
 export type WorkspaceScope = {
@@ -46,19 +53,37 @@ export type WorkspaceScope = {
   legacyRecordCapOverride: number | null;
   /**
    * Email of the REQUESTING authenticated user, looked up server-side
-   * from `users.email` by the canonical scope builder
-   * (`resolveWorkspaceScopeForUser` in `billing-enforcement.service.ts`).
-   * Used ONLY by the internal-tester bypass helper
-   * (`services/internal-testers.ts`) to short-circuit plan/limit
-   * enforcement for a tiny allow-list of internal QA accounts. Never
-   * sourced from a request body, header, or query string — a client
-   * cannot self-elect into the bypass.
-   *
-   * Optional: direct callers of `getPersonalWorkspaceScope` /
-   * `getTeamWorkspaceScope` that bypass the canonical resolver leave
-   * this `undefined`, which fails the bypass check (safe default).
+   * from `users.email` by the enforcement chokepoint
+   * (`resolveEnforcementScopeForRequester`). Observability metadata ONLY —
+   * the email-based limit bypass was REMOVED in the Phase 9 final closure;
+   * no commercial decision reads this field. Never sourced from a request
+   * body, header, or query string.
    */
   authenticatedUserEmail?: string | null;
+  /**
+   * §9.7 (2026-07-22) — envelope-resolved effective limits, attached ONLY by
+   * the enforcement chokepoint (`resolveEnforcementScopeForRequester`) from
+   * `resolveCommercialContext(...).limits`. The raw
+   * `legacyRecordCapOverride` above is a PERSISTED PROJECTION (class T) that
+   * no consumer may interpret — the envelope is the single interpreter.
+   */
+  commercialLimits?: {
+    effectiveLifetimeRecordCap: number | null;
+    effectiveMonthlyRecordCap: number | null;
+    source: "PLAN_DEFAULT" | "LEGACY_RECORD_CAP_OVERRIDE";
+  };
+  /**
+   * §9.5 (2026-07-22) — envelope-resolved lifecycle verdict, attached by the
+   * enforcement chokepoint. Paid-mutation asserts FAIL CLOSED when
+   * `mutationsAllowed` is false (grace expired / cancelled / ambiguous
+   * provider state). Reads/custody/legal-hold paths never consult this.
+   */
+  commercialLifecycle?: {
+    state: string;
+    paidActive: boolean;
+    mutationsAllowed: boolean;
+    graceEndsAtUtc: Date | null;
+  };
 };
 
 function toBillingWorkspaceScope(scope: WorkspaceScope): BillingWorkspaceScope {
@@ -174,6 +199,10 @@ export async function getTeamWorkspaceScope(
       billingStatus: true,
       includedSeats: true,
       storageBytesOverride: true,
+      // §9.4 corrected — the effective-plan policy is SUBJECT-AWARE; the
+      // canonical kind inputs travel with the billing fields.
+      workspaceKind: true,
+      isPersonal: true,
     },
   });
 
@@ -183,32 +212,28 @@ export async function getTeamWorkspaceScope(
     throw err;
   }
 
-  /**
-   * Effective team workspace plan rules:
-   *
-   * 1) If this specific team has ACTIVE / PAST_DUE TEAM billing, use TEAM.
-   * 2) Otherwise inherit the owner's active entitlement plan when that plan
-   *    supports team workspaces (for example PRO, and later TEAM if enabled
-   *    at owner/account level).
-   * 3) Otherwise fall back to FREE.
-   *
-   * This allows:
-   * - PRO owners to operate team workspaces
-   * - TEAM-billed workspaces to remain TEAM
-   * - FREE / PAYG owners to see non-entitled teams as FREE
-   */
+  // PHASE 9 §9.4 CORRECTED (2026-07-22) — this service is an INPUT ADAPTER:
+  // it loads the persisted workspace fields and DELEGATES the effective-plan
+  // decision to the SUBJECT-CORRECT canonical pure policy
+  // (`resolveWorkspaceEffectivePlan`, shared-billing). the owner-coverage rule
+  // is REMOVED: an existing OWNED workspace never inherits the owner's
+  // Personal plan (owner entitlement participates ONLY for the PERSONAL
+  // workspace kind — the personal-space subject — and for the
+  // legacyRecordCapOverride, which is a per-payer cap, not a plan).
   const ownerEntitlement = await ensureEntitlement(team.ownerUserId);
 
-  const ownerPlanCaps = getPlanCapabilities(ownerEntitlement.plan);
-  const ownerPlanSupportsTeams = ownerPlanCaps.allowsTeamWorkspace;
-
-  const effectivePlan =
-    team.billingStatus === prismaPkg.TeamBillingStatus.ACTIVE ||
-    team.billingStatus === prismaPkg.TeamBillingStatus.PAST_DUE
-      ? team.billingPlan
-      : ownerPlanSupportsTeams
-        ? ownerEntitlement.plan
-        : prismaPkg.PlanType.FREE;
+  const effective = resolveWorkspaceEffectivePlan({
+    workspaceKind: resolveWorkspaceKind({
+      workspaceKind: (team as { workspaceKind?: string | null }).workspaceKind ?? null,
+      isPersonal: (team as { isPersonal?: boolean | null }).isPersonal ?? null,
+      billingPlan: team.billingPlan,
+      teamLoaded: true,
+    }),
+    billingPlan: team.billingPlan as prismaPkg.PlanType,
+    billingStatus: team.billingStatus as WorkspaceBillingStatus,
+    ownerPlan: ownerEntitlement.plan as prismaPkg.PlanType,
+  });
+  const effectivePlan = effective.plan as prismaPkg.PlanType;
 
   const activeStorageAddonBytes = await getActiveWorkspaceStorageAddonBytes({
     ownerUserId: team.ownerUserId,
@@ -268,25 +293,11 @@ export async function resolveWorkspaceScopeForUser(params: {
   return resolveEvidenceWorkspaceScope(params);
 }
 
-export function getWorkspaceCapabilities(scope: WorkspaceScope) {
-  const caps = getPlanCapabilities(scope.plan);
-  const baseIncludedStorageBytes = caps.includedStorageBytes;
-  const storageFromPlanAndAddons =
-    baseIncludedStorageBytes + scope.activeStorageAddonBytes;
-
-  const effectiveStorageBytesLimit =
-    scope.storageBytesOverride &&
-    scope.storageBytesOverride > storageFromPlanAndAddons
-      ? scope.storageBytesOverride
-      : storageFromPlanAndAddons;
-
-  return {
-    ...caps,
-    workspaceType: scope.workspaceType,
-    effectiveSeatLimit: getEffectiveSeatLimit(toBillingWorkspaceScope(scope)),
-    baseIncludedStorageBytes,
-    activeStorageAddonBytes: scope.activeStorageAddonBytes,
-    storageBytesOverride: scope.storageBytesOverride,
-    effectiveStorageBytesLimit,
-  };
-}
+// PHASE 9 CONVERGENCE (2026-07-22) — `getWorkspaceCapabilities` DELETED: it
+// was a dead duplicate effective-capability authority with ZERO production
+// callers (proven repo-wide). Effective capabilities are derived exclusively
+// through `resolveCommercialContext` (`capabilities` + storage on the scope).
+// PHASE 9 §9.4 (2026-07-22) — `isPaidTeamSubscriptionActive` DELETED: the
+// decision has exactly ONE implementation (`isWorkspaceSubscriptionActive`,
+// @proovra/shared-billing) and its last consumer (webhooks.routes) imports it
+// directly. No temporary adapter remains for this rule.

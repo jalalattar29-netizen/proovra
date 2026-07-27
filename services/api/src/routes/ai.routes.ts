@@ -4,7 +4,7 @@ import { AI_CHAT_LIMITS, type AiChatAbuseReason } from "@proovra/shared";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { AppError, ErrorCode } from "../errors.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { createAiProvider } from "../services/ai/ai-provider.js";
 import { AiCostGuard } from "../services/ai/ai-cost-guard.js";
@@ -12,7 +12,7 @@ import { AiChatService } from "../services/ai/ai-chat.service.js";
 import { AiCaptureService } from "../services/ai/ai-capture.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
-import { getPersonalWorkspaceScope } from "../services/workspace-billing.service.js";
+import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
 import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
 import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
 import {
@@ -70,22 +70,40 @@ function auditAiAction(
     outcome?: "success" | "failure" | "blocked";
     severity?: "info" | "warning" | "critical";
     resourceId?: string | null;
+    /** The authoritative Workspace (teamId) this AI action ran under —
+     * from the resolved commercial-context scope, never the request. */
+    workspaceId?: string | null;
     metadata?: Record<string, unknown>;
   }
 ): void {
-  void appendPlatformAuditLog({
-    userId: params.userId,
+  const outcome =
+    params.outcome === "blocked"
+      ? "denied"
+      : params.outcome === "failure"
+        ? "error"
+        : "success";
+
+  const denialReason =
+    outcome !== "success"
+      ? (typeof params.metadata?.status === "string" ? params.metadata.status : params.action)
+      : null;
+
+  void emitTenantAudit({
     action: params.action,
-    category: "ai",
-    severity: params.severity ?? "info",
-    source: "api_ai",
-    outcome: params.outcome ?? "success",
+    outcome,
+    denialReason,
+    sourceApp: "API",
+    actorUserId: params.userId,
+    workspaceId: params.workspaceId ?? null,
     resourceType: "evidence_ai",
     resourceId: params.resourceId ?? null,
-    requestId: req.id,
-    metadata: params.metadata ?? {},
-    ipAddress: req.ip,
-    userAgent: readUserAgent(req),
+    correlationId: req.id ?? null,
+    metadata: {
+      ...(params.metadata ?? {}),
+      severity: params.severity ?? "info",
+      ipAddress: req.ip,
+      userAgent: readUserAgent(req),
+    },
   }).catch(() => null);
 }
 
@@ -316,7 +334,8 @@ export async function aiRoutes(app: FastifyInstance) {
       // from a provider that simply never responds; this does.
       // Pricing-hardening: plan-aware monthly AI cap. Throws
       // AI_MONTHLY_LIMIT_REACHED (429) when over cap. ENTERPRISE skips.
-      const aiScope = await getPersonalWorkspaceScope(userId);
+      // §9.7 — explicit PERSONAL_ACCOUNT subject via the canonical envelope.
+      const aiScope = (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId })).scope;
       try {
         await assertWorkspaceAllowsAiOperation(aiScope);
       } catch (err) {
@@ -415,6 +434,7 @@ export async function aiRoutes(app: FastifyInstance) {
           result.status === "error" || result.status === "blocked"
             ? "warning"
             : "info",
+        workspaceId: aiScope.teamId ?? null,
         metadata: {
           messageCount: body.messages.length,
           pageContext: body.pageContext ?? null,
@@ -471,7 +491,8 @@ export async function aiRoutes(app: FastifyInstance) {
       }
 
       // Pricing-hardening: plan-aware monthly AI cap.
-      const aiScope = await getPersonalWorkspaceScope(userId);
+      // §9.7 — explicit PERSONAL_ACCOUNT subject via the canonical envelope.
+      const aiScope = (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId })).scope;
       try {
         await assertWorkspaceAllowsAiOperation(aiScope);
       } catch (err) {
@@ -553,6 +574,7 @@ export async function aiRoutes(app: FastifyInstance) {
               : "failure",
         severity: result.status === "blocked" ? "warning" : "info",
         resourceId: body.collectionPlan.id,
+        workspaceId: aiScope.teamId ?? null,
         metadata: {
           itemCount: body.items.length,
           status: result.status,

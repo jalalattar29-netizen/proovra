@@ -124,6 +124,15 @@ function makeFake() {
       return deleteAttempts;
     },
 
+    // PHASE 10 §3 — scimCreateUser resolves the parent org for the atomic
+    // managed-identity binding. This fixture's team has no CUSTOMER org, so
+    // organizationIdForPolicy → null and the managed binding is skipped (this
+    // suite covers SCIM user mechanics, not managed identity — see
+    // phase-10-managed-provisioning.test.ts for the atomic binding).
+    team: {
+      findUnique: async () => ({ organizationId: null, organization: null }),
+    },
+
     user: {
       async findUnique({ where }: { where: { id: string } }) {
         return users.find((u) => u.id === where.id) ?? null;

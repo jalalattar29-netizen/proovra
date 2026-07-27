@@ -274,10 +274,10 @@ describe("Phase 32.8C control plane — assignIncident action", () => {
     expect(INCIDENT_SVC).toMatch(/export async function assignIncident\(/);
   });
 
-  it("assignIncident emits a platform audit log row", () => {
+  it("assignIncident emits a tenant audit log row via the canonical facade", () => {
     const block = INCIDENT_SVC.match(/export async function assignIncident[\s\S]*?\n\}\s*\n/);
     expect(block).not.toBeNull();
-    expect(block![0]).toMatch(/appendPlatformAuditLog\(/);
+    expect(block![0]).toMatch(/emitTenantAudit\(/);
     expect(block![0]).toMatch(/action:\s*"observability\.incident\.assigned"/);
   });
 

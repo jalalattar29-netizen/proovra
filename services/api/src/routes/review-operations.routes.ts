@@ -30,11 +30,10 @@ import {
   REVIEW_STAGES,
 } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
-import { requirePermission } from "../services/governance.service.js";
 import {
   ReviewOperationError,
   assignReviewer,
@@ -54,47 +53,53 @@ import { loadWorkspaceReviewerOpsFlags } from "../services/reviewer-ops/sla-poli
 
 const ParamsEvidenceId = z.object({ evidenceId: z.string().uuid() });
 
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical reviewer gate.
+ * Routes through authorizeOrFail (ACTIVE membership + org lifecycle +
+ * `evidence_request.review` capability + fail-closed + anti-enumeration 404).
+ * Previously status-blind (`if (!membership)` + role-only requirePermission).
+ */
 async function requireReviewerMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
-): Promise<{ userId: string; role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+): Promise<{ userId: string } | null> {
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission: "evidence_request.review",
+    antiEnumeration: true,
   });
-  if (!membership) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  const perm = requirePermission(membership.role, "evidence_request.review");
-  if (!perm.allowed) {
-    // Map permission-denial to 404 so caller can't enumerate review
-    // privileges for the workspace.
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  return { userId, role: membership.role };
+  return outcome ? { userId: outcome.actorUserId } : null;
 }
 
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical admin gate.
+ * Enforces ACTIVE membership + org lifecycle + fail-closed + anti-enumeration
+ * via the canonical primitive, THEN preserves the stricter OWNER/ADMIN-only
+ * restriction (no single admin-exclusive permission exists in the vocabulary,
+ * so the role check remains, reading role from an informational lookup).
+ */
 async function requireAdminMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
 ): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission: "evidence_request.review",
+    antiEnumeration: true,
   });
-  if (!membership) {
+  if (!outcome) return null;
+  // Informational role read (authorization already enforced above); the
+  // OWNER/ADMIN restriction is stricter than the reviewer permission.
+  const membership = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId: outcome.actorUserId } },
+  });
+  if (!membership || (membership.role !== "OWNER" && membership.role !== "ADMIN")) {
     reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
-  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  return { userId };
+  return { userId: outcome.actorUserId };
 }
 
 function reviewErrorToReply(err: unknown, reply: FastifyReply): void {

@@ -487,7 +487,7 @@ function OrganizationDetailInner() {
               </Link>
               {org.kind === "ready" && (
                 <Link
-                  href={`/teams?org=${org.data.organizationId}`}
+                  href="/teams"
                   data-action="cross-link-workspace-admin"
                   style={linkReset}
                 >
@@ -622,7 +622,7 @@ function OrganizationDetailInner() {
                 <strong>Bind a workspace.</strong> Workspaces are where
                 evidence and cases live. Create one in{" "}
                 <Link
-                  href={`/teams?org=${orgId}`}
+                  href="/teams"
                   data-action="onboarding-open-workspace-admin"
                 >
                   Workspace administration
@@ -679,7 +679,7 @@ function OrganizationDetailInner() {
           }
           footer={
             <Link
-              href={`/teams?org=${orgId}`}
+              href="/teams"
               data-action="overview-open-workspace-admin"
               style={tileLink}
             >
@@ -931,7 +931,7 @@ function OrganizationDetailInner() {
             subtitle="Operational evidence, cases, and reviewer queues live inside each workspace. Org-level membership does not grant workspace access — that is workspace-scoped."
             right={
               <Link
-                href={`/teams?org=${orgId}`}
+                href="/teams"
                 data-action="workspaces-open-admin"
                 style={linkReset}
               >
@@ -964,7 +964,7 @@ function OrganizationDetailInner() {
                   purpose="Workspaces hold this organization’s evidence, cases, and reviewer queues. Bind one in Workspace administration to start capturing."
                   action={
                     <Link
-                      href={`/teams?org=${orgId}`}
+                      href="/teams"
                       data-action="workspaces-empty-open-admin"
                       style={linkReset}
                     >

@@ -59,23 +59,41 @@ export type AccountMenuLink = {
   external?: boolean;
 };
 
-/** One switchable space in the Workspace Switcher (Section 2). */
+/** One switchable space in the canonical context switcher. */
 export type AccountMenuWorkspaceOption = {
   id: string;
   label: string;
-  kind: "PERSONAL" | "ORGANIZATION";
+  /**
+   * P3 (2026-07-21) — explicit canonical kind. OWNED = a self-service
+   * user-owned workspace ("Your workspaces"); it is NEVER presented as an
+   * Organization merely because it is non-personal.
+   */
+  kind: "PERSONAL" | "OWNED" | "ORGANIZATION";
   roleLabel: string | null;
   active: boolean;
+};
+
+/** Organization group — the org's authorized workspaces, grouped. */
+export type AccountMenuOrganizationGroup = {
+  organizationId: string;
+  organizationName: string | null;
+  workspaces: AccountMenuWorkspaceOption[];
 };
 
 export type AccountMenuModel = {
   /** Section 1 — account management. */
   account: AccountMenuLink[];
-  /** Section 2 — the in-place workspace switcher. */
+  /**
+   * The canonical context switcher — SERVER-AUTHORIZED options grouped
+   * Personal / Your workspaces / Organizations. Rendered by the persistent
+   * context chip's panel (and reachable from the account menu's "Switch
+   * workspace" action). One resolver, however many triggers.
+   */
   workspaces: {
     personal: AccountMenuWorkspaceOption | null;
-    organizations: AccountMenuWorkspaceOption[];
-    /** Total switchable spaces (personal + active orgs). */
+    owned: AccountMenuWorkspaceOption[];
+    organizations: AccountMenuOrganizationGroup[];
+    /** Total switchable spaces across all groups. */
     total: number;
   };
   /** Organization-management link(s) — member-gated, route-gated. */
@@ -92,6 +110,29 @@ export type AccountMenuOrganizationInput = {
   membershipStatus: "ACTIVE" | "PENDING" | "INACTIVE";
 };
 
+/** Mirror of the envelope's canonical contextOptions section. */
+export type AccountMenuContextOptionsInput = {
+  personalSpace: {
+    workspaceId: string;
+    name: string | null;
+    role: "OWNER";
+  } | null;
+  ownedWorkspaces: ReadonlyArray<{
+    workspaceId: string;
+    name: string | null;
+    role: string | null;
+  }>;
+  organizations: ReadonlyArray<{
+    organizationId: string;
+    organizationName: string | null;
+    workspaces: ReadonlyArray<{
+      workspaceId: string;
+      workspaceName: string | null;
+      workspaceRole: string | null;
+    }>;
+  }>;
+} | null;
+
 export type AccountMenuInput = {
   capabilities: Partial<Record<CapabilityKey, boolean>>;
   isPlatformAdmin: boolean;
@@ -99,6 +140,21 @@ export type AccountMenuInput = {
   personalSpace: { id: string | null; status?: string | null } | null;
   organizations: ReadonlyArray<AccountMenuOrganizationInput>;
   accountPlan: string | null;
+  /**
+   * P3 (2026-07-21) — the server-authorized grouped options. When present
+   * (current API) the switcher is built EXCLUSIVELY from it; the legacy
+   * `organizations` flat list is only a rollout fallback for an older API.
+   */
+  contextOptions?: AccountMenuContextOptionsInput;
+  /**
+   * PHASE 10 §13.2 STEP 6 (2026-07-23) — `false` for a managed enterprise
+   * identity (no personal space), including a grandfathered personal Team
+   * row from before it became managed. CLIENT-HIDING SIGNAL ONLY — the
+   * server independently denies any personal-scope mutation regardless of
+   * this flag. Absent/undefined defaults to `true` (legacy/STANDARD
+   * behavior, unaffected).
+   */
+  personalSpaceAllowed?: boolean;
 };
 
 const ROUTE_BY_ID: ReadonlyMap<string, RouteDefinition> = new Map(
@@ -180,33 +236,78 @@ export function resolveAccountMenu(input: AccountMenuInput): AccountMenuModel {
   // are the actor's ACTIVE memberships only (a PENDING invite is not yet a
   // switchable space). Membership is the ONLY input — never plan.
   // ---------------------------------------------------------------------------
-  const personal: AccountMenuWorkspaceOption | null = input.personalSpace?.id
-    ? {
-        id: input.personalSpace.id,
-        label: "Personal Space",
-        kind: "PERSONAL",
-        roleLabel: "Owner",
-        active: input.activeSpace?.type === "PERSONAL",
-      }
-    : null;
+  const activeWorkspaceId =
+    input.activeSpace?.type === "ORGANIZATION" ? input.activeSpace.id : null;
+
+  // PHASE 10 §13.2 STEP 6 (2026-07-23) — a managed enterprise identity has no
+  // personal space; `personalSpaceAllowed === false` suppresses the switcher
+  // entry even when a grandfathered `personalSpace.id` is still present on
+  // the envelope. Defaults to `true` (unaffected) when the field is absent.
+  const personal: AccountMenuWorkspaceOption | null =
+    input.personalSpace?.id && input.personalSpaceAllowed !== false
+      ? {
+          id: input.personalSpace.id,
+          label: "Personal Space",
+          kind: "PERSONAL",
+          roleLabel: "Owner",
+          active: input.activeSpace?.type === "PERSONAL",
+        }
+      : null;
 
   const activeOrganizations = input.organizations.filter(
     (org) => org.membershipStatus === "ACTIVE",
   );
 
-  const organizations: AccountMenuWorkspaceOption[] = activeOrganizations.map(
-    (org) => ({
-      id: org.id,
-      label: orgLabel(org),
-      kind: "ORGANIZATION",
-      roleLabel: org.role,
-      active:
-        input.activeSpace?.type === "ORGANIZATION" &&
-        input.activeSpace.id === org.id,
-    }),
-  );
+  let owned: AccountMenuWorkspaceOption[] = [];
+  let organizationGroups: AccountMenuOrganizationGroup[] = [];
 
-  const total = (personal ? 1 : 0) + organizations.length;
+  if (input.contextOptions) {
+    // P3 — SERVER-AUTHORIZED grouping by explicit workspaceKind. The client
+    // renders exactly what the server authorized; nothing is inferred from
+    // isPersonal or plan literals here.
+    owned = input.contextOptions.ownedWorkspaces.map((w) => ({
+      id: w.workspaceId,
+      label: w.name ?? "Workspace",
+      kind: "OWNED" as const,
+      roleLabel: w.role,
+      active: activeWorkspaceId === w.workspaceId,
+    }));
+    organizationGroups = input.contextOptions.organizations.map((group) => ({
+      organizationId: group.organizationId,
+      organizationName: group.organizationName,
+      workspaces: group.workspaces.map((w) => ({
+        id: w.workspaceId,
+        label: w.workspaceName ?? "Organization workspace",
+        kind: "ORGANIZATION" as const,
+        roleLabel: w.workspaceRole,
+        active: activeWorkspaceId === w.workspaceId,
+      })),
+    }));
+  } else {
+    // Rollout fallback (older API without contextOptions): the legacy flat
+    // list cannot distinguish OWNED from ORGANIZATION — present it as a
+    // single ungrouped organizations bucket, exactly as before.
+    organizationGroups = activeOrganizations.length
+      ? [
+          {
+            organizationId: "legacy",
+            organizationName: null,
+            workspaces: activeOrganizations.map((org) => ({
+              id: org.id,
+              label: orgLabel(org),
+              kind: "ORGANIZATION" as const,
+              roleLabel: org.role,
+              active: activeWorkspaceId === org.id,
+            })),
+          },
+        ]
+      : [];
+  }
+
+  const total =
+    (personal ? 1 : 0) +
+    owned.length +
+    organizationGroups.reduce((n, g) => n + g.workspaces.length, 0);
 
   // ---------------------------------------------------------------------------
   // Organization Settings — ONLY when the actor has ≥1 ACTIVE organization
@@ -217,7 +318,10 @@ export function resolveAccountMenu(input: AccountMenuInput): AccountMenuModel {
   if (activeOrganizations.length > 0 && routeLoads("account.organizations", input)) {
     organization.push({
       id: "account.organizations",
-      label: "Organization settings",
+      // P3 (2026-07-21) — renamed from "Organization settings": the
+      // destination is the organizations LIST/membership view (member-safe);
+      // administration remains capability-gated one level deeper.
+      label: "Organizations",
       href: "/organizations",
       iconKey: "organization",
     });
@@ -239,7 +343,7 @@ export function resolveAccountMenu(input: AccountMenuInput): AccountMenuModel {
 
   return {
     account,
-    workspaces: { personal, organizations, total },
+    workspaces: { personal, owned, organizations: organizationGroups, total },
     organization,
     support,
   };

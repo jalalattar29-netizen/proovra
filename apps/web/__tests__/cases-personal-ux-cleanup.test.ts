@@ -200,11 +200,11 @@ test("Backend service rejects non-authors with `comment_forbidden` (mapped to HT
 });
 
 test("Backend service emits a `cases.comment_deleted` audit event on success", () => {
-  // Reuses the canonical appendPlatformAuditLog helper (no
-  // parallel logger).
+  // PHASE 11 — reuses the canonical emitTenantAudit facade (no
+  // parallel logger); the event + success outcome are unchanged.
   assert.match(
     LIFECYCLE,
-    /action:\s*"cases\.comment_deleted",\s*\n?\s*category:\s*"cases\.lifecycle"/,
+    /action:\s*"cases\.comment_deleted",\s*\n?\s*outcome:\s*"success"/,
   );
 });
 

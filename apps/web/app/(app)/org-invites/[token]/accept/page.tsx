@@ -39,6 +39,9 @@ type State =
       organizationId: string;
       role: string;
       setupRedirect?: string;
+      // PHASE 5 §8.2 (2026-07-22) — explicit workspace grants consumed
+      // from the accept response (empty = governance-only invite).
+      assignedWorkspaceIds: string[];
     }
   | { kind: "error"; status: number; message: string };
 
@@ -56,7 +59,7 @@ export default function OrgInviteAcceptPage() {
 function OrgInviteAcceptPageInner() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
-  const { refresh } = usePlatformContext();
+  const { refresh, envelope, switchWorkspace } = usePlatformContext();
   const token = params?.token ?? "";
 
   const [state, setState] = useState<State>({ kind: "idle" });
@@ -78,6 +81,9 @@ function OrgInviteAcceptPageInner() {
       })) as {
         organizationId: string;
         role: string;
+        // PHASE 5 §8.2 — explicit workspace grants (empty/absent =
+        // governance-only invite).
+        assignedWorkspaceIds?: string[];
         // Phase 2 Blocker 1 — present only when a brand-new-owner
         // enterprise provisioning completed on this accept.
         enterpriseWorkspaceId?: string;
@@ -88,6 +94,9 @@ function OrgInviteAcceptPageInner() {
         organizationId: data.organizationId,
         role: data.role,
         setupRedirect: data.setupRedirect,
+        assignedWorkspaceIds: Array.isArray(data.assignedWorkspaceIds)
+          ? data.assignedWorkspaceIds
+          : [],
       });
       // Phase 5 (account-menu refactor, 2026-07-21) — re-fetch the canonical
       // platform-context envelope so the newly-joined organization appears in
@@ -104,12 +113,26 @@ function OrgInviteAcceptPageInner() {
         typeof (err as { statusCode?: number }).statusCode === "number"
           ? ((err as { statusCode: number }).statusCode)
           : 0;
+      // PHASE 5 §8 (2026-07-22) — token preservation through auth
+      // redirects: an unauthenticated accept bounces to /login with THIS
+      // page as the `next` target, so the invite token survives the
+      // sign-in round-trip (both the password flow and the OAuth
+      // callback honour next/proovra-return-url).
+      if (status === 401) {
+        const here = `/org-invites/${encodeURIComponent(token)}/accept`;
+        router.push(`/login?next=${encodeURIComponent(here)}`);
+        return;
+      }
       setState({ kind: "error", status, message });
     }
-  }, [token, refresh]);
+  }, [token, refresh, router]);
 
   useEffect(() => {
-    if (state.kind === "ok") {
+    // PHASE 5 §8.2 — NO automatic redirect when workspaces were
+    // assigned: the member chooses which workspace to open (or the org
+    // landing). Auto-redirect stays only for governance-only accepts
+    // (the previous behavior) and the enterprise setup wizard.
+    if (state.kind === "ok" && state.assignedWorkspaceIds.length === 0) {
       // Phase 2 Blocker 1 — an enterprise setup redirect (when the
       // brand-new-owner provisioning completed) takes precedence over
       // the default org landing.
@@ -122,6 +145,38 @@ function OrgInviteAcceptPageInner() {
     }
     return undefined;
   }, [state, router]);
+
+  // PHASE 5 §8.2 — workspace display names from the refreshed envelope
+  // (refresh() fires on accept success; until it lands, a neutral label).
+  const workspaceName = useCallback(
+    (workspaceId: string): string => {
+      const orgs = envelope?.contextOptions?.organizations ?? [];
+      for (const org of orgs) {
+        for (const ws of org.workspaces) {
+          if (ws.workspaceId === workspaceId) {
+            return ws.workspaceName ?? "Workspace";
+          }
+        }
+      }
+      return "Workspace";
+    },
+    [envelope],
+  );
+
+  const openWorkspace = useCallback(
+    async (workspaceId: string) => {
+      // Explicit, user-initiated switch — never automatic (§8.2).
+      try {
+        await switchWorkspace(workspaceId);
+        router.push("/home");
+      } catch {
+        // Switch failure falls back to the org landing; the provider
+        // already restored the previous context.
+        router.push("/organizations");
+      }
+    },
+    [switchWorkspace, router],
+  );
 
   return (
     <main
@@ -169,7 +224,44 @@ function OrgInviteAcceptPageInner() {
             background: "rgba(76,170,76,0.06)",
           }}
         >
-          You are now a {state.role} of the organization. Redirecting…
+          {state.assignedWorkspaceIds.length === 0 ? (
+            <>You are now a {state.role} of the organization. Redirecting…</>
+          ) : (
+            <>
+              You are now a {state.role} of the organization
+              {state.assignedWorkspaceIds.length === 1
+                ? " with access to one workspace."
+                : ` with access to ${state.assignedWorkspaceIds.length} workspaces.`}
+            </>
+          )}
+          {/* PHASE 5 §8.2 — chooser for assigned workspaces (explicit,
+              user-initiated switch; single assignment gets one button,
+              multiple get a list). */}
+          {state.assignedWorkspaceIds.length > 0 && (
+            <ul
+              data-assigned-workspaces
+              style={{ listStyle: "none", padding: 0, marginTop: 8 }}
+            >
+              {state.assignedWorkspaceIds.map((workspaceId) => (
+                <li key={workspaceId} style={{ marginTop: 6 }}>
+                  <button
+                    type="button"
+                    data-action="open-workspace"
+                    data-workspace-id={workspaceId}
+                    onClick={() => void openWorkspace(workspaceId)}
+                    style={{
+                      padding: "0.4rem 0.8rem",
+                      border: "1px solid currentColor",
+                      borderRadius: 4,
+                      fontSize: 14,
+                    }}
+                  >
+                    Open {workspaceName(workspaceId)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           <div style={{ marginTop: 8 }}>
             <Link
               href={state.setupRedirect ?? `/organizations/${state.organizationId}`}

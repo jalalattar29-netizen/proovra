@@ -35,6 +35,7 @@ import { formatUserDateTime } from "../../../../lib/date";
 // page only needed `currentUserId` to derive role-from-membership;
 // the envelope already carries `user.id` (and is authoritative).
 import { usePlatformContext } from "../../../../lib/platform-context";
+import { buildBillingHref } from "../../../../lib/navigation/billingWorkspaceLocator";
 import { MemberRemovalDialog } from "./components/MemberRemovalDialog";
 import { TeamPermissionMatrix } from "./components/TeamPermissionMatrix";
 import { DangerConfirmModal } from "./components/DangerConfirmModal";
@@ -553,10 +554,17 @@ function TeamDetailPageBody() {
   const canManageTeam =
     team?.canManageMembers ?? (currentRole === "OWNER" || currentRole === "ADMIN");
 
-  const billingConsoleHref = useMemo(() => {
-    if (!teamId) return "/billing?workspace=team&plan=TEAM";
-    return `/billing?workspace=team&plan=TEAM&team=${encodeURIComponent(teamId)}`;
-  }, [teamId]);
+  // PHASE 11 §5 — the ONE billing workspace locator. The specific workspace
+  // id is folded into the single canonical `?workspace=team:<id>` vocabulary;
+  // the retired `?team=<uuid>` alias is gone.
+  const billingConsoleHref = useMemo(
+    () =>
+      buildBillingHref(
+        { kind: "team", teamId: teamId || null },
+        { plan: "TEAM" },
+      ),
+    [teamId],
+  );
 
   const displayBillingPlan = useMemo(() => {
     return normalizePlanLabel(team?.billingPlan, "FREE");

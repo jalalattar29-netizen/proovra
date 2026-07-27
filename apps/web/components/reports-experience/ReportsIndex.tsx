@@ -38,6 +38,7 @@ import { apiFetch } from "../../lib/api";
 import {
   usePlatformContext,
   useWorkspaceId,
+  WorkspaceContextBanner,
 } from "../../lib/platform-context";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { AccessGate } from "../access/AccessGate";
@@ -341,6 +342,11 @@ export function ReportsIndex() {
         />
       }
     >
+      {/* PHASE 7 §10.5 — reports are workspace deliverables; show the
+          owning workspace/org. The list already re-scopes on switch
+          (reload deps include workspaceId). */}
+      <WorkspaceContextBanner action="Reports & artifacts for" />
+
       {/* Contextual help, collapsed by default so the reports/artifacts
           queue stays primary. */}
       <ContextualHelp surface="reports" collapsedByDefault />

@@ -316,7 +316,9 @@ describe("R8.1.2 Part 7 — login flow integration LIVE (was deferred in R8.1.1)
     // email-verification.service.ts (saves ~5.3 KB) before this bump,
     // so the residual growth reflects the irreducible HTTP-layer cost
     // of the new flow.
-    const expected = 57000;
+    // PHASE 10 (2026-07-23) rebaselined 60497→56683: Guest Login was PHYSICALLY
+    // DELETED — the /v1/auth/guest route + handler + guest comments were removed.
+    const expected = 56683;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);

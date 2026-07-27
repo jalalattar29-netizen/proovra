@@ -29,6 +29,12 @@
 
 import { createHash, randomBytes } from "node:crypto";
 
+// P0 remediation (2026-07-21) — the enterprise OIDC SSO path must
+// cryptographically validate the id_token (JWKS signature, issuer,
+// audience, expiry, nonce) instead of trusting the userinfo endpoint
+// alone. Same library the consumer Google/Apple login already uses.
+import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
+
 import type {
   PrismaClient,
   SsoConnection as DbConnection,
@@ -52,10 +58,15 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 // Phase 3 — Enterprise Identity: shared SSO login enforcement point
 // (enterprise-only + organization-workspace + verified-domain).
 import { enforceSsoLoginPolicy } from "./sso-login-policy.service.js";
+// P0 remediation (2026-07-21) — canonical guard for linking an IdP-asserted
+// email to a PRE-EXISTING User (cross-tenant account-takeover fix).
+import { evaluateExistingAccountLink } from "../security/enterprise-account-linking.service.js";
+// PHASE 3 (2026-07-21) — canonical membership orchestrator.
+import { provisionMembership } from "../identity/membership-provisioning.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -78,6 +89,10 @@ export class SsoServiceError extends Error {
       | "SSO_NOT_ENTERPRISE"
       | "SSO_WORKSPACE_PERSONAL"
       | "SSO_DOMAIN_NOT_VERIFIED"
+      // P0 remediation (2026-07-21) — id_token cryptographic validation
+      // failures and unsafe existing-account link denials.
+      | "SSO_OIDC_TOKEN_INVALID"
+      | "SSO_ACCOUNT_LINK_DENIED"
       // Phase 3 — policy-update guard: cannot enable verified-domain
       // restriction when the owning org has zero verified domains.
       | "SSO_NO_VERIFIED_DOMAINS"
@@ -307,18 +322,16 @@ export async function createSsoConnection(
       actorUserId: input.actorUserId,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "sso.connection.create",
-    category: "identity",
-    severity: "warning",
-    source: "sso_service",
     outcome: "success",
+    sourceApp: "SSO",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "sso_connection",
     resourceId: row.id,
-    metadata: { teamId: input.teamId, provider: input.provider },
-    db: client,
-  });
+    metadata: { provider: input.provider },
+  }, client);
 
   return {
     projection: projectConnection(row),
@@ -384,18 +397,16 @@ export async function transitionSsoConnection(
       },
     });
   }
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "sso.connection.transition",
-    category: "identity",
-    severity: input.nextStatus === "REVOKED" ? "warning" : "info",
-    source: "sso_service",
     outcome: "success",
+    sourceApp: "SSO",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "sso_connection",
     resourceId: row.id,
-    metadata: { teamId: input.teamId, from, to: input.nextStatus },
-    db: client,
-  });
+    metadata: { from, to: input.nextStatus },
+  }, client);
   return projectConnection(updated);
 }
 
@@ -543,19 +554,17 @@ export async function updateSsoConnectionPolicy(
       changed,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "sso.connection.policy_update",
-    category: "identity",
-    severity: "warning",
-    source: "sso_service",
     outcome: "success",
+    sourceApp: "SSO",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "sso_connection",
     resourceId: row.id,
     // Field names only. The key/cert VALUES never enter the audit payload.
-    metadata: { teamId: input.teamId, changed },
-    db: client,
-  });
+    metadata: { changed },
+  }, client);
 
   return projectConnection(updated);
 }
@@ -646,9 +655,26 @@ type OidcDiscovery = {
   authorization_endpoint: string;
   token_endpoint: string;
   userinfo_endpoint: string;
+  // P0 remediation — required for id_token validation. `issuer` is the
+  // canonical `iss` value the id_token must carry; `jwks_uri` is where
+  // the IdP publishes its signing keys.
+  issuer: string;
+  jwks_uri: string;
 };
 
 const oidcDiscoveryCache = new Map<string, OidcDiscovery>();
+
+// One remote JWKS resolver per jwks_uri (jose caches + re-fetches keys
+// internally, honouring cache headers and kid rotation).
+const oidcJwksCache = new Map<string, JWTVerifyGetKey>();
+
+function jwksForUri(jwksUri: string): JWTVerifyGetKey {
+  const cached = oidcJwksCache.get(jwksUri);
+  if (cached) return cached;
+  const resolver = createRemoteJWKSet(new URL(jwksUri));
+  oidcJwksCache.set(jwksUri, resolver);
+  return resolver;
+}
 
 async function fetchOidcDiscovery(issuerUrl: string): Promise<OidcDiscovery> {
   const cached = oidcDiscoveryCache.get(issuerUrl);
@@ -666,7 +692,11 @@ async function fetchOidcDiscovery(issuerUrl: string): Promise<OidcDiscovery> {
   if (
     !json.authorization_endpoint ||
     !json.token_endpoint ||
-    !json.userinfo_endpoint
+    !json.userinfo_endpoint ||
+    // P0 remediation — a discovery document without issuer + jwks_uri
+    // cannot support id_token validation; fail closed at discovery.
+    !json.issuer ||
+    !json.jwks_uri
   ) {
     throw new SsoServiceError("SSO_DISCOVERY_FAILED", {
       reason: "missing_endpoint",
@@ -676,6 +706,8 @@ async function fetchOidcDiscovery(issuerUrl: string): Promise<OidcDiscovery> {
     authorization_endpoint: json.authorization_endpoint,
     token_endpoint: json.token_endpoint,
     userinfo_endpoint: json.userinfo_endpoint,
+    issuer: json.issuer,
+    jwks_uri: json.jwks_uri,
   };
   oidcDiscoveryCache.set(issuerUrl, discovery);
   return discovery;
@@ -799,6 +831,52 @@ export async function handleOidcCallback(
     });
   }
 
+  // ---- id_token validation (P0 remediation, 2026-07-21) ----
+  // The id_token is the cryptographic proof of identity for this login.
+  // Signature is validated against the issuer's JWKS; `iss` must equal the
+  // discovery document's issuer, `aud` must include our client_id, and the
+  // `nonce` must echo the value we bound to this state record — closing
+  // token-substitution / mix-up / replay paths the userinfo-only flow left
+  // open. jwtVerify enforces exp/nbf with a bounded clock tolerance.
+  if (!tokenJson.id_token) {
+    bump("sso_login_failure_total");
+    throw new SsoServiceError("SSO_OIDC_TOKEN_INVALID", {
+      reason: "no_id_token",
+    });
+  }
+  let idTokenSub: string;
+  try {
+    const { payload } = await jwtVerify(
+      tokenJson.id_token,
+      jwksForUri(discovery.jwks_uri),
+      {
+        issuer: discovery.issuer,
+        audience: conn.clientId,
+        clockTolerance: 60,
+      },
+    );
+    if (typeof payload.sub !== "string" || payload.sub.length === 0) {
+      throw new Error("missing_sub");
+    }
+    if (payload.nonce !== stateRecord.nonce) {
+      throw new Error("nonce_mismatch");
+    }
+    idTokenSub = payload.sub;
+  } catch {
+    bump("sso_login_failure_total");
+    safeEmitSecurityEvent({
+      teamId: conn.teamId,
+      eventType: "sso_login_failed",
+      severity: "WARNING",
+      details: {
+        connectionId: conn.id,
+        reason: "id_token_invalid",
+        provider: conn.provider,
+      },
+    });
+    throw new SsoServiceError("SSO_OIDC_TOKEN_INVALID");
+  }
+
   // ---- Userinfo ----
   let userinfo: { sub?: string; email?: string; name?: string };
   try {
@@ -823,6 +901,26 @@ export async function handleOidcCallback(
   if (!userinfo.sub || !userinfo.email) {
     bump("sso_login_failure_total");
     throw new SsoServiceError("SSO_OIDC_USERINFO_INVALID");
+  }
+
+  // The userinfo response must describe the SAME subject the validated
+  // id_token proved. A mismatch means the access token belongs to a
+  // different principal than the authenticated one — reject.
+  if (userinfo.sub !== idTokenSub) {
+    bump("sso_login_failure_total");
+    safeEmitSecurityEvent({
+      teamId: conn.teamId,
+      eventType: "sso_login_failed",
+      severity: "WARNING",
+      details: {
+        connectionId: conn.id,
+        reason: "userinfo_subject_mismatch",
+        provider: conn.provider,
+      },
+    });
+    throw new SsoServiceError("SSO_OIDC_TOKEN_INVALID", {
+      reason: "userinfo_subject_mismatch",
+    });
   }
 
   // ---- Allowed-email-domains gate ----
@@ -927,6 +1025,32 @@ export async function handleOidcCallback(
       select: { id: true },
     });
     if (existingUser) {
+      // P0 remediation (2026-07-21) — linking to a PRE-EXISTING account is
+      // only safe when the email's domain is DNS-verified by exactly this
+      // connection's own organization (globally-unique claim). Without
+      // this, an attacker-controlled IdP could assert any existing user's
+      // email and receive a session as that user. Fail closed; JIT does
+      // NOT fall through to creating a duplicate account.
+      const link = await evaluateExistingAccountLink(
+        { teamId: conn.teamId, email: userinfo.email },
+        client,
+      );
+      if (!link.ok) {
+        bump("sso_login_failure_total");
+        safeEmitSecurityEvent({
+          teamId: conn.teamId,
+          eventType: "sso_login_failed",
+          severity: "HIGH",
+          details: {
+            connectionId: conn.id,
+            reason: `unsafe_account_link:${link.reason}`,
+            provider: conn.provider,
+          },
+        });
+        throw new SsoServiceError("SSO_ACCOUNT_LINK_DENIED", {
+          reason: link.reason,
+        });
+      }
       userId = existingUser.id;
     } else {
       // SSO-provisioned users are tagged as EMAIL provider; their IdP
@@ -955,18 +1079,22 @@ export async function handleOidcCallback(
       },
     });
 
-    // Ensure the user is a team member (idempotent).
-    await client.teamMember.upsert({
-      where: { teamId_userId: { teamId: conn.teamId, userId } },
-      update: {},
-      create: {
+    // PHASE 3 (2026-07-21) — canonical orchestrator: SSO_JIT intent.
+    // `preserveExistingStatus` keeps the pre-existing behavior that a login
+    // NEVER silently reactivates a SUSPENDED/REVOKED member; the JIT grant
+    // is recorded as an SSO_JIT-source provenance row either way.
+    await provisionMembership(client, {
+      intent: "SSO_JIT",
+      source: "SSO_JIT",
+      userId,
+      workspace: {
         teamId: conn.teamId,
-        userId,
         role: role === "VIEWER" ? "VIEWER" : "MEMBER",
-        status: "ACTIVE",
-        accessGrantedByUserId: conn.createdByUserId,
-        accessReason: `SSO JIT (${conn.provider})`,
       },
+      actorUserId: conn.createdByUserId ?? null,
+      externalRef: `sso:${conn.provider}:${conn.id}`,
+      accessReason: `SSO JIT (${conn.provider})`,
+      preserveExistingStatus: true,
     });
 
     bump("sso_jit_provisioned_total");

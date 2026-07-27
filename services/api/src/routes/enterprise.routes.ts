@@ -20,7 +20,7 @@ import { getEmailService } from "../services/email.service.js";
 // immediately void'd it (no webhook was ever fired). Canonical webhook
 // delivery happens via `services/integrations/webhook-dispatcher.ts`
 // triggered through the integrations subsystem.
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 
 async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
@@ -29,17 +29,17 @@ async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireLegalAcceptance(req, reply);
 }
 
-function readUserAgent(req: FastifyRequest): string | null {
-  const ua = req.headers["user-agent"];
-  return Array.isArray(ua) ? ua[0] ?? null : ua ?? null;
-}
-
 function getRequestPath(req: FastifyRequest): string {
   const url = req.url || "";
   const qIndex = url.indexOf("?");
   return qIndex >= 0 ? url.slice(0, qIndex) : url;
 }
 
+// PHASE 11 §3 Batch C — no Workspace/Organization is ever available here:
+// `batchAnalysisService` jobs are keyed by userId only (no tenant column),
+// and the legacy `/v1/api-keys*` handlers are pure retirement notices. So
+// every event in this file is genuinely PLATFORM-scoped (never fabricate a
+// tenant subject).
 function auditEnterpriseAction(
   req: FastifyRequest,
   params: {
@@ -52,19 +52,21 @@ function auditEnterpriseAction(
     metadata?: Record<string, unknown>;
   }
 ) {
-  void appendPlatformAuditLog({
-    userId: params.userId,
+  const outcome =
+    params.outcome === "blocked" ? "denied" : params.outcome === "failure" ? "error" : "success";
+  void emitPlatformAudit({
     action: params.action,
-    category: "enterprise",
-    severity: params.severity ?? "info",
-    source: "api_enterprise",
-    outcome: params.outcome ?? "success",
+    outcome,
+    denialReason: outcome === "denied" ? params.action : undefined,
+    sourceApp: "API",
+    actorUserId: params.userId,
     resourceType: params.resourceType ?? "enterprise",
     resourceId: params.resourceId ?? null,
-    requestId: req.id,
-    metadata: params.metadata ?? {},
-    ipAddress: req.ip,
-    userAgent: readUserAgent(req),
+    correlationId: req.id,
+    metadata: {
+      ...(params.metadata ?? {}),
+      severity: params.severity ?? "info",
+    },
   }).catch(() => null);
 }
 

@@ -191,12 +191,14 @@ describe("Wave 2 — POST /v1/graph/duplicates/:edgeId/decision route", () => {
     expect(slice).toMatch(/"MARKED_DERIVATIVE"/);
   });
 
-  it("route emits a DUPLICATE_DECISION_RECORDED platform audit entry", () => {
+  it("route emits a DUPLICATE_DECISION_RECORDED canonical tenant-audit entry", () => {
     const idx = GRAPH_ROUTES.indexOf(
       '"/v1/graph/duplicates/:edgeId/decision"',
     );
     const slice = GRAPH_ROUTES.slice(idx, idx + 4000);
-    expect(slice).toMatch(/appendPlatformAuditLog/);
+    // PHASE 11 §3 Batch A — migrated onto the canonical emitTenantAudit
+    // facade.
+    expect(slice).toMatch(/emitTenantAudit/);
     expect(slice).toMatch(/DUPLICATE_DECISION_RECORDED/);
   });
 });
@@ -251,7 +253,9 @@ describe("Wave 2 — perceptual-hash producer wiring in finalize fanout", () => 
 
   it("audit emit uses PERCEPTUAL_HASH_QUEUED action", () => {
     expect(FANOUT).toMatch(/PERCEPTUAL_HASH_QUEUED/);
-    expect(FANOUT).toMatch(/appendPlatformAuditLog/);
+    // PHASE 11 §3 Batch A — migrated onto the canonical tenant-audit
+    // facade (workspaceId is now an authoritative DB column).
+    expect(FANOUT).toMatch(/emitTenantAudit/);
   });
 
   it("fanout still has expected enqueue helper call sites (Wave 4 rebaseline)", () => {

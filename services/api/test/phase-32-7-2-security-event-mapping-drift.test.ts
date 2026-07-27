@@ -321,6 +321,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20260720100000_personal_workspace_bootstrap",
       "20260720200000_dashboard_projections",
       "20260721000000_workspace_persona_profile",
+      // PHASE 3 (2026-07-21) — normalized membership-grant provenance.
+      "20260721500000_membership_grant_provenance",
       // R8.1 — MFA factor + recovery-code schema migration (append-only).
       "20260722000000_r8_1_mfa_activation",
       // R8.1.3 — durable MFA pending challenge store (append-only).
@@ -849,6 +851,35 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // deletion of the workspace-persona / workflow-personalization /
       // operational-density feature family). Not Phase 32.7.2-attributable.
       "20270924000000_drop_workspace_persona_profiles",
+      // P1 domain remediation (2026-07-21) — explicit workspaceKind
+      // discriminator on teams + OrganizationKind on organizations, with a
+      // deterministic backfill. Not Phase 32.7.2-attributable.
+      "20260721400000_workspace_kind_discriminator",
+      // P2 domain remediation (2026-07-21) — org-invite workspace assignments
+      // + acceptedByUserId (additive). Not Phase 32.7.2-attributable.
+      "20260721410000_org_invite_workspace_assignments",
+      // PHASE 3 (2026-07-21) — normalized membership-grant provenance
+      // (additive membership_grants table). Not Phase 32.7.2-attributable.
+      "20260721500000_membership_grant_provenance",
+      // PHASE 3 (2026-07-22) — LEGACY_UNKNOWN provenance backfill.
+      "20260721510000_membership_grant_legacy_backfill",
+      // PHASE 4 (2026-07-22) — canonical Enterprise contract state.
+      "20260722100000_enterprise_contract_state",
+      // PHASE 4 §7.1 (2026-07-22) — provisioning idempotency requests.
+      "20260722110000_enterprise_provisioning_idempotency",
+      // PHASE 10 §13.2 (2026-07-22) — User.identityMode (managed identity).
+      "20270925000000_user_identity_mode",
+      // PHASE 10 §Step-1 (2026-07-23) — OrganizationSecurityPolicy convergence
+      // (org-keyed), managed-identity ownership + backfill, AuthenticatedSession
+      // organization-context, and policy lifecycle. All additive; unapplied.
+      "20271001000000_org_security_policy_phase10",
+      "20271002000000_managed_identity_ownership",
+      "20271003000000_managed_identity_ownership_backfill",
+      "20271004000000_authenticated_session_org_context",
+      "20271005000000_org_security_policy_org_scoped",
+      "20271006000000_org_security_policy_lifecycle",
+      // PHASE 11 (2026-07-24) — authoritative tenant columns on admin_audit_logs.
+      "20271101000000_audit_tenant_columns",
     ]);
     const newer = entries.filter((name) => {
       const m = name.match(/^(\d{14})/);

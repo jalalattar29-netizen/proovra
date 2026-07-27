@@ -364,6 +364,48 @@ export type PlatformContextOrganization = {
   memberCount: number;
 };
 
+// P3 DOMAIN REMEDIATION (2026-07-21) — canonical, SERVER-AUTHORIZED grouped
+// context options (Personal / Your workspaces / Organizations). The client
+// may group and render but never creates additional choices. Optional on the
+// envelope for tolerance of an older API during rollout.
+export type PlatformContextOwnedWorkspaceOption = {
+  workspaceId: string;
+  name: string | null;
+  kind: "OWNED";
+  role: WorkspaceRole | null;
+  lifecycleStatus: "active";
+};
+
+export type PlatformContextOrganizationWorkspaceOption = {
+  workspaceId: string;
+  workspaceName: string | null;
+  kind: "ORGANIZATION";
+  workspaceRole: WorkspaceRole | null;
+  lifecycleStatus: "active";
+};
+
+export type PlatformContextContextOptions = {
+  personalSpace: {
+    workspaceId: string;
+    name: "Personal Space";
+    kind: "PERSONAL";
+    role: "OWNER";
+    lifecycleStatus: "active";
+  } | null;
+  ownedWorkspaces: ReadonlyArray<PlatformContextOwnedWorkspaceOption>;
+  organizations: ReadonlyArray<{
+    organizationId: string;
+    organizationName: string | null;
+    workspaces: ReadonlyArray<PlatformContextOrganizationWorkspaceOption>;
+  }>;
+  activeContext: {
+    workspaceId: string | null;
+    kind: "PERSONAL" | "OWNED" | "ORGANIZATION";
+    organizationId: string | null;
+    displayName: string | null;
+  };
+};
+
 export type PlatformContextActiveSpace =
   | {
       type: "PERSONAL";
@@ -450,6 +492,23 @@ export type PlatformContextRecoveryAction = {
   href: string | null;
 };
 
+/**
+ * PHASE 10 STEP 5 (2026-07-23) — active support-access projection. Present
+ * only when the authenticated actor is a support user operating within a
+ * customer org under an ACTIVE grant. Drives the persistent support banner.
+ */
+export type PlatformContextSupportAccess = {
+  active: true;
+  grantId: string;
+  supportActorUserId: string;
+  organizationId: string;
+  organizationName: string | null;
+  teamId: string | null;
+  mode: "READ_ONLY" | "ELEVATED";
+  reason: string;
+  expiresAtUtc: string;
+};
+
 export type PlatformContextEnvelope = {
   authoritySchemaVersion: number;
   capabilitySchemaVersion: number;
@@ -475,6 +534,8 @@ export type PlatformContextEnvelope = {
   personalSpace?: PlatformContextPersonalSpace;
   organizations?: ReadonlyArray<PlatformContextOrganization>;
   activeSpace?: PlatformContextActiveSpace;
+  /** P3 (2026-07-21) — canonical grouped context options (see type doc). */
+  contextOptions?: PlatformContextContextOptions;
   duplicatePersonalCandidates?: ReadonlyArray<PlatformContextDuplicatePersonalCandidate>;
   diagnostics: PlatformContextDiagnostics;
   /**
@@ -482,6 +543,20 @@ export type PlatformContextEnvelope = {
    * array for healthy envelopes.
    */
   recoveryActions?: ReadonlyArray<PlatformContextRecoveryAction>;
+  /**
+   * PHASE 10 STEP 5 (2026-07-23) — active support access, or null for
+   * ordinary users. Optional for backward compatibility with a
+   * pre-Step-5 envelope.
+   */
+  supportAccess?: PlatformContextSupportAccess | null;
+  /**
+   * PHASE 10 §13.2 STEP 6 (2026-07-23) — `false` when the authenticated
+   * identity is managed (no personal space). CLIENT-HIDING SIGNAL ONLY —
+   * the server independently enforces every personal-scope mutation.
+   * Optional for backward compatibility with a pre-Step-6 envelope; treat
+   * an absent value as `true` (legacy/STANDARD behavior).
+   */
+  personalSpaceAllowed?: boolean;
 };
 
 // =============================================================================

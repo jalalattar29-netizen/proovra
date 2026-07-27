@@ -78,7 +78,10 @@ const REPORT_ROUTE = sliceRoute('"/v1/evidence/:id/report/latest"', 9200);
 const ORIGINAL_ROUTE = sliceRoute('"/v1/evidence/:id/original"', 9200);
 const PACKAGE_ROUTE = sliceRoute(
   '"/v1/evidence/:id/verification-package"',
-  12500,
+  // (P0 remediation 2026-07-21) — span widened: the ACTIVE-only
+  // membership gate added a few lines to the handler, pushing the
+  // served-response tail past the old 12500-char slice.
+  12800,
 );
 
 // ===========================================================================
@@ -281,16 +284,19 @@ describe("Phase 5 — download audit metadata carries NO secrets", () => {
 
 describe("Phase 5 — download audit is best-effort (fail-safe)", () => {
   it("the wrapper defers the audit write and swallows failures (void ...catch)", () => {
-    // The canonical auditEvidenceAction wrapper fires the audit write
-    // fire-and-forget: `void appendPlatformAuditLog(...).catch(...)`.
-    // The download handlers reuse this exact seam, so an audit failure
-    // cannot reject the handler's request path.
+    // PHASE 11 §3 Batch A — auditEvidenceAction now composes the canonical
+    // tenant-audit envelope (`emitTenantAudit`), which itself still calls
+    // through to appendPlatformAuditLog (same hash-chained sink) under the
+    // hood. The wrapper still fires fire-and-forget:
+    // `void emitTenantAudit(...).catch(...)`. The download handlers reuse
+    // this exact seam, so an audit failure cannot reject the handler's
+    // request path.
     const wrapperIdx = EVIDENCE_ROUTES.indexOf(
       "function auditEvidenceAction(",
     );
     expect(wrapperIdx).toBeGreaterThan(-1);
-    const wrapper = EVIDENCE_ROUTES.slice(wrapperIdx, wrapperIdx + 900);
-    expect(wrapper).toContain("void appendPlatformAuditLog({");
+    const wrapper = EVIDENCE_ROUTES.slice(wrapperIdx, wrapperIdx + 1200);
+    expect(wrapper).toContain("void emitTenantAudit({");
     expect(wrapper).toContain(".catch(noteCustodyFailure)");
   });
 

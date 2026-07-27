@@ -232,7 +232,18 @@ describe("Wave 3 Phase 7B — bounded payload + ordering", () => {
 
 describe("Wave 3 Phase 7B — custody emit ordered after DB write", () => {
   function assertCustodyAfterAudit(routeBlock: string, eventTypeMarker: string): void {
-    const auditIdx = routeBlock.indexOf("appendPlatformAuditLog");
+    // PHASE 11 §3 Batch A migrated graph.routes.ts's direct
+    // appendPlatformAuditLog calls onto the canonical emitTenantAudit
+    // facade; media-intelligence.routes.ts (a different batch's scope)
+    // still calls appendPlatformAuditLog directly. Accept either marker.
+    const legacyIdx = routeBlock.indexOf("appendPlatformAuditLog");
+    const canonicalIdx = routeBlock.indexOf("emitTenantAudit");
+    const auditIdx =
+      legacyIdx === -1
+        ? canonicalIdx
+        : canonicalIdx === -1
+          ? legacyIdx
+          : Math.min(legacyIdx, canonicalIdx);
     const custodyIdx = routeBlock.indexOf("appendInvestigationCustody");
     expect(auditIdx).toBeGreaterThan(-1);
     expect(custodyIdx).toBeGreaterThan(-1);

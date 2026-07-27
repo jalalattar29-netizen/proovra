@@ -87,7 +87,11 @@ export type AccountStepUpAction =
   | "org_closure_request"
   // Lifecycle Phase 7 — workspace closure (workspace-owner-only route;
   // step-up proves the owner's own recent authentication).
-  | "workspace_closure_request";
+  | "workspace_closure_request"
+  // PHASE 4 §7.4 (2026-07-22) — OWNED-workspace ownership transfer
+  // (workspace-owner-only route; step-up proves the owner's own recent
+  // authentication).
+  | "workspace_ownership_transfer";
 
 type StepUpDenial = {
   status: 401 | 429;

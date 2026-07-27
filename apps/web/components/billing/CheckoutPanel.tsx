@@ -24,6 +24,15 @@ type Props = {
   initialTargetType?: CheckoutTargetType;
   initialPlan?: CheckoutPlan;
   onCheckoutCompleted?: () => Promise<void> | void;
+  /**
+   * PHASE 10 CLOSURE FIX 3 (2026-07-23) — `false` when the server-projected
+   * `personalSpaceAllowed` on the platform-context envelope is explicitly
+   * false (managed enterprise identity, no Personal Space). Hides the
+   * Personal-workspace checkout target/button entirely — CLIENT-HIDING
+   * ONLY; the server independently rejects a personal checkout regardless.
+   * Defaults to `true` (unaffected legacy behavior) when omitted.
+   */
+  personalSpaceAllowed?: boolean;
 };
 
 function hasOwnedTeams(teams: TeamWorkspaceSummary[]) {
@@ -50,11 +59,18 @@ export function CheckoutPanel({
   initialTargetType = "PERSONAL",
   initialPlan = "PAYG",
   onCheckoutCompleted,
+  personalSpaceAllowed = true,
 }: Props) {
   const { addToast } = useToast();
 
-  const [targetType, setTargetType] =
-    useState<CheckoutTargetType>(initialTargetType);
+  // PHASE 10 CLOSURE FIX 3 — never initialize into a disallowed Personal
+  // target, even if the caller (e.g. a stale `?workspace=personal` deep
+  // link) requested it.
+  const [targetType, setTargetType] = useState<CheckoutTargetType>(
+    !personalSpaceAllowed && initialTargetType === "PERSONAL"
+      ? "TEAM"
+      : initialTargetType,
+  );
   const [selectedTeamId, setSelectedTeamId] = useState(initialSelectedTeamId);
   const [selectedPlan, setSelectedPlan] = useState<CheckoutPlan>(initialPlan);
   const [selectedProvider, setSelectedProvider] =
@@ -174,6 +190,10 @@ export function CheckoutPanel({
 
   const canContinue = useMemo(() => {
     if (busy) return false;
+    // PHASE 10 CLOSURE FIX 3 — a disallowed Personal target can never
+    // remain selectable for checkout, regardless of how `targetType` got
+    // set (initial prop, deep-link fallback, or a stale prior selection).
+    if (!personalSpaceAllowed && targetType === "PERSONAL") return false;
     if (targetType === "TEAM" && !selectedTeamId) return false;
     if (targetType === "TEAM" && !hasOwnedTeams(teams)) return false;
     if (!availablePlans.includes(selectedPlan)) return false;
@@ -181,6 +201,7 @@ export function CheckoutPanel({
     return true;
   }, [
     busy,
+    personalSpaceAllowed,
     targetType,
     selectedTeamId,
     selectedPlan,
@@ -191,6 +212,9 @@ export function CheckoutPanel({
   ]);
 
   const handleTargetTypeChange = (next: CheckoutTargetType) => {
+    // PHASE 10 CLOSURE FIX 3 — defensive: the Personal chip is not rendered
+    // when disallowed, but never honor a PERSONAL selection either way.
+    if (!personalSpaceAllowed && next === "PERSONAL") return;
     setTargetType(next);
 
     if (next === "TEAM") {
@@ -324,23 +348,41 @@ export function CheckoutPanel({
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                className={chipClass(targetType === "PERSONAL")}
-                onClick={() => handleTargetTypeChange("PERSONAL")}
-              >
-                Personal workspace
-              </button>
+              {/* PHASE 10 CLOSURE FIX 3 (2026-07-23) — the Personal checkout
+                  target is unavailable for a managed identity with no
+                  Personal Space. Client-hiding only; the server
+                  independently rejects a personal checkout regardless. */}
+              {personalSpaceAllowed ? (
+                <button
+                  type="button"
+                  className={chipClass(targetType === "PERSONAL")}
+                  onClick={() => handleTargetTypeChange("PERSONAL")}
+                  data-checkout-target="PERSONAL"
+                >
+                  Personal workspace
+                </button>
+              ) : null}
 
               <button
                 type="button"
                 className={chipClass(targetType === "TEAM")}
                 onClick={() => handleTargetTypeChange("TEAM")}
                 disabled={teams.length === 0}
+                data-checkout-target="TEAM"
               >
                 Workspace
               </button>
             </div>
+
+            {!personalSpaceAllowed && teams.length === 0 ? (
+              <p
+                className="mt-3 text-[0.86rem] leading-[1.7] text-[#475569]"
+                data-checkout-no-target
+              >
+                No workspace is available for checkout. Ask your organization
+                administrator to assign you a workspace.
+              </p>
+            ) : null}
 
             {targetType === "TEAM" ? (
               <div className="mt-3">

@@ -32,7 +32,7 @@
 import { createHash } from "node:crypto";
 
 import { prisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitPlatformAudit } from "../audit/tenant-audit.service.js";
 
 export const EXPORT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 export const EXPORT_SCHEMA_VERSION = 1;
@@ -214,19 +214,15 @@ export async function processAccountDataExports(now: Date): Promise<{
         },
       });
       summary.generated += 1;
-      await appendPlatformAuditLog({
-        userId: req.userId,
+      await emitPlatformAudit({
         action: "identity.data_export_ready",
-        category: "identity",
-        severity: "info",
-        source: "api_data_export_cron",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: req.userId,
+        serviceActor: "account_data_export_cron",
         resourceType: "account_data_export_request",
         resourceId: req.id,
-        requestId: null,
         metadata: { sha256 },
-        ipAddress: null,
-        userAgent: null,
       }).catch(() => null);
     } catch {
       await prisma.accountDataExportRequest
@@ -236,19 +232,15 @@ export async function processAccountDataExports(now: Date): Promise<{
         })
         .catch(() => null);
       summary.failed += 1;
-      await appendPlatformAuditLog({
-        userId: req.userId,
+      await emitPlatformAudit({
         action: "identity.data_export_failed",
-        category: "identity",
-        severity: "warning",
-        source: "api_data_export_cron",
-        outcome: "failure",
+        outcome: "error",
+        sourceApp: "API",
+        actorUserId: req.userId,
+        serviceActor: "account_data_export_cron",
         resourceType: "account_data_export_request",
         resourceId: req.id,
-        requestId: null,
         metadata: { failureCode: "generation_failed" },
-        ipAddress: null,
-        userAgent: null,
       }).catch(() => null);
     }
   }

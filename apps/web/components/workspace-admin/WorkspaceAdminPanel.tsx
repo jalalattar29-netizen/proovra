@@ -30,6 +30,7 @@ import {
   usePlatformContext,
 } from "../../lib/platform-context";
 import type { WorkspaceAdminEnvelope } from "./types";
+import { WorkspaceAuditTab } from "./WorkspaceAuditTab";
 
 // CR1.6 — The legacy `no_workspace` LoadState branch was removed.
 // PageRouteGate (admin.teams) gates access to this surface before
@@ -50,7 +51,8 @@ type TabKey =
   | "governance"
   | "integrations"
   | "billing"
-  | "accountability";
+  | "accountability"
+  | "audit";
 
 export function WorkspaceAdminPanel() {
   const ctx = usePlatformContext();
@@ -119,6 +121,10 @@ export function WorkspaceAdminPanel() {
     { key: "integrations", label: "Integrations", visible: isTeam },
     { key: "billing", label: "Billing & Seats", visible: true },
     { key: "accountability", label: "Operational Accountability", visible: isTeam },
+    // PHASE 11 §6 — the canonical tenant-audit query/export surface. The
+    // server enforces audit.read/audit.export on the PROVEN workspace; the
+    // tab is shown to managers but authorization is decided server-side.
+    { key: "audit", label: "Audit", visible: canManage },
   ];
 
   return (
@@ -192,6 +198,7 @@ export function WorkspaceAdminPanel() {
       {tab === "accountability" && isTeam && (
         <AccountabilityTab env={env} />
       )}
+      {tab === "audit" && <WorkspaceAuditTab teamId={env.workspace.id} />}
     </main>
   );
 }

@@ -79,7 +79,7 @@ import {
   resolveTemplateTrioForIntakeLink,
   templateIdentityAuditMetadata,
 } from "./templates/identity-resolver.service.js";
-import { appendPlatformAuditLog } from "./platform-audit-log.service.js";
+import { emitTenantAudit } from "./audit/tenant-audit.service.js";
 
 // -----------------------------------------------------------------------------
 // Error type
@@ -283,15 +283,14 @@ export async function createOrLoadExternalEvidence(
           templateDbId: trio.templateDbId,
         },
       });
-      void appendPlatformAuditLog({
+      void emitTenantAudit({
         // External-intake submissions have no authenticated user; use the
         // link creator (workspace admin) as the actor for audit purposes.
-        userId: pair.link.createdByUserId,
+        actorUserId: pair.link.createdByUserId,
         action: "evidence.template_identity.stamped",
-        category: "evidence",
-        severity: "info",
-        source: "external_intake",
         outcome: "success",
+        sourceApp: "API",
+        workspaceId: pair.link.teamId,
         resourceType: "evidence",
         resourceId: evidence.id,
         metadata: templateIdentityAuditMetadata({
@@ -808,16 +807,14 @@ export async function submitExternalIntake(
   // traceability of WHAT happened, not WHERE.
   if (policy !== "NONE") {
     try {
-      await appendPlatformAuditLog({
-        userId: null,
-        isPublic: true,
+      await emitTenantAudit({
+        actorUserId: null,
         action: shouldPersistLocation
           ? "external_intake.location.attached"
           : `external_intake.location.${consentState.toLowerCase()}`,
-        category: "external_intake",
-        severity: "info",
-        source: "intake_link",
-        outcome: shouldPersistLocation ? "success" : "skipped",
+        outcome: "success",
+        sourceApp: "API",
+        workspaceId: evidence.teamId,
         resourceType: "evidence",
         resourceId: evidence.id,
         metadata: {
@@ -827,6 +824,7 @@ export async function submitExternalIntake(
           consentState,
           accuracyBand: accuracyBand(coords?.accuracyMeters ?? null),
           source: input.location?.source ?? null,
+          locationPersisted: shouldPersistLocation,
         },
       });
     } catch {

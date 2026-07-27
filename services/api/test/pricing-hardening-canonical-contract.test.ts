@@ -221,8 +221,11 @@ describe("billing-enforcement guards (API)", () => {
     expect(text).toContain("EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED");
   });
 
-  it("honours legacyRecordCapOverride on the lifetime path", () => {
-    expect(text).toContain("legacyRecordCapOverride");
+  it("honours the grandfather cap via the canonical envelope (§9.7 fold)", () => {
+    // The raw override is interpreted ONLY inside resolveCommercialContext;
+    // enforcement consumes the envelope-resolved commercialLimits.
+    expect(text).not.toMatch(/scope\.legacyRecordCapOverride/);
+    expect(text).toContain("commercialLimits?.effectiveLifetimeRecordCap");
     expect(text).toContain("effectiveLifetimeCap");
   });
 
@@ -266,7 +269,8 @@ describe("AI route wiring", () => {
   for (const fn of [
     "assertWorkspaceAllowsAiOperation",
     "recordWorkspaceAiOperation",
-    "getPersonalWorkspaceScope",
+    // §9.7 — AI scope now flows through the canonical commercial envelope.
+    "resolveCommercialContext",
   ]) {
     it(`imports ${fn}`, () => {
       expect(text).toContain(fn);

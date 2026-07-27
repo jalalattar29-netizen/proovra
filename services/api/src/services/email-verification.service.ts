@@ -25,6 +25,8 @@ import {
   findUnverifiedEmailUserByEmail,
   type ConsumeEmailVerificationTokenResult,
 } from "./email-password-auth.service.js";
+// PHASE 11 — canonical internal URL builder.
+import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 
 // Spec floor: 1 verification email per address per 60 seconds. Layered
 // on top of the per-IP bucket so a rotating-IP attacker still cannot
@@ -39,7 +41,12 @@ function getWebBase(): string {
 }
 
 function buildVerifyUrl(rawToken: string): string {
-  return `${getWebBase()}/auth/verify-email?token=${encodeURIComponent(rawToken)}`;
+  // PHASE 11 — /auth/verify-email is a nav path (query-carried token,
+  // not a resource id), composed via internalNavPath.
+  return absoluteInternalUrl(
+    getWebBase(),
+    internalNavPath(`/auth/verify-email?token=${encodeURIComponent(rawToken)}`),
+  );
 }
 
 export type DispatchVerificationOutcome = {

@@ -132,7 +132,11 @@ describe("Phase 32.8D-frontend-closure-2 — legacy Evidence.caseId unlink", () 
 
   it("legacy unlink emits an audit log with cases.legacy_evidence_unlinked", () => {
     expect(LIFECYCLE).toMatch(/cases\.legacy_evidence_unlinked/);
-    expect(LIFECYCLE).toMatch(/category:\s*['"]cases\.lifecycle['"]/);
+    // PHASE 11 §3 Batch A — migrated onto the canonical tenant-audit
+    // facade; workspace is now an authoritative DB column, not a
+    // free-form "cases.lifecycle" category string.
+    expect(LIFECYCLE).toMatch(/emitTenantAudit/);
+    expect(LIFECYCLE).toMatch(/workspaceId:\s*evidence\.teamId/);
   });
 
   it("legacy unlink emits no custody/download events / no signed URLs / no generation", () => {

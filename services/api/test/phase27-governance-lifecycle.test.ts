@@ -531,7 +531,9 @@ describe("Phase 27 — Service source wiring", () => {
     expect(src).toContain("retention_policy_created_total");
     expect(src).toContain("retention_policy_updated_total");
     expect(src).toContain("retention_policy_superseded_total");
-    expect(src).toContain("appendPlatformAuditLog");
+    // PHASE 11 §3 Batch C — migrated off appendPlatformAuditLog onto the
+    // canonical emitTenantAudit facade (writes category "tenant_audit").
+    expect(src).toContain("emitTenantAudit");
   });
 
   it("destruction-review service is hold-aware via the orchestrator preflight", () => {

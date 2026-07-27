@@ -31,10 +31,10 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-// Phase 4 — wire audit emission via the canonical platform audit log.
+// Phase 4 — wire audit emission via the canonical tenant-audit facade.
 // `.catch(() => {})` keeps emission best-effort so audit failure cannot
 // roll back the primary QC mutation.
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 
 const DEFAULT_QC_SAMPLE_PERCENT = 5;
 
@@ -99,18 +99,15 @@ export async function sampleClosedWorkflow(input: {
   // sample row was created (not on the short-circuit path) so the
   // operator audit trail mirrors the actual sampling event. Bounded
   // metadata: only IDs and the optional decision enum context.
-  await appendPlatformAuditLog({
-    userId: null,
-    isPublic: true,
+  await emitTenantAudit({
     action: "reviewer.qc.sampled",
-    category: "review",
-    severity: "info",
-    source: "reviewer_workspace.qc_sample",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: null,
+    workspaceId: input.teamId,
     resourceType: "qc_sample",
     resourceId: row.id,
     metadata: {
-      teamId: input.teamId,
       workflowId: input.workflowId,
       sampleId: row.id,
       decision: input.decision ?? null,
@@ -188,17 +185,16 @@ export async function renderQcVerdict(input: {
   // and the bounded verdict + failureReason enums. Raw rationale
   // bodies are intentionally NOT included (could leak sensitive
   // reviewer commentary into the platform audit chain).
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "reviewer.qc.verdict_rendered",
-    category: "review",
-    severity: input.verdict === "FAIL" ? "warning" : "info",
-    source: "reviewer_workspace.qc_sample",
     outcome: "success",
+    severity: input.verdict === "FAIL" ? "warning" : "info",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "qc_sample",
     resourceId: row.id,
     metadata: {
-      teamId: input.teamId,
       sampleId: row.id,
       verdict: input.verdict,
       failureReason: input.failureReason ?? null,

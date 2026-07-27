@@ -35,6 +35,8 @@ type AuditRowForVerify = {
   outcome: string | null;
   resourceType: string | null;
   resourceId: string | null;
+  organizationId: string | null;
+  workspaceId: string | null;
   requestId: string | null;
   metadata: Prisma.JsonValue;
   hash: string;
@@ -144,6 +146,10 @@ export type AppendPlatformAuditParams = {
   outcome?: string | null;
   resourceType?: string | null;
   resourceId?: string | null;
+  /** PHASE 11 — authoritative tenant columns (populated ONLY by the canonical
+   * tenant-audit facade; enable DB-level scope filtering). Not part of the hash. */
+  organizationId?: string | null;
+  workspaceId?: string | null;
   requestId?: string | null;
   metadata: unknown;
   ipAddress?: string | null;
@@ -189,8 +195,12 @@ export async function appendPlatformAuditLog(
       sanitized as Prisma.JsonValue
     );
 
+    // PHASE 11 §1 — V3 binds the authoritative tenant scope columns into the
+    // hash. V3 is the ONLY new write format; historical V1/V2 rows are untouched.
+    const organizationId = params.organizationId ?? null;
+    const workspaceId = params.workspaceId ?? null;
     const hash = computeAuditLogChainHash({
-      chainVersion: 2,
+      chainVersion: 3,
       userId,
       action,
       category,
@@ -199,6 +209,8 @@ export async function appendPlatformAuditLog(
       outcome,
       resourceType,
       resourceId,
+      organizationId,
+      workspaceId,
       requestId,
       metadataCanonical,
       createdAtIso: createdAt.toISOString(),
@@ -222,7 +234,9 @@ export async function appendPlatformAuditLog(
         userAgent: truncateUa(params.userAgent ?? undefined, 512),
         hash,
         prevHash: last?.hash ?? null,
-        chainVersion: 2,
+        chainVersion: 3,
+        organizationId,
+        workspaceId,
         createdAt,
       },
     });
@@ -232,9 +246,29 @@ export async function appendPlatformAuditLog(
 function computeExpectedHashForRow(
   row: AuditRowForVerify,
   previousHash: string | null,
-  version: 1 | 2
+  version: 1 | 2 | 3
 ): string {
   const metadataCanonical = canonicalJsonForAuditHash(row.metadata);
+
+  if (version === 3) {
+    return computeAuditLogChainHash({
+      chainVersion: 3,
+      userId: row.userId,
+      action: row.action,
+      category: row.category,
+      severity: row.severity,
+      source: row.source,
+      outcome: row.outcome,
+      resourceType: row.resourceType,
+      resourceId: row.resourceId,
+      organizationId: row.organizationId ?? null,
+      workspaceId: row.workspaceId ?? null,
+      requestId: row.requestId,
+      metadataCanonical,
+      createdAtIso: row.createdAt.toISOString(),
+      prevHash: previousHash,
+    });
+  }
 
   if (version === 2) {
     return computeAuditLogChainHash({
@@ -280,7 +314,7 @@ function verifyOrderedRows(
     const expected = computeExpectedHashForRow(
       row,
       previousHash,
-      row.chainVersion === 2 ? 2 : 1
+      row.chainVersion === 3 ? 3 : row.chainVersion === 2 ? 2 : 1
     );
 
     if (expected !== row.hash) {
@@ -318,6 +352,8 @@ export async function verifyAdminAuditChain(options?: {
     outcome: true,
     resourceType: true,
     resourceId: true,
+    organizationId: true,
+    workspaceId: true,
     requestId: true,
     metadata: true,
     hash: true,
@@ -393,6 +429,8 @@ export async function repairAdminAuditChainVersions(options?: {
       outcome: true,
       resourceType: true,
       resourceId: true,
+      organizationId: true,
+      workspaceId: true,
       requestId: true,
       metadata: true,
       hash: true,
@@ -534,6 +572,8 @@ export async function listAdminAuditLogs(params: {
       outcome: true,
       resourceType: true,
       resourceId: true,
+      organizationId: true,
+      workspaceId: true,
       requestId: true,
       metadata: true,
       ipAddress: true,

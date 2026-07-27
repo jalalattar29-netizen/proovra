@@ -189,13 +189,16 @@ describe("Phase G3 — presence routes registered", () => {
     );
   });
 
-  it("workspace-membership gate on both endpoints (404 for non-members)", () => {
+  it("workspace-membership gate on both endpoints (canonical primitive, 404 for non-members)", () => {
+    // PHASE 1 (2026-07-21): presence routes through the canonical primitive
+    // (authorizeOrFail with antiEnumeration), which enforces ACTIVE membership
+    // + org lifecycle and returns 404 for non-members / cross-tenant probes.
     const heartbeatHandler = PRESENCE_ROUTES.match(
       /presence\/heartbeat[\s\S]*?\}\s*,\s*\)\s*;/,
     );
     expect(heartbeatHandler).toBeTruthy();
-    expect(heartbeatHandler![0]).toMatch(/teamMember\.findUnique/);
-    expect(heartbeatHandler![0]).toMatch(/reply\.code\(404\)/);
+    expect(heartbeatHandler![0]).toMatch(/authorizeOrFail\(/);
+    expect(heartbeatHandler![0]).toMatch(/antiEnumeration:\s*true/);
   });
 
   it("excludes the caller from the returned viewer list", () => {

@@ -25,7 +25,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
@@ -208,14 +208,17 @@ export async function adminContactSalesRoutes(app: FastifyInstance) {
         },
       });
 
-      await appendPlatformAuditLog({
-        userId: userId ?? null,
+      await emitPlatformAudit({
         action: "ADMIN_CONTACT_SALES_UPDATE",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: userId ?? null,
         resourceType: "contact_sales_request",
         resourceId: existing.id,
-        ipAddress: req.ip ?? null,
-        userAgent: readUserAgent(req) ?? null,
+        correlationId: req.id,
         metadata: {
+          ipAddress: req.ip ?? null,
+          userAgent: readUserAgent(req) ?? null,
           previous: {
             status: existing.status,
             priority: existing.priority,

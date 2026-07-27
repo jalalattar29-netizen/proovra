@@ -5,7 +5,7 @@ import { getEvidenceSigner } from "../signing/signer.js";
 import {
   assertWorkspaceAllowsStorageGrowth,
   consumeWorkspaceCompletionCredits,
-  resolveWorkspaceScopeForUser,
+  resolveEnforcementScopeForRequester,
 } from "./billing-enforcement.service.js";
 import {
   applyDefaultObjectRetention,
@@ -475,7 +475,7 @@ export async function completeEvidence(params: {
         throw err;
       }
 
-      const scope = await resolveWorkspaceScopeForUser({
+      const scope = await resolveEnforcementScopeForRequester({
         ownerUserId: evidence.ownerUserId,
         teamId: evidence.teamId ?? null,
       });

@@ -28,9 +28,11 @@
  */
 
 import { prisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { evaluateOrganizationClosurePreflight } from "../identity/account-lifecycle-preflight.service.js";
 import { emitOrgAuditEvent } from "./org-audit.service.js";
+// PHASE 3 (2026-07-22) — canonical membership orchestrator.
+import { massRevokeWorkspaceMemberships } from "../identity/membership-provisioning.service.js";
 
 export const ORG_CLOSURE_COOLING_OFF_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const PROCESS_BATCH = 3;
@@ -51,6 +53,24 @@ export const CANCELLABLE_ORG_CLOSURE_STATUSES = [
   "SCHEDULED",
 ] as const;
 
+/**
+ * PROGRAM CONVERGENCE (2026-07-22) — the ONE tx-scoped Organization→ARCHIVED
+ * status transition. Both closure engines (org closure below, account closure
+ * for solo implicit personal orgs) compose this instead of writing
+ * `organization.update({ status: "ARCHIVED" })` themselves, so the archive
+ * write has exactly one implementation (enforced by the program architecture
+ * registry).
+ */
+export async function archiveOrganizationStatusTx(
+  tx: { organization: { update: (args: { where: { id: string }; data: { status: "ARCHIVED" } }) => Promise<unknown> } },
+  input: { organizationId: string },
+): Promise<void> {
+  await tx.organization.update({
+    where: { id: input.organizationId },
+    data: { status: "ARCHIVED" },
+  });
+}
+
 export async function executeOrganizationClosure(input: {
   organizationId: string;
   requestedByUserId: string;
@@ -67,16 +87,14 @@ export async function executeOrganizationClosure(input: {
 
     // Archive — checkOrgAccess denies ARCHIVED orgs, so this single
     // status flip is the access cutover for every org surface.
-    await tx.organization.update({
-      where: { id: organizationId },
-      data: { status: "ARCHIVED" },
-    });
+    await archiveOrganizationStatusTx(tx, { organizationId });
 
     if (teamIds.length > 0) {
-      // Workspace memberships: deactivate, never erase.
-      await tx.teamMember.updateMany({
-        where: { teamId: { in: teamIds }, status: "ACTIVE" },
-        data: { status: "REVOKED" },
+      // PHASE 3 — canonical orchestrator: organization-closure mass
+      // revocation (deactivate, never erase; provenance closed).
+      await massRevokeWorkspaceMemberships(tx, {
+        where: { teamIds },
+        reason: "organization closure",
       });
 
       // Machine access never outlives the organization.
@@ -142,13 +160,14 @@ export async function processOrganizationClosures(now: Date): Promise<void> {
         where: { id: req.id, status: req.status },
         data: { status: "BLOCKED", blockersJson: JSON.stringify(blockers) },
       });
-      await appendPlatformAuditLog({
-        userId: req.requestedByUserId,
+      await emitTenantAudit({
         action: "identity.organization_closure_blocked",
-        category: "identity.lifecycle",
-        severity: "warning",
-        source: "org_closure_worker",
         outcome: "denied",
+        denialReason: "closure_blocked",
+        sourceApp: "API",
+        actorUserId: req.requestedByUserId,
+        serviceActor: "org_closure_worker",
+        organizationId: req.organizationId,
         resourceType: "organization_closure_request",
         resourceId: req.id,
         metadata: { blockers: blockers.map((b) => b.code) },
@@ -171,16 +190,16 @@ export async function processOrganizationClosures(now: Date): Promise<void> {
         where: { id: req.id },
         data: { status: "COMPLETED", completedAtUtc: new Date() },
       });
-      await appendPlatformAuditLog({
-        userId: req.requestedByUserId,
+      await emitTenantAudit({
         action: "identity.organization_closure_completed",
-        category: "identity.lifecycle",
-        severity: "warning",
-        source: "org_closure_worker",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: req.requestedByUserId,
+        serviceActor: "org_closure_worker",
+        organizationId: req.organizationId,
         resourceType: "organization_closure_request",
         resourceId: req.id,
-        metadata: { organizationId: req.organizationId },
+        metadata: {},
       }).catch(() => null);
     } catch {
       await prisma.organizationClosureRequest
@@ -189,13 +208,13 @@ export async function processOrganizationClosures(now: Date): Promise<void> {
           data: { status: "FAILED", failureCode: "closure_failed" },
         })
         .catch(() => null);
-      await appendPlatformAuditLog({
-        userId: req.requestedByUserId,
+      await emitTenantAudit({
         action: "identity.organization_closure_failed",
-        category: "identity.lifecycle",
-        severity: "error",
-        source: "org_closure_worker",
-        outcome: "failure",
+        outcome: "error",
+        sourceApp: "API",
+        actorUserId: req.requestedByUserId,
+        serviceActor: "org_closure_worker",
+        organizationId: req.organizationId,
         resourceType: "organization_closure_request",
         resourceId: req.id,
         metadata: { failureCode: "closure_failed" },

@@ -33,7 +33,7 @@ import type { SessionRevocationReason } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { resolveSecret } from "../../config/index.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
 const SID_HASH_SECRET_ENV = "IDENTITY_SECURITY_HASH_SECRET";
@@ -94,24 +94,19 @@ export async function revokeSession(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.actorUserId ?? input.userId,
+  await emitTenantAudit({
     action: "identity_security.session.revoke",
-    category: "identity_security.sessions",
-    severity: "info",
-    source: "identity_security_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId ?? input.userId,
+    workspaceId: input.teamId ?? null,
     resourceType: "revoked_session",
     resourceId: row.id,
     metadata: {
-      teamId: input.teamId ?? null,
       subjectUserId: input.userId,
       reason: input.reason,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return row;
 }
 
@@ -153,24 +148,19 @@ export async function revokeAllSessionsForUser(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.actorUserId ?? input.userId,
+  await emitTenantAudit({
     action: "identity_security.session.revoke_all",
-    category: "identity_security.sessions",
-    severity: "warning",
-    source: "identity_security_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId ?? input.userId,
+    workspaceId: input.teamId ?? null,
     resourceType: "user",
     resourceId: input.userId,
     metadata: {
-      teamId: input.teamId ?? null,
       reason: input.reason,
       revokedBeforeIat: now,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return row;
 }
 

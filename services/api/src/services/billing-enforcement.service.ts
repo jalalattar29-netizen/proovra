@@ -2,16 +2,14 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { consumeCredits } from "./billing.service.js";
 import { getPlanCapabilities } from "./plan-catalog.service.js";
-import {
-  getPersonalWorkspaceScope,
-  getTeamWorkspaceScope,
-  type WorkspaceScope,
-} from "./workspace-billing.service.js";
+// §9.7 — the enforcement chokepoint consumes the canonical commercial
+// envelope (explicit subjects); this file no longer calls the scope adapter.
+import { type WorkspaceScope } from "./workspace-billing.service.js";
+import { resolveCommercialContext } from "./billing/commercial-context.service.js";
 import {
   assertWorkspaceStorageAvailable,
   getWorkspaceUsage,
 } from "./workspace-usage.service.js";
-import { isInternalUnlimitedTester } from "./internal-testers.js";
 
 type EntitlementWriter = Pick<prismaPkg.Prisma.TransactionClient, "entitlement">;
 
@@ -21,18 +19,30 @@ type EntitlementWriter = Pick<prismaPkg.Prisma.TransactionClient, "entitlement">
  * userId (sourced from `getAuthUserId(req)` against the verified JWT in
  * `middleware/auth.ts`) — NEVER from a request body, header, or query
  * string. The requester's email is looked up server-side from the
- * `users` table and attached to `scope.authenticatedUserEmail`, which
- * the internal-tester bypass helper (`services/internal-testers.ts`)
- * reads to short-circuit limit assertions for a tiny QA allow-list.
+ * `users` table for observability metadata only — NO commercial bypass
+ * exists (the email-based limit bypass was REMOVED in the Phase 9 final
+ * closure; limits are canonical for every account, internal or customer).
  */
-export async function resolveWorkspaceScopeForUser(params: {
+export async function resolveEnforcementScopeForRequester(params: {
   ownerUserId: string;
   teamId?: string | null;
 }): Promise<WorkspaceScope> {
-  const [scope, requesterUser] = await Promise.all([
-    params.teamId
-      ? getTeamWorkspaceScope(params.teamId)
-      : getPersonalWorkspaceScope(params.ownerUserId),
+  // §9.7 (2026-07-22) — the enforcement chokepoint consumes the CANONICAL
+  // COMMERCIAL ENVELOPE with an EXPLICIT subject (workspace-by-persisted-id
+  // when a teamId is targeted, else the requester's personal account). The
+  // envelope's resolved limits travel on the scope so every assert below
+  // reads envelope-interpreted values — this file makes no raw override
+  // interpretation.
+  const [ctx, requesterUser] = await Promise.all([
+    resolveCommercialContext(
+      params.teamId
+        ? {
+            type: "WORKSPACE",
+            teamId: params.teamId,
+            requesterUserId: params.ownerUserId,
+          }
+        : { type: "PERSONAL_ACCOUNT", userId: params.ownerUserId },
+    ),
     prisma.user.findUnique({
       where: { id: params.ownerUserId },
       select: { email: true },
@@ -40,26 +50,39 @@ export async function resolveWorkspaceScopeForUser(params: {
   ]);
 
   return {
-    ...scope,
+    ...ctx.scope,
+    commercialLimits: ctx.limits,
+    commercialLifecycle: {
+      state: ctx.lifecycle.state,
+      paidActive: ctx.lifecycle.paidActive,
+      mutationsAllowed: ctx.lifecycle.mutationsAllowed,
+      graceEndsAtUtc: ctx.lifecycle.graceEndsAtUtc,
+    },
     authenticatedUserEmail: requesterUser?.email ?? null,
   };
 }
 
 /**
- * INTERNAL TESTING BYPASS — single chokepoint.
- *
- * Returns `true` when the scope's authenticated requester is on the
- * internal-tester allow-list (`services/internal-testers.ts`). Every
- * `assertWorkspaceAllows*` / `consumeWorkspaceCompletionCredits` entry
- * point in this file calls this FIRST and early-returns when true, so
- * customer billing logic, plan capabilities, and limit errors remain
- * intact for everyone else. `scope.authenticatedUserEmail` is populated
- * server-side by `resolveWorkspaceScopeForUser` above — clients cannot
- * influence the value.
+ * §9.5 — the ONE lifecycle gate for paid mutations. Called at the top of
+ * every paid-mutation assert: an envelope-resolved lifecycle that denies
+ * mutations (bounded grace expired, cancelled past paid-through, ambiguous
+ * provider rows, PAST_DUE without a trustworthy clock) fails closed with a
+ * stable code. Evidence/custody/legal-hold READ paths never call this.
  */
-function shouldBypassForInternalTester(scope: WorkspaceScope): boolean {
-  return isInternalUnlimitedTester(scope.authenticatedUserEmail);
+function assertCommercialLifecycleAllowsPaidMutation(
+  scope: WorkspaceScope,
+): void {
+  const life = scope.commercialLifecycle;
+  if (life && !life.mutationsAllowed) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "The workspace's subscription is not in a state that allows new paid operations."
+    );
+    err.statusCode = 402;
+    err.code = "COMMERCIAL_LIFECYCLE_RESTRICTED";
+    throw err;
+  }
 }
+
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -75,18 +98,19 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
  *                 non-deleted Evidence.createdAt history. No lifetime cap.
  *   ENTERPRISE  — no record cap (custom; Sales-provisioned).
  *
- * The legacy override is sourced from `Entitlement.legacyRecordCapOverride`
- * and projected onto `scope.legacyRecordCapOverride` by
- * `workspace-billing.service`. When set on a PRO account it replaces the
- * lifetime cap, grandfathering accounts that already exceeded 100 records
- * at migration time. New creation is blocked above the override, never
- * below; existing records remain accessible.
+ * §9.7 — the legacy grandfather override is interpreted EXCLUSIVELY by the
+ * canonical envelope (`resolveCommercialContext(...).limits`), attached to
+ * the scope at the enforcement chokepoint as `commercialLimits`. When set on
+ * a PRO account the envelope substitutes the lifetime cap, grandfathering
+ * accounts that already exceeded 100 records at migration time. New creation
+ * is blocked above the override, never below; existing records remain
+ * accessible. This file never reads the raw override field.
  */
 export async function assertWorkspaceAllowsEvidenceCreation(
   scope: WorkspaceScope
 ) {
-  // Internal testing bypass — see services/internal-testers.ts.
-  if (shouldBypassForInternalTester(scope)) return;
+  // §9.5 — bounded-lifecycle gate (fail closed when grace expired/cancelled/ambiguous).
+  assertCommercialLifecycleAllowsPaidMutation(scope);
   const caps = getPlanCapabilities(scope.plan);
 
   if (scope.workspaceType === "TEAM" && !caps.allowsTeamWorkspace) {
@@ -161,13 +185,14 @@ export async function assertWorkspaceAllowsEvidenceCreation(
     },
   });
 
-  // Effective lifetime cap: legacy override if set, else plan default.
+  // §9.7 — the effective lifetime cap is resolved by the CANONICAL ENVELOPE
+  // (`resolveCommercialContext(...).limits`, attached at the enforcement
+  // chokepoint). This file no longer interprets the raw grandfather
+  // override; a scope that did not travel through the envelope gets the
+  // plan default (absence of an envelope value is not an override).
   const planLifetimeCap = caps.maxEvidenceRecords;
   const effectiveLifetimeCap =
-    scope.legacyRecordCapOverride !== null &&
-    scope.legacyRecordCapOverride !== undefined
-      ? scope.legacyRecordCapOverride
-      : planLifetimeCap;
+    scope.commercialLimits?.effectiveLifetimeRecordCap ?? planLifetimeCap;
 
   const creditsRequired = caps.paygCreditsRequiredPerCompletion ?? 0;
   const availableCredits = scope.credits ?? 0;
@@ -221,14 +246,12 @@ export async function assertWorkspaceAllowsStorageGrowth(params: {
   scope: WorkspaceScope;
   incomingBytes?: bigint | number | null;
 }) {
-  // Internal testing bypass — see services/internal-testers.ts.
-  if (shouldBypassForInternalTester(params.scope)) return;
   return assertWorkspaceStorageAvailable(params);
 }
 
 export async function assertWorkspaceAllowsReport(scope: WorkspaceScope) {
-  // Internal testing bypass — see services/internal-testers.ts.
-  if (shouldBypassForInternalTester(scope)) return;
+  // §9.5 — bounded-lifecycle gate (fail closed when grace expired/cancelled/ambiguous).
+  assertCommercialLifecycleAllowsPaidMutation(scope);
   const caps = getPlanCapabilities(scope.plan);
 
   if (!caps.reportsIncluded) {
@@ -252,7 +275,8 @@ export async function assertWorkspaceAllowsReport(scope: WorkspaceScope) {
  * as the report/package guards (409 + stable code).
  */
 export async function assertWorkspaceAllowsIntake(scope: WorkspaceScope) {
-  if (shouldBypassForInternalTester(scope)) return;
+  // §9.5 — bounded-lifecycle gate (fail closed when grace expired/cancelled/ambiguous).
+  assertCommercialLifecycleAllowsPaidMutation(scope);
   const caps = getPlanCapabilities(scope.plan);
 
   if (!caps.intakeIncluded) {
@@ -268,8 +292,8 @@ export async function assertWorkspaceAllowsIntake(scope: WorkspaceScope) {
 export async function assertWorkspaceAllowsVerificationPackage(
   scope: WorkspaceScope
 ) {
-  // Internal testing bypass — see services/internal-testers.ts.
-  if (shouldBypassForInternalTester(scope)) return;
+  // §9.5 — bounded-lifecycle gate (fail closed when grace expired/cancelled/ambiguous).
+  assertCommercialLifecycleAllowsPaidMutation(scope);
   const caps = getPlanCapabilities(scope.plan);
 
   if (!caps.verificationPackageIncluded) {
@@ -286,8 +310,6 @@ export async function assertWorkspaceAllowsReportStorage(params: {
   scope: WorkspaceScope;
   incomingBytes?: bigint | number | null;
 }) {
-  // Internal testing bypass — see services/internal-testers.ts.
-  if (shouldBypassForInternalTester(params.scope)) return;
   await assertWorkspaceAllowsReport(params.scope);
   return assertWorkspaceStorageAvailable({
     scope: params.scope,
@@ -299,8 +321,6 @@ export async function assertWorkspaceAllowsVerificationPackageStorage(params: {
   scope: WorkspaceScope;
   incomingBytes?: bigint | number | null;
 }) {
-  // Internal testing bypass — see services/internal-testers.ts.
-  if (shouldBypassForInternalTester(params.scope)) return;
   await assertWorkspaceAllowsVerificationPackage(params.scope);
   return assertWorkspaceStorageAvailable({
     scope: params.scope,
@@ -319,10 +339,7 @@ export async function consumeWorkspaceCompletionCredits(
   scope: WorkspaceScope,
   tx?: EntitlementWriter
 ) {
-  // Internal testing bypass — see services/internal-testers.ts. Skips
-  // credit deduction entirely for the allow-listed QA account so
-  // completion flows are unmetered during development.
-  if (shouldBypassForInternalTester(scope)) return;
+  assertCommercialLifecycleAllowsPaidMutation(scope);
   const caps = getPlanCapabilities(scope.plan);
   const required = caps.paygCreditsRequiredPerCompletion;
 
@@ -410,8 +427,8 @@ async function resolveAiUsageTenantId(
 export async function assertWorkspaceAllowsAiOperation(
   scope: WorkspaceScope,
 ): Promise<void> {
-  // Internal testing bypass — see services/internal-testers.ts.
-  if (shouldBypassForInternalTester(scope)) return;
+  // §9.5 — bounded-lifecycle gate (fail closed when grace expired/cancelled/ambiguous).
+  assertCommercialLifecycleAllowsPaidMutation(scope);
   const caps = getPlanCapabilities(scope.plan);
   const cap = caps.aiAdvisoryMonthlyOperations;
 

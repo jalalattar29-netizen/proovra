@@ -386,11 +386,11 @@ test("seats card has a contact-sales CTA and no self-serve checkout", () => {
 // ===========================================================================
 
 test("backend member removal deletes the MEMBERSHIP row, never the user", () => {
-  // The DELETE members handler removes organizationMembership, not user.
-  assert.match(
-    ORG_ROUTES,
-    /organizationMembership\.delete\(\{\s*where:\s*\{\s*id:\s*target\.id\s*\}\s*\}\)/,
-  );
+  // PHASE 3 (2026-07-22) — membership removal now flows through the
+  // canonical orchestrator (`removeOrganizationMembership`), which closes
+  // provenance then deletes the OrganizationMembership row (never the
+  // user). The invariant is unchanged; the call site is canonical.
+  assert.match(ORG_ROUTES, /removeOrganizationMembership\(/);
   // The DELETE members handler must NOT delete a user record.
   const deleteMembersBlock = ORG_ROUTES.slice(
     ORG_ROUTES.indexOf("DELETE /v1/orgs/:id/members/:memberId"),

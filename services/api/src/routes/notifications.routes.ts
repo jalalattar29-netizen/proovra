@@ -27,8 +27,8 @@ import {
   NOTIFICATION_PROVIDERS,
 } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireNotificationCronSecret } from "../middleware/cron-secret.js";
 import {
@@ -58,13 +58,24 @@ async function requireMember(
   reply: FastifyReply,
   teamId: string,
 ): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
+  // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization
+  // (ACTIVE membership + org lifecycle + notification.delivery.read + fail-
+  // closed + anti-enumeration) BEFORE the surface-specific business rules
+  // below (org-only + OWNER/ADMIN). The informational read then enforces
+  // those rules.
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission: "notification.delivery.read",
+    antiEnumeration: true,
+  });
+  if (!outcome) return null;
+  const userId = outcome.actorUserId;
   const membership = await prisma.teamMember.findUnique({
     where: { teamId_userId: { teamId, userId } },
     select: { role: true, team: { select: { isPersonal: true } } },
   });
   if (!membership) {
-    reply.code(403).send({ message: "Not a member of the workspace" });
+    reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
   if (membership.team?.isPersonal === true) {

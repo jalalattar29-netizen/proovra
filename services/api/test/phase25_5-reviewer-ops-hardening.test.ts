@@ -117,7 +117,7 @@ describe("Phase 25.5 — bulk triage service", () => {
   it("bulk metric + audit emitted at the outer level (not per row)", () => {
     expect(src).toMatch(/reviewer_bulk_action_total/);
     expect(src).toMatch(/reviewer_bulk_triage_executed/);
-    expect(src).toMatch(/appendPlatformAuditLog\(/);
+    expect(src).toMatch(/emitTenantAudit\(/);
   });
 
   it("priority change writes a field update (no lifecycle transition)", () => {

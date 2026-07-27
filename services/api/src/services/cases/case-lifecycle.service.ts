@@ -12,7 +12,7 @@
  *
  * Hard rules:
  *   - Active legal hold blocks transitions to CLOSED or ARCHIVED.
- *   - Every action writes an audit log row via appendPlatformAuditLog
+ *   - Every action writes a canonical tenant-audit row via emitTenantAudit
  *     AND a CaseStatusHistory row where applicable.
  *   - No bypass of underlying governance/report/package permissions.
  *   - Bounded operator-safe strings.
@@ -22,7 +22,7 @@ import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 
 export type CaseErrorCode =
   | "case_not_found"
@@ -201,28 +201,28 @@ export async function changeCaseStatus(
     }
   }
 
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "cases.status_changed",
-    category: "cases.lifecycle",
-    severity: "info",
-    source: "case_lifecycle_service",
-    outcome: "success",
-    resourceType: "case",
-    resourceId: existing.id,
-    metadata: {
-      teamId: existing.teamId,
-      fromStatus: from,
-      toStatus: input.toStatus,
-      // Phase 2.4 — surface the cascade for SOC + audit consumers.
-      // `-1` indicates the cascade failed; `0` indicates no
-      // assignments existed to cascade.
-      cascadedAssignmentCount,
+  await emitTenantAudit(
+    {
+      action: "cases.status_changed",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: existing.teamId,
+      resourceType: "case",
+      resourceId: existing.id,
+      metadata: {
+        fromStatus: from,
+        toStatus: input.toStatus,
+        // Phase 2.4 — surface the cascade for SOC + audit consumers.
+        // `-1` indicates the cascade failed; `0` indicates no
+        // assignments existed to cascade.
+        cascadedAssignmentCount,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+    client,
+  );
 
   // Phase CASE-ARCHIVE-RESTORE — dedicated `cases.restored` audit
   // event on the restore transition (ARCHIVED → OPEN). Emitted in
@@ -232,32 +232,31 @@ export async function changeCaseStatus(
   //   - A targeted query for `action: "cases.restored"` surfaces
   //     ONLY restorations without scanning every status mutation
   //     for the `fromStatus === "ARCHIVED"` predicate.
-  // Same `appendPlatformAuditLog` infrastructure — no parallel
+  // Same canonical `emitTenantAudit` facade — no parallel
   // logging system, no schema change.
   // Phase CASES-PERSONAL-UX-CLEANUP — restore target is now OPEN
   // (was CLOSED). The trigger condition is updated accordingly.
   if (from === "ARCHIVED" && input.toStatus === "OPEN") {
-    await appendPlatformAuditLog({
-      userId: input.actorUserId,
-      action: "cases.restored",
-      category: "cases.lifecycle",
-      severity: "info",
-      source: "case_lifecycle_service",
-      outcome: "success",
-      resourceType: "case",
-      resourceId: existing.id,
-      metadata: {
-        teamId: existing.teamId,
-        caseId: existing.id,
+    await emitTenantAudit(
+      {
+        action: "cases.restored",
+        outcome: "success",
+        sourceApp: "API",
         actorUserId: input.actorUserId,
-        previousStatus: from,
-        restoredStatus: input.toStatus,
-        reason: input.reason ? input.reason.slice(0, 400) : null,
+        workspaceId: existing.teamId,
+        resourceType: "case",
+        resourceId: existing.id,
+        metadata: {
+          caseId: existing.id,
+          previousStatus: from,
+          restoredStatus: input.toStatus,
+          reason: input.reason ? input.reason.slice(0, 400) : null,
+          ipAddress: input.ipAddress ?? null,
+          userAgent: input.userAgent ?? null,
+        },
       },
-      ipAddress: input.ipAddress ?? null,
-      userAgent: input.userAgent ?? null,
-      db: client,
-    });
+      client,
+    );
   }
   return updated;
 }
@@ -333,25 +332,25 @@ export async function addCaseAssignment(
       },
     });
   }
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "cases.assignment_added",
-    category: "cases.lifecycle",
-    severity: "info",
-    source: "case_lifecycle_service",
-    outcome: "success",
-    resourceType: "case_assignment",
-    resourceId: row.id,
-    metadata: {
-      teamId: existing.teamId,
-      caseId: existing.id,
-      assignedToUserId: input.assignedToUserId,
-      role: input.role,
+  await emitTenantAudit(
+    {
+      action: "cases.assignment_added",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: existing.teamId,
+      resourceType: "case_assignment",
+      resourceId: row.id,
+      metadata: {
+        caseId: existing.id,
+        assignedToUserId: input.assignedToUserId,
+        role: input.role,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+    client,
+  );
   return row;
 }
 
@@ -371,25 +370,25 @@ export async function removeCaseAssignment(
       removedByUserId: input.actorUserId,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "cases.assignment_removed",
-    category: "cases.lifecycle",
-    severity: "info",
-    source: "case_lifecycle_service",
-    outcome: "success",
-    resourceType: "case_assignment",
-    resourceId: row.id,
-    metadata: {
-      teamId: existing.teamId,
-      caseId: input.caseId,
-      assignedToUserId: existing.assignedToUserId,
-      role: existing.role,
+  await emitTenantAudit(
+    {
+      action: "cases.assignment_removed",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: existing.teamId,
+      resourceType: "case_assignment",
+      resourceId: row.id,
+      metadata: {
+        caseId: input.caseId,
+        assignedToUserId: existing.assignedToUserId,
+        role: existing.role,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+    client,
+  );
   return row;
 }
 
@@ -450,24 +449,24 @@ export async function addCaseComment(
       }
     })();
   }
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "cases.comment_added",
-    category: "cases.lifecycle",
-    severity: "info",
-    source: "case_lifecycle_service",
-    outcome: "success",
-    resourceType: "case_comment",
-    resourceId: row.id,
-    metadata: {
-      teamId: existing.teamId,
-      caseId: existing.id,
-      visibility: row.visibility,
+  await emitTenantAudit(
+    {
+      action: "cases.comment_added",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: existing.teamId,
+      resourceType: "case_comment",
+      resourceId: row.id,
+      metadata: {
+        caseId: existing.id,
+        visibility: row.visibility,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+    client,
+  );
   return row;
 }
 
@@ -489,7 +488,7 @@ export async function addCaseComment(
  *   - Returns `comment_not_found` for unknown ids OR ids that
  *     belong to a different case (anti-enumeration).
  *   - Writes a `cases.comment_deleted` audit log row with the
- *     existing `appendPlatformAuditLog` infrastructure.
+ *     existing canonical `emitTenantAudit` facade.
  *   - Touches NO evidence / report / package / custody / retention
  *     fields.
  */
@@ -534,25 +533,25 @@ export async function deleteCaseComment(
     })();
   }
 
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "cases.comment_deleted",
-    category: "cases.lifecycle",
-    severity: "info",
-    source: "case_lifecycle_service",
-    outcome: "success",
-    resourceType: "case_comment",
-    resourceId: existing.id,
-    metadata: {
-      teamId: existing.teamId,
-      caseId: input.caseId,
-      authorUserId: existing.authorUserId,
-      visibility: existing.visibility,
+  await emitTenantAudit(
+    {
+      action: "cases.comment_deleted",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: existing.teamId,
+      resourceType: "case_comment",
+      resourceId: existing.id,
+      metadata: {
+        caseId: input.caseId,
+        authorUserId: existing.authorUserId,
+        visibility: existing.visibility,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+    client,
+  );
   return { removed: true, commentId: existing.id };
 }
 
@@ -571,23 +570,23 @@ export async function resolveCaseComment(
       resolvedByUserId: input.actorUserId,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "cases.comment_resolved",
-    category: "cases.lifecycle",
-    severity: "info",
-    source: "case_lifecycle_service",
-    outcome: "success",
-    resourceType: "case_comment",
-    resourceId: row.id,
-    metadata: {
-      teamId: existing.teamId,
-      caseId: input.caseId,
+  await emitTenantAudit(
+    {
+      action: "cases.comment_resolved",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: existing.teamId,
+      resourceType: "case_comment",
+      resourceId: row.id,
+      metadata: {
+        caseId: input.caseId,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+    client,
+  );
   return row;
 }
 
@@ -644,25 +643,25 @@ export async function addEvidenceLink(
       reason: input.reason ? input.reason.slice(0, 400) : null,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "cases.evidence_linked",
-    category: "cases.lifecycle",
-    severity: "info",
-    source: "case_lifecycle_service",
-    outcome: "success",
-    resourceType: "case_evidence_link",
-    resourceId: row.id,
-    metadata: {
-      teamId: existing.teamId,
-      caseId: existing.id,
-      evidenceId: input.evidenceId,
-      role,
+  await emitTenantAudit(
+    {
+      action: "cases.evidence_linked",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: existing.teamId,
+      resourceType: "case_evidence_link",
+      resourceId: row.id,
+      metadata: {
+        caseId: existing.id,
+        evidenceId: input.evidenceId,
+        role,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+    client,
+  );
   return row;
 }
 
@@ -675,25 +674,25 @@ export async function removeEvidenceLink(
   });
   if (!existing) throw new CaseError("evidence_not_found");
   await client.caseEvidenceLink.delete({ where: { id: existing.id } });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "cases.evidence_unlinked",
-    category: "cases.lifecycle",
-    severity: "info",
-    source: "case_lifecycle_service",
-    outcome: "success",
-    resourceType: "case_evidence_link",
-    resourceId: existing.id,
-    metadata: {
-      teamId: existing.teamId,
-      caseId: input.caseId,
-      evidenceId: existing.evidenceId,
-      role: existing.role,
+  await emitTenantAudit(
+    {
+      action: "cases.evidence_unlinked",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: existing.teamId,
+      resourceType: "case_evidence_link",
+      resourceId: existing.id,
+      metadata: {
+        caseId: input.caseId,
+        evidenceId: existing.evidenceId,
+        role: existing.role,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+    client,
+  );
   return { removed: true };
 }
 
@@ -736,24 +735,24 @@ export async function removeLegacyEvidenceCaseId(
     where: { id: evidence.id },
     data: { caseId: null },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "cases.legacy_evidence_unlinked",
-    category: "cases.lifecycle",
-    severity: "info",
-    source: "case_lifecycle_service",
-    outcome: "success",
-    resourceType: "evidence",
-    resourceId: evidence.id,
-    metadata: {
-      teamId: evidence.teamId,
-      caseId: input.caseId,
-      evidenceId: evidence.id,
-      attachmentKind: "legacy_case_id",
+  await emitTenantAudit(
+    {
+      action: "cases.legacy_evidence_unlinked",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: evidence.teamId,
+      resourceType: "evidence",
+      resourceId: evidence.id,
+      metadata: {
+        caseId: input.caseId,
+        evidenceId: evidence.id,
+        attachmentKind: "legacy_case_id",
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+    client,
+  );
   return { unlinked: true, evidenceId: evidence.id };
 }

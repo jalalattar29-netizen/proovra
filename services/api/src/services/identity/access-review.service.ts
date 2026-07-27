@@ -29,13 +29,15 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+// WAVE A FINAL CLOSURE (2026-07-22) — transitions via the Membership
+// Orchestrator public command surface; the rbac engine is internal.
 import {
   revokeMember,
   suspendMember,
   RbacError,
-} from "./rbac.service.js";
+} from "./membership-provisioning.service.js";
 
 export type AccessReviewErrorCode =
   | "review_not_found"
@@ -367,26 +369,23 @@ export async function completeAccessReview(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "identity.access_review.complete",
-    category: "identity.governance",
-    severity: "info",
-    source: "identity_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "access_review",
     resourceId: review.id,
     metadata: {
-      teamId: input.teamId,
       kind: review.kind,
       subjectKind: review.subjectKind,
       decision: input.decision,
       decisionNote: input.decisionNote ?? null,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return updated;
 }
 

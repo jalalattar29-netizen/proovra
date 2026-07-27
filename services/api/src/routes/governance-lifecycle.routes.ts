@@ -39,10 +39,11 @@ import type {
 } from "fastify";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
+import type { Permission } from "@proovra/shared";
+
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { requirePermission } from "../services/governance.service.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { assertTeamAllowsEnterpriseFeature } from "../services/billing-enforcement.service.js";
 
@@ -113,26 +114,38 @@ import {
 
 const ParamsId = z.object({ id: z.string().uuid() });
 
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization.
+ *
+ * Replaces the former status-blind `requireMember` + role-only
+ * `requirePermission` pair. Routes through `authorizeOrFail`, so every
+ * governance-lifecycle route now inherits, in one call:
+ *   - ACTIVE membership enforcement (SUSPENDED / REVOKED denied),
+ *   - parent-Organization lifecycle enforcement (SUSPENDED / ARCHIVED org),
+ *   - access-expiry enforcement,
+ *   - capability-grant + delegated-admin resolution (not role-only),
+ *   - fail-closed on evaluation error,
+ *   - anti-enumeration: non-members / cross-tenant probes see 404, never a
+ *     403 that would confirm the workspace or record exists,
+ *   - audit emission of every denial.
+ *
+ * The permission passed at each call site is UNCHANGED from the pre-Phase-1
+ * gate — Phase 1 closes blindness, it does not redesign the permission
+ * vocabulary. Returns `{ actorUserId }` on allow, `null` (reply already
+ * sent) on deny, preserving the `if (!ok) return` fall-through contract.
+ */
 async function requireMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
-): Promise<{ userId: string; role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+  permission: Permission,
+): Promise<{ actorUserId: string } | null> {
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission,
+    antiEnumeration: true,
   });
-  if (!membership) {
-    reply.code(403).send({ message: "Not a member of the workspace" });
-    return null;
-  }
-  return { userId, role: membership.role };
-}
-
-function denyByPermission(reply: FastifyReply, reason: string): void {
-  reply.code(403).send({
-    error: { code: "permission_denied", reason },
-  });
+  return outcome ? { actorUserId: outcome.actorUserId } : null;
 }
 
 function mapRetentionError(reply: FastifyReply, err: RetentionEngineError) {
@@ -208,10 +221,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       const policies = await listRetentionPolicies({
         teamId: query.teamId,
         status: query.status as never,
@@ -241,15 +252,13 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           changeNote: z.string().min(1).max(2000).optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "governance.policy.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.manage");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "retentionPolicy")) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "RETENTION_POLICY_UPDATE",
         resourceKind: "evidence_retention_policy",
         resourceId: body.teamId,
@@ -258,7 +267,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       try {
         const policy = await createRetentionPolicy({
           ...body,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
         });
         return reply.code(201).send({ policy });
       } catch (err) {
@@ -286,15 +295,13 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           changeNote: z.string().min(1).max(2000),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "governance.policy.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.manage");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "retentionPolicy")) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "RETENTION_POLICY_UPDATE",
         resourceKind: "evidence_retention_policy",
         resourceId: id,
@@ -304,7 +311,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         const policy = await updateRetentionPolicy({
           ...body,
           id,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
         });
         return reply.code(200).send({ policy });
       } catch (err) {
@@ -328,15 +335,13 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           changeNote: z.string().min(1).max(2000),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "governance.policy.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.manage");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "retentionPolicy")) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "RETENTION_POLICY_UPDATE",
         resourceKind: "evidence_retention_policy",
         resourceId: id,
@@ -346,7 +351,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         const policy = await transitionRetentionPolicy({
           ...body,
           id,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
         });
         return reply.code(200).send({ policy });
       } catch (err) {
@@ -368,10 +373,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       try {
         const versions = await listPolicyVersions({
           teamId: query.teamId,
@@ -399,10 +402,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           jurisdiction: z.string().min(1).max(40).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       const decision = await resolveEffectiveRetentionPolicy({
         teamId: query.teamId,
         evidenceType: query.evidenceType ?? null,
@@ -430,10 +431,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       const reviews = await listDestructionReviews({
         teamId: query.teamId,
         status: query.status as never,
@@ -456,15 +455,13 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           retentionPolicyVersion: z.number().int().min(1).nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "evidence.delete");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "evidence.delete");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "legalHold")) return;
       try {
         const review = await createDestructionReview({
           ...body,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           requestId: req.id,
         });
         return reply.code(201).send({ review });
@@ -482,10 +479,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsId.parse(req.params);
       const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       try {
         const review = await getDestructionReview({ teamId: query.teamId, id });
         return reply.code(200).send({ review });
@@ -523,10 +518,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       const query = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
 
       const review = await prisma.destructionReview.findFirst({
         where: { id, teamId: query.teamId },
@@ -731,10 +724,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       const query = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
 
       const review = await prisma.destructionReview.findFirst({
         where: { id, teamId: query.teamId },
@@ -846,10 +837,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       const query = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
 
       const resolution = await resolveTeamRetentionPolicy(query.teamId);
       return reply.code(200).send({ resolution });
@@ -869,10 +858,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           deferredUntilUtc: z.string().datetime().nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "evidence.delete");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "evidence.delete");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "legalHold")) return;
       // Step-up required for APPROVED + EXECUTED (the destructive
       // branches). The other transitions are operator-recoverable.
@@ -880,7 +867,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         const gate = await requireStepUpForSensitiveAction({
           req, reply,
           teamId: body.teamId,
-          userId: ok.userId,
+          userId: ok.actorUserId,
           purpose:
             body.nextStatus === "APPROVED"
               ? "EVIDENCE_DESTRUCTION_APPROVE"
@@ -894,7 +881,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         const review = await transitionDestructionReview({
           teamId: body.teamId,
           id,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           nextStatus: body.nextStatus,
           decisionNote: body.decisionNote ?? null,
           deferredUntilUtc: body.deferredUntilUtc
@@ -928,10 +915,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
       const events = await listLifecycleEvents({
         teamId: query.teamId,
         evidenceId: id,
@@ -953,19 +938,17 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           summary: z.string().min(1).max(400),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
-      if (!ok) return;
       // Manual lifecycle transition is an ADMIN action — direct manipulation
       // of state machine pointers must be permission-gated and audited.
-      const perm = requirePermission(ok.role, "governance.policy.manage");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
+      const ok = await requireMember(req, reply, body.teamId, "governance.policy.manage");
+      if (!ok) return;
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "legalHold")) return;
       // Step-up required when entering destruction or terminal states.
       if (body.toState === "PENDING_DESTRUCTION" || body.toState === "DESTROYED") {
         const gate = await requireStepUpForSensitiveAction({
           req, reply,
           teamId: body.teamId,
-          userId: ok.userId,
+          userId: ok.actorUserId,
           purpose: "EVIDENCE_LIFECYCLE_FORCE",
           resourceKind: "evidence",
           resourceId: id,
@@ -977,7 +960,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           teamId: body.teamId,
           evidenceId: id,
           toState: body.toState,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           summary: body.summary,
           requestId: req.id,
         });
@@ -1004,16 +987,14 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           evidenceId: z.string().uuid(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
-      if (!ok) return;
       // Reading the eligibility decision is an authenticated, member-only
       // signal — same permission level as governance.policy.read.
-      const perm = requirePermission(ok.role, "governance.policy.read");
-      if (!perm.allowed) return denyByPermission(reply, perm.reason);
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
+      if (!ok) return;
       const result = await checkExportEligibility({
         teamId: query.teamId,
         evidenceId: query.evidenceId,
-        actorUserId: ok.userId,
+        actorUserId: ok.actorUserId,
       });
       return reply.code(200).send(result);
     },
@@ -1042,10 +1023,12 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
  * that the canonical registration in trust-and-governance.routes.ts
  * can delegate to it WITHOUT registering a second method/path.
  *
- * Auth + permission gate are preserved byte-for-byte:
+ * Auth + authorization are preserved:
  *   1. `requireAuth` runs upstream as the canonical route's preHandler.
- *   2. `requireMember(req, reply, teamId)` — workspace membership check.
- *   3. `requirePermission(role, "governance.policy.read")` — RBAC gate.
+ *   2. `requireMember(req, reply, teamId, "governance.policy.read")` —
+ *      routes through the canonical primitive (ACTIVE membership + org
+ *      lifecycle + capability + anti-enumeration), same as every other
+ *      governance-lifecycle route.
  *
  * Response shape is preserved verbatim:
  *   {
@@ -1064,13 +1047,8 @@ export async function handleLifecycleDashboardForTeam(
   reply: FastifyReply,
 ): Promise<void> {
   const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
-  const ok = await requireMember(req, reply, query.teamId);
+  const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
   if (!ok) return;
-  const perm = requirePermission(ok.role, "governance.policy.read");
-  if (!perm.allowed) {
-    denyByPermission(reply, perm.reason);
-    return;
-  }
 
   const [
     byLifecycleState,

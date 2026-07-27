@@ -20,6 +20,9 @@ import { useRouter } from "next/navigation";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { ReviewerConsole } from "../../../components/reviewer-experience/ReviewerConsole";
 import { usePlatformContext } from "../../../lib/platform-context/PlatformContextProvider";
+// PHASE 7 §10.5 — owning-context banner (the console + inspector already
+// re-scope on switch via their teamId-keyed reload).
+import { WorkspaceContextBanner } from "../../../lib/platform-context/WorkspaceContextBanner";
 import { QcSamplingPanel } from "../../../components/ai-copilot/QcSamplingPanel";
 
 export default function ReviewPage() {
@@ -40,6 +43,7 @@ export default function ReviewPage() {
 
   return (
     <PageRouteGate routeId="review.queue">
+      <WorkspaceContextBanner action="Reviewing evidence in" />
       <ReviewerConsole
         teamId={teamId}
         onOpenRow={(row) => {

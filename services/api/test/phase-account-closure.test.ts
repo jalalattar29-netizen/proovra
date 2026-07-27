@@ -122,7 +122,13 @@ describe("execution: anonymize + revoke, never destroy evidence", () => {
   });
 
   it("archives solo implicit orgs; NEVER deletes evidence, teams, or orgs", () => {
-    expect(CLOSURE).toMatch(/status:\s*"ARCHIVED"/);
+    // PROGRAM CONVERGENCE (2026-07-22): the inline `status: "ARCHIVED"` write
+    // was replaced by composing the ONE canonical Organization→ARCHIVED
+    // transition (`archiveOrganizationStatusTx`, org-closure engine). The
+    // invariant is unchanged — solo implicit orgs are ARCHIVED, never
+    // deleted — but the write now has exactly one implementation.
+    expect(CLOSURE).toMatch(/archiveOrganizationStatusTx\(tx,\s*\{/);
+    expect(CLOSURE).toMatch(/from\s+"\.\.\/organization\/org-closure\.service\.js"/);
     // code shape: no destructive delete against evidence/team/org models.
     expect(CLOSURE).not.toMatch(/evidence\.delete|team\.delete|organization\.delete\b/);
     expect(CLOSURE).not.toMatch(/deleteMany\(\{\s*where:\s*\{\s*teamId/);

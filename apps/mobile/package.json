@@ -8,10 +8,12 @@
     "dev": "expo start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"(no tests)\""
+    "test": "node --test \"test/deep-link.contract.test.mjs\""
   },
   "dependencies": {
     "@babel/runtime": "^7.28.6",
+    "@noble/ed25519": "^3.1.0",
+    "@noble/hashes": "^2.2.0",
     "@proovra/shared": "workspace:*",
     "@proovra/ui": "workspace:*",
     "@react-native-async-storage/async-storage": "^1.23.1",
@@ -23,6 +25,7 @@
     "expo-auth-session": "~6.0.3",
     "expo-camera": "~16.0.18",
     "expo-constants": "~17.0.8",
+    "expo-crypto": "~14.0.2",
     "expo-document-picker": "~13.0.3",
     "expo-file-system": "~18.0.12",
     "expo-image-picker": "~16.0.6",

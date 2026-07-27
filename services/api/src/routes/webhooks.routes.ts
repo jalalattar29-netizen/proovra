@@ -22,6 +22,10 @@ import {
 } from "../services/paypal.service.js";
 import { parsePayPalCustomId } from "../services/paypal-checkout-policy.service.js";
 import { auditWebhookSignatureVerification } from "../services/security/webhook-signature-audit.service.js";
+// PHASE 9 §12 — canonical commercial decision (no raw plan literals).
+// PHASE 9 §9.4 — the ONE subscription-active rule, consumed directly from
+// the canonical pure policy (api delegate deleted).
+import { isWorkspaceSubscriptionActive as isPaidTeamSubscriptionActive } from "@proovra/shared-billing";
 
 const PAYG_CREDITS_PER_PURCHASE = 1;
 
@@ -201,10 +205,11 @@ async function assertWebhookStorageAddonAllowed(params: {
       throw err;
     }
 
-    const effectiveTeamActive =
-      team.billingPlan === prismaPkg.PlanType.TEAM &&
-      (team.billingStatus === prismaPkg.TeamBillingStatus.ACTIVE ||
-        team.billingStatus === prismaPkg.TeamBillingStatus.PAST_DUE);
+    // PHASE 9 §12 — canonical commercial decision (no raw plan literals).
+    const effectiveTeamActive = isPaidTeamSubscriptionActive({
+      billingPlan: team.billingPlan,
+      billingStatus: team.billingStatus,
+    });
 
     if (!effectiveTeamActive) {
       const err: Error & { statusCode?: number } = new Error(
@@ -302,10 +307,13 @@ async function syncPlanForSubscription(params: {
         },
       });
 
-      const alreadyActivated =
-        existingTeam?.billingPlan === prismaPkg.PlanType.TEAM &&
-        (existingTeam.billingStatus === prismaPkg.TeamBillingStatus.ACTIVE ||
-          existingTeam.billingStatus === prismaPkg.TeamBillingStatus.PAST_DUE);
+      // PHASE 9 §12 — canonical commercial decision (no raw plan literals).
+      const alreadyActivated = existingTeam
+        ? isPaidTeamSubscriptionActive({
+            billingPlan: existingTeam.billingPlan,
+            billingStatus: existingTeam.billingStatus,
+          })
+        : false;
 
       if (alreadyActivated) {
         await activateTeamPlan({

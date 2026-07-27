@@ -743,7 +743,7 @@ function OrganizationSetupInner() {
             {!primaryWorkspaceId && workspaces.kind === "ready" && (
               <div style={hintBox}>
                 No workspace is bound yet.{" "}
-                <Link href={`/teams?org=${orgId}`} data-action="open-workspace-admin">
+                <Link href="/teams" data-action="open-workspace-admin">
                   Create one in Workspace administration →
                 </Link>
               </div>
@@ -1114,7 +1114,7 @@ function OrganizationSetupInner() {
               managed per workspace.
             </p>
             <Link
-              href={primaryWorkspaceId ? `/teams/${primaryWorkspaceId}` : `/teams?org=${orgId}`}
+              href={primaryWorkspaceId ? `/teams/${primaryWorkspaceId}` : "/teams"}
               data-action="open-workspace-settings"
               style={linkReset}
             >

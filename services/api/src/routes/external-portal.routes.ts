@@ -50,6 +50,8 @@ import {
   endPortalSession,
   establishPortalSession,
 } from "../services/external-review/portal-session.service.js";
+// PHASE 5 §8.5 (2026-07-22) — grant→workflow resource-scope binding.
+import { resolveWorkflowInGrantScope } from "../services/external-review/portal-scope.service.js";
 import {
   acceptInvitation,
   issueInvitation,
@@ -726,14 +728,54 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     },
   );
 
+  // PHASE 5 §8.5 (2026-07-22) — every workflow-scoped portal route must
+  // prove the workflow belongs to the GRANT'S resource scope (evidence /
+  // case / package), not merely the workspace. Out-of-scope and
+  // nonexistent workflows return the same denial (no enumeration).
+  const requireWorkflowInScope = async (
+    s: {
+      teamId: string;
+      scopeKind: "EVIDENCE" | "CASE" | "PACKAGE";
+      evidenceId: string | null;
+      caseId: string | null;
+      packageId: string | null;
+    },
+    workflowId: string,
+    reply: FastifyReply,
+  ): Promise<boolean> => {
+    const scoped = await resolveWorkflowInGrantScope({
+      scope: {
+        teamId: s.teamId,
+        scopeKind: s.scopeKind,
+        evidenceId: s.evidenceId,
+        caseId: s.caseId,
+        packageId: s.packageId,
+      },
+      workflowId,
+    });
+    if (!scoped.ok) {
+      await reply.code(403).send({ denial: "OUT_OF_SCOPE" });
+      return false;
+    }
+    return true;
+  };
+
   app.get(
     "/v1/portal/work/:workflowId/comments",
     async (req: FastifyRequest, reply: FastifyReply) => {
       const s = await resolvePortalSession(req, reply);
       if (!s) return reply;
+      // §8.5 — reads are capability-gated too (previously session-only).
+      if (
+        !s.capabilities.has("portal.comment") &&
+        !s.capabilities.has("portal.history.read")
+      ) {
+        return reply.code(403).send({ denial: "NOT_PERMITTED" });
+      }
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
+      if (!(await requireWorkflowInScope(s, workflowId, reply))) return reply;
       const rows = await listCommentsForWorkflow({
         teamId: s.teamId,
         workflowId,
@@ -753,6 +795,7 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
+      if (!(await requireWorkflowInScope(s, workflowId, reply))) return reply;
       const body = PostCommentBody.parse(req.body);
       const res = await postCommentInWorkflow({
         teamId: s.teamId,
@@ -779,6 +822,7 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
+      if (!(await requireWorkflowInScope(s, workflowId, reply))) return reply;
       const body = SubmitDecisionBody.parse(req.body);
       const res = await submitExternalDecision({
         teamId: s.teamId,
@@ -802,9 +846,17 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const s = await resolvePortalSession(req, reply);
       if (!s) return reply;
+      // §8.5 — reads are capability-gated too (previously session-only).
+      if (
+        !s.capabilities.has("portal.decide") &&
+        !s.capabilities.has("portal.history.read")
+      ) {
+        return reply.code(403).send({ denial: "NOT_PERMITTED" });
+      }
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
+      if (!(await requireWorkflowInScope(s, workflowId, reply))) return reply;
       const rows = await listExternalDecisionsForWorkflow({
         teamId: s.teamId,
         workflowId,
@@ -821,6 +873,7 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
+      if (!(await requireWorkflowInScope(s, workflowId, reply))) return reply;
       await emitPortalActivity({
         teamId: s.teamId,
         grantId: s.grantId,

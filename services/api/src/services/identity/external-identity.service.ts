@@ -22,7 +22,7 @@ import * as prismaPkg from "@prisma/client";
 import type { ExternalIdentityProvider } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
 export type ExternalIdentityErrorCode =
@@ -98,24 +98,21 @@ export async function linkExternalIdentity(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "identity.external_mapping.link",
-    category: "identity.federation",
-    severity: "info",
-    source: "identity_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "external_identity_mapping",
     resourceId: created.id,
     metadata: {
-      teamId: input.teamId,
       subjectUserId: input.userId,
       provider: input.provider,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return created;
 }
 
@@ -153,24 +150,21 @@ export async function unlinkExternalIdentity(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "identity.external_mapping.unlink",
-    category: "identity.federation",
-    severity: "info",
-    source: "identity_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "external_identity_mapping",
     resourceId: mapping.id,
     metadata: {
-      teamId: input.teamId,
       subjectUserId: mapping.userId,
       provider: mapping.provider,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return updated;
 }
 

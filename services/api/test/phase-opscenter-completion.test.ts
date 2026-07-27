@@ -84,14 +84,27 @@ vi.mock("../src/db.js", () => {
       findUnique: async () => ({ name: "Workspace A" }),
     },
     teamMember: {
+      // PHASE 1 (2026-07-21): shape includes the canonical-primitive snapshot
+      // relations (status + accessExpiresAtUtc + team.workspaceKind/billingPlan
+      // + organization.status + grants). H.role → REVIEWER carries the
+      // notification.delivery.read the routes gate on; PERSONAL workspaces are
+      // exempt from org lifecycle and are rejected by the surface's own rule.
       findUnique: async () => ({
+        id: "tm-1",
         team: {
           isPersonal: H.isPersonal,
+          workspaceKind: H.isPersonal ? "PERSONAL" : "ORGANIZATION",
+          billingPlan: H.isPersonal ? "PRO" : "ENTERPRISE",
           organizationId: H.isPersonal ? null : "55555555-5555-4555-8555-555555555555",
+          organization: { status: "ACTIVE" },
         },
         teamId: H.teamId,
         userId: H.userId,
         role: H.role,
+        status: "ACTIVE",
+        accessExpiresAtUtc: null,
+        capabilityGrants: [],
+        delegatedAdminScopes: [],
       }),
       findMany: async ({ select }: { select?: Record<string, unknown> }) =>
         select && "team" in select

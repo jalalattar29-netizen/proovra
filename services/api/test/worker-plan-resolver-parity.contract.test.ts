@@ -72,21 +72,20 @@ describe("Worker plan-resolver parity with API", () => {
     expect(API_BILLING).toMatch(/getPlanCapabilities\(\s*entitlement\.plan\s*\)\s*\n?\s*\.allowsPersonalWorkspace/);
   });
 
-  it("worker getTeamWorkspaceScope falls back to OWNER ENTITLEMENT when team billing isn't ACTIVE/PAST_DUE (parity with API)", () => {
-    // The middle tier of the API's three-tier rule (API
-    // workspace-billing.service.ts:174-180): when team billing isn't
-    // ACTIVE/PAST_DUE, fall back to the owner's entitlement plan when
-    // that plan supports team workspaces. The worker was missing this.
+  it("worker and API resolve the effective plan through ONE shared canonical policy (structural parity)", () => {
+    // PHASE 9 §9.4/§9.11 (2026-07-22): the three-tier rule was RELOCATED
+    // into the single pure policy `resolveWorkspaceEffectivePlan`
+    // (@proovra/shared-billing). Copy-paste parity is superseded: BOTH sides
+    // must delegate to the shared implementation, and NEITHER may retain a
+    // local three-tier branch. Divergence is now impossible by construction.
+    expect(WORKER_BILLING).toMatch(/resolveWorkspaceEffectivePlan\(\{/);
+    expect(API_BILLING).toMatch(/resolveWorkspaceEffectivePlan\(\{/);
+    // The worker still corroborates with the owner's entitlement as the
+    // coverage INPUT (loading is adapter work; deciding is not).
     expect(WORKER_BILLING).toMatch(/ownerEntitlement/);
-    expect(WORKER_BILLING).toMatch(/ownerPlanSupportsTeams/);
-    expect(WORKER_BILLING).toMatch(/getPlanCapabilities\(\s*ownerPlan\s*\)\.allowsTeamWorkspace/);
-    // Three-tier order: ACTIVE/PAST_DUE → team.billingPlan, else
-    // ownerPlanSupportsTeams → ownerPlan, else FREE.
-    expect(WORKER_BILLING).toMatch(
-      /TeamBillingStatus\.ACTIVE[\s\S]{0,200}TeamBillingStatus\.PAST_DUE[\s\S]{0,200}team\.billingPlan[\s\S]{0,200}ownerPlanSupportsTeams[\s\S]{0,200}ownerPlan[\s\S]{0,200}PlanType\.FREE/,
-    );
-    // API still expresses the same rule.
-    expect(API_BILLING).toMatch(/ownerPlanSupportsTeams/);
+    // Neither side re-implements the branch locally.
+    expect(WORKER_BILLING).not.toMatch(/ownerPlanSupportsTeams\s*\?/);
+    expect(API_BILLING).not.toMatch(/ownerPlanSupportsTeams\s*\?/);
   });
 
   it("worker uses the SAME shared predicate (canPlanGenerateReports) the API uses for the deny check", () => {

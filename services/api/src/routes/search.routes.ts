@@ -19,7 +19,7 @@ import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.j
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { AppError, ErrorCode } from "../errors.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import {
@@ -77,22 +77,42 @@ function auditSearchAction(
     severity?: "info" | "warning" | "critical";
     resourceType?: string | null;
     resourceId?: string | null;
+    /** The authoritative Workspace (teamId) this search ran under, when the
+     * route is team-scoped and the value has already been membership-checked
+     * (e.g. via `requireSearchActor`). The legacy ownerUserId-scoped search
+     * endpoints have no workspace concept and pass null. */
+    workspaceId?: string | null;
     metadata?: Record<string, unknown>;
   }
 ) {
-  void appendPlatformAuditLog({
-    userId: params.userId,
+  const outcome =
+    params.outcome === "blocked"
+      ? "denied"
+      : params.outcome === "failure"
+        ? "error"
+        : "success";
+
+  const denialReason =
+    outcome !== "success"
+      ? (typeof params.metadata?.reason === "string" ? params.metadata.reason : params.action)
+      : null;
+
+  void emitTenantAudit({
     action: params.action,
-    category: "search",
-    severity: params.severity ?? "info",
-    source: "api_search",
-    outcome: params.outcome ?? "success",
+    outcome,
+    denialReason,
+    sourceApp: "API",
+    actorUserId: params.userId,
+    workspaceId: params.workspaceId ?? null,
     resourceType: params.resourceType ?? "search",
     resourceId: params.resourceId ?? null,
-    requestId: req.id,
-    metadata: params.metadata ?? {},
-    ipAddress: req.ip,
-    userAgent: readUserAgent(req),
+    correlationId: req.id ?? null,
+    metadata: {
+      ...(params.metadata ?? {}),
+      severity: params.severity ?? "info",
+      ipAddress: req.ip,
+      userAgent: readUserAgent(req),
+    },
   }).catch(() => null);
 }
 
@@ -1027,6 +1047,7 @@ export async function searchRoutes(app: FastifyInstance) {
           userId: actor.userId,
           action: "search.suggest",
           outcome: "success",
+          workspaceId: q.teamId,
           metadata: {
             qLength: q.q.length,
             teamId: q.teamId,
@@ -1060,6 +1081,7 @@ export async function searchRoutes(app: FastifyInstance) {
           action: "search.suggest",
           outcome: "failure",
           severity: "warning",
+          workspaceId: q.teamId,
           metadata: {
             reason: err instanceof Error ? err.message.slice(0, 200) : "unknown",
           },

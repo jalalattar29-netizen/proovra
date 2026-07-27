@@ -278,7 +278,7 @@ describe("Phase 8 — route is platform-admin gated + audits access", () => {
     expect(src).toMatch(/preHandler:\s*requirePlatformAdmin/);
   });
   it("emits a platform audit event on access", () => {
-    expect(src).toContain("appendPlatformAuditLog");
+    expect(src).toContain("emitPlatformAudit");
     expect(src).toContain("operations.readiness.viewed");
   });
   it("does not self-register (leaves wiring to the owner)", () => {

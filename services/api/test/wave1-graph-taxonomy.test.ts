@@ -191,8 +191,10 @@ describe("Wave 1 — graph routes registers the new endpoints", () => {
   });
 
   it("POST /v1/graph/reconcile emits GRAPH_MANUAL_RECONCILE_REQUESTED audit", () => {
+    // PHASE 11 §3 Batch A — migrated onto the canonical emitTenantAudit
+    // facade.
     expect(ROUTES).toMatch(
-      /appendPlatformAuditLog\([\s\S]*?action:\s*"GRAPH_MANUAL_RECONCILE_REQUESTED"/,
+      /emitTenantAudit\([\s\S]*?action:\s*"GRAPH_MANUAL_RECONCILE_REQUESTED"/,
     );
   });
 

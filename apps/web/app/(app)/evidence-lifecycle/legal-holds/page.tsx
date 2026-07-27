@@ -7,6 +7,11 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../components/identity-security/StepUpModal";
+// PHASE 7 §10 — canonical context-safety primitives.
+import {
+  WorkspaceContextBanner,
+  useWorkspaceContextSafety,
+} from "../../../../lib/platform-context";
 import { useToast } from "../../../../components/ui";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
@@ -115,6 +120,17 @@ function Shell() {
   const [scopeTargetId, setScopeTargetId] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // PHASE 7 §10.1/§10.3 — unsaved create-form content is dirty work
+  // (blocks silent workspace switch); guard create against a mid-flight
+  // tenant change.
+  const { runGuarded } = useWorkspaceContextSafety({
+    isDirty:
+      name.trim().length > 0 ||
+      reason.trim().length > 0 ||
+      scopeTargetId.trim().length > 0,
+    dirtyLabel: "Unsaved legal hold",
+  });
+
   const refresh = useCallback(async () => {
     setBusy(true);
     setDenial(null);
@@ -142,25 +158,34 @@ function Shell() {
       // challenge header injected by the hook's retry (never spelled out
       // here). If the endpoint does not demand a challenge the wrapper is
       // a no-op and the hold is created on the first call.
-      await stepUp.runStepUpAction(async (headers) =>
-        apiFetch("/v1/lifecycle/legal-holds", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...(headers ?? {}) },
-          body: JSON.stringify({
-            kind,
-            name,
-            reason,
-            expiresAtUtc: expiresAtUtc || null,
-            scopeTargetId: scopeTargetId || null,
-          }),
-        }),
+      // §10.3 — guard the create so a mid-flight workspace switch does
+      // not apply "hold placed" success + refresh into the wrong context.
+      // The server derives tenant from the session + step-up, so the hold
+      // lands correctly; this guards the UI application only.
+      await runGuarded(
+        () =>
+          stepUp.runStepUpAction(async (headers) =>
+            apiFetch("/v1/lifecycle/legal-holds", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+              body: JSON.stringify({
+                kind,
+                name,
+                reason,
+                expiresAtUtc: expiresAtUtc || null,
+                scopeTargetId: scopeTargetId || null,
+              }),
+            }),
+          ),
+        () => {
+          setName("");
+          setReason("");
+          setExpiresAtUtc("");
+          setScopeTargetId("");
+          addToast("Legal hold placed.", "success");
+          void refresh();
+        },
       );
-      setName("");
-      setReason("");
-      setExpiresAtUtc("");
-      setScopeTargetId("");
-      addToast("Legal hold placed.", "success");
-      await refresh();
     } catch (err) {
       // Cancelling step-up must NOT create a hold and must NOT surface a
       // scary error — the operator deliberately backed out.
@@ -180,7 +205,7 @@ function Shell() {
     } finally {
       setCreating(false);
     }
-  }, [kind, name, reason, expiresAtUtc, scopeTargetId, refresh, stepUp, addToast]);
+  }, [kind, name, reason, expiresAtUtc, scopeTargetId, refresh, stepUp, addToast, runGuarded]);
 
   const release = useCallback(
     async (id: string) => {
@@ -195,9 +220,13 @@ function Shell() {
     [refresh],
   );
 
+  // PHASE 7 §10.7/§10.G — re-scope on workspace switch: clear the prior
+  // tenant's holds immediately and re-fetch for the new context (the
+  // list is tenant-bound and must not linger across a switch).
   useEffect(() => {
+    setHolds([]);
     void refresh();
-  }, [refresh]);
+  }, [refresh, teamId]);
 
   const columns: DataTableColumn<LegalHold>[] = [
     {
@@ -256,6 +285,10 @@ function Shell() {
           <strong>Permission required:</strong> {denial.tier}
         </div>
       ) : null}
+
+      {/* PHASE 7 §10.5 — legal hold is custody-critical; show the owning
+          workspace/org before placing it. */}
+      <WorkspaceContextBanner action="This legal hold will apply in" />
 
       {/* Create form */}
       <Card variant="admin" title="Create Legal Hold">

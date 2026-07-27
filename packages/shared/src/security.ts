@@ -253,6 +253,10 @@ export const SECURITY_EVENT_TYPES = [
   "scim_user_reactivated",
   "scim_user_deactivated",
   "scim_user_unknown_provider",
+  // P0 remediation (2026-07-21) — enterprise account-linking safety +
+  // canonical workspace context-switch audit.
+  "scim_account_link_denied",
+  "workspace_context_switched",
   "session_inventory_viewed",
   "session_revoked_admin",
   "all_sessions_revoked_admin",
@@ -509,6 +513,10 @@ export const SECURITY_EVENT_TYPES = [
   "saml_certificate_expiring",
   "saml_attribute_mapping_failed",
   "saml_jit_policy_denied",
+  // PHASE 8 §11.1 (2026-07-22) — a stored ExternalIdentityMapping failed
+  // re-validation at repeat login (team-binding mismatch or already
+  // quarantined) and was soft-unlinked so it can never authorize again.
+  "saml_mapping_quarantined",
 
   // ---------------------------------------------------------------------------
   // Phase E3 — Operational Automation Foundation

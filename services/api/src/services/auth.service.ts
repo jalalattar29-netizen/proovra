@@ -336,24 +336,11 @@ export async function exchangeAppleCodeForIdToken(code: string): Promise<string>
   return json.id_token;
 }
 
-export async function createGuestProfile(): Promise<AuthProfile> {
-  return {
-    provider: prismaPkg.AuthProvider.GUEST,
-    providerUserId: randomUUID(),
-    email: null,
-    displayName: "Guest",
-  };
-}
-
-export async function ensureGuestIdentity(userId: string) {
-  const existing = await prisma.guestIdentity.findUnique({
-    where: { userId },
-  });
-  if (existing) return existing;
-  return prisma.guestIdentity.create({
-    data: { userId },
-  });
-}
+// PHASE 10 (2026-07-23) — Guest Login was physically REMOVED. The guest login
+// bootstrap and the guest evidence-custody helper no longer live in the
+// authentication service; guest is no longer an authentication concept.
+// Historical guest-owned Evidence custody now lives in the evidence domain as a
+// non-interactive helper: evidence-legacy-custody.ts.
 
 export async function upsertUser(profile: AuthProfile) {
   return upsertUserWithEmailLink(profile);
@@ -400,32 +387,38 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
   // email address before issuing the id_token we accepted here.
   // Stamp emailVerifiedAt on the user record so the email-verification
   // login guard treats OAuth users as already-verified and never asks
-  // them to click a link. GUEST upgrades inherit the OAuth check by
-  // being upgraded to the OAuth provider below.
+  // them to click a link.
   const isOAuthProvider =
     profile.provider === prismaPkg.AuthProvider.GOOGLE ||
     profile.provider === prismaPkg.AuthProvider.APPLE;
   const now = new Date();
 
+  // HISTORICAL DATA MIGRATION (§7-permitted, non-interactive): Guest Login is
+  // removed and no new provider=GUEST rows are created. But a HISTORICAL guest
+  // row that carried an email may match a first-time OAuth sign-in; when it
+  // does we RETIRE the legacy guest by upgrading it in place to the real OAuth
+  // identity, preserving its Evidence ownership/custody. This never
+  // authenticates a guest — the resulting session is OAuth. When no historical
+  // guest row exists (the common case) this is a no-op.
   if (!user && profile.email) {
-    const guest = await prisma.user.findFirst({
+    const legacyGuestRow = await prisma.user.findFirst({
       where: { email: profile.email, provider: prismaPkg.AuthProvider.GUEST },
     });
-    if (guest) {
+    if (legacyGuestRow) {
       user = await prisma.user.update({
-        where: { id: guest.id },
+        where: { id: legacyGuestRow.id },
         data: {
           provider: profile.provider,
           providerUserId: profile.providerUserId,
-          displayName: profile.displayName ?? guest.displayName,
-          email: profile.email ?? guest.email,
-          // Guest upgrade — take the provider's avatar iff we have one
-          // and the guest row has none. Guests never upload custom
-          // avatars, so this can never clobber user-chosen imagery.
-          ...(profile.avatarUrl && !guest.avatarUrl
+          displayName: profile.displayName ?? legacyGuestRow.displayName,
+          email: profile.email ?? legacyGuestRow.email,
+          // Take the provider's avatar iff we have one and the legacy row has
+          // none — historical guest rows never uploaded custom avatars, so this
+          // can never clobber user-chosen imagery.
+          ...(profile.avatarUrl && !legacyGuestRow.avatarUrl
             ? { avatarUrl: profile.avatarUrl }
             : {}),
-          ...(isOAuthProvider && !guest.emailVerifiedAt
+          ...(isOAuthProvider && !legacyGuestRow.emailVerifiedAt
             ? { emailVerifiedAt: now }
             : {}),
         },

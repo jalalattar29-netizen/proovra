@@ -5,6 +5,10 @@ import { Button, PageShell, PageHeader, useToast } from "../../../components/ui"
 import { Button as ActionButton } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+// P3 domain remediation (2026-07-21) — tenant-boundary dirty-work guard.
+import { useDirtyWork } from "../../../lib/platform-context/dirtyWorkRegistry";
+// PHASE 7 §10.5 — canonical owning-context banner.
+import { WorkspaceContextBanner } from "../../../lib/platform-context/WorkspaceContextBanner";
 import { orderTemplatesByWorkflow } from "./_lib/workflowTemplateOrder";
 import { CaptureWorkflowGuidance } from "./_lib/CaptureWorkflowGuidance";
 import { CaptureReadinessPanel } from "./_lib/CaptureReadinessPanel";
@@ -467,6 +471,17 @@ function CapturePageInner() {
     };
   }, [sessionItems.length, busy]);
 
+  // P3 domain remediation (2026-07-21) — `beforeunload` only fires on real
+  // browser navigation; an in-app WORKSPACE SWITCH is an envelope swap that
+  // never triggers it. Register staged capture material in the dirty-work
+  // registry so the context switcher demands explicit confirmation before
+  // crossing the tenant boundary (staged evidence must never silently
+  // finalize into a different workspace).
+  useDirtyWork(
+    sessionItems.length > 0 && !busy,
+    "Staged evidence in Capture",
+  );
+
   useEffect(() => {
     const handleOutsideClick = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null;
@@ -498,6 +513,13 @@ function CapturePageInner() {
       width="full"
       className="capture-page-shell capture-enterprise-page"
       data-capture-page-shell>
+      {/* PHASE 7 §10.5 — owning workspace/org shown before capture (a
+          high-impact, workspace-scoped submission). Pairs with the
+          existing useDirtyWork registration for staged material. */}
+      <WorkspaceContextBanner
+        action="Captured evidence will be stored in"
+        className="capture-context-banner"
+      />
       {/* Phase 30.10 — resumable upload operations panel. Renders
        *  only when the env flag is on AND there's something to show
        *  (active uploads, network is offline, or recovery has at

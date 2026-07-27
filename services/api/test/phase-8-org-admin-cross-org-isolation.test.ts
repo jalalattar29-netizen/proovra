@@ -102,8 +102,16 @@ describe("Phase 8 — admin pages derive orgId from the URL (no envelope leak)",
         // the URL to the URL-derived orgId). Hard-coded UUIDs or
         // ":id"-style placeholders in executable templates would be
         // cross-org leak vectors.
+        //
+        // A URL template literal never spans a newline, so match ONLY
+        // within a single line (`[^`\n]*`). The previous `[^`]*` form
+        // matched greedily ACROSS lines, spuriously coupling an unrelated
+        // prose caption (e.g. a "Backed by /v1/orgs/:id/members." label)
+        // with a later, safe `${orgId}` template — a false positive that
+        // asserted nothing about real request safety. A genuinely unsafe
+        // single-line template is still flagged.
         const templateLiterals =
-          stripped.match(/`[^`]*\/v1\/orgs\/[^`]*`/g) ?? [];
+          stripped.match(/`[^`\n]*\/v1\/orgs\/[^`\n]*`/g) ?? [];
         const bad = templateLiterals.filter(
           (tpl) => !tpl.includes("${orgId}"),
         );

@@ -794,10 +794,14 @@ describe("PHASE 5 — schema / response shape invariants", () => {
 describe("PHASE 5 — GET /v1/integrations/health route surface", () => {
   it("declares the canonical path and gates on workspace OWNER/ADMIN", () => {
     expect(INTEGRATIONS_ROUTES_TS).toMatch(/"\/v1\/integrations\/health"/);
-    // The route must short-circuit non-admin members.
-    expect(INTEGRATIONS_ROUTES_TS).toMatch(
-      /role_\$\{ok\.role\}_lacks_integration\.health\.read/,
+    // PHASE 1 (2026-07-21): the health route gates on integration.api_key.manage
+    // (held by OWNER + ADMIN only) via the canonical requireMember wrapper —
+    // the same OWNER/ADMIN restriction the former inline role check enforced.
+    const healthBlock = INTEGRATIONS_ROUTES_TS.match(
+      /"\/v1\/integrations\/health"[\s\S]{0,400}?computeIntegrationsHealthSnapshot/,
     );
+    expect(healthBlock).not.toBeNull();
+    expect(healthBlock![0]).toMatch(/requireMember\([^)]*"integration\.api_key\.manage"\)/);
   });
 
   it("gates on the integrations feature flag", () => {

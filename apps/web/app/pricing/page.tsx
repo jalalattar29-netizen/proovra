@@ -39,6 +39,7 @@ import { RevealSection } from "../../components/motion";
 import { useAuth } from "../providers";
 import type { PricingCatalogResponse } from "./types";
 import { apiFetch } from "../../lib/api";
+import { buildBillingHref } from "../../lib/navigation/billingWorkspaceLocator";
 
 type MarketingIcon = ElementType;
 
@@ -168,9 +169,16 @@ export default function MarketingPricingPage() {
   const buildCtaHref = (planId: PlanId): string => {
     if (planId === "enterprise") return "/contact-sales";
     if (!hasSession) return appRegister;
-    if (planId === "personal") return `${appBilling}?workspace=personal`;
-    if (planId === "team") return `${appBilling}?workspace=team&plan=TEAM`;
-    return `${appBilling}?workspace=personal&plan=${planId.toUpperCase()}`;
+    // PHASE 11 §5 — the ONE billing workspace locator produces every billing
+    // link. No hand-written `?workspace=` / `?team=` vocabulary here.
+    if (planId === "personal")
+      return buildBillingHref({ kind: "personal" }, { basePath: appBilling });
+    if (planId === "team")
+      return buildBillingHref({ kind: "team" }, { plan: "TEAM", basePath: appBilling });
+    return buildBillingHref(
+      { kind: "personal" },
+      { plan: planId.toUpperCase() as "PAYG" | "PRO" | "TEAM", basePath: appBilling },
+    );
   };
 
   const buildCtaLabel = (planId: PlanId): string => {
@@ -459,13 +467,17 @@ export default function MarketingPricingPage() {
       values: ["Included", "Included", "Included", "Included", "Included"],
     },
     {
+      // P5 domain remediation (2026-07-21) — the self-service TEAM plan
+      // funds user-OWNED team workspaces; it is NOT an Enterprise
+      // Organization. "Organization" language is reserved for the
+      // sales-provisioned Enterprise tier.
       label: "Workspace support",
       values: [
         "Personal only",
         "Personal only",
-        "Personal Workspace + Teams",
-        "Organization Workspace",
-        "Organization deployment",
+        "Personal + owned workspaces",
+        "Owned team workspaces",
+        "Enterprise Organization",
       ],
     },
     { label: "Platform Operations", group: true },

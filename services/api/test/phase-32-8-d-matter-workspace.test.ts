@@ -406,13 +406,17 @@ describe("Phase 32.8D — case lifecycle service", () => {
     );
   });
 
-  it("every action emits a platform audit log row", () => {
-    const audits = LIFECYCLE.match(/appendPlatformAuditLog\(/g) ?? [];
+  it("every action emits a canonical tenant-audit row", () => {
+    const audits = LIFECYCLE.match(/emitTenantAudit\(/g) ?? [];
     expect(audits.length).toBeGreaterThanOrEqual(7);
   });
 
-  it("audit category is cases.lifecycle", () => {
-    expect(LIFECYCLE).toMatch(/category:\s*"cases\.lifecycle"/);
+  it("audit workspaceId is derived from the persisted case's own teamId", () => {
+    // PHASE 11 §3 Batch A — migrated off the ad-hoc `category:
+    // "cases.lifecycle"` field onto the canonical tenant-audit facade,
+    // which writes an authoritative `workspaceId` DB column instead.
+    expect(LIFECYCLE).toMatch(/workspaceId:\s*existing\.teamId/);
+    expect(LIFECYCLE).not.toMatch(/appendPlatformAuditLog\(/);
   });
 
   it("changeCaseStatus writes a CaseStatusHistory row", () => {
@@ -569,12 +573,14 @@ describe("Phase 32.8D — no-regression invariants", () => {
 
   it("workspace + queue reads never write audit logs", () => {
     expect(MATTER_WS).not.toMatch(/appendPlatformAuditLog/);
+    expect(MATTER_WS).not.toMatch(/emitTenantAudit/);
     expect(MATTER_QUEUE).not.toMatch(/appendPlatformAuditLog/);
+    expect(MATTER_QUEUE).not.toMatch(/emitTenantAudit/);
   });
 
-  it("only the lifecycle service writes audit logs (cases.lifecycle category)", () => {
-    expect(LIFECYCLE).toMatch(/appendPlatformAuditLog/);
-    expect(LIFECYCLE).toMatch(/category:\s*"cases\.lifecycle"/);
+  it("only the lifecycle service writes audit logs (canonical tenant-audit facade)", () => {
+    expect(LIFECYCLE).toMatch(/emitTenantAudit/);
+    expect(LIFECYCLE).not.toMatch(/appendPlatformAuditLog\(/);
   });
 
   it("no fake AI / ML / 'powered by'", () => {

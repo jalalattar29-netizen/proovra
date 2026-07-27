@@ -313,11 +313,13 @@ describe("R8.1.3 — durable MFA pending challenge model + enforcement", () => {
     expect(ENFORCEMENT_SVC).toMatch(
       /prisma\.teamMember\.findMany\(\{\s*where:\s*\{\s*userId:\s*input\.userId/,
     );
-    // The org policy lookup is keyed by the explicit set of teamIds
-    // the user belongs to. NEVER by `team: { somethingElse: ... }`.
+    // PHASE 10 §1.1 — the org policy lookup is now keyed by the AUTHORITATIVE
+    // organizationId (resolved from the user's teams, deduped), NEVER by teamId.
     expect(ENFORCEMENT_SVC).toMatch(
-      /prisma\.organizationSecurityPolicy\.findMany\(\{\s*where:\s*\{\s*teamId:\s*\{\s*in:\s*teamIds/,
+      /prisma\.organizationSecurityPolicy\.findMany\(\{\s*where:\s*\{\s*organizationId:\s*\{\s*in:\s*orgIds/,
     );
+    // No teamId-keyed policy read survives in the enforcement resolver.
+    expect(ENFORCEMENT_SVC).not.toMatch(/organizationSecurityPolicy\.findMany\(\{\s*where:\s*\{\s*teamId/);
   });
 
   // ---------------------------------------------------------------------------

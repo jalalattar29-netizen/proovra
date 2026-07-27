@@ -47,6 +47,7 @@ import {
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 // Phase 3A redaction closure — publishing a redacted derivative is the
 // irreversible, disclosure-shaping step of the redaction lifecycle, so it
 // must require a fresh step-up (purpose REDACTION_PUBLISH) AFTER the
@@ -370,10 +371,28 @@ async function resolveWorkspace(
     select: { currentWorkspaceId: true },
   });
   if (!user?.currentWorkspaceId) {
-    reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" as RedactionDenialReason });
+    // No active workspace context — anti-enumeration 404 (consistent with the
+    // canonical primitive's not-a-member path below).
+    reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
-  return { teamId: user.currentWorkspaceId, userId };
+  // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — the redaction RBAC
+  // (assertRedactionCapability) must NOT be the sole authorization gate.
+  // Route the active workspace through the canonical primitive FIRST, so
+  // ACTIVE membership + parent-Organization lifecycle + fail-closed +
+  // anti-enumeration are enforced before any redaction-capability check.
+  // Redaction is an evidence-domain surface, so `evidence.read` is the base
+  // membership capability every member holds; the fine-grained redaction tier
+  // (view/author/review/approve/publish/administer) is enforced by the
+  // subsequent `gate()` call. All redaction data queries are scoped to this
+  // returned teamId, so the resource is bound to the authorized workspace.
+  const authz = await authorizeOrFail(req, reply, {
+    teamId: user.currentWorkspaceId,
+    permission: "evidence.read",
+    antiEnumeration: true,
+  });
+  if (!authz) return null;
+  return { teamId: authz.teamId, userId: authz.actorUserId };
 }
 
 async function gate(

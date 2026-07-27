@@ -60,6 +60,13 @@ export const ORG_AUDIT_EVENT_TYPES = [
   "ORG_CLOSURE_BLOCKED",
   "ORG_CLOSURE_CANCELLED",
   "ORG_CLOSURE_COMPLETED",
+  // PHASE 4 §7.6 (2026-07-22) — reversible org suspension lifecycle.
+  //   ORG_SUSPENDED: platform operator suspended the org (metadata
+  //     carries effect counts + pausedApiCredentialIds — the resume
+  //     contract for precise credential re-enablement).
+  //   ORG_RESUMED: platform operator resumed the org.
+  "ORG_SUSPENDED",
+  "ORG_RESUMED",
   // Phase 2.7X Stage 5 — invite lifecycle hardening.
   "ORG_INVITE_REVOKED",
   "ORG_INVITE_RESENT",

@@ -269,7 +269,11 @@ export async function getWorkspaceUsage(
     }),
     scope.teamId
       ? prisma.teamMember.count({
-          where: { teamId: scope.teamId },
+          // P5 domain remediation (2026-07-21) — a seat is an ACTIVE
+          // member. Suspended/revoked members no longer consume license
+          // seats (matches the stated business rule: "we limit actual
+          // members", and a suspended member is denied all access).
+          where: { teamId: scope.teamId, status: "ACTIVE" },
         })
       : Promise.resolve(0),
   ]);

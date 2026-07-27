@@ -28,6 +28,11 @@ import { Button } from "../../../../components/ui/Button";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../lib/api";
+// PHASE 7 §10 — canonical context-safety primitives.
+import {
+  WorkspaceContextBanner,
+  useWorkspaceContextSafety,
+} from "../../../../lib/platform-context";
 import { formatUserDate } from "../../../../lib/date";
 import {
   DenialBanner,
@@ -139,27 +144,42 @@ function Shell() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  // PHASE 7 §10.1/§10.3 — unsaved policy form is dirty work; guard create
+  // against a mid-flight workspace switch.
+  const { runGuarded } = useWorkspaceContextSafety({
+    isDirty:
+      name.trim().length > 0 ||
+      years.trim().length > 0 ||
+      scopeTargetId.trim().length > 0,
+    dirtyLabel: "Unsaved retention policy",
+  });
+
   const create = useCallback(async () => {
     setCreating(true);
     setCreateError(null);
     try {
-      await apiFetch("/v1/lifecycle/retention/policies", {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          template,
-          // CUSTOM has no server default — send the operator-entered window.
-          ...(template === "CUSTOM" && years
-            ? { years: Number.parseInt(years, 10) }
-            : {}),
-          scopeKind,
-          scopeTargetId: scopeTargetId || null,
-        }),
-      });
-      setName("");
-      setYears("");
-      setScopeTargetId("");
-      await refresh();
+      await runGuarded(
+        () =>
+          apiFetch("/v1/lifecycle/retention/policies", {
+            method: "POST",
+            body: JSON.stringify({
+              name,
+              template,
+              // CUSTOM has no server default — send the operator window.
+              ...(template === "CUSTOM" && years
+                ? { years: Number.parseInt(years, 10) }
+                : {}),
+              scopeKind,
+              scopeTargetId: scopeTargetId || null,
+            }),
+          }),
+        () => {
+          setName("");
+          setYears("");
+          setScopeTargetId("");
+          void refresh();
+        },
+      );
     } catch (err) {
       // Render the create error inline — don't conflate with the load denial.
       const message =
@@ -170,7 +190,7 @@ function Shell() {
     } finally {
       setCreating(false);
     }
-  }, [name, template, years, scopeKind, scopeTargetId, refresh]);
+  }, [name, template, years, scopeKind, scopeTargetId, refresh, runGuarded]);
 
   const policies = data?.policies ?? [];
   const expirations = data?.expirations ?? [];
@@ -211,6 +231,9 @@ function Shell() {
       }
     >
       {denial ? <DenialBanner denial={denial} /> : null}
+
+      {/* PHASE 7 §10.5 — retention governs custody; show owning context. */}
+      <WorkspaceContextBanner action="This retention policy will apply in" />
 
       {/* Create form */}
       <Card

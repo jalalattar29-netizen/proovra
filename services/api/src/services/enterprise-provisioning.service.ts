@@ -27,7 +27,7 @@
  *     hash is persisted (mirrors organizations.routes.ts).
  */
 
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { TeamBillingStatus, TeamRole } from "@prisma/client";
 
@@ -35,7 +35,11 @@ import { prisma as defaultPrisma } from "../db.js";
 import { getPlanCapabilities } from "./plan-catalog.service.js";
 import { hashInviteToken } from "../routes/organizations.routes.js";
 import { emitOrgAuditEvent } from "./organization/org-audit.service.js";
-import { appendPlatformAuditLog } from "./platform-audit-log.service.js";
+import { emitTenantAudit } from "./audit/tenant-audit.service.js";
+// PHASE 3 (2026-07-21) — canonical membership orchestrator.
+import { grantOrganizationMembership } from "./identity/membership-provisioning.service.js";
+// PHASE 4 (2026-07-22) — canonical Enterprise contract state (§7.2).
+import { upsertEnterpriseContract } from "./organization/enterprise-contract.service.js";
 
 /** Plans this admin path is allowed to grant. ENTERPRISE only for now. */
 export type GrantablePlan = "ENTERPRISE";
@@ -51,7 +55,12 @@ function newInviteToken(): string {
 }
 
 export class EnterpriseProvisioningError extends Error {
-  code: "ORG_NOT_FOUND" | "ORG_HAS_NO_WORKSPACES";
+  code:
+    | "ORG_NOT_FOUND"
+    | "ORG_HAS_NO_WORKSPACES"
+    // PHASE 4 §7.1 (2026-07-22) — idempotency outcomes.
+    | "IDEMPOTENCY_CONFLICT"
+    | "PROVISIONING_IN_PROGRESS";
   constructor(code: EnterpriseProvisioningError["code"], message: string) {
     super(message);
     this.name = "EnterpriseProvisioningError";
@@ -118,7 +127,38 @@ export async function grantEnterprisePlanToOrg(
           includedSeats: seats,
           billingStatus: TeamBillingStatus.ACTIVE,
           overSeatLimit,
+          // P1 domain remediation (2026-07-21) — an org-plan grant makes
+          // these workspaces enterprise-organization operational contexts.
+          ...(plan === "ENTERPRISE"
+            ? { workspaceKind: "ORGANIZATION" as const }
+            : {}),
         },
+      });
+    }
+
+    // P1 domain remediation (2026-07-21) — granting ENTERPRISE promotes the
+    // org itself to a real CUSTOMER organization.
+    if (plan === "ENTERPRISE") {
+      await tx.organization.update({
+        where: { id: input.orgId },
+        data: { kind: "CUSTOMER" },
+      });
+      // PHASE 10 §1.4 — promotion to CUSTOMER must ensure an EXPLICIT baseline
+      // security policy exists (idempotent: create only if the org has none).
+      const existingPolicy = await (
+        tx.organizationSecurityPolicy.findUnique as unknown as (a: unknown) => Promise<{ organizationId: string | null } | null>
+      )({ where: { organizationId: input.orgId }, select: { organizationId: true } });
+      if (!existingPolicy) {
+        await (tx.organizationSecurityPolicy.create as unknown as (a: unknown) => Promise<unknown>)({
+          data: { organizationId: input.orgId, policyVersion: 1 },
+        });
+      }
+      // PHASE 4 (2026-07-22) — the plan grant is a contract event (§7.2).
+      await upsertEnterpriseContract(tx, {
+        organizationId: input.orgId,
+        status: "ACTIVE",
+        activationState: "ACTIVATED",
+        seatCount: seats,
       });
     }
 
@@ -138,22 +178,20 @@ export async function grantEnterprisePlanToOrg(
     return { workspacesUpdated: workspaces.length };
   });
 
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "ORG_PLAN_GRANTED",
-    category: "enterprise_provisioning",
-    severity: "INFO",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    organizationId: input.orgId,
     resourceType: "organization",
     resourceId: input.orgId,
     metadata: {
-      organizationId: input.orgId,
       plan,
       seats,
       workspacesUpdated: result.workspacesUpdated,
     },
-    db: client,
-  });
+  }, client);
 
   return {
     organizationId: input.orgId,
@@ -161,6 +199,229 @@ export async function grantEnterprisePlanToOrg(
     seats,
     workspacesUpdated: result.workspacesUpdated,
   };
+}
+
+// =============================================================================
+// PHASE 4 §7.1 (2026-07-22) — idempotent Enterprise provisioning.
+//
+// The canonical duplicate-prevention identity is the IMMUTABLE caller-
+// supplied `idempotencyKey` (provisioning-request id / CRM contract ref) with
+// a DB unique constraint — NEVER normalized names/emails. Behavior:
+//   1. same key + same payload      → the ORIGINAL result is returned
+//      (idempotentReplay: true). One-time secrets (the raw owner-invite
+//      token) are NOT re-returned — the locked invite-token contract says
+//      raw tokens are surfaced exactly once and never persisted plaintext.
+//   2. same key + different payload → IDEMPOTENCY_CONFLICT, no mutation.
+//   3. different keys + same name/email → NOT merged; advisory
+//      `possibleDuplicateOrganizationIds` is returned for operator review.
+//   4. concurrent same-key requests → the DB unique constraint collapses
+//      them: one runs, the loser replays/receives PROVISIONING_IN_PROGRESS.
+//   5. failed attempt → the request row is FAILED; a same-key+same-payload
+//      retry re-runs the (single-transaction) provisioning safely — a
+//      failed attempt leaves no partial customer.
+// =============================================================================
+
+/** Deterministic hash of the provisioning payload (identity-relevant fields). */
+function provisioningPayloadHash(input: {
+  organizationName: string;
+  ownerEmail: string;
+  seats?: number;
+  workspaceName?: string;
+  region?: string | null;
+  externalContractRef?: string | null;
+}): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        organizationName: input.organizationName.trim(),
+        ownerEmail: input.ownerEmail.trim().toLowerCase(),
+        seats: input.seats ?? null,
+        workspaceName: input.workspaceName?.trim() ?? null,
+        region: input.region ?? null,
+        externalContractRef: input.externalContractRef ?? null,
+      }),
+    )
+    .digest("hex");
+}
+
+/** Redact one-time secrets before persisting a replayable result snapshot. */
+function redactProvisioningResult(
+  result: ProvisionEnterpriseCustomerResult,
+): Record<string, unknown> {
+  if (result.provisioned) return { ...result };
+  const { ownerInviteToken: _secret, ...rest } = result;
+  return { ...rest, ownerInviteToken: null, oneTimeSecretRedacted: true };
+}
+
+/** In-flight takeover threshold for crashed PENDING rows (single-tx safe). */
+const PENDING_TAKEOVER_MS = 60_000;
+
+export type ProvisionEnterpriseCustomerIdempotentInput =
+  ProvisionEnterpriseCustomerInput & {
+    idempotencyKey: string;
+    externalContractRef?: string | null;
+    region?: string | null;
+  };
+
+export type ProvisionEnterpriseCustomerIdempotentResult = {
+  result: ProvisionEnterpriseCustomerResult | Record<string, unknown>;
+  idempotentReplay: boolean;
+  /** Advisory only — same-name CUSTOMER orgs for operator duplicate review. */
+  possibleDuplicateOrganizationIds: string[];
+};
+
+export async function provisionEnterpriseCustomerIdempotent(
+  input: ProvisionEnterpriseCustomerIdempotentInput,
+  client: PrismaClient = defaultPrisma,
+  // Injectable for tests — production always uses the real single-tx
+  // provisioning implementation below.
+  deps: { provision?: typeof provisionEnterpriseCustomer } = {},
+): Promise<ProvisionEnterpriseCustomerIdempotentResult> {
+  const provision = deps.provision ?? provisionEnterpriseCustomer;
+  const payloadHash = provisioningPayloadHash(input);
+
+  // ---- claim or load the request row (DB-unique on the key) -------------
+  let requestId: string;
+  try {
+    const created = await client.enterpriseProvisioningRequest.create({
+      data: {
+        idempotencyKey: input.idempotencyKey.slice(0, 120),
+        payloadHash,
+        status: "PENDING",
+        externalContractRef: input.externalContractRef ?? null,
+        requestedByUserId: input.actorUserId,
+      },
+      select: { id: true },
+    });
+    requestId = created.id;
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code !== "P2002") throw err;
+    // Key already claimed — same-key path.
+    const existing = await client.enterpriseProvisioningRequest.findUnique({
+      where: { idempotencyKey: input.idempotencyKey.slice(0, 120) },
+    });
+    if (!existing) {
+      // Extremely unlikely (deleted between); retry once via recursion-free error.
+      throw new EnterpriseProvisioningError(
+        "PROVISIONING_IN_PROGRESS",
+        "Provisioning request is being processed. Retry shortly.",
+      );
+    }
+    if (existing.payloadHash !== payloadHash) {
+      throw new EnterpriseProvisioningError(
+        "IDEMPOTENCY_CONFLICT",
+        "This idempotency key was already used with a different payload. Nothing was changed.",
+      );
+    }
+    if (existing.status === "COMPLETED") {
+      return {
+        result: (existing.resultJson as Record<string, unknown>) ?? {
+          organizationId: existing.resultOrganizationId,
+        },
+        idempotentReplay: true,
+        possibleDuplicateOrganizationIds: [],
+      };
+    }
+    if (existing.status === "PENDING") {
+      const age = Date.now() - existing.updatedAt.getTime();
+      if (age < PENDING_TAKEOVER_MS) {
+        throw new EnterpriseProvisioningError(
+          "PROVISIONING_IN_PROGRESS",
+          "A provisioning request with this key is in progress. Retry shortly.",
+        );
+      }
+      // Crashed attempt: single-tx provisioning left no partial customer —
+      // take over the SAME request row (guarded so only one taker wins).
+      const takeover = await client.enterpriseProvisioningRequest.updateMany({
+        where: { id: existing.id, status: "PENDING", updatedAt: existing.updatedAt },
+        data: { failureReason: "takeover after stale PENDING" },
+      });
+      if (takeover.count !== 1) {
+        throw new EnterpriseProvisioningError(
+          "PROVISIONING_IN_PROGRESS",
+          "A provisioning request with this key is in progress. Retry shortly.",
+        );
+      }
+      requestId = existing.id;
+    } else {
+      // FAILED — retry resumes the same workflow.
+      requestId = existing.id;
+      await client.enterpriseProvisioningRequest.update({
+        where: { id: existing.id },
+        data: { status: "PENDING", failureReason: null },
+      });
+    }
+  }
+
+  // ---- run the (single-transaction) provisioning ------------------------
+  try {
+    const result = await provision(
+      {
+        organizationName: input.organizationName,
+        ownerEmail: input.ownerEmail,
+        seats: input.seats,
+        workspaceName: input.workspaceName,
+        actorUserId: input.actorUserId,
+      },
+      client,
+    );
+
+    // Region is contract state (§7.2) — record it on the contract row.
+    if (input.region) {
+      const delegate = (client as { enterpriseContract?: unknown }).enterpriseContract;
+      if (delegate) {
+        try {
+          await client.enterpriseContract.update({
+            where: { organizationId: result.organizationId },
+            data: { region: input.region.slice(0, 40) },
+          });
+        } catch (err) {
+          const code = (err as { code?: string })?.code;
+          if (code !== "P2021" && code !== "P2022" && code !== "P2025") throw err;
+        }
+      }
+    }
+
+    await client.enterpriseProvisioningRequest.update({
+      where: { id: requestId },
+      data: {
+        status: "COMPLETED",
+        resultOrganizationId: result.organizationId,
+        resultJson: redactProvisioningResult(result) as never,
+      },
+    });
+
+    // Advisory duplicate report (rule 3): same normalized name among
+    // OTHER CUSTOMER orgs — never auto-merged, operator reviews.
+    const dupes = await client.organization.findMany({
+      where: {
+        kind: "CUSTOMER",
+        id: { not: result.organizationId },
+        name: { equals: input.organizationName.trim(), mode: "insensitive" },
+      },
+      select: { id: true },
+      take: 10,
+    });
+
+    return {
+      result,
+      idempotentReplay: false,
+      possibleDuplicateOrganizationIds: dupes.map((d) => d.id),
+    };
+  } catch (err) {
+    await client.enterpriseProvisioningRequest
+      .update({
+        where: { id: requestId },
+        data: {
+          status: "FAILED",
+          failureReason:
+            err instanceof Error ? err.message.slice(0, 400) : "unknown",
+        },
+      })
+      .catch(() => null);
+    throw err;
+  }
 }
 
 export type ProvisionEnterpriseCustomerInput = {
@@ -219,16 +480,42 @@ export async function provisionEnterpriseCustomer(
           name: input.organizationName,
           billingOwnerUserId: owner.id,
           status: "ACTIVE",
+          // P1 domain remediation (2026-07-21) — sales-provisioned orgs are
+          // REAL customer Enterprise Organizations.
+          kind: "CUSTOMER",
         },
         select: { id: true },
       });
 
-      await tx.organizationMembership.create({
-        data: {
-          organizationId: org.id,
-          userId: owner.id,
-          role: "ORG_OWNER",
-        },
+      // PHASE 10 §3 (2026-07-23) — every CUSTOMER Organization MUST have an
+      // EXPLICIT provisioned security policy (a missing policy fails closed at
+      // read time). Create the baseline STANDARD posture transactionally so the
+      // org is never left in a fail-closed state. Idempotent-safe: one row per
+      // org (unique organizationId). The org admin tightens it via the policy
+      // routes; the fields default to the explicit STANDARD baseline.
+      await (tx.organizationSecurityPolicy.create as unknown as (a: unknown) => Promise<unknown>)({
+        data: { organizationId: org.id, policyVersion: 1 },
+      });
+
+      // PHASE 3 (2026-07-21) — canonical orchestrator: enterprise first owner.
+      await grantOrganizationMembership(tx, {
+        organizationId: org.id,
+        userId: owner.id,
+        role: "ORG_OWNER",
+        source: "ENTERPRISE_BOOTSTRAP",
+        intent: "ENTERPRISE_FIRST_OWNER",
+        actorUserId: null,
+        externalRef: `enterprise-provisioning:${org.id}`,
+      });
+
+      // PHASE 4 (2026-07-22) — canonical Enterprise contract state (§7.2):
+      // owner exists → the contract is ACTIVE and ACTIVATED at provisioning.
+      await upsertEnterpriseContract(tx, {
+        organizationId: org.id,
+        status: "ACTIVE",
+        activationState: "ACTIVATED",
+        seatCount: seats,
+        contractOwnerUserId: owner.id,
       });
 
       const workspace = await tx.team.create({
@@ -240,6 +527,8 @@ export async function provisionEnterpriseCustomer(
           billingPlan: "ENTERPRISE",
           billingStatus: TeamBillingStatus.ACTIVE,
           includedSeats: seats,
+          // P1 domain remediation (2026-07-21) — explicit canonical kind.
+          workspaceKind: "ORGANIZATION",
           members: {
             create: {
               userId: owner.id,
@@ -268,24 +557,22 @@ export async function provisionEnterpriseCustomer(
       return { organizationId: org.id, workspaceId: workspace.id };
     });
 
-    await appendPlatformAuditLog({
-      userId: input.actorUserId,
+    await emitTenantAudit({
       action: "ENTERPRISE_PROVISIONED",
-      category: "enterprise_provisioning",
-      severity: "INFO",
       outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      organizationId: result.organizationId,
+      workspaceId: result.workspaceId,
       resourceType: "organization",
       resourceId: result.organizationId,
       metadata: {
-        organizationId: result.organizationId,
-        workspaceId: result.workspaceId,
         ownerUserId: owner.id,
         ownerEmail: email,
         seats,
         provisioned: true,
       },
-      db: client,
-    });
+    }, client);
 
     return {
       organizationId: result.organizationId,
@@ -308,12 +595,32 @@ export async function provisionEnterpriseCustomer(
         name: input.organizationName,
         billingOwnerUserId: null,
         status: "ACTIVE",
+        // P1 domain remediation (2026-07-21) — sales-provisioned orgs are
+        // REAL customer Enterprise Organizations.
+        kind: "CUSTOMER",
         // Phase 2 Blocker 1 — persist the provisioning intent on the org.
         // When this ORG_OWNER invite is accepted, the accept handler mints
         // the ENTERPRISE workspace with these seats and clears the marker.
         pendingEnterpriseSeats: seats,
       },
       select: { id: true },
+    });
+
+    // PHASE 10 §1.4 — every CUSTOMER Organization gets an EXPLICIT baseline
+    // security policy transactionally (a missing policy fails closed at read).
+    await (tx.organizationSecurityPolicy.create as unknown as (a: unknown) => Promise<unknown>)({
+      data: { organizationId: org.id, policyVersion: 1 },
+    });
+
+    // PHASE 4 (2026-07-22) — canonical Enterprise contract state (§7.2):
+    // owner not yet on the platform → contract is provisioned but waits
+    // for owner activation.
+    await upsertEnterpriseContract(tx, {
+      organizationId: org.id,
+      status: "PENDING_ACTIVATION",
+      activationState: "OWNER_INVITED",
+      seatCount: seats,
+      contractOwnerUserId: null,
     });
 
     const invite = await tx.organizationInvite.create({
@@ -364,23 +671,21 @@ export async function provisionEnterpriseCustomer(
     return { organizationId: org.id };
   });
 
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "ENTERPRISE_PROVISIONED",
-    category: "enterprise_provisioning",
-    severity: "INFO",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    organizationId: result.organizationId,
     resourceType: "organization",
     resourceId: result.organizationId,
     metadata: {
-      organizationId: result.organizationId,
       ownerEmail: email,
       seats,
       provisioned: false,
       pendingOwner: true,
     },
-    db: client,
-  });
+  }, client);
 
   return {
     organizationId: result.organizationId,
@@ -484,6 +789,8 @@ export async function completeEnterpriseProvisioningOnOwnerAccept(
       billingStatus: TeamBillingStatus.ACTIVE,
       includedSeats: seats,
       overSeatLimit: false,
+      // P1 domain remediation (2026-07-21) — explicit canonical kind.
+      workspaceKind: "ORGANIZATION",
       members: {
         create: {
           userId: input.userId,
@@ -501,6 +808,17 @@ export async function completeEnterpriseProvisioningOnOwnerAccept(
       billingOwnerUserId: org.billingOwnerUserId ?? input.userId,
       pendingEnterpriseSeats: null,
     },
+  });
+
+  // PHASE 4 (2026-07-22) — owner activation completes the contract (§7.1
+  // activation chain): PENDING_ACTIVATION/OWNER_INVITED → ACTIVE/ACTIVATED
+  // with the accepting owner recorded as contract owner.
+  await upsertEnterpriseContract(tx, {
+    organizationId: input.organizationId,
+    status: "ACTIVE",
+    activationState: "ACTIVATED",
+    seatCount: seats,
+    contractOwnerUserId: input.userId,
   });
 
   await emitOrgAuditEvent(tx, {

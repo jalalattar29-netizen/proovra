@@ -18,6 +18,8 @@ import {
   extractPreviewForAsset,
   type ExtractedPreview,
 } from "./preview/extract.js";
+// PHASE 6 §9.7 (2026-07-22) — purge-time legal-hold re-check (4B holds).
+import { hasActiveLifecycleLegalHold } from "./governance/lifecycle-legal-hold.js";
 import {
   assertWorkspaceAllowsReportArtifact,
   assertWorkspaceAllowsVerificationPackageArtifact,
@@ -57,6 +59,8 @@ import {
   parseQueueEnvelope,
   resolveReviewerArtifactRole,
   resolveEffectiveOtsStatus,
+  absoluteInternalUrl,
+  internalResourcePath,
   type ReviewerArtifactRole,
   type ReviewerArtifactRoleSource,
 } from "@proovra/shared";
@@ -431,21 +435,35 @@ function buildPublicUrl(key: string): string | null {
   return `${env.S3_PUBLIC_BASE_URL.replace(/\/+$/, "")}/${key}`;
 }
 
+// PHASE 11 — the /verify/:id surface is a public, unauthenticated
+// verification page (route: apps/web/app/verify/[token]/page.tsx). It
+// predates and sits outside the canonical INTERNAL_RESOURCE_TYPES /
+// PUBLIC_PREFIXES vocabulary in @proovra/shared's tenant-url module, so
+// it composes its base + path via `absoluteInternalUrl` (which accepts
+// any relative path) rather than `internalResourcePath`. The link
+// carries only the persisted evidence id — never a tenant/workspace id
+// from the job payload.
 function buildVerifyUrl(evidenceId: string): string {
   const base = envValue(
     "REPORT_VERIFY_BASE_URL",
     "https://app.proovra.com/verify"
   ).replace(/\/+$/, "");
 
-  return `${base}/${encodeURIComponent(evidenceId)}`;
+  return absoluteInternalUrl(base, `/${encodeURIComponent(evidenceId)}`);
 }
 
+// PHASE 11 — canonical resource-id path for the authenticated evidence
+// detail page. Only the persisted evidence id is carried; no tenant
+// param.
 function buildEvidenceDetailUrl(evidenceId: string): string {
   const base = envValue("REPORT_APP_BASE_URL", "https://app.proovra.com").replace(
     /\/+$/,
     ""
   );
-  return `${base}/evidence/${encodeURIComponent(evidenceId)}`;
+  return absoluteInternalUrl(
+    base,
+    internalResourcePath({ type: "evidence", id: evidenceId })
+  );
 }
 
 function shortHash(
@@ -4592,6 +4610,8 @@ export async function processPurgeDeletedEvidence(
 select: {
   id: true,
   ownerUserId: true,
+  teamId: true,
+  caseId: true,
   deletedAt: true,
   deleteScheduledForUtc: true,
   archivedAt: true,
@@ -4626,6 +4646,47 @@ select: {
 
     if (evidence.lockedAt) {
       logger.info(ctx, "PurgeDeletedEvidenceJob skipped because evidence is locked");
+      return;
+    }
+
+    // PHASE 6 §9.7 (2026-07-22) — LEGAL HOLD PREVAILS at purge-execute
+    // time. The destruction paths re-assert holds before deleting; purge
+    // previously relied only on lockedAt/object-lock, so an application
+    // hold placed after deletion was scheduled could be purged through.
+    // Checks all three hold families (evidence 4A, case 4A, lifecycle
+    // 4B). A held purge is rescheduled daily — releasing the hold lets
+    // the next tick proceed; nothing is orphaned.
+    const directHold = await prisma.evidenceLegalHold.findFirst({
+      where: { evidenceId: evidence.id, status: "ACTIVE" },
+      select: { id: true },
+    });
+    const caseHold = evidence.caseId
+      ? await prisma.caseLegalHold.findFirst({
+          where: { caseId: evidence.caseId, status: "ACTIVE" },
+          select: { id: true },
+        })
+      : null;
+    const lifecycleHold =
+      !directHold && !caseHold && evidence.teamId
+        ? await hasActiveLifecycleLegalHold(prisma, {
+            evidenceId: evidence.id,
+            teamId: evidence.teamId,
+            caseId: evidence.caseId ?? null,
+          })
+        : false;
+    if (directHold || caseHold || lifecycleHold) {
+      const recheckAtIso = new Date(
+        Date.now() + 24 * 60 * 60 * 1000,
+      ).toISOString();
+      await enqueueEvidencePurgeJob(evidence.id, recheckAtIso);
+      logger.info(
+        {
+          ...ctx,
+          holdKind: directHold ? "evidence" : caseHold ? "case" : "lifecycle",
+          rescheduledFor: recheckAtIso,
+        },
+        "PurgeDeletedEvidenceJob rescheduled because evidence is under an active legal hold"
+      );
       return;
     }
 

@@ -113,9 +113,11 @@ describe("Phase EMERGENCY-RECOVERY — workspace-bootstrap service", () => {
   it("creates Team + OWNER TeamMember inside a transaction", () => {
     expect(BOOTSTRAP).toMatch(/client\.\$transaction\(async \(tx\)/);
     expect(BOOTSTRAP).toMatch(/tx\.team\.create/);
-    expect(BOOTSTRAP).toMatch(/tx\.teamMember\.create/);
+    // PHASE 3 (2026-07-21): the OWNER membership is created through the
+    // canonical orchestrator (PERSONAL_BOOTSTRAP intent) — same tx client.
+    expect(BOOTSTRAP).toMatch(/provisionMembership\(tx,/);
+    expect(BOOTSTRAP).toMatch(/intent:\s*"PERSONAL_BOOTSTRAP"/);
     expect(BOOTSTRAP).toMatch(/role:\s*"OWNER"/);
-    expect(BOOTSTRAP).toMatch(/status:\s*"ACTIVE"/);
   });
 
   it("catches P2002 unique-violation and re-fetches the winner (concurrency safety)", () => {
@@ -133,9 +135,11 @@ describe("Phase EMERGENCY-RECOVERY — workspace-bootstrap service", () => {
     expect(code).not.toMatch(/auditLog\b/);
     expect(code).not.toMatch(/auditEvent\.create/);
     expect(code).not.toMatch(/legalHold\.|retentionPolicy\.|entitlement\.create/i);
-    // The only allowed Prisma writers in the bootstrap.
+    // The only allowed writers in the bootstrap: the Team create + the
+    // canonical membership orchestrator (which writes TeamMember +
+    // additive grant provenance — still no audit/billing/governance).
     expect(code).toMatch(/tx\.team\.create/);
-    expect(code).toMatch(/tx\.teamMember\.create/);
+    expect(code).toMatch(/provisionMembership\(tx,/);
   });
 });
 
@@ -247,7 +251,10 @@ describe("Phase EMERGENCY-RECOVERY — frontend wiring", () => {
   it("AppShellV2 swaps content for WorkspaceRecoveryPanel when recoveryActions present", () => {
     expect(WEB_SHELL).toMatch(/WorkspaceRecoveryPanel/);
     expect(WEB_SHELL).toMatch(/recoveryActions/);
-    expect(WEB_SHELL).toMatch(/needsRecovery\s*\?\s*<WorkspaceRecoveryPanel/);
+    // Recovery still takes precedence in the content swap; a parenthesized /
+    // multi-branch ternary (PHASE 10 no-personal panel is a SECONDARY branch,
+    // only when !needsRecovery) is allowed.
+    expect(WEB_SHELL).toMatch(/needsRecovery\s*\?\s*\(?\s*<WorkspaceRecoveryPanel/);
   });
 
   it("Reports migrated from useTeamWorkspaceGate → useWorkspaceId", () => {

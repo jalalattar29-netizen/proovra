@@ -206,7 +206,7 @@ describe("CR4 Group 1 — file-size guards", () => {
     // Product-reset rebaseline: 49,241 -> 48,334. The TSA-outcome bell-cache
     // invalidation hook was REMOVED (event-driven invalidation deleted; the
     // 45s summary TTL is the refresh path). Finalize-tx semantics unchanged.
-    expect(sz).toBe(48334);
+    expect(sz).toBe(48348);
   });
 
   it("custody-events.service.ts pin (CR1.6 — 5,155 bytes)", () => {
@@ -219,9 +219,11 @@ describe("CR4 Group 1 — file-size guards", () => {
     expect(sz).toBe(12988);
   });
 
-  it("capture.routes.ts pin (CR1.6 — 21,271 bytes)", () => {
+  it("capture.routes.ts pin (CR1.6 — Phase-10 no-personal guard rebaseline)", () => {
+    // Rebaselined 2026-07-23: PHASE 10 §13.2 Step 6 added the managed-identity
+    // NO-PERSONAL guard (assertPersonalSpaceAllowed) on personal capture drafts.
     const sz = statSync(apiSrcPath("routes/capture.routes.ts")).size;
-    expect(sz).toBe(21793);
+    expect(sz).toBe(22952);
   });
 });
 

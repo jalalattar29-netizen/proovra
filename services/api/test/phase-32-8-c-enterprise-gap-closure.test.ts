@@ -152,14 +152,18 @@ describe("Phase 32.8C FINAL-3 — header workspace display", () => {
   // phase-32-8-foundation-platform-context.test.ts.
   it.skip("teams fetch does NOT fall back to the raw id as the name", () => {});
 
-  it("workspace switcher menu items render canonical labels, never raw UUIDs (account-menu refactor 2026-07-21)", () => {
-    // ENTERPRISE TENANT MODEL — the switcher lives inside the account menu and
-    // renders each option's resolved `label` as its visible text; the raw id
-    // is only ever a `data-account-menu-workspace={id}` attribute, never
-    // display text.
-    expect(TOPBAR_TSX).toMatch(/\{menu\.workspaces\.personal[\s\S]{0,40}\.label\}/);
-    expect(TOPBAR_TSX).toMatch(/\{org\.label\}/);
-    expect(TOPBAR_TSX).toMatch(/data-account-menu-workspace=\{/);
+  it("workspace switcher options render canonical labels, never raw UUIDs (P3/P4 domain remediation 2026-07-21)", () => {
+    // ENTERPRISE TENANT MODEL — the switcher is the persistent context chip's
+    // canonical panel; EVERY group renders its options through the ONE shared
+    // SwitcherOption component, whose visible text is the resolver-produced
+    // `label`. The raw id is only ever the `data-context-option={option.id}`
+    // attribute, never display text.
+    expect(TOPBAR_TSX).toMatch(/function SwitcherOption\(/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR_TSX).toMatch(/\{option\.label\}/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR_TSX).toMatch(/data-context-option=\{option\.id\}/); // (P3/P4 domain remediation 2026-07-21)
+    // No id-as-visible-label fallback anywhere in the toolbar.
+    expect(TOPBAR_TSX).not.toMatch(/option\.label \?\? option\.id/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR_TSX).not.toMatch(/\{option\.id\}\s*<\//); // (P3/P4 domain remediation 2026-07-21)
     // The canonical labels themselves are produced by the client resolver:
     // the personal entry uses the bounded "Personal Space" literal;
     // organizations fall back to displayName / name / "Organization
@@ -168,6 +172,8 @@ describe("Phase 32.8C FINAL-3 — header workspace display", () => {
     expect(ACCOUNT_RESOLVER).toMatch(
       /org\.displayName \?\?[\s\S]{0,80}Organization workspace/,
     );
+    // The resolver never uses the workspace id as a label fallback either.
+    expect(ACCOUNT_RESOLVER).not.toMatch(/label:\s*w\.workspaceId/); // (P3/P4 domain remediation 2026-07-21)
   });
 });
 
@@ -377,8 +383,11 @@ describe("Phase 32.8C FINAL-3 — bulk actions", () => {
     expect(BULK).not.toMatch(/queue\.add/);
   });
 
-  it("emits a single platform audit log row per run + per-target audit via the lifecycle service", () => {
-    expect(BULK).toMatch(/appendPlatformAuditLog\(/);
+  it("emits a single canonical tenant-audit row per run + per-target audit via the lifecycle service", () => {
+    // PHASE 11 §3 Batch A — migrated onto the canonical emitTenantAudit
+    // facade (authoritative workspaceId column instead of a free-form
+    // metadata.teamId field).
+    expect(BULK).toMatch(/emitTenantAudit\(/);
     expect(BULK).toMatch(/action:\s*`observability\.bulk_action\./);
   });
 
@@ -667,8 +676,8 @@ describe("Phase 32.8C FINAL-3 — no-regression invariants", () => {
     }
   });
 
-  it("bulk action runner audits every run via appendPlatformAuditLog", () => {
-    expect(BULK).toMatch(/appendPlatformAuditLog\(/);
+  it("bulk action runner audits every run via the canonical emitTenantAudit facade", () => {
+    expect(BULK).toMatch(/emitTenantAudit\(/);
   });
 
   it("frontend new sections never emit POSTs (dashboard remains read-only)", () => {

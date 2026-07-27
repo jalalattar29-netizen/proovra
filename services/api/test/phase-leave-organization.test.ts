@@ -33,7 +33,8 @@ describe("POST /v1/orgs/:id/leave", () => {
 
   it("blocks ORG_OWNER with the stable OWNERSHIP_TRANSFER_REQUIRED code BEFORE any mutation", () => {
     const guard = H.indexOf('membership.role === "ORG_OWNER"');
-    const del = H.indexOf("organizationMembership.delete");
+    // PHASE 3: the governance removal is the canonical orchestrator call.
+    const del = H.indexOf("removeOrganizationMembership");
     expect(guard).toBeGreaterThan(-1);
     expect(del).toBeGreaterThan(-1);
     expect(guard).toBeLessThan(del);
@@ -48,8 +49,9 @@ describe("POST /v1/orgs/:id/leave", () => {
 
   it("revokes workspace access via TeamMember REVOKED scoped to THIS org's non-personal teams", () => {
     expect(H).toMatch(/organizationId:\s*orgId,\s*isPersonal:\s*false/);
-    expect(H).toMatch(/teamId:\s*\{\s*in:\s*orgTeamIds\s*\}/);
-    expect(H).toMatch(/data:\s*\{\s*status:\s*"REVOKED"\s*\}/);
+    // PHASE 3: same org-scoped revocation via the canonical orchestrator.
+    expect(H).toMatch(/massRevokeWorkspaceMemberships/);
+    expect(H).toMatch(/teamIds:\s*orgTeamIds/);
     // Rows are deactivated, never erased — attribution preserved.
     expect(H).not.toMatch(/teamMember\.deleteMany/);
   });

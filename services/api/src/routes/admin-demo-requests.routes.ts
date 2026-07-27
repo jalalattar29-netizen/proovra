@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import {
   processDueDemoFollowUps,
   sendDemoFollowUpById,
@@ -232,16 +232,14 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
         }),
       ]);
 
-      void appendPlatformAuditLog({
-        userId: req.user?.sub ?? null,
+      void emitPlatformAudit({
         action: "admin.demo_requests.list",
-        category: "demo_requests",
-        severity: "info",
-        source: "api_admin_demo_requests",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: req.user?.sub ?? null,
         resourceType: "demo_request",
         resourceId: null,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: {
           limit,
           status: status ?? null,
@@ -254,9 +252,9 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
           isSpam: typeof isSpam === "boolean" ? isSpam : null,
           search: search ?? null,
           resultCount: items.length,
+          ipAddress: readIp(req),
+          userAgent: readUserAgent(req),
         },
-        ipAddress: readIp(req),
-        userAgent: readUserAgent(req),
       }).catch(() => null);
 
       const statusSummary = {
@@ -365,16 +363,14 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
         );
       }
 
-      void appendPlatformAuditLog({
-        userId: req.user?.sub ?? null,
+      void emitPlatformAudit({
         action: "admin.demo_requests.view",
-        category: "demo_requests",
-        severity: "info",
-        source: "api_admin_demo_requests",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: req.user?.sub ?? null,
         resourceType: "demo_request",
         resourceId: item.id,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: {
           demoRequestId: item.id,
           status: item.status,
@@ -385,9 +381,9 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
           routingTarget: item.routingTarget,
           followUpStatus: item.followUpStatus,
           isSpam: item.isSpam,
+          ipAddress: readIp(req),
+          userAgent: readUserAgent(req),
         },
-        ipAddress: readIp(req),
-        userAgent: readUserAgent(req),
       }).catch(() => null);
 
       return reply.code(200).send({ item });
@@ -537,16 +533,14 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
         },
       });
 
-      void appendPlatformAuditLog({
-        userId: req.user?.sub ?? null,
+      void emitPlatformAudit({
         action: "admin.demo_requests.update",
-        category: "demo_requests",
-        severity: "info",
-        source: "api_admin_demo_requests",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: req.user?.sub ?? null,
         resourceType: "demo_request",
         resourceId: updated.id,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: {
           demoRequestId: updated.id,
           previousStatus: existing.status,
@@ -556,9 +550,9 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
           previousFollowUpStatus: existing.followUpStatus,
           nextFollowUpStatus: updated.followUpStatus,
           notesChanged: existing.notes !== updated.notes,
+          ipAddress: readIp(req),
+          userAgent: readUserAgent(req),
         },
-        ipAddress: readIp(req),
-        userAgent: readUserAgent(req),
       }).catch(() => null);
 
       return reply.code(200).send({
@@ -636,25 +630,23 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
         },
       });
 
-      void appendPlatformAuditLog({
-        userId: req.user?.sub ?? null,
+      void emitPlatformAudit({
         action: "admin.demo_requests.route",
-        category: "demo_requests",
-        severity: "info",
-        source: "api_admin_demo_requests",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: req.user?.sub ?? null,
         resourceType: "demo_request",
         resourceId: updated.id,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: {
           demoRequestId: updated.id,
           previousRoutingTarget: existing.routingTarget,
           nextRoutingTarget: updated.routingTarget,
           previousRoutingReason: existing.routingReason,
           nextRoutingReason: updated.routingReason,
+          ipAddress: readIp(req),
+          userAgent: readUserAgent(req),
         },
-        ipAddress: readIp(req),
-        userAgent: readUserAgent(req),
       }).catch(() => null);
 
       return reply.code(200).send({
@@ -701,25 +693,23 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
           forceStep: parsed.data.step,
         });
 
-        void appendPlatformAuditLog({
-          userId: req.user?.sub ?? null,
+        void emitPlatformAudit({
           action: "admin.demo_requests.follow_up_send",
-          category: "demo_requests",
-          severity: "info",
-          source: "api_admin_demo_requests",
           outcome: "success",
+          sourceApp: "API",
+          actorUserId: req.user?.sub ?? null,
           resourceType: "demo_request",
           resourceId: item.id,
-          requestId: req.id,
+          correlationId: req.id,
           metadata: {
             demoRequestId: item.id,
             followUpStep: item.followUpStep,
             followUpStatus: item.followUpStatus,
             nextFollowUpAt: item.nextFollowUpAt,
             templateKey: item.lastFollowUpTemplateKey,
+            ipAddress: readIp(req),
+            userAgent: readUserAgent(req),
           },
-          ipAddress: readIp(req),
-          userAgent: readUserAgent(req),
         }).catch(() => null);
 
         return reply.code(200).send({
@@ -764,27 +754,24 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
         actorUserId,
       });
 
-      void appendPlatformAuditLog({
-        userId: actorUserId,
+      void emitPlatformAudit({
         action: "admin.demo_requests.follow_up_run",
-        category: "demo_requests",
-        severity: result.failed > 0 ? "warning" : "info",
-        source: internalCall
-          ? "api_admin_demo_requests_internal"
-          : "api_admin_demo_requests",
-        outcome: result.failed > 0 ? "failure" : "success",
+        outcome: result.failed > 0 ? "error" : "success",
+        sourceApp: internalCall ? "SYSTEM" : "API",
+        actorUserId,
+        serviceActor: internalCall ? "admin_demo_requests_follow_up_worker" : null,
         resourceType: "demo_request",
         resourceId: null,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: {
           processed: result.processed,
           sent: result.sent,
           failed: result.failed,
           limit: parsed.data.limit,
           trigger: internalCall ? "internal_worker" : "admin_manual",
+          ipAddress: readIp(req),
+          userAgent: readUserAgent(req),
         },
-        ipAddress: readIp(req),
-        userAgent: readUserAgent(req),
       }).catch(() => null);
 
       return reply.code(200).send({

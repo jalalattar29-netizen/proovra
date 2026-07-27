@@ -21,6 +21,7 @@ import Link from "next/link";
 import { Bell } from "lucide-react";
 
 import { apiFetch } from "../../lib/api";
+import { useDeepLinkNavigation } from "../../lib/navigation/useDeepLinkNavigation";
 
 type BellItem = {
   id: string;
@@ -101,6 +102,11 @@ function formatCount(n: number, exact: boolean): string {
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
+  // PHASE 11 §4 — notification destinations may name a tenant resource in
+  // another Workspace; they navigate through the ONE deep-link chokepoint
+  // (server resolve → dirty-work guard → stale rejection), never raw.
+  const { open: openDestination } = useDeepLinkNavigation();
+  const [deniedKey, setDeniedKey] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [countIsExact, setCountIsExact] = useState(true);
   const [items, setItems] = useState<BellItem[] | null>(null);
@@ -342,16 +348,38 @@ export function NotificationBell() {
                               </>
                             ) : null}
                           </div>
-                          <Link
+                          <a
                             href={it.href}
-                            onClick={() => {
-                              setOpen(false);
-                              void mutate(it.itemKey, "read");
+                            onClick={(e) => {
+                              // §4 — the destination is opened ONLY via the
+                              // canonical chokepoint (server resolve first);
+                              // the raw href never navigates directly.
+                              e.preventDefault();
+                              void openDestination(it.href).then((result) => {
+                                if (result.status === "navigated") {
+                                  setOpen(false);
+                                  void mutate(it.itemKey, "read");
+                                } else if (result.status === "denied") {
+                                  // Anti-enumeration: one generic message for
+                                  // every denial — nothing about existence.
+                                  setDeniedKey(it.itemKey);
+                                }
+                              });
                             }}
+                            data-notification-destination
                             className="ops-bell-row__title"
                           >
                             {it.title}
-                          </Link>
+                          </a>
+                          {deniedKey === it.itemKey ? (
+                            <div
+                              role="status"
+                              data-notification-destination-denied
+                              className="ops-bell-row__body"
+                            >
+                              This item is not available.
+                            </div>
+                          ) : null}
                           <div className="ops-bell-row__body">{it.body}</div>
                           <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
                             <button

@@ -26,7 +26,7 @@
  */
 
 import { prisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
 
 export interface DigestPreferenceRow {
@@ -191,25 +191,21 @@ export async function updateDigestPreference(
         (prior.suppressUntil?.getTime() ?? null));
 
   if (changed) {
-    void appendPlatformAuditLog({
-      userId: input.actorUserId,
+    void emitTenantAudit({
       action: "mfa.recovery.digest_preference_updated",
-      category: "identity_security.mfa_recovery",
-      severity: "info",
-      source: "mfa_digest_preference_service",
       outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
       resourceType: "mfa_admin_digest_preference",
       resourceId: row?.id ?? input.actorUserId,
       metadata: {
-        teamId: input.teamId,
         digestEnabled:
           input.digestEnabled ?? (prior?.digestEnabled ?? true),
         suppressUntil:
           (suppressUntilDate ?? prior?.suppressUntil ?? null)?.toISOString() ??
           null,
       },
-      ipAddress: input.ipAddress ?? null,
-      userAgent: input.userAgent ?? null,
     }).catch(() => null);
     safeEmitSecurityEvent({
       teamId: input.teamId,

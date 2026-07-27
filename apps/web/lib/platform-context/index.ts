@@ -20,6 +20,30 @@ export {
 
 export * from "./types";
 
+// PHASE 7 §10.2/§10.3 — tenant-scoped storage + in-flight guard.
+export {
+  tenantStorageKey,
+  useTenantDraft,
+  useTenantGuard,
+  useWorkspaceContextSafety,
+} from "./tenantStorage";
+// PHASE 7 §10.5 — canonical owning-context banner.
+export {
+  WorkspaceContextBanner,
+  useOwningContextLabel,
+} from "./WorkspaceContextBanner";
+// PHASE 7 §10.1 — dirty-work registry (re-export for one import site).
+export {
+  useDirtyWork,
+  registerDirtyWork,
+  getDirtyWorkLabels,
+  // PHASE 10 CLOSURE FIX 3 — reactive read + subscription for the automatic
+  // no-Personal heal's dirty-work guard (no parallel registry).
+  useDirtyWorkLabels,
+  subscribeDirtyWork,
+  clearAllDirtyWork,
+} from "./dirtyWorkRegistry";
+
 export { CapabilityDegradedPanel } from "./CapabilityDegradedPanel";
 export {
   useTeamWorkspaceGate,
@@ -45,3 +69,29 @@ export {
 // 2026-07-20 — returns the single canonical vocabulary).
 export { useTerminology, resolveTerminology } from "./useTerminology";
 export type { TerminologyKey } from "./useTerminology";
+
+// PHASE 10 CLOSURE FIX 3 (2026-07-23) — canonical no-Personal client gate.
+export {
+  isPersonalSpaceDisallowed,
+  firstAvailableNonPersonalWorkspaceId,
+  resolvePersonalSpaceGate,
+  type PersonalSpaceGateEnvelopeInput,
+  type PersonalSpaceGateResult,
+} from "./personalSpaceGate";
+export {
+  usePersonalSpaceGate,
+  type PersonalSpaceGateRenderState,
+} from "./usePersonalSpaceGate";
+export {
+  PersonalSpaceUnavailablePanel,
+  PERSONAL_SPACE_UNAVAILABLE_MESSAGE,
+  PERSONAL_SPACE_WITHHELD_MESSAGE,
+} from "./PersonalSpaceUnavailablePanel";
+export {
+  useHealWithheld,
+  requestHealRelease,
+  markHealWithheld,
+  clearHealWithheld,
+  getHealWithheldState,
+  type HealWithheldState,
+} from "./personalSpaceHealLatch";

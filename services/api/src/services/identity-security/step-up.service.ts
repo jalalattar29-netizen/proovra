@@ -35,7 +35,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import {
   VerificationError,
@@ -152,25 +152,20 @@ export async function startStepUpChallenge(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.userId,
+  await emitTenantAudit({
     action: "identity_security.step_up.start",
-    category: "identity_security.step_up",
-    severity: "info",
-    source: "identity_security_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.userId,
+    workspaceId: input.teamId,
     resourceType: "step_up_challenge",
     resourceId: challenge.id,
     metadata: {
-      teamId: input.teamId,
       purpose: input.purpose,
       resourceKind: input.resourceKind ?? null,
       resourceId: input.resourceId ?? null,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return { challenge };
 }
 
@@ -314,25 +309,20 @@ export async function checkStepUpChallenge(
     },
     client,
   );
-  await appendPlatformAuditLog({
-    userId: input.userId,
+  await emitTenantAudit({
     action: "identity_security.step_up.approved",
-    category: "identity_security.step_up",
-    severity: "info",
-    source: "identity_security_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.userId,
+    workspaceId: input.teamId,
     resourceType: "step_up_challenge",
     resourceId: approved.id,
     metadata: {
-      teamId: input.teamId,
       purpose: row.purpose,
       resourceKind: row.resourceKind ?? null,
       resourceId: row.resourceId ?? null,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+  }, client);
   return { challenge: approved };
 }
 

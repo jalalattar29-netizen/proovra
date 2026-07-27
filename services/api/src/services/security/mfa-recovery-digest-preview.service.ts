@@ -24,6 +24,8 @@
 
 import { prisma } from "../../db.js";
 import { shouldSendDigest } from "./mfa-digest-preference.service.js";
+// PHASE 11 — canonical internal URL builder.
+import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 
 /** Same threshold as the worker — digest covers requests older
  *  than 24 hours. Pure constant; no env override (matches the
@@ -75,8 +77,12 @@ export async function previewDigestForAdmin(
 ): Promise<PreviewDigestResult> {
   const now = new Date();
   const cutoff = new Date(now.getTime() - PENDING_AGE_THRESHOLD_SECONDS * 1000);
+  // PHASE 11 — nav path, composed via internalNavPath + absoluteInternalUrl.
   const base = process.env["WEB_BASE_URL"] || "https://www.proovra.com";
-  const adminRecoveryUrl = `${base.replace(/\/$/, "")}/security-center/mfa-recovery`;
+  const adminRecoveryUrl = absoluteInternalUrl(
+    base,
+    internalNavPath("/security-center/mfa-recovery"),
+  );
 
   // 1. Discover the admin's ACTIVE OWNER/ADMIN memberships.
   const memberships = await prisma.teamMember.findMany({

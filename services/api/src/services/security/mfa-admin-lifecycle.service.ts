@@ -29,7 +29,7 @@
  */
 
 import { prisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
 
 export type MfaAdminScopeFailure =
@@ -202,22 +202,18 @@ export async function revokeUserFactor(
       revokedReason: input.reason.slice(0, 120) || "admin_revoked",
     },
   });
-  void appendPlatformAuditLog({
-    userId: input.actorUserId,
+  void emitTenantAudit({
     action: "mfa.admin.factor_revoked",
-    category: "identity_security.mfa_admin",
-    severity: "warning",
-    source: "mfa_admin_lifecycle_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "mfa_factor",
     resourceId: factor.id,
     metadata: {
-      teamId: input.teamId,
       targetUserId: input.targetUserId,
       reason: input.reason.slice(0, 120),
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
   }).catch(() => null);
   safeEmitSecurityEvent({
     teamId: input.teamId,
@@ -270,23 +266,19 @@ export async function requireUserReenrollment(
         (input.reason ?? "admin_required_reenrollment").slice(0, 120),
     },
   });
-  void appendPlatformAuditLog({
-    userId: input.actorUserId,
+  void emitTenantAudit({
     action: "mfa.admin.reenrollment_required",
-    category: "identity_security.mfa_admin",
-    severity: "warning",
-    source: "mfa_admin_lifecycle_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "user_mfa",
     resourceId: input.targetUserId,
     metadata: {
-      teamId: input.teamId,
       targetUserId: input.targetUserId,
       revokedFactorCount: result.count,
       reason: input.reason.slice(0, 120),
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
   }).catch(() => null);
   safeEmitSecurityEvent({
     teamId: input.teamId,
@@ -348,23 +340,19 @@ export async function resetTrustedDevicesForUser(
       revokedReason: (input.reason ?? "admin_reset_devices").slice(0, 200),
     },
   });
-  void appendPlatformAuditLog({
-    userId: input.actorUserId,
+  void emitTenantAudit({
     action: "mfa.admin.trusted_devices_reset",
-    category: "identity_security.mfa_admin",
-    severity: "warning",
-    source: "mfa_admin_lifecycle_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "trusted_device_collection",
     resourceId: input.targetUserId,
     metadata: {
-      teamId: input.teamId,
       targetUserId: input.targetUserId,
       resetCount: result.count,
       reason: input.reason.slice(0, 200),
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
   }).catch(() => null);
   safeEmitSecurityEvent({
     teamId: input.teamId,

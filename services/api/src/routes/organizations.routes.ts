@@ -46,9 +46,22 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
 import { checkOrgAccess } from "../services/organization/org-access.js";
+// P0 remediation (2026-07-21) — admin org-member removal revokes sessions.
+import { revokeAllSessionsForUser } from "../services/identity-security/session-revocation.service.js";
+// P2 domain remediation (2026-07-21) — canonical membership provisioning
+// (governance + explicit workspace assignments).
+import {
+  grantOrganizationMembership,
+  grantWorkspaceMembership,
+  parseWorkspaceAssignments,
+  // PHASE 3 completion (2026-07-22) — canonical mutation surface.
+  massRevokeWorkspaceMemberships,
+  removeOrganizationMembership,
+  updateOrganizationMembershipRole,
+} from "../services/identity/membership-provisioning.service.js";
 // Phase 2.7X Stage 4 — audit emitter (writes inside the mutation tx).
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   verifyAccountStepUp,
   type AccountStepUpProof,
@@ -63,6 +76,15 @@ import {
 // inside the accept tx after the ORG_OWNER membership is created; a no-op
 // for every non-enterprise accept (guarded on pendingEnterpriseSeats).
 import { completeEnterpriseProvisioningOnOwnerAccept } from "../services/enterprise-provisioning.service.js";
+// PHASE 4 §7.5 (2026-07-22) — organization-workspace suspend/resume.
+import {
+  resumeOrganizationWorkspace,
+  suspendOrganizationWorkspace,
+} from "../services/workspace/workspace-lifecycle.service.js";
+// PHASE 5 §8 (2026-07-22) — canonical invite acceptance (idempotent +
+// concurrency-safe claim).
+import { acceptOrganizationInvite } from "../services/organization/org-invite-acceptance.service.js";
+import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
 
 const UuidParam = z.string().uuid();
 
@@ -102,6 +124,18 @@ const UpdateOrgBody = z
 const InviteBody = z.object({
   email: z.string().trim().toLowerCase().email().max(320),
   role: OrgRoleSchema.optional(),
+  // P2 domain remediation (2026-07-21) — optional explicit WORKSPACE
+  // assignments the accept transaction will grant. Governance-only invites
+  // omit this (the previous behavior, unchanged).
+  workspaceAssignments: z
+    .array(
+      z.object({
+        teamId: z.string().uuid(),
+        role: z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"]),
+      }),
+    )
+    .max(20)
+    .optional(),
 });
 
 const RoleChangeBody = z.object({
@@ -197,8 +231,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const userId = getAuthUserId(req);
+      // PHASE 2 (2026-07-21) — CUSTOMER organizations only. SYSTEM
+      // containers (the internal 1:1 backing rows for Personal / Owned
+      // workspaces) must NEVER surface as customer Enterprise
+      // Organizations on any product surface.
       const rows = await prisma.organizationMembership.findMany({
-        where: { userId },
+        where: { userId, organization: { kind: "CUSTOMER" } },
         select: {
           role: true,
           createdAt: true,
@@ -553,76 +591,34 @@ export async function organizationsRoutes(app: FastifyInstance) {
   //     their own. So an ORG_ADMIN cannot invite as ORG_OWNER.
 
   // -------------------------------------------------------------------------
-  // POST /v1/orgs
+  // POST /v1/orgs — RETIRED (PHASE 2, 2026-07-21).
   //
-  // Create a new organization. Caller becomes ORG_OWNER. This is the
-  // "create my first organization" path for new signups and the
-  // "create another org" path for operators with prior orgs.
+  // This was the ambiguous generic "create organization" path: it created
+  // an Organization row with NO `kind` (schema default SYSTEM) and made the
+  // caller ORG_OWNER — a SYSTEM container masquerading as a customer
+  // Enterprise Organization. Under the canonical domain model:
+  //
+  //   * self-service creation creates a SYSTEM container + OWNED Workspace
+  //     (POST /v1/teams — teams.routes.ts);
+  //   * CUSTOMER Enterprise Organizations are created ONLY through
+  //     authorized Enterprise provisioning
+  //     (services/enterprise-provisioning.service.ts — sales-led).
+  //
+  // The route stays registered so authenticated legacy clients receive a
+  // bounded, explanatory denial instead of a confusing 404. The sole web
+  // caller (the /organizations "Create organization" modal) was migrated in
+  // the same change.
   // -------------------------------------------------------------------------
   app.post(
     "/v1/orgs",
     { preHandler: requireAuthAndLegal },
-    async (req, reply) => {
-      const body = CreateOrgBody.parse(req.body);
-      const userId = getAuthUserId(req);
-
-      const result = await prisma.$transaction(async (tx) => {
-        const org = await tx.organization.create({
-          data: {
-            name: body.name,
-            legalName: body.legalName,
-            legalEmail: body.legalEmail,
-            address: body.address,
-            timezone: body.timezone,
-            logoUrl: body.logoUrl,
-            billingOwnerUserId: userId,
-            status: "ACTIVE",
-          },
-          select: {
-            id: true,
-            name: true,
-            legalName: true,
-            legalEmail: true,
-            status: true,
-            billingOwnerUserId: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        });
-
-        await tx.organizationMembership.create({
-          data: {
-            organizationId: org.id,
-            userId,
-            role: "ORG_OWNER",
-          },
-        });
-
-        await emitOrgAuditEvent(tx, {
-          organizationId: org.id,
-          actorUserId: userId,
-          eventType: "ORG_CREATED",
-          targetType: "organization",
-          targetId: org.id,
-          metadata: {
-            name: org.name,
-            billingOwnerUserId: org.billingOwnerUserId,
-          },
-        });
-
-        return org;
-      });
-
-      return reply.code(201).send({
-        organizationId: result.id,
-        name: result.name,
-        legalName: result.legalName,
-        legalEmail: result.legalEmail,
-        status: result.status,
-        billingOwnerUserId: result.billingOwnerUserId,
-        callerRole: "ORG_OWNER",
-        createdAt: result.createdAt.toISOString(),
-        updatedAt: result.updatedAt.toISOString(),
+    async (_req, reply) => {
+      return reply.code(403).send({
+        error: {
+          code: "org_self_service_creation_retired",
+          message:
+            "Organizations are provisioned with a PROOVRA Enterprise agreement. To work with a team, create a workspace instead.",
+        },
       });
     },
   );
@@ -766,6 +762,25 @@ export async function organizationsRoutes(app: FastifyInstance) {
           .send({ message: "Cannot invite at a role greater than your own." });
       }
 
+      // P2 domain remediation (2026-07-21) — every assigned workspace must
+      // belong to THIS organization and must not be a personal space.
+      // Validated at create time (fail-closed 400) and re-validated at
+      // accept time (teams can move between invite creation and accept).
+      if (body.workspaceAssignments && body.workspaceAssignments.length > 0) {
+        const teamIds = body.workspaceAssignments.map((a) => a.teamId);
+        const orgTeams = await prisma.team.findMany({
+          where: { id: { in: teamIds }, organizationId: orgId, isPersonal: false },
+          select: { id: true },
+        });
+        if (orgTeams.length !== new Set(teamIds).size) {
+          return reply.code(400).send({
+            message:
+              "Every assigned workspace must belong to this organization.",
+            code: "invalid_workspace_assignment",
+          });
+        }
+      }
+
       const result = await prisma.$transaction(async (tx) => {
         // Reject if a non-revoked, non-accepted, non-expired invite
         // already exists for this email in this org.
@@ -817,6 +832,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
             tokenHash,
             invitedByUserId: userId,
             expiresAt: expires,
+            // P2 — explicit workspace assignments (validated above).
+            ...(body.workspaceAssignments &&
+            body.workspaceAssignments.length > 0
+              ? { workspaceAssignments: body.workspaceAssignments }
+              : {}),
           },
           select: { id: true, expiresAt: true },
         });
@@ -899,139 +919,13 @@ export async function organizationsRoutes(app: FastifyInstance) {
         .parse((req.params as { token: string }).token);
       const userId = getAuthUserId(req);
 
-      const result = await prisma.$transaction(async (tx) => {
-        // Resolve the caller's email up front (so we can include it
-        // in any rejection audit event for token-hijack visibility).
-        const caller = await tx.user.findUnique({
-          where: { id: userId },
-          select: { email: true },
-        });
-        const callerEmail = caller?.email?.trim().toLowerCase() ?? null;
-
-        // Phase 2.7X Stage 6 — lookup by hash, not raw token. The
-        // raw `token` column is left intentionally untouched here so
-        // the destructive Stage 7 cutover can DROP it without code
-        // changes.
-        const incomingTokenHash = hashInviteToken(token);
-        const invite = await tx.organizationInvite.findUnique({
-          where: { tokenHash: incomingTokenHash },
-          select: {
-            id: true,
-            organizationId: true,
-            role: true,
-            email: true,
-            expiresAt: true,
-            acceptedAt: true,
-            revokedAt: true,
-          },
-        });
-
-        // Helper: emit a rejection audit row WHEN the org is known.
-        // For "not_found" the org is unknown — we cannot scope the
-        // event to a real org, so the rejection is unaudited at the
-        // org tier (404 is itself the signal).
-        const recordRejection = async (
-          reason:
-            | "email_mismatch"
-            | "expired"
-            | "revoked"
-            | "already_accepted"
-            | "not_found",
-        ) => {
-          if (!invite) return; // no org to scope the event to
-          await emitOrgAuditEvent(tx, {
-            organizationId: invite.organizationId,
-            actorUserId: userId,
-            eventType: "ORG_INVITE_ACCEPT_REJECTED",
-            targetType: "organization_invite",
-            targetId: invite.id,
-            metadata: {
-              reason,
-              attemptedByUserId: userId,
-              attemptedByEmail: callerEmail,
-              inviteId: invite.id,
-            },
-          });
-        };
-
-        if (!invite) {
-          return { kind: "not_found" as const };
-        }
-        if (invite.revokedAt) {
-          await recordRejection("revoked");
-          return { kind: "revoked" as const };
-        }
-        if (invite.acceptedAt) {
-          await recordRejection("already_accepted");
-          return { kind: "already_accepted" as const };
-        }
-        if (invite.expiresAt <= new Date()) {
-          await recordRejection("expired");
-          return { kind: "expired" as const };
-        }
-
-        // Stage 5 — email match (only when BOTH sides have emails).
-        const inviteEmail = invite.email.trim().toLowerCase();
-        if (callerEmail && callerEmail !== inviteEmail) {
-          await recordRejection("email_mismatch");
-          return { kind: "email_mismatch" as const };
-        }
-
-        // Idempotency: if the user is already a member of the org,
-        // mark the invite accepted but DON'T create a duplicate
-        // membership.
-        const existingMembership = await tx.organizationMembership.findFirst({
-          where: { organizationId: invite.organizationId, userId },
-          select: { id: true, role: true },
-        });
-        if (!existingMembership) {
-          await tx.organizationMembership.create({
-            data: {
-              organizationId: invite.organizationId,
-              userId,
-              role: invite.role,
-            },
-          });
-        }
-
-        await tx.organizationInvite.update({
-          where: { id: invite.id },
-          data: { acceptedAt: new Date() },
-        });
-
-        await emitOrgAuditEvent(tx, {
-          organizationId: invite.organizationId,
-          actorUserId: userId,
-          eventType: "ORG_MEMBER_ACCEPTED",
-          targetType: "organization_invite",
-          targetId: invite.id,
-          metadata: {
-            inviteId: invite.id,
-            role: invite.role,
-            acceptedByUserId: userId,
-          },
-        });
-
-        // Phase 2 Blocker 1 — brand-new-owner enterprise auto-completion.
-        // Fully guarded inside the helper (ORG_OWNER role + pending marker +
-        // zero workspaces). For every non-enterprise accept this returns
-        // null and writes nothing, leaving the behaviour below unchanged.
-        const enterpriseCompletion =
-          await completeEnterpriseProvisioningOnOwnerAccept(tx, {
-            organizationId: invite.organizationId,
-            userId,
-            inviteRole: invite.role,
-            actorUserId: userId,
-          });
-
-        return {
-          kind: "ok" as const,
-          organizationId: invite.organizationId,
-          role: invite.role,
-          enterpriseWorkspaceId:
-            enterpriseCompletion?.enterpriseWorkspaceId ?? null,
-          setupRedirect: enterpriseCompletion?.setupRedirect ?? null,
-        };
+      // PHASE 5 §8 (2026-07-22) — acceptance moved into the canonical
+      // service: idempotent same-user replay + guarded atomic claim
+      // (concurrency-safe; grants written exactly once). Raw-token
+      // handling stays here (Stage 6 hash-lookup contract).
+      const result = await acceptOrganizationInvite({
+        tokenHash: hashInviteToken(token),
+        userId,
       });
 
       if (result.kind === "not_found") {
@@ -1051,15 +945,52 @@ export async function organizationsRoutes(app: FastifyInstance) {
           .code(403)
           .send({ message: "Invite email does not match your account." });
       }
+      if (result.kind === "org_unavailable") {
+        // §8.1 — archived/suspended target; same class as revoked/expired
+        // (410, no org-existence detail).
+        return reply
+          .code(410)
+          .send({ message: "This organization is not accepting members." });
+      }
+
+      // PHASE 10 §2.2 — GOVERNANCE-ONLY SUCCESS. Membership acceptance is
+      // durable + idempotent (grants written exactly once by the orchestrator
+      // above). Now ATTEMPT to open the Organization session context under the
+      // advisory-locked concurrent-session limit. If acceptance succeeded but
+      // the limit blocks opening, we return invitationAccepted=true +
+      // workspaceOpened=false + reason — the accepted membership STANDS (no
+      // silent rollback), and the UI offers a session-management/retry action.
+      let workspaceOpened = true;
+      let openReason: string | null = null;
+      const inviteSessionHash = req.user?.sessionIdHash;
+      if (inviteSessionHash) {
+        const seat = await establishOrganizationSessionContext(
+          { userId, organizationId: result.organizationId, sessionIdHash: inviteSessionHash },
+          prisma,
+        );
+        if (!seat.allowed) {
+          workspaceOpened = false;
+          openReason =
+            seat.reason === "concurrent_session_limit_reached"
+              ? "CONCURRENT_SESSION_LIMIT_REACHED"
+              : seat.reason;
+        }
+      }
 
       // Phase 2 Blocker 1 — when the brand-new-owner enterprise completion
       // ran, surface the new workspace id + the setup-wizard redirect so the
-      // frontend lands the owner in /organizations/:id/setup. These fields
-      // are omitted for every normal (non-enterprise) accept, keeping that
-      // response byte-for-byte unchanged.
+      // frontend lands the owner in /organizations/:id/setup.
       return reply.code(200).send({
+        invitationAccepted: true,
+        workspaceOpened,
+        ...(openReason ? { reason: openReason } : {}),
         organizationId: result.organizationId,
         role: result.role,
+        // P2 — explicit workspace grants (empty = governance-only invite).
+        assignedWorkspaceIds: result.assignedWorkspaceIds,
+        // PHASE 5 §8 — true when this accept was a same-user retry of an
+        // already-consumed invite (no new grants were written).
+        ...(result.idempotentReplay ? { idempotentReplay: true } : {}),
         ...(result.enterpriseWorkspaceId
           ? { enterpriseWorkspaceId: result.enterpriseWorkspaceId }
           : {}),
@@ -1401,9 +1332,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
           return { kind: "noop" as const, membershipId: target.id };
         }
 
-        await tx.organizationMembership.update({
-          where: { id: target.id },
-          data: { role: newRole },
+        // PHASE 3 — canonical orchestrator: manual governance role change.
+        await updateOrganizationMembershipRole(tx, {
+          organizationMembershipId: target.id,
+          role: newRole,
+          actorUserId: userId,
         });
 
         await emitOrgAuditEvent(tx, {
@@ -1509,7 +1442,48 @@ export async function organizationsRoutes(app: FastifyInstance) {
           }
         }
 
-        await tx.organizationMembership.delete({ where: { id: target.id } });
+        // PHASE 3 — canonical orchestrator: governance removal (provenance closed).
+        await removeOrganizationMembership(tx, {
+          organizationMembershipId: target.id,
+          actorUserId: userId,
+        });
+
+        // -------------------------------------------------------------------
+        // P0 remediation (2026-07-21) — admin removal must be at least as
+        // strong an off-board as self-service /leave. Previously this path
+        // deleted ONLY the governance membership, leaving the target's
+        // workspace access (TeamMember), active-context pointer, and
+        // sessions fully intact.
+        //
+        // (b) workspace layer — REVOKE (never erase) the target's ACTIVE
+        //     memberships on teams OWNED by this organization; personal +
+        //     other-org teams are untouched.
+        // -------------------------------------------------------------------
+        const orgTeams = await tx.team.findMany({
+          where: { organizationId: orgId, isPersonal: false },
+          select: { id: true },
+        });
+        const orgTeamIds = orgTeams.map((t) => t.id);
+        let workspacesDeactivated = 0;
+        if (orgTeamIds.length > 0) {
+          // PHASE 3 — canonical mass revocation (provenance closed per member).
+          const upd = await massRevokeWorkspaceMemberships(tx, {
+            where: { userId: target.userId, teamIds: orgTeamIds },
+            actorUserId: userId,
+            reason: "organization admin removal",
+          });
+          workspacesDeactivated = upd.count;
+        }
+
+        // (c) active-workspace fallback — clear a now-inaccessible pointer;
+        //     platform-context bootstrap restores the personal workspace.
+        await tx.user.updateMany({
+          where: {
+            id: target.userId,
+            currentWorkspaceId: { in: orgTeamIds },
+          },
+          data: { currentWorkspaceId: null },
+        });
 
         await emitOrgAuditEvent(tx, {
           organizationId: orgId,
@@ -1521,11 +1495,37 @@ export async function organizationsRoutes(app: FastifyInstance) {
             membershipId: target.id,
             targetUserId: target.userId,
             formerRole: target.role,
+            workspacesDeactivated,
           },
         });
 
-        return { kind: "ok" as const, membershipId: target.id };
+        return {
+          kind: "ok" as const,
+          membershipId: target.id,
+          targetUserId: target.userId,
+        };
       });
+
+      // P0 remediation (2026-07-21) — (d) session revocation. Sessions are
+      // account-global JWTs; revoking forces a fresh login (the target can
+      // immediately log back into their untouched Personal Space). Best-
+      // effort AFTER the transaction: access is already denied server-side
+      // by the REVOKED memberships even if this write fails.
+      if (result.kind === "ok") {
+        try {
+          await revokeAllSessionsForUser(
+            {
+              teamId: null,
+              userId: result.targetUserId,
+              reason: "ORG_MEMBER_REMOVED",
+              actorUserId: userId,
+            },
+            prisma,
+          );
+        } catch {
+          /* deny-list write is best-effort; memberships already REVOKED */
+        }
+      }
 
       switch (result.kind) {
         case "not_found":
@@ -1601,8 +1601,10 @@ export async function organizationsRoutes(app: FastifyInstance) {
         }
 
         // (a) governance membership — delete (canonical removal semantics).
-        await tx.organizationMembership.delete({
-          where: { id: membership.id },
+        // PHASE 3 — canonical orchestrator: self-leave governance removal.
+        await removeOrganizationMembership(tx, {
+          organizationMembershipId: membership.id,
+          actorUserId: userId,
         });
 
         // (b) workspace layer — deactivate, never erase. Scoped to teams
@@ -1618,13 +1620,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
           // TeamMemberStatus has no INACTIVE — REVOKED is the canonical
           // access-revocation state (the platform envelope projects any
           // non-ACTIVE status as an INACTIVE membership).
-          const upd = await tx.teamMember.updateMany({
-            where: {
-              userId,
-              teamId: { in: orgTeamIds },
-              status: "ACTIVE",
-            },
-            data: { status: "REVOKED" },
+          // PHASE 3 — canonical mass revocation (provenance closed per member).
+          const upd = await massRevokeWorkspaceMemberships(tx, {
+            where: { userId, teamIds: orgTeamIds },
+            actorUserId: userId,
+            reason: "organization self-leave",
           });
           workspacesDeactivated = upd.count;
         }
@@ -1685,22 +1685,19 @@ export async function organizationsRoutes(app: FastifyInstance) {
         case "ok": {
           // Personal Account & Security Activity timeline (best-effort;
           // the org audit event above is the durable record).
-          await appendPlatformAuditLog({
-            userId,
+          await emitTenantAudit({
             action: "identity.organization_left",
-            category: "identity",
-            severity: "info",
-            source: "api_organizations",
             outcome: "success",
+            sourceApp: "API",
+            actorUserId: userId,
+            organizationId: orgId,
             resourceType: "organization",
             resourceId: orgId,
-            requestId: req.id,
+            correlationId: req.id,
             metadata: {
               formerRole: result.formerRole,
               workspacesDeactivated: result.workspacesDeactivated,
             },
-            ipAddress: null,
-            userAgent: null,
           }).catch(() => null);
           return reply.code(200).send({
             left: true,
@@ -1784,13 +1781,17 @@ export async function organizationsRoutes(app: FastifyInstance) {
         if (!target) return { kind: "target_not_member" as const };
 
         // Atomic swap — never zero owners, never two.
-        await tx.organizationMembership.update({
-          where: { id: target.id },
-          data: { role: "ORG_OWNER" },
+        // PHASE 3 — canonical orchestrator: atomic ownership swap (both
+        // legs provenance-recorded; the enclosing tx keeps it atomic).
+        await updateOrganizationMembershipRole(tx, {
+          organizationMembershipId: target.id,
+          role: "ORG_OWNER",
+          actorUserId: userId,
         });
-        await tx.organizationMembership.update({
-          where: { id: caller.id },
-          data: { role: "ORG_ADMIN" },
+        await updateOrganizationMembershipRole(tx, {
+          organizationMembershipId: caller.id,
+          role: "ORG_ADMIN",
+          actorUserId: userId,
         });
 
         // Billing ownership follows the owner when it pointed at the
@@ -1838,19 +1839,16 @@ export async function organizationsRoutes(app: FastifyInstance) {
         [userId, "previous_owner"],
         [body.targetUserId, "new_owner"],
       ] as const) {
-        await appendPlatformAuditLog({
-          userId: party,
+        await emitTenantAudit({
           action: "identity.organization_ownership_transferred",
-          category: "identity.lifecycle",
-          severity: "warning",
-          source: "api_organizations",
           outcome: "success",
+          sourceApp: "API",
+          actorUserId: party,
+          organizationId: orgId,
           resourceType: "organization",
           resourceId: orgId,
-          requestId: req.id,
+          correlationId: req.id,
           metadata: { role, billingOwnerTransferred: result.billingOwnerTransferred },
-          ipAddress: null,
-          userAgent: null,
         }).catch(() => null);
       }
 
@@ -1861,6 +1859,53 @@ export async function organizationsRoutes(app: FastifyInstance) {
       });
     },
   );
+
+  // -------------------------------------------------------------------------
+  // PHASE 4 §7.5 (2026-07-22) — organization-workspace suspend/resume.
+  // ORG_ADMIN-scoped, reversible. Effects live in
+  // workspace-lifecycle.service.ts: memberships → SUSPENDED with a marker
+  // reason (resume reverts exactly those rows), switcher pointers cleared,
+  // webhook delivery paused. Evidence/audit untouched.
+  // -------------------------------------------------------------------------
+  for (const [leg, fn] of [
+    ["suspend", suspendOrganizationWorkspace],
+    ["resume", resumeOrganizationWorkspace],
+  ] as const) {
+    app.post(
+      `/v1/orgs/:id/workspaces/:teamId/${leg}`,
+      { preHandler: requireAuthAndLegal },
+      async (req, reply) => {
+        const params = z
+          .object({ id: z.string().uuid(), teamId: z.string().uuid() })
+          .parse(req.params);
+        const userId = getAuthUserId(req);
+        const access = await checkOrgAccess(prisma, {
+          orgId: params.id,
+          userId,
+          minRole: "ORG_ADMIN",
+        });
+        if (access.kind !== "ok") {
+          return reply.code(403).send({ error: { code: "admin_required" } });
+        }
+        try {
+          const result = await fn({
+            teamId: params.teamId,
+            actorUserId: userId,
+            organizationId: params.id,
+          });
+          return reply.code(200).send({ [leg]: result });
+        } catch (err) {
+          const e = err as Error & { statusCode?: number; code?: string };
+          if (typeof e.statusCode === "number" && typeof e.code === "string") {
+            return reply
+              .code(e.statusCode)
+              .send({ error: { code: e.code.toLowerCase() } });
+          }
+          throw err;
+        }
+      },
+    );
+  }
 
   // -------------------------------------------------------------------------
   // Organization closure (lifecycle Phase 6, 2026-07-17)
@@ -2014,19 +2059,17 @@ export async function organizationsRoutes(app: FastifyInstance) {
           });
           return row;
         });
-        await appendPlatformAuditLog({
-          userId,
+        await emitTenantAudit({
           action: "identity.organization_closure_blocked",
-          category: "identity.lifecycle",
-          severity: "warning",
-          source: "api_organizations",
           outcome: "denied",
+          denialReason: "closure_blocked",
+          sourceApp: "API",
+          actorUserId: userId,
+          organizationId: orgId,
           resourceType: "organization_closure_request",
           resourceId: blocked.id,
-          requestId: req.id,
+          correlationId: req.id,
           metadata: { blockers: blockers.map((b) => b.code) },
-          ipAddress: null,
-          userAgent: null,
         }).catch(() => null);
         return reply
           .code(409)
@@ -2059,19 +2102,16 @@ export async function organizationsRoutes(app: FastifyInstance) {
         });
         return row;
       });
-      await appendPlatformAuditLog({
-        userId,
+      await emitTenantAudit({
         action: "identity.organization_closure_requested",
-        category: "identity.lifecycle",
-        severity: "warning",
-        source: "api_organizations",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: userId,
+        organizationId: orgId,
         resourceType: "organization_closure_request",
         resourceId: created.id,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: { coolingOffEndsAtUtc: coolingOffEndsAtUtc.toISOString() },
-        ipAddress: null,
-        userAgent: null,
       }).catch(() => null);
       return reply.code(201).send({ request: created });
     },
@@ -2127,19 +2167,16 @@ export async function organizationsRoutes(app: FastifyInstance) {
           .send({ error: { code: "closure_not_cancellable" } });
       }
 
-      await appendPlatformAuditLog({
-        userId,
+      await emitTenantAudit({
         action: "identity.organization_closure_cancelled",
-        category: "identity.lifecycle",
-        severity: "info",
-        source: "api_organizations",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: userId,
+        organizationId: params.id,
         resourceType: "organization_closure_request",
         resourceId: params.requestId,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: {},
-        ipAddress: null,
-        userAgent: null,
       }).catch(() => null);
       const row = await prisma.organizationClosureRequest.findFirst({
         where: { id: params.requestId, organizationId: params.id },

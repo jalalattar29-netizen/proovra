@@ -100,6 +100,15 @@ export type PlanCapabilities = {
   maxMembersPerTeam: number;
 
   /**
+   * PHASE 9 §9.6 (2026-07-22) — invitation abuse rails, folded from the
+   * former parallel `COLLABORATION_TEAM_PLAN_LIMITS` table (packages/shared)
+   * so ONE capability vocabulary carries every published Teams limit.
+   * Operational abuse rails, not commercial promises.
+   */
+  maxPendingInvitesPerTeam: number;
+  maxInvitesPer24h: number;
+
+  /**
    * Enterprise governance features. On non-Enterprise plans every
    * flag is `false`. The API gate `assertEnterpriseFeature()` reads
    * this block to decide whether SSO/SCIM, MFA enforcement, legal
@@ -170,6 +179,8 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     teamWorkspaceRequired: false,
     maxOwnedTeams: 0,
     maxMembersPerTeam: 0,
+    maxPendingInvitesPerTeam: 0,
+    maxInvitesPer24h: 0,
     enterpriseFeatures: NO_ENTERPRISE_FEATURES,
   },
 
@@ -196,6 +207,8 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     teamWorkspaceRequired: false,
     maxOwnedTeams: 0,
     maxMembersPerTeam: 0,
+    maxPendingInvitesPerTeam: 0,
+    maxInvitesPer24h: 0,
     enterpriseFeatures: NO_ENTERPRISE_FEATURES,
   },
 
@@ -222,6 +235,8 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     teamWorkspaceRequired: false,
     maxOwnedTeams: 2,
     maxMembersPerTeam: 5,
+    maxPendingInvitesPerTeam: 10,
+    maxInvitesPer24h: 50,
     enterpriseFeatures: NO_ENTERPRISE_FEATURES,
   },
 
@@ -248,6 +263,8 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     teamWorkspaceRequired: true,
     maxOwnedTeams: 5,
     maxMembersPerTeam: 5,
+    maxPendingInvitesPerTeam: 25,
+    maxInvitesPer24h: 100,
     enterpriseFeatures: NO_ENTERPRISE_FEATURES,
   },
 
@@ -274,12 +291,177 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     teamWorkspaceRequired: false,
     maxOwnedTeams: 1000,
     maxMembersPerTeam: 500,
+    maxPendingInvitesPerTeam: 1000,
+    maxInvitesPer24h: 5000,
     enterpriseFeatures: ALL_ENTERPRISE_FEATURES,
   },
 };
 
 export function getPlanCapabilities(plan: PlanType): PlanCapabilities {
   return PLAN_CAPABILITIES[plan] ?? PLAN_CAPABILITIES.FREE;
+}
+
+// =============================================================================
+// PHASE 9 §9.4/§9.5 (2026-07-22) — CANONICAL PURE COMMERCIAL POLICY.
+// The effective-plan and subscription-active DECISIONS for the
+// OWNED_WORKSPACE subject live HERE (the one shared pure policy package);
+// services/api/workspace-billing is an input ADAPTER that loads persisted
+// fields and delegates to these functions. No service may re-derive them.
+// =============================================================================
+
+/** Persisted workspace billing lifecycle vocabulary (Team.billingStatus). */
+export type WorkspaceBillingStatus =
+  | "ACTIVE"
+  | "PAST_DUE"
+  | "CANCELED"
+  | "INACTIVE";
+
+/**
+ * THE one rule for "this workspace has an active paid workspace
+ * subscription" (previously `isPaidTeamSubscriptionActive` inside
+ * services/api/workspace-billing — MOVED here, single implementation).
+ * PAST_DUE remains eligible at this layer; the bounded grace clock is
+ * enforced by the canonical lifecycle policy in resolveCommercialContext.
+ */
+export function isWorkspaceSubscriptionActive(input: {
+  billingPlan: PlanType;
+  billingStatus: WorkspaceBillingStatus;
+}): boolean {
+  return (
+    input.billingPlan === "TEAM" &&
+    (input.billingStatus === "ACTIVE" || input.billingStatus === "PAST_DUE")
+  );
+}
+
+/**
+ * TENANT-CLASSIFICATION BOUNDARY (corrected 2026-07-22): WorkspaceKind is a
+ * DOMAIN fact — its single normalization implementation lives in the general
+ * domain package (`@proovra/shared`, `normalizeWorkspaceKind`), NOT here.
+ * This billing package RECEIVES an explicit kind and never infers
+ * PERSONAL/OWNED/ORGANIZATION from plan, owner or commercial fields. The
+ * union below is a structural input type only (no logic, no dependency).
+ */
+export type NormalizedWorkspaceKind =
+  | "PERSONAL"
+  | "OWNED"
+  | "ORGANIZATION"
+  | "UNKNOWN";
+
+/**
+ * THE one workspace effective-plan decision — SUBJECT-CORRECT (§9.4
+ * corrected 2026-07-22; owner-coverage REMOVED).
+ *
+ * LOCKED SEMANTICS:
+ *   PERSONAL workspace  → the PERSONAL_ACCOUNT subject governs: the owner's
+ *                         entitlement plan (this is the personal space — the
+ *                         only place ownerPlan participates).
+ *   OWNED workspace     → ONLY the workspace's OWN commercial state:
+ *                         live TEAM subscription → TEAM; a raw ENTERPRISE
+ *                         plan string on an OWNED row is LEGACY AMBIGUITY →
+ *                         FAIL CLOSED (FREE + reason); otherwise FREE.
+ *                         The owner's Personal plan NEVER covers an existing
+ *                         Owned Workspace (maxOwnedTeams governs CREATION
+ *                         allowance only, at the PERSONAL_ACCOUNT subject).
+ *   ORGANIZATION        → the parent CUSTOMER Organization's contract
+ *                         coverage, represented by the provisioned
+ *                         ENTERPRISE workspace billing; any other live plan
+ *                         resolves as-is; inactive → FREE (fail closed).
+ *   UNKNOWN             → FAIL CLOSED (FREE).
+ */
+export function resolveWorkspaceEffectivePlan(input: {
+  workspaceKind: NormalizedWorkspaceKind;
+  billingPlan: PlanType;
+  billingStatus: WorkspaceBillingStatus;
+  /** Used ONLY when workspaceKind === "PERSONAL" (personal-space subject). */
+  ownerPlan: PlanType;
+}): {
+  plan: PlanType;
+  source:
+    | "PERSONAL_ENTITLEMENT"
+    | "WORKSPACE_SUBSCRIPTION"
+    | "ORGANIZATION_CONTRACT"
+    | "LEGACY_AMBIGUOUS_FAIL_CLOSED"
+    | "NONE";
+} {
+  const live =
+    input.billingStatus === "ACTIVE" || input.billingStatus === "PAST_DUE";
+
+  switch (input.workspaceKind) {
+    case "PERSONAL":
+      return { plan: input.ownerPlan, source: "PERSONAL_ENTITLEMENT" };
+    case "OWNED": {
+      if (live && input.billingPlan === "TEAM") {
+        return { plan: "TEAM", source: "WORKSPACE_SUBSCRIPTION" };
+      }
+      if (input.billingPlan === "ENTERPRISE") {
+        // OWNED + ENTERPRISE plan string is not valid Enterprise coverage —
+        // Enterprise applies only to ORGANIZATION workspaces under a
+        // CUSTOMER org contract. Legacy rows fail closed pending the
+        // deterministic report/backfill (authored, never auto-trusted).
+        return { plan: "FREE", source: "LEGACY_AMBIGUOUS_FAIL_CLOSED" };
+      }
+      return { plan: "FREE", source: "NONE" };
+    }
+    case "ORGANIZATION": {
+      if (live && input.billingPlan === "ENTERPRISE") {
+        return { plan: "ENTERPRISE", source: "ORGANIZATION_CONTRACT" };
+      }
+      if (live && input.billingPlan === "TEAM") {
+        return { plan: "TEAM", source: "WORKSPACE_SUBSCRIPTION" };
+      }
+      return { plan: "FREE", source: "NONE" };
+    }
+    case "UNKNOWN":
+      return { plan: "FREE", source: "NONE" };
+  }
+}
+
+// =============================================================================
+// PHASE 9 §9.6 corrected (2026-07-22) — collaboration-team limits adapter,
+// RELOCATED here from @proovra/shared to fix the package-layering inversion
+// (the generic shared package must not depend on the billing package).
+// ZERO-DECISION projections of PlanCapabilities: no literal limits, no
+// subject inference, no owner-plan fallback, no lifecycle interpretation.
+// TEMPORARY ADAPTER — owner: billing domain · removal: callers read
+// PlanCapabilities fields directly · Phase 12 target: delete this block.
+// =============================================================================
+
+export type CollaborationTeamPlanLimits = {
+  maxTeams: number;
+  maxMembersPerTeam: number;
+  maxPendingInvitesPerTeam: number;
+  maxInvitesPer24h: number;
+};
+
+function projectCollaborationLimits(plan: PlanType): CollaborationTeamPlanLimits {
+  const caps = getPlanCapabilities(plan);
+  return {
+    maxTeams: caps.maxOwnedTeams,
+    maxMembersPerTeam: caps.maxMembersPerTeam,
+    maxPendingInvitesPerTeam: caps.maxPendingInvitesPerTeam,
+    maxInvitesPer24h: caps.maxInvitesPer24h,
+  };
+}
+
+export const COLLABORATION_TEAM_PLAN_LIMITS: Record<
+  PlanType,
+  CollaborationTeamPlanLimits
+> = {
+  FREE: projectCollaborationLimits("FREE"),
+  PAYG: projectCollaborationLimits("PAYG"),
+  PRO: projectCollaborationLimits("PRO"),
+  TEAM: projectCollaborationLimits("TEAM"),
+  ENTERPRISE: projectCollaborationLimits("ENTERPRISE"),
+};
+
+export function getCollaborationTeamPlanLimits(
+  plan: string | null | undefined,
+): CollaborationTeamPlanLimits {
+  const key = (plan ?? "FREE").toUpperCase();
+  if (key in COLLABORATION_TEAM_PLAN_LIMITS) {
+    return COLLABORATION_TEAM_PLAN_LIMITS[key as PlanType];
+  }
+  return COLLABORATION_TEAM_PLAN_LIMITS.FREE;
 }
 
 export function getPlanStorageLimitBytes(plan: PlanType): bigint {

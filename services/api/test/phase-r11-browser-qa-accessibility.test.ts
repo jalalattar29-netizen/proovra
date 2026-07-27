@@ -134,7 +134,8 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     ).toBe(9864);
   });
   it("CR1.6 byte-exact pin on capture.routes.ts holds", () => {
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(21793);
+    // Rebaselined 2026-07-23: PHASE 10 §13.2 Step 6 no-personal guard added.
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(22952);
   });
   it("Phase 31 byte-exact pin on evidence-complete.service.ts holds (44,078 bytes after fan-out extraction)", () => {
     // Baseline moves with documented phase growth (G3.x/G4/G5/Phase 11/14)
@@ -167,7 +168,7 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     // Product-reset rebaseline: 49,241 -> 48,334. The TSA-outcome bell-cache
     // invalidation hook was REMOVED (event-driven invalidation deleted; the
     // 45s summary TTL is the refresh path). Finalize-tx semantics unchanged.
-    ).toBe(48334);
+    ).toBe(48348);
   });
   it("CR1.6 byte-exact pin on custody-events.service.ts holds", () => {
     expect(
@@ -198,12 +199,12 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
   // the audit-fix pass added plain-language eyebrow + heading rename
   // ("Reviewer note" → "Your notes") + placeholder rewrite + bounded
   // comments. No behaviour change.
-  it("CR5 UPPER pin on capture page.tsx holds (≤ 51,999 bytes)", () => {
+  it("CR5 UPPER pin on capture page.tsx holds (≤ 52,040 bytes)", () => {
     // Phase CAPTURE-CLOSURE rebaseline: added per-item sourceLabel
     // input + label + disclaimer (backend column already existed).
     expect(
       statSync(webPath("app/(app)/capture/page.tsx")).size,
-    ).toBeLessThanOrEqual(51999);
+    ).toBeLessThanOrEqual(52040);
   });
   it("R10 UPPER pin on ui.tsx holds", () => {
     // Rebaseline 520 → 523: PROOVRA Feedback System ToastProvider redesign

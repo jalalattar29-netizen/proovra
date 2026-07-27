@@ -8,7 +8,8 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { buildBaseContext, buildEvidenceContext } from "../services/ai/ai-context-resolver.service.js";
 import type { ReviewerContext } from "../services/ai/ai-context-resolver.service.js";
 import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
@@ -43,10 +44,22 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       select: { id: true, teamId: true, evidenceId: true, status: true },
     });
     if (!wf?.teamId) return reply.code(404).send({ error: { code: "review_not_found" } });
+    // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization
+    // against the RESOURCE's team (ACTIVE membership + org lifecycle +
+    // capability `intelligence.run` + fail-closed + anti-enumeration 404).
+    const authz = await authorizeOrFail(req, reply, {
+      teamId: wf.teamId,
+      permission: "intelligence.run",
+      resourceKind: "evidence_review_workflow",
+      resourceId: wf.id,
+      antiEnumeration: true,
+    });
+    if (!authz) return reply;
+    // Role read for AI-policy + context only; authorization enforced above.
     const membership = await prisma.teamMember.findUnique({
       where: { teamId_userId: { teamId: wf.teamId, userId } },
     });
-    if (!membership) return reply.code(403).send({ error: { code: "not_a_member" } });
+    if (!membership) return reply.code(404).send({ error: { code: "not_found" } });
     const teamId = wf.teamId;
 
     // Selected evidence defaults to the review's own record; all tenant-scoped.
@@ -76,8 +89,21 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
     }));
     const resolveCitation = buildCitationResolver(buildWorkspaceCitationLookups(prisma as unknown as CitationPrisma, teamId));
 
-    const audit = (outcome: string, metadata: Record<string, unknown>) =>
-      appendPlatformAuditLog({ userId, action: "ai.reviewer_copilot", category: "ai", source: "api_ai", outcome, resourceType: "review_workflow", resourceId: reviewId, metadata });
+    const audit = (outcome: "success" | "failure" | "blocked", metadata: Record<string, unknown>) => {
+      const mapped = outcome === "blocked" ? "denied" : outcome === "failure" ? "error" : "success";
+      return emitTenantAudit({
+        action: "ai.reviewer_copilot",
+        outcome: mapped,
+        denialReason: mapped !== "success" ? (typeof metadata.status === "string" ? metadata.status : outcome) : null,
+        sourceApp: "API",
+        actorUserId: userId,
+        workspaceId: teamId,
+        resourceType: "review_workflow",
+        resourceId: reviewId,
+        correlationId: req.id ?? null,
+        metadata,
+      });
+    };
 
     // Phase A7 — durable budget reservation.
     const ledger = await tryReserveAiBudget({
@@ -145,8 +171,15 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       teamId: z.string().uuid(),
       strategy: z.enum(["RANDOM", "RISK_BASED", "HIGH_EDIT_RATE", "LOW_CITATION", "DISAGREEMENT", "POLICY_BLOCK", "PROVIDER_FAILURE"]).default("RISK_BASED"),
     }).parse(req.query ?? {});
-    const membership = await prisma.teamMember.findUnique({ where: { teamId_userId: { teamId: q.teamId, userId } } });
-    if (!membership) return reply.code(403).send({ error: { code: "not_a_member" } });
+    // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization
+    // for the claimed workspace (ACTIVE membership + org lifecycle +
+    // capability `intelligence.read` + fail-closed + anti-enumeration 404).
+    const authz = await authorizeOrFail(req, reply, {
+      teamId: q.teamId,
+      permission: "intelligence.read",
+      antiEnumeration: true,
+    });
+    if (!authz) return reply;
     try {
       const runs = await prisma.aiCopilotRun.findMany({
         where: { workspaceId: q.teamId },
@@ -216,16 +249,30 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
     const body = z.object({ decision: z.enum(["QC_ACCEPTED", "QC_SKIPPED", "QC_REVIEWED"]) }).parse(req.body ?? {});
     const run = await prisma.aiCopilotRun.findUnique({ where: { id: runId }, select: { workspaceId: true } });
     if (!run) return reply.code(404).send({ error: { code: "run_not_found" } });
-    const membership = await prisma.teamMember.findUnique({ where: { teamId_userId: { teamId: run.workspaceId, userId } } });
-    if (!membership) return reply.code(403).send({ error: { code: "not_a_member" } });
+    // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization
+    // against the run's workspace (ACTIVE membership + org lifecycle +
+    // capability `intelligence.run` + fail-closed + anti-enumeration 404).
+    const authz = await authorizeOrFail(req, reply, {
+      teamId: run.workspaceId,
+      permission: "intelligence.run",
+      antiEnumeration: true,
+    });
+    if (!authz) return reply;
     const row = await recordObservationInteraction({
       copilotRunId: runId, observationId: "qc",
       state: body.decision === "QC_ACCEPTED" ? "ACCEPTED" : body.decision === "QC_SKIPPED" ? "REJECTED" : "EDITED",
       originalText: `qc:${body.decision}`, editedText: body.decision, actorId: userId,
     });
-    await appendPlatformAuditLog({
-      userId, action: "ai.qc_decision", category: "ai", source: "api_ai", outcome: "success",
-      resourceType: "ai_copilot_run", resourceId: runId, metadata: { decision: body.decision },
+    await emitTenantAudit({
+      action: "ai.qc_decision",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: userId,
+      workspaceId: run.workspaceId,
+      resourceType: "ai_copilot_run",
+      resourceId: runId,
+      correlationId: req.id ?? null,
+      metadata: { decision: body.decision },
     });
     return reply.code(200).send({ id: row.id, decision: body.decision });
   });
@@ -244,10 +291,15 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
 
     const run = await prisma.aiCopilotRun.findUnique({ where: { id: runId }, select: { workspaceId: true } });
     if (!run) return reply.code(404).send({ error: { code: "run_not_found" } });
-    const membership = await prisma.teamMember.findUnique({
-      where: { teamId_userId: { teamId: run.workspaceId, userId } },
+    // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization
+    // against the run's workspace (ACTIVE membership + org lifecycle +
+    // capability `intelligence.run` + fail-closed + anti-enumeration 404).
+    const authz = await authorizeOrFail(req, reply, {
+      teamId: run.workspaceId,
+      permission: "intelligence.run",
+      antiEnumeration: true,
     });
-    if (!membership) return reply.code(403).send({ error: { code: "not_a_member" } });
+    if (!authz) return reply;
 
     const row = await recordObservationInteraction({
       copilotRunId: runId,
@@ -257,9 +309,15 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       editedText: body.editedText ?? null,
       actorId: userId,
     });
-    await appendPlatformAuditLog({
-      userId, action: "ai.copilot_observation_review", category: "ai", source: "api_ai",
-      outcome: "success", resourceType: "ai_copilot_run", resourceId: runId,
+    await emitTenantAudit({
+      action: "ai.copilot_observation_review",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: userId,
+      workspaceId: run.workspaceId,
+      resourceType: "ai_copilot_run",
+      resourceId: runId,
+      correlationId: req.id ?? null,
       metadata: { observationId: body.observationId, state: body.state },
     });
     return reply.code(200).send({ id: row.id, state: row.state });

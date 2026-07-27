@@ -4,10 +4,10 @@ import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import {
-  appendPlatformAuditLog,
   listAdminAuditLogs,
   verifyAdminAuditChain,
 } from "../services/platform-audit-log.service.js";
+import { emitPlatformAudit, emitAdminManualAudit } from "../services/audit/tenant-audit.service.js";
 
 const PostBodySchema = z.object({
   action: z.string().min(1).max(128),
@@ -45,19 +45,23 @@ function auditAdminAuditAccess(
     metadata?: Record<string, unknown>;
   }
 ): void {
-  void appendPlatformAuditLog({
-    userId: req.user?.sub ?? null,
+  const outcome =
+    params.outcome === "failure" ? "error" : params.outcome === "blocked" ? "denied" : "success";
+  void emitPlatformAudit({
     action: params.action,
-    category: "admin_audit_access",
-    severity: params.severity ?? "info",
-    source: "api_admin_audit",
-    outcome: params.outcome ?? "success",
+    outcome,
+    denialReason: outcome === "denied" ? params.action : null,
+    sourceApp: "API",
+    actorUserId: req.user?.sub ?? null,
     resourceType: "admin_audit",
     resourceId: null,
-    requestId: req.id,
-    metadata: params.metadata ?? {},
-    ipAddress: (req as { ip?: string }).ip,
-    userAgent: readUserAgent(req),
+    correlationId: req.id,
+    metadata: {
+      ...(params.metadata ?? {}),
+      severity: params.severity ?? "info",
+      ipAddress: (req as { ip?: string }).ip,
+      userAgent: readUserAgent(req),
+    },
   }).catch(() => null);
 }
 
@@ -103,7 +107,10 @@ export async function adminAuditRoutes(app: FastifyInstance) {
           : undefined);
 
       try {
-        await appendPlatformAuditLog({
+        // §2 — the ONE sanctioned passthrough (admin manual audit entry with a
+        // caller-chosen category); routed through the canonical audit authority,
+        // never the low-level writer directly.
+        await emitAdminManualAudit({
           userId,
           action: parsed.data.action,
           category: parsed.data.category ?? null,
@@ -118,6 +125,12 @@ export async function adminAuditRoutes(app: FastifyInstance) {
           userAgent: readUserAgent(req),
         });
       } catch (err: unknown) {
+        // §3 — hardened manual-audit validation (invalid action shape).
+        if (err instanceof Error && (err as { code?: string }).code === "INVALID_ADMIN_MANUAL_AUDIT") {
+          return reply.code(400).send(
+            createErrorResponse(ErrorCode.INVALID_REQUEST, req.id, { reason: "invalid_action" }, "Invalid manual audit action"),
+          );
+        }
         if (err instanceof Error && err.message === "METADATA_TOO_LARGE") {
           return reply.code(400).send(
             createErrorResponse(

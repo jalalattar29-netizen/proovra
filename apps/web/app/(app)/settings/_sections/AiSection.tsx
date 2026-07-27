@@ -35,6 +35,8 @@ import { apiFetch, ApiError } from "../../../../lib/api";
 import {
   useActiveWorkspaceId,
   usePlatformContext,
+  WorkspaceContextBanner,
+  useWorkspaceContextSafety,
 } from "../../../../lib/platform-context";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
@@ -120,7 +122,20 @@ export function AiSection() {
   const teamId = useActiveWorkspaceId();
   const { envelope } = usePlatformContext();
 
-  const isOrg = envelope?.activeSpace?.type === "ORGANIZATION";
+  // PHASE 2 (2026-07-21) — canonical workspace-kind classification. The
+  // active workspace's kind comes from the envelope's canonical
+  // contextOptions (PERSONAL / OWNED / ORGANIZATION), not from the legacy
+  // activeSpace.type binary. OWNED workspaces are SELF-SERVICE (managed by
+  // the workspace owner/admins, not an Enterprise org policy), so they take
+  // the self-managed branch alongside PERSONAL.
+  const activeContext = envelope?.contextOptions?.activeContext;
+  const canonicalKind =
+    activeContext && activeContext.workspaceId === teamId
+      ? activeContext.kind
+      : envelope?.activeSpace?.type === "ORGANIZATION"
+        ? "ORGANIZATION"
+        : "PERSONAL";
+  const isOrg = canonicalKind === "ORGANIZATION";
   const activeOrg = isOrg
     ? (envelope?.organizations ?? []).find(
         (o) => o.id === envelope?.activeSpace?.id,
@@ -181,27 +196,40 @@ export function AiSection() {
     );
   }, [draft, envelopeState]);
 
+  // PHASE 7 §10.1/§10.3 — register the unsaved AI-policy edit as dirty
+  // work (blocks silent workspace switch) + guard the save against a
+  // mid-flight tenant change.
+  const { runGuarded } = useWorkspaceContextSafety({
+    isDirty: dirty,
+    dirtyLabel: "Unsaved AI settings",
+  });
+
   const save = useCallback(async () => {
     if (!teamId || !draft || !envelopeState || !dirty) return;
     setStatus("saving");
     setMessage(null);
     try {
-      const res = (await apiFetch(`/v1/workspaces/ai-policy`, {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          teamId,
-          expectedVersion: envelopeState.hasExplicitPolicy
-            ? envelopeState.version
-            : null,
-          reason: "Settings → AI update",
-          ...draft,
-        }),
-      })) as PolicyEnvelope;
-      setEnvelopeState(res);
-      setDraft(res.policy);
-      setStatus("saved");
-      setMessage("Saved. Changes take effect immediately.");
+      await runGuarded(
+        () =>
+          apiFetch(`/v1/workspaces/ai-policy`, {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              teamId,
+              expectedVersion: envelopeState.hasExplicitPolicy
+                ? envelopeState.version
+                : null,
+              reason: "Settings → AI update",
+              ...draft,
+            }),
+          }) as Promise<PolicyEnvelope>,
+        (res) => {
+          setEnvelopeState(res);
+          setDraft(res.policy);
+          setStatus("saved");
+          setMessage("Saved. Changes take effect immediately.");
+        },
+      );
     } catch (err) {
       if (err instanceof ApiError && err.statusCode === 409) {
         setStatus("conflict");
@@ -216,7 +244,7 @@ export function AiSection() {
         setMessage("The settings could not be saved. Please try again.");
       }
     }
-  }, [teamId, draft, envelopeState, dirty]);
+  }, [teamId, draft, envelopeState, dirty, runGuarded]);
 
   if (!teamId) {
     return <p style={muted}>Select a workspace to manage its AI settings.</p>;
@@ -277,6 +305,9 @@ export function AiSection() {
 
   return (
     <div style={{ display: "grid", gap: 14, maxWidth: 720 }} data-cc-ai-personal>
+        {/* PHASE 7 §10.5 — AI policy is workspace-scoped; show the owning
+            workspace/org so a policy change lands in the intended context. */}
+        <WorkspaceContextBanner action="AI settings for" />
         <p style={{ ...muted, maxWidth: 680 }}>
           Control the AI-assisted features available in your Personal Space.
           AI provides advisory support only and never determines truth,

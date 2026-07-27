@@ -178,24 +178,25 @@ describe("Eligibility branch — memberships, evidence guard, case query", () =>
   });
 });
 
-describe("Default branch — back-compat preserved", () => {
-  it("default branch STILL has no `status: ACTIVE` membership filter (no behaviour change for existing callers)", () => {
-    // The default branch's `prisma.teamMember.findMany` is the SECOND
-    // such call in the route. Find it specifically and assert no
-    // status filter was silently added.
+describe("Default branch — ACTIVE-only membership (P0 remediation 2026-07-21)", () => {
+  it("default branch filters memberships to `status: ACTIVE` (suspended/revoked members are denied team-scoped visibility)", () => {
+    // (P0 remediation 2026-07-21) — this test previously pinned the
+    // status-blind back-compat behaviour. The Prisma schema mandates
+    // that every access check MUST reject anything other than ACTIVE,
+    // so the default branch now filters ACTIVE like the eligibility
+    // branch does. The default branch's `prisma.teamMember.findMany`
+    // is the SECOND such call in the route.
     const defaultMemberCall = BLOCK.slice(
       BLOCK.lastIndexOf("const memberTeams = await prisma.teamMember.findMany"),
     );
-    expect(defaultMemberCall).toMatch(
-      /prisma\.teamMember\.findMany\(\{\s*\n?\s*where:\s*\{\s*userId:\s*ownerUserId\s*\},/,
-    );
-    // No status filter in this where clause.
+    // Status filter present in this where clause.
     const whereBlock =
       defaultMemberCall.slice(
         defaultMemberCall.indexOf("where:"),
         defaultMemberCall.indexOf("select:"),
       );
-    expect(whereBlock).not.toMatch(/status:/);
+    expect(whereBlock).toMatch(/userId:\s*ownerUserId/);
+    expect(whereBlock).toMatch(/status:\s*"ACTIVE"/);
   });
 
   it("default branch case findMany STILL has NO archivedAt / deletedAt exclusion (back-compat)", () => {

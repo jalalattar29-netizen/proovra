@@ -10,8 +10,8 @@
  *   - Personal users CAN create collaboration teams (no Organization
  *     required).
  *   - Every mutation goes through the canonical service module.
- *   - Every successful mutation emits an audit event via
- *     `appendPlatformAuditLog`.
+ *   - Every successful mutation emits a tenant-audit event via the
+ *     canonical `emitTenantAudit` facade.
  *   - Invitations are EMAIL-ONLY (Teams Entitlement Alignment,
  *     2026-07-14). Raw invite tokens are NEVER returned by the API —
  *     the token is delivered out-of-band via the invite email and the
@@ -25,7 +25,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { resolveActiveOperationalWorkspace } from "../services/access/canonical-workspace-resolver.js";
 import { prisma } from "../db.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   CollaborationTeamError,
   acceptInvite,
@@ -148,19 +148,16 @@ async function auditEvent(args: {
   requestId: string | null;
   metadata?: Record<string, unknown>;
 }): Promise<void> {
-  await appendPlatformAuditLog({
-    userId: args.userId,
+  await emitTenantAudit({
     action: args.action,
-    category: "collaboration_team",
-    severity: "info",
-    source: "api_collaboration_teams",
-    outcome: args.outcome,
+    outcome: args.outcome === "blocked" ? "denied" : args.outcome === "failure" ? "error" : "success",
+    sourceApp: "API",
+    actorUserId: args.userId,
+    workspaceId: args.workspaceId,
     resourceType: args.resourceType,
     resourceId: args.resourceId,
-    requestId: args.requestId,
-    metadata: (args.metadata ?? {}) as never,
-    ipAddress: null,
-    userAgent: null,
+    correlationId: args.requestId,
+    metadata: args.metadata ?? {},
   });
 }
 
@@ -691,7 +688,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           });
           await auditEvent({
             userId,
-            workspaceId: "", // workspaceId resolved inside service
+            workspaceId: result.workspaceId,
             action: "collaboration_team.invite.accepted",
             resourceType: "collaboration_team_member",
             resourceId: result.memberId,

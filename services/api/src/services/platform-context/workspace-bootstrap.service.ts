@@ -42,6 +42,13 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+// PHASE 10 §13.2 (2026-07-22) — managed-identity guard (no personal space).
+import { personalSpaceAllowed } from "../identity/identity-mode.service.js";
+// PHASE 3 (2026-07-21) — canonical membership orchestrator.
+import {
+  grantOrganizationMembership,
+  provisionMembership,
+} from "../identity/membership-provisioning.service.js";
 
 /**
  * Bounded shape of the personal workspace returned by the bootstrap.
@@ -105,20 +112,15 @@ export async function ensurePersonalWorkspace(
     // The bootstrap can be called against a row whose membership was
     // somehow removed (e.g. a manual DB intervention). The unique
     // `[teamId, userId]` constraint keeps this idempotent.
-    await client.teamMember.upsert({
-      where: {
-        teamId_userId: { teamId: existing.id, userId: input.userId },
-      },
-      create: {
-        teamId: existing.id,
-        userId: input.userId,
-        role: "OWNER",
-        status: "ACTIVE",
-      },
-      update: {
-        // No-op for existing rows. We intentionally do NOT clobber
-        // the status/role of an existing membership.
-      },
+    // PHASE 3 (2026-07-21) — canonical orchestrator: PERSONAL_BOOTSTRAP
+    // healing. preserveExistingStatus keeps the no-clobber contract.
+    await provisionMembership(client, {
+      intent: "PERSONAL_BOOTSTRAP",
+      source: "SELF_SERVICE_OWNER",
+      userId: input.userId,
+      workspace: { teamId: existing.id, role: "OWNER" },
+      preserveExistingStatus: true,
+      accessReason: "personal bootstrap healing",
     });
     return {
       teamId: existing.id,
@@ -126,6 +128,22 @@ export async function ensurePersonalWorkspace(
       isPersonal: true,
       created: false,
     };
+  }
+
+  // PHASE 10 §13.2 + correction 2 — ONLY a STANDARD identity has a personal
+  // space. An existing personal space (created while STANDARD) is returned
+  // above (grandfathered); we never CREATE a new one for a MANAGED or a
+  // MANAGED_UNRESOLVED identity. `personalSpaceAllowed` is the canonical gate:
+  // it denies both MANAGED (org-controlled) and MANAGED_UNRESOLVED (inconsistent
+  // ownership → fail closed pending reconciliation). Dormant until the
+  // identity-mode migration is applied (every row resolves STANDARD until then).
+  if (!(await personalSpaceAllowed(input.userId, client))) {
+    const err = new Error(
+      "Managed enterprise identities do not have a personal workspace.",
+    ) as Error & { statusCode?: number; code?: string };
+    err.statusCode = 403;
+    err.code = "MANAGED_IDENTITY_NO_PERSONAL_SPACE";
+    throw err;
   }
 
   // Read user identity to compose the workspace name.
@@ -157,15 +175,20 @@ export async function ensurePersonalWorkspace(
           name, // mirrors team name; operator can rename later
           billingOwnerUserId: input.userId,
           status: "ACTIVE",
+          // P1 domain remediation (2026-07-21) — the 1:1 container behind a
+          // personal space is an internal SYSTEM org, never a customer
+          // Enterprise Organization.
+          kind: "SYSTEM",
         },
         select: { id: true },
       });
-      await tx.organizationMembership.create({
-        data: {
-          organizationId: org.id,
-          userId: input.userId,
-          role: "ORG_OWNER",
-        },
+      // PHASE 3 — canonical orchestrator (SYSTEM-container governance row).
+      await grantOrganizationMembership(tx, {
+        organizationId: org.id,
+        userId: input.userId,
+        role: "ORG_OWNER",
+        source: "SELF_SERVICE_OWNER",
+        intent: "PERSONAL_BOOTSTRAP",
       });
 
       const team = await tx.team.create({
@@ -174,16 +197,18 @@ export async function ensurePersonalWorkspace(
           ownerUserId: input.userId,
           isPersonal: true,
           organizationId: org.id,
+          // P1 domain remediation (2026-07-21) — explicit canonical kind.
+          workspaceKind: "PERSONAL",
         },
         select: { id: true, name: true },
       });
-      await tx.teamMember.create({
-        data: {
-          teamId: team.id,
-          userId: input.userId,
-          role: "OWNER",
-          status: "ACTIVE",
-        },
+      // PHASE 3 — canonical orchestrator: bootstrap OWNER membership.
+      await provisionMembership(tx, {
+        intent: "PERSONAL_BOOTSTRAP",
+        source: "SELF_SERVICE_OWNER",
+        userId: input.userId,
+        workspace: { teamId: team.id, role: "OWNER" },
+        accessReason: "personal bootstrap",
       });
       return team;
     });
@@ -203,17 +228,14 @@ export async function ensurePersonalWorkspace(
       });
       if (winner) {
         // Ensure OWNER membership for the winner too.
-        await client.teamMember.upsert({
-          where: {
-            teamId_userId: { teamId: winner.id, userId: input.userId },
-          },
-          create: {
-            teamId: winner.id,
-            userId: input.userId,
-            role: "OWNER",
-            status: "ACTIVE",
-          },
-          update: {},
+        // PHASE 3 — canonical orchestrator (race-loser healing).
+        await provisionMembership(client, {
+          intent: "PERSONAL_BOOTSTRAP",
+          source: "SELF_SERVICE_OWNER",
+          userId: input.userId,
+          workspace: { teamId: winner.id, role: "OWNER" },
+          preserveExistingStatus: true,
+          accessReason: "personal bootstrap healing",
         });
         return {
           teamId: winner.id,

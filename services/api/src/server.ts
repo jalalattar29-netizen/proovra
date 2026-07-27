@@ -18,7 +18,7 @@ import { platformContextRoutes } from "./routes/platform-context.routes.js";
 import { captureException, initSentry } from "./observability/sentry.js";
 import { readFastifyClientError } from "./observability/fastify-client-error.js";
 // CR1 Phase D — legacy `auditMiddleware` removed. The canonical audit
-// chain is wired into each route via `appendPlatformAuditLog()` from
+// chain is wired into each route via the canonical audit facade (emitTenantAudit/emitPlatformAudit) from
 // `services/platform-audit-log.service.ts` (hash-chained, DB-backed).
 import { evidenceRoutes } from "./routes/evidence.routes.js";
 import { captureRoutes } from "./routes/capture.routes.js";
@@ -176,6 +176,7 @@ import { reviewOperationsRoutes } from "./routes/review-operations.routes.js";
 import { intelligenceRoutes } from "./routes/intelligence.routes.js";
 import { collaborationRoutes } from "./routes/collaboration.routes.js";
 import { identityRoutes } from "./routes/identity.routes.js";
+import { enterpriseSecurityRoutes } from "./routes/enterprise-security.routes.js";
 import { communicationsRoutes } from "./routes/communications.routes.js";
 import { identitySecurityRoutes } from "./routes/identity-security.routes.js";
 // R8.1.1 — MFA REST surface (TOTP enroll/verify, factors, recovery
@@ -664,7 +665,7 @@ allowedHeaders: [
   // CR1 Phase D — legacy `auditMiddleware` hook removed. It wrote to the
   // in-memory `services/audit.service.ts` tombstone on every state-
   // mutating request. Per-route canonical audit writes via
-  // `appendPlatformAuditLog()` remain in place.
+  // the canonical audit facade remain in place.
 
   app.addHook("onResponse", async (req, reply) => {
     const requestWithMeta = req as typeof req & {
@@ -928,6 +929,8 @@ allowedHeaders: [
   // /v1/ops/metrics, /v1/ops/reconcile). Registered FIRST so they're
   // available even if a later route module fails to load.
   await app.register(opsRoutes);
+  // PHASE 11 — canonical deep-link resolution + authorized tenant-audit query.
+  await app.register((await import("./routes/phase11-tenant.routes.js")).phase11TenantRoutes);
   // Phase P2.0 — runtime secrets-health route (/v1/runtime/secrets-health).
   // Operator-only view of AWS Secrets Manager hydration state. NEVER
   // returns secret values.
@@ -1200,6 +1203,7 @@ allowedHeaders: [
   // public verify. All routes use the access-policy engine and 404 for
   // non-members (anti-enumeration).
   await app.register(identityRoutes);
+  await app.register(enterpriseSecurityRoutes);
   // Phase 18 — Enterprise communications & external outreach. Twilio
   // SMS/WhatsApp/Verify OTP behind a provider abstraction; outbound
   // dispatch with retry; inbound delivery + STOP/START webhooks

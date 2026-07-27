@@ -1,3 +1,4 @@
+import { resolveCommercialContext } from "./billing/commercial-context.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import {
@@ -5,10 +6,8 @@ import {
   getStorageAddonDefinition,
 } from "./billing.service.js";
 import { getPlanCapabilities } from "./plan-catalog.service.js";
-import {
-  getPersonalWorkspaceScope,
-  getTeamWorkspaceScope,
-} from "./workspace-billing.service.js";
+// §9.7 — scope loading is consumed via the resolveCommercialContext envelope
+// (explicit subjects); this file no longer calls the scope adapter directly.
 import { getWorkspaceUsage } from "./workspace-usage.service.js";
 
 function addonStatusSortValue(status: prismaPkg.WorkspaceStorageAddonStatus) {
@@ -88,7 +87,10 @@ function toStorageAddonSummary(
 export async function readBillingOverview(userId: string) {
   const entitlement = await ensureEntitlement(userId);
 
-  const personalScope = await getPersonalWorkspaceScope(userId);
+  // §9.7 — canonical envelope with EXPLICIT subject (billing display surface).
+  const personalScope = (
+    await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId })
+  ).scope;
   const personalUsage = await getWorkspaceUsage(personalScope);
   const personalCaps = getPlanCapabilities(personalScope.plan);
 
@@ -146,7 +148,10 @@ export async function readBillingOverview(userId: string) {
 
   const teams = await Promise.all(
     ownedTeams.map(async (team) => {
-      const scope = await getTeamWorkspaceScope(team.id);
+      // §9.7 — explicit WORKSPACE subject (overview lists workspaces of any kind).
+      const scope = (
+        await resolveCommercialContext({ type: "WORKSPACE", teamId: team.id, requesterUserId: userId })
+      ).scope;
       const usage = await getWorkspaceUsage(scope);
       const effectiveCaps = getPlanCapabilities(scope.plan);
 

@@ -1,0 +1,139 @@
+/**
+ * PHASE 7 §10.2/§10.3 (2026-07-22) — tenant isolation primitives.
+ *
+ * Behavioral: tenantStorageKey namespaces every draft/cache key by the
+ * active workspace so switching tenants cannot surface the prior
+ * tenant's data. Source-contract: the provider bumps `contextGeneration`
+ * ONLY on an actual workspace-id change, and exposes activeWorkspaceId +
+ * contextGeneration; the tenant helpers are barrel-exported.
+ */
+
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+import { tenantStorageKey } from "../lib/platform-context/tenantStorage";
+import {
+  registerDirtyWork,
+  getDirtyWorkLabels,
+} from "../lib/platform-context/dirtyWorkRegistry";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const read = (rel: string) => readFileSync(join(HERE, "..", rel), "utf8");
+
+test("tenantStorageKey namespaces by workspace; different tenants never collide", () => {
+  const a = tenantStorageKey("ws-A", "capture-draft");
+  const b = tenantStorageKey("ws-B", "capture-draft");
+  assert.notEqual(a, b);
+  assert.match(a, /^proovra:tenant:ws-A:capture-draft$/);
+  // Pre-context writes land under a reserved namespace, never a real one.
+  assert.equal(tenantStorageKey(null, "k"), "proovra:tenant:none:k");
+});
+
+test("provider bumps contextGeneration ONLY on workspace-id change", () => {
+  const src = read("lib/platform-context/PlatformContextProvider.tsx");
+  assert.match(src, /lastAppliedWorkspaceIdRef\.current !== envelope\.workspace\.id/);
+  assert.match(src, /setContextGeneration\(\(g\) => g \+ 1\)/);
+  // Both new fields are exposed on the context value.
+  assert.match(src, /activeWorkspaceId:\s*activeEnvelope\?\.workspace\.id \?\? null/);
+  assert.match(src, /contextGeneration,/);
+});
+
+test("tenant helpers + context-safety primitives are barrel-exported", () => {
+  const barrel = read("lib/platform-context/index.ts");
+  assert.match(barrel, /tenantStorageKey/);
+  assert.match(barrel, /useTenantDraft/);
+  assert.match(barrel, /useTenantGuard/);
+  assert.match(barrel, /useWorkspaceContextSafety/);
+  assert.match(barrel, /WorkspaceContextBanner/);
+});
+
+test("composed safety hook registers dirty work + guards on the tenant generation", () => {
+  const src = read("lib/platform-context/tenantStorage.ts");
+  // Composes the EXISTING dirty registry (not a competing mechanism).
+  assert.match(src, /useDirtyWorkModule\(opts\.isDirty, opts\.dirtyLabel\)/);
+  // runGuarded drops the result when the tenant changed mid-flight.
+  assert.match(src, /if \(isStale\(captured\)\) return;/);
+});
+
+test("context banner reads the canonical envelope (no per-page tenant copy)", () => {
+  const src = read("lib/platform-context/WorkspaceContextBanner.tsx");
+  assert.match(src, /usePlatformContext\(\)/);
+  assert.match(src, /contextOptions\?\.activeContext/);
+  assert.match(src, /data-workspace-context-banner/);
+});
+
+test("dirty-work registry: registered labels gate the switch; cleanup clears them", () => {
+  // Behavioral: a surface registers unsaved work → the switcher (which
+  // reads getDirtyWorkLabels) sees it and must confirm before switching.
+  const before = getDirtyWorkLabels().length;
+  const releaseA = registerDirtyWork("Unsaved case");
+  const releaseB = registerDirtyWork("Unsaved legal hold");
+  const labels = getDirtyWorkLabels();
+  assert.ok(labels.includes("Unsaved case"));
+  assert.ok(labels.includes("Unsaved legal hold"));
+  assert.equal(getDirtyWorkLabels().length, before + 2);
+  // Unmount/clean the first surface — its label disappears, the other stays.
+  releaseA();
+  assert.ok(!getDirtyWorkLabels().includes("Unsaved case"));
+  assert.ok(getDirtyWorkLabels().includes("Unsaved legal hold"));
+  releaseB();
+  assert.equal(getDirtyWorkLabels().length, before);
+});
+
+test("all 15 required Phase 7 surfaces compose the render-proven primitives", () => {
+  // The shared primitives themselves have REAL render-level behavioral
+  // coverage (__tests__/render/context-safety*.render.test.tsx: stale-
+  // response, tenant-storage collision, banner identity, dirty-switch,
+  // polling disposal, upload binding, capability gating, route healing).
+  // Per the mandate, source-contract composition proof is valid ONCE the
+  // primitive is render-verified — that is the case here.
+  const surfaces: Array<[string, RegExp[]]> = [
+    // [file, required markers]
+    ["components/cases-experience/matter-modals/CreateCaseModal.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/]],
+    ["app/(app)/capture/page.tsx", [/WorkspaceContextBanner/]],
+    ["app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts", [/useTenantGuard/, /ctxIsStale\(captured\)/]],
+    ["app/(app)/evidence-lifecycle/legal-holds/page.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/, /teamId\]/]],
+    ["app/(app)/evidence-lifecycle/retention/page.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/]],
+    ["app/(app)/evidence-lifecycle/_shared.tsx", [/prevWorkspaceRef/, /activeWorkspaceId\]/]],
+    ["app/(app)/redaction/page.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/, /activeWorkspaceId\]/]],
+    ["app/(app)/review/page.tsx", [/WorkspaceContextBanner/]],
+    ["components/reports-experience/ReportsIndex.tsx", [/WorkspaceContextBanner/]],
+    ["app/(app)/intake-links/page.tsx", [/WorkspaceContextBanner/]],
+    ["app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/]],
+    ["app/(app)/settings/_sections/BillingSection.tsx", [/WorkspaceContextBanner/, /activeWorkspaceId\]/]],
+    ["app/(app)/settings/_sections/AiSection.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/]],
+    // Org settings — proven complete via the org-name header + orgId re-scope.
+    ["app/(app)/organizations/[id]/admin/layout.tsx", [/state\.data\.name/, /\[orgId\]/]],
+    // Checkout — shows the explicit SELECTED target workspace (the active-
+    // workspace banner is N/A here: checkout targets a user-selected
+    // workspace, not necessarily the active one). Server creates the
+    // checkout session bound to that explicit teamId.
+    ["components/billing/CheckoutPanel.tsx", [/Checkout will apply to workspace/, /selectedTeamId/]],
+  ];
+  // Share — N/A as a distinct authenticated form: sharing in this product
+  // is (a) Evidence Request (wired above), (b) external-review portal
+  // grants (server-side resource-scoped, Phase 5 §8.5), and (c) public
+  // verification token routes (deliberately separate). There is no
+  // standalone workspace-scoped "share" mutation page to wire.
+  for (const [file, markers] of surfaces) {
+    const src = read(file);
+    for (const m of markers) {
+      assert.match(src, m, `${file} missing ${m}`);
+    }
+  }
+});
+
+test("Phase 7 wired reference surfaces adopt the primitives (not superficially)", () => {
+  const caseModal = read(
+    "components/cases-experience/matter-modals/CreateCaseModal.tsx",
+  );
+  assert.match(caseModal, /useWorkspaceContextSafety\(/);
+  assert.match(caseModal, /WorkspaceContextBanner/);
+  assert.match(caseModal, /runGuarded\(/); // guarded submit
+  const capture = read("app/(app)/capture/page.tsx");
+  assert.match(capture, /WorkspaceContextBanner/);
+  assert.match(capture, /useDirtyWork\(/); // pre-existing dirty guard retained
+});

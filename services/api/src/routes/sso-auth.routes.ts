@@ -49,7 +49,7 @@ import {
   createMfaPendingChallenge,
 } from "../services/security/mfa.service.js";
 import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
   consumeCallbackAttempt,
@@ -60,7 +60,20 @@ import {
   persistCallbackAttempt,
 } from "../services/access-control/sso-hardening.service.js";
 import { recordAuthenticatedSession } from "../services/access-control/session-inventory.service.js";
+import { hashSessionId } from "../services/identity-security/session-revocation.service.js";
+import { organizationIdForPolicy } from "../services/identity/org-security-policy.service.js";
+import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
+import { resolveOrganizationPolicy } from "../services/identity/org-security-policy.service.js";
+import { provisionManagedMembership } from "../services/identity/membership-provisioning.service.js";
 import { detectAndScoreSession } from "../services/access-control/suspicious-session.service.js";
+// PHASE 11 — canonical safe-destination helper + internal URL builder.
+// Used ONLY to validate/compose the post-login destination string; the
+// state/nonce/replay-protection logic above is untouched.
+import {
+  safeIntendedDestination,
+  absoluteInternalUrl,
+  internalNavPath,
+} from "@proovra/shared";
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -116,6 +129,13 @@ function sanitiseRedirectAfter(value: unknown): string | null {
   return trimmed;
 }
 
+/**
+ * PHASE 11 — `redirectAfter` (sourced from the persisted SsoCallbackAttempt
+ * row) is re-validated through the canonical `safeIntendedDestination`
+ * helper before it is ever written into the bounce URL's query string, so a
+ * tampered/replayed value can never carry an open-redirect target. This is
+ * defense-in-depth: the hardening service already validates on persist.
+ */
 function bounceToAuthError(
   reply: FastifyReply,
   reason: string,
@@ -123,8 +143,24 @@ function bounceToAuthError(
 ): void {
   const params = new URLSearchParams();
   params.set("sso_error", reason.slice(0, 64));
-  if (redirectAfter) params.set("redirect_after", redirectAfter);
+  if (redirectAfter) {
+    const safe = safeIntendedDestination(redirectAfter);
+    if (safe !== "/") params.set("redirect_after", safe);
+  }
   reply.code(302).redirect(`/auth?${params.toString()}`);
+}
+
+/**
+ * PHASE 11 — resolve the post-login destination for a successful OIDC
+ * session. An explicit `redirectAfter` is validated through the canonical
+ * `safeIntendedDestination` helper (never an open redirect); absent a
+ * destination we default to the workspace home, unchanged from prior
+ * behaviour.
+ */
+function resolvePostLoginDestination(
+  redirectAfter: string | null | undefined,
+): string {
+  return redirectAfter ? safeIntendedDestination(redirectAfter) : "/home";
 }
 
 function setSessionCookie(
@@ -337,31 +373,35 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
             },
             prisma,
           );
-          void appendPlatformAuditLog({
-            userId: result.user.id,
+          void emitTenantAudit({
             action: "auth.mfa_enrollment_required",
-            category: "auth",
-            severity: "warning",
-            source: "api_sso",
-            outcome: "blocked",
+            outcome: "denied",
+            denialReason: "mfa_enrollment_required",
+            sourceApp: "SSO",
+            actorUserId: result.user.id,
+            workspaceId: conn.teamId,
             resourceType: "user_auth",
             resourceId: result.user.id,
-            requestId: req.id,
+            correlationId: req.id,
             metadata: {
               loginMethod: "sso_oidc",
               policyLevel: decision.policyLevel,
+              ipAddress: req.ip,
+              userAgent: uaPreview(req),
             },
-            ipAddress: req.ip,
-            userAgent: uaPreview(req),
           }).catch(() => null);
+          // PHASE 11 — canonical destination validation + absolute-internal-URL
+          // builder (the MFA enrollment/session logic above is untouched).
           const url = new URL(
-            "/auth/mfa-challenge",
-            process.env["WEB_BASE_URL"] || "https://www.proovra.com",
+            absoluteInternalUrl(
+              process.env["WEB_BASE_URL"] || "https://www.proovra.com",
+              internalNavPath("/auth/mfa-challenge"),
+            ),
           );
           url.searchParams.set("enroll", "1");
           url.searchParams.set(
             "next",
-            attempt.redirectAfter ?? "/home",
+            resolvePostLoginDestination(attempt.redirectAfter),
           );
           return reply.code(302).redirect(url.toString());
         }
@@ -421,27 +461,30 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
               prisma,
             );
           }
-          void appendPlatformAuditLog({
-            userId: result.user.id,
+          void emitTenantAudit({
             action: "auth.mfa_challenge_issued",
-            category: "auth",
-            severity: "info",
-            source: "api_sso",
             outcome: "success",
+            sourceApp: "SSO",
+            actorUserId: result.user.id,
+            workspaceId: conn.teamId,
             resourceType: "user_auth",
             resourceId: result.user.id,
-            requestId: req.id,
+            correlationId: req.id,
             metadata: {
               loginMethod: "sso_oidc",
               policyLevel: decision.policyLevel ?? null,
+              ipAddress: req.ip,
+              userAgent: uaPreview(req),
             },
-            ipAddress: req.ip,
-            userAgent: uaPreview(req),
           }).catch(() => null);
-          const next = attempt.redirectAfter ?? "/home";
+          // PHASE 11 — canonical destination validation + absolute-internal-URL
+          // builder (the MFA challenge/session logic above is untouched).
+          const next = resolvePostLoginDestination(attempt.redirectAfter);
           const url = new URL(
-            "/auth/mfa-challenge",
-            process.env["WEB_BASE_URL"] || "https://www.proovra.com",
+            absoluteInternalUrl(
+              process.env["WEB_BASE_URL"] || "https://www.proovra.com",
+              internalNavPath("/auth/mfa-challenge"),
+            ),
           );
           url.searchParams.set("next", next);
           return reply.code(302).redirect(url.toString());
@@ -456,6 +499,12 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         const payload = {
           sub: result.user.id,
           provider: "EMAIL", // SSO-provisioned users are EMAIL provider; IdP link is in ExternalIdentityMapping
+          // PHASE 10 §10.2 — server-verified OIDC provenance (set only AFTER
+          // token/issuer/audience/nonce/state validation above).
+          authMethod: "OIDC" as const,
+          authAt: issuedAt,
+          // §10.2 — ORG-BOUND SSO satisfaction: the exact verified connection.
+          ssoConnId: result.connectionId,
           email: result.user.email,
           sid,
           iat: issuedAt,
@@ -486,10 +535,73 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           prisma,
         ).catch(() => null);
 
+        // PHASE 10 §2.2 — OIDC establishes the session's ORGANIZATION context
+        // under the advisory-locked concurrent-session limit BEFORE returning
+        // the active Workspace context. Same ordering as SAML; mandatory SSO is
+        // satisfied by the validated OIDC login through the org's exact ACTIVE
+        // connection. A denial performs zero context mutation and bounces.
+        const oidcOrgId = await organizationIdForPolicy(result.teamId, prisma);
+        if (oidcOrgId) {
+          // PATH 7/9 (+ PATH 8 existing-user linking) — OIDC FIRST LOGIN managed
+          // provisioning. Identical contract to SAML: when the org REQUIRES
+          // managed identity, bind it (evidence = the exact verified OIDC
+          // connection) + fail-closed seat + membership BEFORE establishing Org
+          // context and before any cookie. A cross-Organization conflict throws →
+          // rollback → session deleted → bounce; no silent re-claim.
+          const oidcPolicy = await resolveOrganizationPolicy(result.teamId, prisma);
+          if (
+            oidcPolicy.applicability === "ORGANIZATION" &&
+            oidcPolicy.policy.managedIdentityRequired
+          ) {
+            try {
+              await prisma.$transaction((tx) =>
+                provisionManagedMembership(tx, {
+                  userId: result.user.id,
+                  managingTeamId: result.teamId,
+                  evidence: { source: "OIDC", ssoConnectionId: conn.id },
+                  membershipIntent: "SSO_JIT",
+                  source: "SSO_JIT",
+                  workspace: { teamId: result.teamId, role: "MEMBER" },
+                  actorUserId: null,
+                  externalRef: `oidc:${conn.id}`,
+                  accessReason: "OIDC managed provisioning",
+                  preserveExistingStatus: true,
+                  seatPolicy: "ENFORCE",
+                  seatTeamId: result.teamId,
+                }),
+              );
+            } catch (e) {
+              await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
+              const code = (e as { code?: string })?.code;
+              return bounceToAuthError(
+                reply,
+                code === "MANAGED_SEAT_LIMIT_REACHED" ? "seat_limit_reached" : "managed_identity_conflict",
+              );
+            }
+          }
+          // §2.1 — delete the just-created inventory row on failure/denial so no
+          // orphan session remains (sid is random per login; no cookie set yet).
+          let seat;
+          try {
+            seat = await establishOrganizationSessionContext(
+              { userId: result.user.id, organizationId: oidcOrgId, sessionIdHash: hashSessionId(sid) },
+              prisma,
+            );
+          } catch (e) {
+            await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
+            throw e;
+          }
+          if (!seat.allowed) {
+            await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
+            return bounceToAuthError(reply, seat.reason);
+          }
+        }
+
         setSessionCookie(req, reply, token);
 
-        // Redirect to the safe target (or workspace home).
-        const redirectTarget = attempt.redirectAfter ?? "/home";
+        // PHASE 11 — canonical safe-destination validation before redirect
+        // (or workspace home).
+        const redirectTarget = resolvePostLoginDestination(attempt.redirectAfter);
         return reply.code(302).redirect(redirectTarget);
       } catch (err) {
         await markCallbackFailed(

@@ -31,8 +31,15 @@
 
 import { prisma } from "../../db.js";
 import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitPlatformAudit } from "../audit/tenant-audit.service.js";
 import { evaluateAccountClosurePreflight } from "./account-lifecycle-preflight.service.js";
+// PROGRAM CONVERGENCE (2026-07-22) — the ONE Organization→ARCHIVED transition.
+import { archiveOrganizationStatusTx } from "../organization/org-closure.service.js";
+// PHASE 3 (2026-07-22) — canonical membership orchestrator.
+import {
+  massRevokeWorkspaceMemberships,
+  removeAllOrganizationMembershipsForUser,
+} from "./membership-provisioning.service.js";
 
 export const COOLING_OFF_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const PROCESS_BATCH = 5;
@@ -110,17 +117,22 @@ export async function executeAccountClosure(userId: string): Promise<void> {
         where: { organizationId: m.organizationId, userId: { not: userId } },
       });
       if (others === 0) {
-        await tx.organization.update({
-          where: { id: m.organizationId },
-          data: { status: "ARCHIVED" },
+        // PROGRAM CONVERGENCE (2026-07-22) — compose the ONE canonical
+        // Organization→ARCHIVED transition (org-closure engine) instead of a
+        // second inline status write.
+        await archiveOrganizationStatusTx(tx, {
+          organizationId: m.organizationId,
         });
       }
     }
 
-    await tx.organizationMembership.deleteMany({ where: { userId } });
-    await tx.teamMember.updateMany({
-      where: { userId, status: "ACTIVE" },
-      data: { status: "REVOKED" },
+    // PHASE 3 — canonical orchestrator: account-closure off-board
+    // (governance memberships removed with provenance closed; workspace
+    // memberships mass-revoked, never erased).
+    await removeAllOrganizationMembershipsForUser(tx, { userId });
+    await massRevokeWorkspaceMemberships(tx, {
+      where: { userId },
+      reason: "account closure",
     });
   });
 }
@@ -149,13 +161,13 @@ export async function processAccountClosures(now: Date): Promise<void> {
         where: { id: req.id, status: req.status },
         data: { status: "BLOCKED", blockersJson: JSON.stringify(blockers) },
       });
-      await appendPlatformAuditLog({
-        userId: req.userId,
+      await emitPlatformAudit({
         action: "identity.account_closure_blocked",
-        category: "identity.lifecycle",
-        severity: "warning",
-        source: "account_closure_worker",
         outcome: "denied",
+        denialReason: "closure_blocked",
+        sourceApp: "API",
+        actorUserId: req.userId,
+        serviceActor: "account_closure_worker",
         resourceType: "account_closure_request",
         resourceId: req.id,
         metadata: { blockers: blockers.map((b) => b.code) },
@@ -175,13 +187,12 @@ export async function processAccountClosures(now: Date): Promise<void> {
         where: { id: req.id },
         data: { status: "COMPLETED", completedAtUtc: new Date() },
       });
-      await appendPlatformAuditLog({
-        userId: req.userId,
+      await emitPlatformAudit({
         action: "identity.account_closure_completed",
-        category: "identity.lifecycle",
-        severity: "warning",
-        source: "account_closure_worker",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: req.userId,
+        serviceActor: "account_closure_worker",
         resourceType: "account_closure_request",
         resourceId: req.id,
         metadata: {},
@@ -193,13 +204,12 @@ export async function processAccountClosures(now: Date): Promise<void> {
           data: { status: "FAILED", failureCode: "closure_failed" },
         })
         .catch(() => null);
-      await appendPlatformAuditLog({
-        userId: req.userId,
+      await emitPlatformAudit({
         action: "identity.account_closure_failed",
-        category: "identity.lifecycle",
-        severity: "error",
-        source: "account_closure_worker",
-        outcome: "failure",
+        outcome: "error",
+        sourceApp: "API",
+        actorUserId: req.userId,
+        serviceActor: "account_closure_worker",
         resourceType: "account_closure_request",
         resourceId: req.id,
         metadata: { failureCode: "closure_failed" },

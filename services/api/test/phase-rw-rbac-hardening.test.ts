@@ -61,7 +61,10 @@ import {
 // ---------------------------------------------------------------------------
 
 function readSource(rel: string): string {
-  return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+  // Normalize line endings so the route/cap CONTRACT is asserted independently
+  // of CRLF vs LF. The sentinels below use `\n`; a CRLF-checked-out source file
+  // would otherwise fail on formatting, not on any missing route or gate.
+  return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8").replace(/\r\n/g, "\n");
 }
 
 const REVIEWER_ROUTES = readSource(

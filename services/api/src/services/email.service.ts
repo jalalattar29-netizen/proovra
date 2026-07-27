@@ -4,6 +4,10 @@ import {
   PROOVRA_SPAN_NAMES,
   withProovraSpan,
 } from "../observability/otel.js";
+// PHASE 11 — canonical internal URL builder. Every internal (in-app)
+// link this service composes by hand goes through these instead of
+// ad-hoc template literals.
+import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 
 export type DemoRequestQuickLinks = {
   replyToLeadMailto: string;
@@ -299,8 +303,13 @@ function safeHtml(s: string): string {
 }
 
 function inviteAcceptUrl(invitationToken: string): string {
-  const base = webBaseUrl().replace(/\/$/, "");
-  return `${base}/invite/${encodeURIComponent(invitationToken)}`;
+  // PHASE 11 — /invite/:token is an authenticated in-app nav path
+  // (not one of the resource-id families), so it is composed via
+  // internalNavPath rather than internalResourcePath.
+  return absoluteInternalUrl(
+    webBaseUrl(),
+    internalNavPath(`/invite/${encodeURIComponent(invitationToken)}`),
+  );
 }
 
 function emailShell(params: {

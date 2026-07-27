@@ -230,6 +230,16 @@ function makeFake() {
       },
     },
 
+    // PHASE 10 — scimReactivateUser now resolves the managing org via
+    // organizationIdForPolicy(team.findUnique). Non-CUSTOMER here → the plain
+    // (non-managed) reactivation branch runs, which is what this SCIM-mechanics
+    // test exercises.
+    team: {
+      async findUnique() {
+        return null;
+      },
+    },
+
     teamMember: {
       async findUnique({
         where,
@@ -241,6 +251,28 @@ function makeFake() {
           members.find((m) => m.teamId === teamId && m.userId === userId) ??
           null
         );
+      },
+      // PHASE 3: the canonical orchestrator re-grants via upsert.
+      async upsert({
+        where,
+        update,
+        create,
+      }: {
+        where: { teamId_userId: { teamId: string; userId: string } };
+        update: Record<string, unknown>;
+        create: Record<string, unknown>;
+      }) {
+        const { teamId, userId } = where.teamId_userId;
+        const existing = members.find(
+          (m) => m.teamId === teamId && m.userId === userId,
+        );
+        if (existing) {
+          Object.assign(existing, update);
+          return existing;
+        }
+        const row = { id: `tm-${members.length + 1}`, ...create };
+        members.push(row as never);
+        return row;
       },
       async update({
         where,

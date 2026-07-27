@@ -48,7 +48,7 @@ import {
   wireStringFor as canonicalOperationalWireStringFor,
 } from "@proovra/shared-runtime/ops";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { recordIncident } from "../observability/incident.service.js";
 import {
   assignReviewer as legacyAssignReviewer,
@@ -835,25 +835,25 @@ async function assignReviewerToWorkflowInner(
           ? "team_default"
           : "platform_baseline";
     try {
-      await appendPlatformAuditLog({
-        userId: ctx.actorUserId,
-        action: "reviewer.sla_policy.resolve",
-        category: "review",
-        severity: "info",
-        source: "reviewer_ops_engine",
-        outcome: "success",
-        resourceType: "review_workflow",
-        resourceId: updated.id,
-        metadata: {
-          teamId: ctx.teamId,
-          workflowId: updated.id,
-          templateId: templateResolution.templateId,
-          templateResolutionSource: templateResolution.source,
-          source: sourceLabel,
-          completionHours: policy.completionHours,
+      await emitTenantAudit(
+        {
+          action: "reviewer.sla_policy.resolve",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: ctx.actorUserId,
+          workspaceId: ctx.teamId,
+          resourceType: "review_workflow",
+          resourceId: updated.id,
+          metadata: {
+            workflowId: updated.id,
+            templateId: templateResolution.templateId,
+            templateResolutionSource: templateResolution.source,
+            source: sourceLabel,
+            completionHours: policy.completionHours,
+          },
         },
-        db: client,
-      });
+        client,
+      );
     } catch (err) {
       logWarn("reviewer_ops.sla_policy_audit_failed", {
         workflowId: updated.id,
@@ -889,21 +889,21 @@ async function assignReviewerToWorkflowInner(
       actorUserId: ctx.actorUserId,
     },
   });
-  await appendPlatformAuditLog({
-    userId: ctx.actorUserId,
-    action: isReassignment ? "reviewer.reassign" : "reviewer.assign",
-    category: "review",
-    severity: "info",
-    source: "reviewer_ops_engine",
-    outcome: "success",
-    resourceType: "review_workflow",
-    resourceId: row.id,
-    metadata: {
-      teamId: ctx.teamId,
-      newAssignee: input.assignedToUserId,
+  await emitTenantAudit(
+    {
+      action: isReassignment ? "reviewer.reassign" : "reviewer.assign",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: ctx.actorUserId,
+      workspaceId: ctx.teamId,
+      resourceType: "review_workflow",
+      resourceId: row.id,
+      metadata: {
+        newAssignee: input.assignedToUserId,
+      },
     },
-    db: client,
-  });
+    client,
+  );
   return buildWorkflowProjection(updated, {
     hasOpenEscalation: await findOpenEscalationForWorkflow(
       { teamId: ctx.teamId, workflowId: row.id },

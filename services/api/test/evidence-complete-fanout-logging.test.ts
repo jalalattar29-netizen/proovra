@@ -63,7 +63,7 @@ vi.mock("../src/signing/signer.js", () => ({ getEvidenceSigner: () => null }));
 vi.mock("../src/services/billing-enforcement.service.js", () => ({
   assertWorkspaceAllowsStorageGrowth: vi.fn(),
   consumeWorkspaceCompletionCredits: vi.fn(),
-  resolveWorkspaceScopeForUser: vi.fn(),
+  resolveEnforcementScopeForRequester: vi.fn(),
 }));
 vi.mock("../src/storage.js", () => ({
   applyDefaultObjectRetention: vi.fn(),

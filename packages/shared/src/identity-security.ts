@@ -498,6 +498,14 @@ export const SESSION_REVOCATION_REASONS = [
   // Lifecycle Phase 5 (2026-07-17) — account closure execution revokes
   // every session for the closing user.
   "ACCOUNT_CLOSED",
+  // P0 remediation (2026-07-21) — enterprise deprovisioning must revoke
+  // sessions rapidly: IdP-driven SCIM deactivation and admin-initiated
+  // organization member removal.
+  "SCIM_DEACTIVATED",
+  "ORG_MEMBER_REMOVED",
+  // PHASE 4 §7.6 (2026-07-22) — organization suspension revokes every
+  // session of the org's workspace members (re-auth after resume).
+  "ORG_SUSPENDED",
 ] as const;
 export const SessionRevocationReasonSchema = z.enum(SESSION_REVOCATION_REASONS);
 export type SessionRevocationReason = z.infer<

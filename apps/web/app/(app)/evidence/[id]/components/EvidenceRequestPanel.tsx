@@ -22,6 +22,11 @@ import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+// PHASE 7 §10 — canonical context-safety primitives.
+import {
+  WorkspaceContextBanner,
+  useWorkspaceContextSafety,
+} from "../../../../../lib/platform-context";
 import { formatUserDateTime } from "../../../../../lib/date";
 
 type RequestRow = {
@@ -521,6 +526,15 @@ function CreateRequestDialog({
   ]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // PHASE 7 §10.1/§10.3 — the request form holds unsaved workspace-scoped
+  // work; register it dirty + guard the create against a mid-flight switch.
+  const { runGuarded } = useWorkspaceContextSafety({
+    isDirty:
+      title.trim().length > 0 ||
+      instructions.trim().length > 0 ||
+      recipientEmail.trim().length > 0,
+    dirtyLabel: "Unsaved evidence request",
+  });
 
   function updateDeliverable(idx: number, patch: Partial<(typeof deliverables)[number]>) {
     setDeliverables((prev) =>
@@ -536,34 +550,37 @@ function CreateRequestDialog({
         dueInHours === ""
           ? null
           : new Date(Date.now() + Number(dueInHours) * 3600 * 1000).toISOString();
-      await apiFetch("/v1/evidence-requests", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          teamId,
-          evidenceId,
-          requestType,
-          title: title || "Additional evidence needed",
-          instructions,
-          priority,
-          dueAtUtc,
-          recipientMode,
-          recipientLabel: recipientLabel || null,
-          recipientEmail: recipientEmail || null,
-          createIntakeLink: true,
-          deliverables: deliverables.map((d, idx) => ({
-            title: d.title,
-            description: d.description,
-            required: d.required,
-            acceptedKinds: d.acceptedKinds,
-            minCount: 1,
-            locationRequirement: "optional",
-            captureAfterRequest: false,
-            sortOrder: idx,
-          })),
-        }),
-      });
-      onCreated();
+      await runGuarded(
+        () =>
+          apiFetch("/v1/evidence-requests", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              teamId,
+              evidenceId,
+              requestType,
+              title: title || "Additional evidence needed",
+              instructions,
+              priority,
+              dueAtUtc,
+              recipientMode,
+              recipientLabel: recipientLabel || null,
+              recipientEmail: recipientEmail || null,
+              createIntakeLink: true,
+              deliverables: deliverables.map((d, idx) => ({
+                title: d.title,
+                description: d.description,
+                required: d.required,
+                acceptedKinds: d.acceptedKinds,
+                minCount: 1,
+                locationRequirement: "optional",
+                captureAfterRequest: false,
+                sortOrder: idx,
+              })),
+            }),
+          }),
+        () => onCreated(),
+      );
     } catch (err) {
       const e = err as { message?: string };
       setError(toSafeUserError(e, { message: "Could not create request." }).message);
@@ -576,6 +593,9 @@ function CreateRequestDialog({
     <div style={modalBackdropStyle} role="dialog" aria-modal>
       <div style={modalStyle}>
         <h3 style={titleStyle}>New evidence request</h3>
+        {/* PHASE 7 §10.5 — this request + its intake link land in the
+            owning workspace/org; show it before submission. */}
+        <WorkspaceContextBanner action="Evidence request will be created in" />
         {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
         <label style={labelStyle}>Title</label>

@@ -32,7 +32,10 @@ import { formatUserDate } from "../../../lib/date";
 import {
   canOpenEvidence as canOpenEvidenceFromSession,
 } from "../../../lib/intake-links/state-model";
-import { usePlatformContext } from "../../../lib/platform-context";
+import {
+  usePlatformContext,
+  WorkspaceContextBanner,
+} from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 // OperationalBreadcrumb removed — the breadcrumb row ("Workspace ›
 // Intake links") was visual clutter above an already-titled page.
@@ -533,6 +536,10 @@ function IntakeLinksPageInner() {
   );
   useEffect(() => {
     if (!currentTeam) return;
+    // PHASE 7 §10.G — drop the prior tenant's links before re-fetching so
+    // a workspace switch never flashes another workspace's intake links.
+    setItems(null);
+    setTemplates(null);
     void refreshLinks(currentTeam.id);
   }, [currentTeam?.id, refreshLinks]);
 
@@ -695,6 +702,11 @@ function IntakeLinksPageInner() {
           </button>
         ) : null}
       </header>
+
+      {/* PHASE 7 §10.5 — intake links are workspace-scoped custody entry
+          points; show the owning workspace/org. The list re-scopes on
+          switch (currentTeam.id-keyed fetch). */}
+      <WorkspaceContextBanner action="Intake links for" />
 
       {!currentTeam ? (
         <div className="cases-empty" style={{ marginTop: 16 }} data-intake-links-loading>

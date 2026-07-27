@@ -133,7 +133,10 @@ const QUICK_ACTIONS: ReadonlyArray<[string, RegExp]> = [
   ["quick-action-manage-retention", /\/organizations\/\$\{orgId\}\/admin\/retention/],
   ["quick-action-manage-api", /\/admin\/identity/],
   ["quick-action-review-access", /\/organizations\/\$\{orgId\}\/admin\/access-reviews/],
-  ["quick-action-configure-billing", /\/teams\?org=\$\{orgId\}/],
+  // PHASE 11 URL convergence (2026-07-23) — the `?org=` query param was a
+  // dead reference (the `/teams` → `/collaboration-teams` redirect never
+  // read it); the workspace-admin deep link now carries no tenant param.
+  ["quick-action-configure-billing", /href="\/teams"/],
 ];
 
 test("Overview wires every required evidence-platform quick action", () => {

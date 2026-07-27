@@ -3,7 +3,7 @@ import {
   assertWorkspaceAllowsEnterpriseFeature,
 } from "../services/billing-enforcement.service.js";
 import type { EnterpriseFeatureFlags } from "../services/plan-catalog.service.js";
-import { getPersonalWorkspaceScope } from "../services/workspace-billing.service.js";
+import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
 
 type AuthedRequest = FastifyRequest & { user?: { sub?: string } };
 
@@ -41,7 +41,8 @@ export function requireEnterpriseFeature(
 
     let scope;
     try {
-      scope = await getPersonalWorkspaceScope(userId);
+      // §9.7 — explicit PERSONAL_ACCOUNT subject via the canonical envelope.
+      scope = (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId })).scope;
     } catch {
       return reply
         .code(500)

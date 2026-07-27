@@ -18,7 +18,7 @@ import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 
 export type WorkflowErrorCode =
   | "workflow_not_found"
@@ -354,25 +354,25 @@ async function audit(
   verb: string,
   source: prismaPkg.OperationalWorkflow,
 ): Promise<void> {
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: `observability.workflow.${verb}`,
-    category: "observability.workflow",
-    severity: "info",
-    source: "workflow_service",
-    outcome: "success",
-    resourceType: "operational_workflow",
-    resourceId: workflowId,
-    metadata: {
-      teamId: source.teamId,
-      workflowKey: source.workflowKey,
-      workflowType: source.workflowType,
-      severity: source.severity,
+  await emitTenantAudit(
+    {
+      action: `observability.workflow.${verb}`,
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: source.teamId,
+      resourceType: "operational_workflow",
+      resourceId: workflowId,
+      metadata: {
+        workflowKey: source.workflowKey,
+        workflowType: source.workflowType,
+        severity: source.severity,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+    client,
+  );
 }
 
 /**

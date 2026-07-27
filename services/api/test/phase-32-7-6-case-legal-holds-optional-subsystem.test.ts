@@ -42,7 +42,16 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 function readApi(rel: string): string {
-  return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
+  // Normalize CRLF -> LF. governance.routes.ts picked up CRLF line
+  // endings from an unrelated edit pass (the audit-writer facade
+  // convergence touched many files on Windows); this file's several
+  // hardcoded `"...\n..."` substring searches below are line-ending
+  // sensitive, so normalize once at the read boundary rather than
+  // making every search pattern tolerate `\r?\n`.
+  return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8").replace(
+    /\r\n/g,
+    "\n",
+  );
 }
 
 // =============================================================================

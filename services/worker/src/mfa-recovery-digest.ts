@@ -47,6 +47,7 @@ import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import { logger } from "./logger.js";
 import { prisma } from "./db.js";
 import { captureException } from "./sentry.js";
+import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 
 /** Requests in PENDING_ADMIN_REVIEW older than this many seconds
  *  qualify for digest inclusion. 24 hours per the spec. */
@@ -405,9 +406,15 @@ function isDigestAllowed(
   return effective.digestEnabled;
 }
 
+// PHASE 11 — nav-only path (not a resource-id route): the admin's own
+// console section, not scoped to any team/workspace the job payload
+// might reference.
 function buildAdminSpaUrl(): string {
   const base = process.env["WEB_BASE_URL"] || "https://www.proovra.com";
-  return `${base.replace(/\/$/, "")}/security-center/mfa-recovery`;
+  return absoluteInternalUrl(
+    base,
+    internalNavPath("security-center/mfa-recovery")
+  );
 }
 
 /**

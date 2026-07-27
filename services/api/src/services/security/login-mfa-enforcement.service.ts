@@ -277,26 +277,44 @@ export async function resolveLoginMfaEnforcement(
     };
   }
 
-  // 3) Look up org security policy rows for each membership's team.
-  //    Bounded by the number of teams the user belongs to; typically
-  //    1–3 even for power users.
+  // 3) §1.1 — resolve org security policy for each membership's team via the
+  //    AUTHORITATIVE organizationId (never teamId). Bulk pattern: resolve Teams
+  //    → map to CUSTOMER organizationIds → DEDUPE → fetch policies by
+  //    organizationId → map results back to teamIds. Bounded by team count.
   const teamIds = memberships.map((m) => m.teamId);
-  let policies: Array<{
-    teamId: string;
+  type PolicyRow = {
     mfaPolicyLevel: string | null;
     mfaRequiredFlag: boolean;
     mfaEnforcementFailMode: string | null;
-  }> = [];
+  };
+  const policyByTeam = new Map<string, PolicyRow>();
+  let policies: PolicyRow[] = [];
   try {
-    policies = await prisma.organizationSecurityPolicy.findMany({
-      where: { teamId: { in: teamIds } },
-      select: {
-        teamId: true,
-        mfaPolicyLevel: true,
-        mfaRequiredFlag: true,
-        mfaEnforcementFailMode: true,
-      },
+    const teamRows = await prisma.team.findMany({
+      where: { id: { in: teamIds } },
+      select: { id: true, organizationId: true, organization: { select: { kind: true } } },
     });
+    const teamToOrg = new Map<string, string>();
+    for (const t of teamRows) {
+      if (t.organizationId && t.organization?.kind === "CUSTOMER") teamToOrg.set(t.id, t.organizationId);
+    }
+    const orgIds = [...new Set(teamToOrg.values())];
+    const orgPolicies =
+      orgIds.length > 0
+        ? await prisma.organizationSecurityPolicy.findMany({
+            where: { organizationId: { in: orgIds } },
+            select: { organizationId: true, mfaPolicyLevel: true, mfaRequiredFlag: true, mfaEnforcementFailMode: true },
+          })
+        : [];
+    const policyByOrg = new Map<string, PolicyRow>();
+    for (const p of orgPolicies) {
+      if (p.organizationId) policyByOrg.set(p.organizationId, { mfaPolicyLevel: p.mfaPolicyLevel, mfaRequiredFlag: p.mfaRequiredFlag, mfaEnforcementFailMode: p.mfaEnforcementFailMode });
+    }
+    for (const [teamId, orgId] of teamToOrg) {
+      const p = policyByOrg.get(orgId);
+      if (p) policyByTeam.set(teamId, p);
+    }
+    policies = [...policyByOrg.values()];
   } catch {
     return circuitBreakerOutcome(
       "policy_lookup_failed",
@@ -306,12 +324,9 @@ export async function resolveLoginMfaEnforcement(
       memberships.length > 0,
     );
   }
-  // R8.1.5 — strictest per-org fail-mode across the user's teams
-  // wins; falls back to env when no team specifies one.
+  // R8.1.5 — strictest per-org fail-mode across the user's orgs wins.
   const perOrgFailMode = pickStrictestPerOrgFailMode(policies);
   if (perOrgFailMode) failMode = perOrgFailMode;
-
-  const policyByTeam = new Map(policies.map((p) => [p.teamId, p]));
 
   // 4) Pick the STRICTEST team whose policy requires MFA for the
   //    user's role in that team. Strict ordering follows the bounded

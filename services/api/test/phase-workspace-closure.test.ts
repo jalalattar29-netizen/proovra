@@ -78,7 +78,8 @@ describe("execution", () => {
   });
 
   it("revokes memberships + machine access; records a TeamActivity row", () => {
-    expect(CLOSURE).toMatch(/teamMember\.updateMany[\s\S]{0,200}"REVOKED"/);
+    // PHASE 3: closure revocation via the canonical mass helper.
+    expect(CLOSURE).toMatch(/massRevokeWorkspaceMemberships/);
     expect(CLOSURE).toMatch(/apiCredential\.updateMany[\s\S]{0,300}"REVOKED"/);
     expect(CLOSURE).toMatch(/webhookEndpoint\.updateMany[\s\S]{0,200}"DISABLED"/);
     expect(CLOSURE).toMatch(/eventType:\s*"workspace_closed"/);

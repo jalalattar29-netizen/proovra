@@ -41,7 +41,7 @@ import {
   SIGNAL_METADATA,
 } from "../services/media-intelligence/signal-catalog.js";
 import { bump } from "../services/ops/metrics.service.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 // Wave 3 Phase 7B — bounded custody emit on workspace MI refresh.
 import * as prismaPkg from "@prisma/client";
 import { appendInvestigationCustody } from "../services/investigation-custody.service.js";
@@ -356,7 +356,7 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
   // records in the workspace. Caps per-request to avoid queue storms.
   //
   // Permission: evidence.update_metadata. Anti-enumeration via team scope.
-  // Bounded audit emit via appendPlatformAuditLog action
+  // Bounded audit emit via emitTenantAudit action
   // `MEDIA_INTELLIGENCE_REFRESH_REQUESTED`.
   // ---------------------------------------------------------------------------
   app.post(
@@ -427,17 +427,17 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       }
 
       try {
-        await appendPlatformAuditLog({
-          userId: actor.actorUserId,
+        await emitTenantAudit({
           action: "MEDIA_INTELLIGENCE_REFRESH_REQUESTED",
-          category: "investigation_graph",
-          severity: "info",
-          source: "media_intelligence_routes",
-          outcome: enqueued > 0 ? "queued" : "noop",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: actor.actorUserId,
+          workspaceId: body.teamId,
           resourceType: "team",
           resourceId: body.teamId,
-          requestId: req.id,
+          correlationId: req.id ?? null,
           metadata: {
+            status: enqueued > 0 ? "queued" : "noop",
             teamId: body.teamId,
             cap: REFRESH_CAP,
             enqueued,

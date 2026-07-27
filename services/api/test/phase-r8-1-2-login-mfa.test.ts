@@ -182,10 +182,11 @@ describe("R8.1.2 Part 3 — gateLoginWithMfa wired into every login path", () =>
     );
   });
 
-  it("test 8: gate does NOT run in the guest endpoint (guests have no MFA)", () => {
-    const guest = endpointBody("/v1/auth/guest");
-    expect(guest).toBeTruthy();
-    expect(guest).not.toMatch(/gateLoginWithMfa/);
+  it("test 8: the guest endpoint no longer exists (Guest Login physically removed)", () => {
+    // Guest Login was DELETED (2026-07-23) — there is no /v1/auth/guest route,
+    // so there is no MFA gate to reason about. See phase-10-guest-login-removed.
+    expect(endpointBody("/v1/auth/guest")).toBe("");
+    expect(AUTH_SRC).not.toContain("/v1/auth/guest");
   });
 
   it("test 9: register endpoint NOT gated (a fresh user has no MFA factor yet)", () => {

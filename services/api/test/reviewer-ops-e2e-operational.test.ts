@@ -230,8 +230,8 @@ describe("Operational seed [E2E chain — every link is wired]", () => {
     );
   });
 
-  it("step 7: every run is appended to the platform audit log with seedRunId metadata", () => {
-    expect(src).toMatch(/appendPlatformAuditLog\(/);
+  it("step 7: every run is appended to the audit log (canonical tenant-audit facade) with seedRunId metadata", () => {
+    expect(src).toMatch(/emitTenantAudit\(/);
     expect(src).toMatch(/seedRunId,/);
     expect(src).toMatch(/createdResourceIds/);
   });

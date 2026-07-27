@@ -181,8 +181,12 @@ function AcceptTeamInvite() {
         teamId,
         onSignIn: () => {
           // Send the user to sign-in and bounce back here after auth.
+          // PHASE 5 §8 (2026-07-22) — the sign-in page is /login (there
+          // is no /signin route; the old target 404'd and DROPPED the
+          // invite token). /login honours `next` for both the password
+          // flow and the OAuth return-url handoff.
           const here = `/collaboration-teams/invites/${encodeURIComponent(rawToken)}/accept`;
-          router.push(`/signin?next=${encodeURIComponent(here)}`);
+          router.push(`/login?next=${encodeURIComponent(here)}`);
         },
       })}
     </main>

@@ -8,7 +8,8 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { buildBaseContext, buildAllowlistedFields } from "../services/ai/ai-context-resolver.service.js";
 import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
 import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
@@ -67,10 +68,23 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
       },
     });
     if (!ev?.teamId || ev.deletedAt) return reply.code(404).send({ error: { code: "evidence_not_found" } });
+    // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization
+    // against the RESOURCE's team (ACTIVE membership + org lifecycle +
+    // capability `intelligence.run` + fail-closed + anti-enumeration 404).
+    const authz = await authorizeOrFail(req, reply, {
+      teamId: ev.teamId,
+      permission: "intelligence.run",
+      resourceKind: "evidence",
+      resourceId: ev.id,
+      antiEnumeration: true,
+    });
+    if (!authz) return reply;
+    // Role is read for AI-policy evaluation + context only; authorization is
+    // already enforced above (an ACTIVE membership is guaranteed here).
     const membership = await prisma.teamMember.findUnique({
       where: { teamId_userId: { teamId: ev.teamId, userId } },
     });
-    if (!membership) return reply.code(403).send({ error: { code: "not_a_member" } });
+    if (!membership) return reply.code(404).send({ error: { code: "not_found" } });
     const teamId = ev.teamId;
     const currentVersion = ev.verificationPackageVersion ?? 0;
     if (body.evidenceVersion != null && body.evidenceVersion !== currentVersion) {
@@ -130,8 +144,21 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
       system: EVIDENCE_SYSTEM,
     });
 
-    const audit = (outcome: string, metadata: Record<string, unknown>) =>
-      appendPlatformAuditLog({ userId, action: "ai.evidence_copilot", category: "ai", source: "api_ai", outcome, resourceType: "evidence", resourceId: evidenceId, metadata });
+    const audit = (outcome: "success" | "failure" | "blocked", metadata: Record<string, unknown>) => {
+      const mapped = outcome === "blocked" ? "denied" : outcome === "failure" ? "error" : "success";
+      return emitTenantAudit({
+        action: "ai.evidence_copilot",
+        outcome: mapped,
+        denialReason: mapped !== "success" ? (typeof metadata.status === "string" ? metadata.status : outcome) : null,
+        sourceApp: "API",
+        actorUserId: userId,
+        workspaceId: teamId,
+        resourceType: "evidence",
+        resourceId: evidenceId,
+        correlationId: req.id ?? null,
+        metadata,
+      });
+    };
 
     let result;
     try {

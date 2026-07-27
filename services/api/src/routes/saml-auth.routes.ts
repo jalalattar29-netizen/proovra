@@ -43,6 +43,8 @@ import {
 import {
   validateSamlResponse,
   SamlAssertionError,
+  // PHASE 8 §11.2 — mandatory-issuer remediation predicate.
+  samlConnectionRequiresIssuerRemediation,
 } from "../services/security/saml-assertion.service.js";
 import {
   handleSamlAssertion,
@@ -72,12 +74,25 @@ import {
   persistSamlCallbackAttempt,
 } from "../services/access-control/sso-hardening.service.js";
 import { recordAuthenticatedSession } from "../services/access-control/session-inventory.service.js";
+import { hashSessionId } from "../services/identity-security/session-revocation.service.js";
+import { organizationIdForPolicy, resolveOrganizationPolicy } from "../services/identity/org-security-policy.service.js";
+import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
+import { provisionManagedMembership } from "../services/identity/membership-provisioning.service.js";
 import { enforceSsoLoginPolicy } from "../services/access-control/sso-login-policy.service.js";
 import { isEmailDomainVerifiedForOrg } from "../services/organization/organization-domain.service.js";
 import { detectAndScoreSession } from "../services/access-control/suspicious-session.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { bump } from "../services/ops/metrics.service.js";
+// PHASE 11 — canonical safe-destination helper + internal URL builder.
+// Used ONLY to validate/compose the post-login destination string; the
+// issuer/audience/nonce/RelayState/signed-state protections above are
+// untouched.
+import {
+  safeIntendedDestination,
+  absoluteInternalUrl,
+  internalNavPath,
+} from "@proovra/shared";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -129,6 +144,12 @@ function sanitiseRedirectAfter(value: unknown): string | null {
 /**
  * Bounce the user to /auth?saml_error=… with a sanitised reason code.
  * No raw assertion content, NameID, or IdP error text is passed through.
+ *
+ * PHASE 11 — `redirectAfter` (sourced from the persisted SsoCallbackAttempt
+ * row) is re-validated through the canonical `safeIntendedDestination`
+ * helper before it is ever written into the bounce URL's query string, so a
+ * tampered/replayed value can never carry an open-redirect target. This is
+ * defense-in-depth: the hardening service already validates on persist.
  */
 function bounceToSamlError(
   reply: FastifyReply,
@@ -137,8 +158,24 @@ function bounceToSamlError(
 ): void {
   const params = new URLSearchParams();
   params.set("saml_error", reason.slice(0, 64));
-  if (redirectAfter) params.set("redirect_after", redirectAfter);
+  if (redirectAfter) {
+    const safe = safeIntendedDestination(redirectAfter);
+    if (safe !== "/") params.set("redirect_after", safe);
+  }
   reply.code(302).redirect(`/auth?${params.toString()}`);
+}
+
+/**
+ * PHASE 11 — resolve the post-login destination for a successful SAML
+ * session. An explicit `redirectAfter` is validated through the canonical
+ * `safeIntendedDestination` helper (never an open redirect); absent a
+ * destination we default to the workspace home, unchanged from prior
+ * behaviour.
+ */
+function resolvePostLoginDestination(
+  redirectAfter: string | null | undefined,
+): string {
+  return redirectAfter ? safeIntendedDestination(redirectAfter) : "/home";
 }
 
 /**
@@ -425,6 +462,9 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           samlCertificateNext: true,
           samlNameIdFormat: true,
           samlEntityId: true,
+          // P0 remediation (2026-07-21) — pinned IdP entityID for issuer
+          // validation inside validateSamlResponse.
+          samlIdpEntityId: true,
           samlAttributeMapping: true,
           allowedEmailDomains: true,
           jitDefaultRole: true,
@@ -466,6 +506,38 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         // ---------------------------------------------------------------
         // Step 4: Validate SAMLResponse (XML signature + conditions)
         // ---------------------------------------------------------------
+        // PHASE 8 §11.2 (2026-07-22) — MANDATORY issuer. A connection
+        // without a pinned IdP entityID can no longer authenticate: the
+        // login FAILS CLOSED and the connection enters a remediation
+        // state (an operator must ingest IdP metadata to pin the
+        // entityID). Previously this branch logged a warning and let the
+        // login proceed WITHOUT issuer validation — an unauthenticated-
+        // issuer acceptance the mandate requires closed.
+        if (samlConnectionRequiresIssuerRemediation(conn)) {
+          safeEmitSecurityEvent({
+            teamId: conn.teamId,
+            eventType: "saml_login_failed",
+            severity: "WARNING",
+            details: {
+              connectionId: conn.id,
+              reason: "issuer_unpinned_requires_remediation",
+              note: "Login DENIED — the connection has no pinned IdP entityID. Ingest IdP metadata to pin the issuer before logins can succeed.",
+            },
+          });
+          // Enter remediation state: mark the connection so admins see it
+          // needs metadata ingestion (best-effort; never blocks the deny).
+          await prisma.ssoConnection
+            .update({
+              where: { id: conn.id },
+              data: { status: "PENDING" },
+            })
+            .catch(() => null);
+          throw new SamlAssertionError(
+            "SAML_ISSUER_UNPINNED",
+            "This SSO connection requires IdP metadata (issuer entityID) to be ingested before logins can be verified.",
+          );
+        }
+
         const assertion = validateSamlResponse({
           samlResponseBase64: samlResponseRaw,
           idpCertificate: conn.samlCertificate,
@@ -474,6 +546,15 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           spEntityId,
           expectedInResponseTo: attempt.samlAuthnRequestId ?? undefined,
           allowedClockSkewSeconds: 60,
+          expectedIdpEntityId: conn.samlIdpEntityId ?? null,
+          // PHASE 8 §11.2 — mandatory audience: an assertion with no
+          // AudienceRestriction is rejected, not accepted.
+          requireAudience: true,
+          // PHASE 8 §11.2 — Destination + Recipient must bind to THIS SP's
+          // ACS URL, so a token minted for another SP/tenant's ACS cannot
+          // be replayed here. Fail closed when absent.
+          expectedAcsUrl: buildAcsUrl(req),
+          requireRecipientDestination: true,
         });
 
         // ---------------------------------------------------------------
@@ -621,28 +702,31 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
             });
           }
 
-          void appendPlatformAuditLog({
-            userId: result.userId,
+          void emitTenantAudit({
             action: "auth.mfa_challenge_issued",
-            category: "auth",
-            severity: "info",
-            source: "api_saml_acs",
             outcome: "success",
+            sourceApp: "SSO",
+            actorUserId: result.userId,
+            workspaceId: conn.teamId,
             resourceType: "user_auth",
             resourceId: result.userId,
-            requestId: req.id,
+            correlationId: req.id,
             metadata: {
               loginMethod: "sso_saml",
               policyLevel: decision.policyLevel ?? null,
+              ipAddress: req.ip,
+              userAgent: uaPreview(req),
             },
-            ipAddress: req.ip,
-            userAgent: uaPreview(req),
           }).catch(() => null);
 
-          const next = attempt.redirectAfter ?? "/home";
+          // PHASE 11 — canonical destination validation + absolute-internal-URL
+          // builder (the MFA challenge/session logic above is untouched).
+          const next = resolvePostLoginDestination(attempt.redirectAfter);
           const url = new URL(
-            "/auth/mfa-challenge",
-            process.env["WEB_BASE_URL"] || "https://www.proovra.com",
+            absoluteInternalUrl(
+              process.env["WEB_BASE_URL"] || "https://www.proovra.com",
+              internalNavPath("/auth/mfa-challenge"),
+            ),
           );
           url.searchParams.set("next", next);
           return reply.code(302).redirect(url.toString());
@@ -658,6 +742,14 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         const payload = {
           sub: result.userId,
           provider: "EMAIL", // SAML-provisioned users use EMAIL provider; IdP link is in ExternalIdentityMapping
+          // PHASE 10 §10.2 — server-verified SAML provenance (set only AFTER
+          // signature/issuer/audience/mapping validation above). This is what
+          // satisfies a mandatory-SSO Organization; `provider:"EMAIL"` never
+          // implies SSO.
+          authMethod: "SAML" as const,
+          authAt: issuedAt,
+          // §10.2 — ORG-BOUND SSO satisfaction: the exact verified connection.
+          ssoConnId: conn.id,
           email: result.email,
           sid,
           iat: issuedAt,
@@ -685,6 +777,76 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           prisma,
         ).catch(() => null);
 
+        // PHASE 10 §2.1 — SAML establishes the session's ORGANIZATION context
+        // under the advisory-locked concurrent-session limit BEFORE returning
+        // the active Workspace context. Mandatory SSO is satisfied by
+        // construction (this is a validated SAML login through the org's exact
+        // ACTIVE connection). The canonical authority re-loads org lifecycle +
+        // the ONE org policy limit. A denial (limit reached / suspended org)
+        // performs zero context mutation and bounces — the global session
+        // remains, but no Org context is opened.
+        const samlOrgId = await organizationIdForPolicy(conn.teamId, prisma);
+        if (samlOrgId) {
+          // PATH 6/9 (+ PATH 8 existing-user linking) — SAML FIRST LOGIN managed
+          // provisioning. When the org REQUIRES managed identity, bind it BEFORE
+          // establishing Organization context (and before any cookie) through the
+          // ONE atomic intent: managed binding (evidence = the exact verified
+          // ssoConnectionId) + fail-closed seat + membership/grant provenance. A
+          // cross-Organization conflict (a user managed by Org B) THROWS →
+          // rollback → session row deleted → bounce; the identity is NEVER
+          // silently re-claimed and NO Org context/cookie is issued.
+          const samlPolicy = await resolveOrganizationPolicy(conn.teamId, prisma);
+          if (
+            samlPolicy.applicability === "ORGANIZATION" &&
+            samlPolicy.policy.managedIdentityRequired
+          ) {
+            try {
+              await prisma.$transaction((tx) =>
+                provisionManagedMembership(tx, {
+                  userId: result.userId,
+                  managingTeamId: conn.teamId,
+                  evidence: { source: "SAML", ssoConnectionId: conn.id },
+                  membershipIntent: "SSO_JIT",
+                  source: "SSO_JIT",
+                  workspace: { teamId: conn.teamId, role: "MEMBER" },
+                  actorUserId: null, // IdP-driven
+                  externalRef: `saml:${conn.id}`,
+                  accessReason: "SAML managed provisioning",
+                  preserveExistingStatus: true, // a login never silently reactivates
+                  seatPolicy: "ENFORCE",
+                  seatTeamId: conn.teamId,
+                }),
+              );
+            } catch (e) {
+              await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
+              const code = (e as { code?: string })?.code;
+              return bounceToSamlError(
+                reply,
+                code === "MANAGED_SEAT_LIMIT_REACHED" ? "seat_limit_reached" : "managed_identity_conflict",
+                attempt.redirectAfter,
+              );
+            }
+          }
+          // §2.1 — on establishment failure/denial, delete the JUST-created
+          // inventory row (the sid is random per login, so this is never an
+          // idempotent-retry row) so no unreachable orphan session remains. No
+          // cookie was set, so no client holds this token.
+          let seat;
+          try {
+            seat = await establishOrganizationSessionContext(
+              { userId: result.userId, organizationId: samlOrgId, sessionIdHash: hashSessionId(sid) },
+              prisma,
+            );
+          } catch (e) {
+            await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
+            throw e;
+          }
+          if (!seat.allowed) {
+            await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
+            return bounceToSamlError(reply, seat.reason, attempt.redirectAfter);
+          }
+        }
+
         bump("saml_login_succeeded_total");
         safeEmitSecurityEvent({
           teamId: conn.teamId,
@@ -699,28 +861,29 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           },
         });
 
-        void appendPlatformAuditLog({
-          userId: result.userId,
+        void emitTenantAudit({
           action: "auth.saml_login_succeeded",
-          category: "auth",
-          severity: "info",
-          source: "api_saml_acs",
           outcome: "success",
+          sourceApp: "SSO",
+          actorUserId: result.userId,
+          organizationId: samlOrgId ?? null,
+          workspaceId: conn.teamId,
           resourceType: "user_auth",
           resourceId: result.userId,
-          requestId: req.id,
+          correlationId: req.id,
           metadata: {
             loginMethod: "sso_saml",
             connectionId: conn.id,
             provider: conn.provider,
             isNewlyProvisioned: result.isNewlyProvisioned,
+            ipAddress: req.ip,
+            userAgent: uaPreview(req),
           },
-          ipAddress: req.ip,
-          userAgent: uaPreview(req),
         }).catch(() => null);
 
         setSessionCookie(req, reply, token);
-        const redirectTarget = attempt.redirectAfter ?? "/home";
+        // PHASE 11 — canonical safe-destination validation before redirect.
+        const redirectTarget = resolvePostLoginDestination(attempt.redirectAfter);
         return reply.code(302).redirect(redirectTarget);
       } catch (err) {
         const reason =

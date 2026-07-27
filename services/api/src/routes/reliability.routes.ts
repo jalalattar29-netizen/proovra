@@ -21,9 +21,9 @@ import type {
 import { z } from "zod";
 import { UPLOAD_SESSION_STATUSES } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import {
   countUploadSessionsByTeam,
@@ -43,24 +43,33 @@ import { listQueuePolicies } from "../services/reliability/queue-policy.service.
 
 const ParamsEvidenceId = z.object({ evidenceId: z.string().uuid() });
 
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical admin gate.
+ * Routes through authorizeOrFail (ACTIVE membership + org lifecycle +
+ * `identity.org_policy.read` + fail-closed + anti-enumeration) THEN preserves
+ * the OWNER/ADMIN-only restriction (identity.org_policy.read is not
+ * admin-exclusive). Every denial is 404 so role/record is not enumerated.
+ */
 async function requireAdminMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
 ): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission: "identity.org_policy.read",
+    antiEnumeration: true,
   });
-  if (!membership) {
+  if (!outcome) return null;
+  const membership = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId: outcome.actorUserId } },
+    select: { role: true },
+  });
+  if (!membership || (membership.role !== "OWNER" && membership.role !== "ADMIN")) {
     reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
-  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  return { userId };
+  return { userId: outcome.actorUserId };
 }
 
 export async function reliabilityRoutes(app: FastifyInstance) {

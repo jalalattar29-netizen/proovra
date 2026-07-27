@@ -1,6 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import { getSecret } from "../config/runtime-secrets.js";
+// PHASE 6 §9.3 (2026-07-22) — canonical cross-team attach gate (same
+// single source of truth the single-record case-attach route uses).
+import { evaluateCrossTeamAttach } from "../services/cases/case-permission.service.js";
 // Phase O1.5A — bounded evidence + upload + finalize + verify-public
 // spans. Attributes bounded to teamId + evidenceId + operation only;
 // NEVER body bytes, signed URLs, user-supplied filenames, GPS, or PII.
@@ -75,7 +78,7 @@ import { evidenceSavedViewsRoutes } from "./evidence.saved-views.routes.js";
 import { createEvidence } from "../services/evidence.service.js";
 import {
   assertWorkspaceAllowsEvidenceCreation,
-  resolveWorkspaceScopeForUser,
+  resolveEnforcementScopeForRequester,
 } from "../services/billing-enforcement.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import type { Prisma } from "@prisma/client";
@@ -104,6 +107,17 @@ import {
 // Replaces the legacy `.catch(() => null)` silent-swallow pattern.
 // See `custody-events-observability.ts` for the rationale.
 import { noteCustodyFailure } from "../services/custody-events-observability.js";
+// PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical destructive gate for
+// archive / unarchive / delete (owner rule for personal-scope evidence only;
+// canonical membership+lifecycle+capability for workspace-bound evidence).
+import {
+  PUBLIC_NOT_FOUND_BODY,
+  resolveEvidenceDestructiveAccess,
+} from "../services/evidence/evidence-destructive-access.service.js";
+import {
+  resolveEvidenceRecordAccess,
+  type EvidenceRecordPermission,
+} from "../services/evidence/evidence-record-access.service.js";
 import { buildEvidenceIntelligence } from "../services/evidence-intelligence.service.js";
 // Phase EVIDENCE-DELETE-ELIGIBILITY — single source of truth for
 // "can this record be moved to trash right now?". Used on the
@@ -121,7 +135,14 @@ import {
   requestEvidenceCertification,
   revokeEvidenceCertification,
 } from "../services/evidence-certification.service.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+// PHASE 11 §3 Batch A — canonical tenant-audit envelope for the two
+// evidence.routes.ts audit wrappers (auditEvidenceAction / auditVerificationAction).
+// Still composes the same hash-chained appendPlatformAuditLog sink underneath;
+// this only adds the authoritative organization_id/workspace_id DB columns.
+import {
+  emitTenantAudit,
+  type TenantAuditOutcome,
+} from "../services/audit/tenant-audit.service.js";
 // Phase T — propagate the canonical template identity trio
 // (templateSlug + templateVersion + optional templateDbId) from the
 // CaptureSession draft onto the Evidence row at create time. Stamping is
@@ -1030,6 +1051,20 @@ function getRequestPath(req: FastifyRequest): string {
   return qIndex >= 0 ? url.slice(0, qIndex) : url;
 }
 
+// PHASE 11 §3 Batch A — evidence.* / verification.* audit events are TENANT
+// EVENTs. `teamId` MUST be the caller's PERSISTED Evidence-row teamId (never
+// request body/URL); callers with no persisted row in scope (not-found /
+// pre-resource denials, rate-limit blocks before any lookup, multi-workspace
+// listings) omit it and the event is recorded without a workspace column —
+// anti-enumeration precedent from cases.routes.ts / phase11-tenant.routes.ts.
+function mapEvidenceOutcome(
+  outcome: "success" | "failure" | "blocked" | undefined,
+): TenantAuditOutcome {
+  if (outcome === "blocked") return "denied";
+  if (outcome === "failure") return "error";
+  return "success";
+}
+
 function auditEvidenceAction(
   req: FastifyRequest,
   params: {
@@ -1038,48 +1073,67 @@ function auditEvidenceAction(
     outcome?: "success" | "failure" | "blocked";
     severity?: "info" | "warning" | "critical";
     resourceId?: string | null;
+    teamId?: string | null;
     metadata?: Record<string, unknown>;
   }
 ) {
-  void appendPlatformAuditLog({
-    userId: params.userId,
+  const outcome = mapEvidenceOutcome(params.outcome);
+  const reason =
+    typeof params.metadata?.reason === "string" ? params.metadata.reason : null;
+  void emitTenantAudit({
     action: params.action,
-    category: "evidence",
-    severity: params.severity ?? "info",
-    source: "api_evidence",
-    outcome: params.outcome ?? "success",
+    outcome,
+    denialReason: outcome !== "success" ? reason : null,
+    sourceApp: "API",
+    actorUserId: params.userId,
+    workspaceId: params.teamId ?? null,
     resourceType: "evidence",
     resourceId: params.resourceId ?? null,
-    requestId: req.id,
-    metadata: params.metadata ?? {},
-    ipAddress: req.ip,
-    userAgent: readUserAgent(req),
+    correlationId: req.id ?? null,
+    metadata: {
+      ...(params.metadata ?? {}),
+      severity: params.severity ?? "info",
+      ipAddress: req.ip,
+      userAgent: readUserAgent(req),
+    },
   }).catch(noteCustodyFailure);
 }
 
+// `auditVerificationAction` covers the PUBLIC /public/verify surface —
+// `userId` is always null (anonymous visitor). Evidence being verified DOES
+// have a persisted `teamId` once the row is loaded in that code path; pass
+// it through when available. There is no failure vocabulary here today, only
+// `success` (the default) and bounded `denied` (rate limits, anti-enumeration
+// suppressions) / `error` (genuine operational failure, e.g. missing signing
+// key) — decided per call site from the pre-existing metadata.outcome text.
 function auditVerificationAction(
   req: FastifyRequest,
   params: {
     userId: string | null;
     action: string;
+    outcome?: "success" | "denied" | "error";
+    denialReason?: string | null;
     resourceId?: string | null;
+    teamId?: string | null;
     metadata?: Record<string, unknown>;
   }
 ) {
-  void appendPlatformAuditLog({
-    userId: params.userId,
-    isPublic: params.userId === null,
+  const outcome: TenantAuditOutcome = params.outcome ?? "success";
+  void emitTenantAudit({
     action: params.action,
-    category: "verification",
-    severity: "info",
-    source: "public_verify",
-    outcome: "success",
+    outcome,
+    denialReason: outcome === "denied" ? (params.denialReason ?? null) : null,
+    sourceApp: "API",
+    actorUserId: params.userId,
+    workspaceId: params.teamId ?? null,
     resourceType: "evidence_verification",
     resourceId: params.resourceId ?? null,
-    requestId: req.id,
-    metadata: params.metadata ?? {},
-    ipAddress: req.ip,
-    userAgent: readUserAgent(req),
+    correlationId: req.id ?? null,
+    metadata: {
+      ...(params.metadata ?? {}),
+      ipAddress: req.ip,
+      userAgent: readUserAgent(req),
+    },
   }).catch(noteCustodyFailure);
 }
 
@@ -2131,8 +2185,10 @@ async function assertCaseAccess(userId: string, caseId: string) {
   if (item.teamId && item.access.length === 0) {
     const member = await prisma.teamMember.findUnique({
       where: { teamId_userId: { teamId: item.teamId, userId } },
+      select: { status: true },
     });
-    if (member) return;
+    // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+    if (member?.status === "ACTIVE") return;
   }
 
   const err: Error & { statusCode?: number } = new Error("Forbidden");
@@ -2142,7 +2198,9 @@ async function assertCaseAccess(userId: string, caseId: string) {
 
 async function getAccessibleEvidenceContext(userId: string) {
   const memberTeams = await prisma.teamMember.findMany({
-    where: { userId },
+    // P0 remediation (2026-07-21) — list scope derives from ACTIVE
+    // memberships only; suspended/revoked members see nothing team-scoped.
+    where: { userId, status: "ACTIVE" },
     select: { teamId: true },
   });
   const memberTeamIds = memberTeams.map((item) => item.teamId);
@@ -2518,9 +2576,13 @@ async function getEvidenceWithReadAccess(
               userId,
             },
           },
+          select: { status: true },
         });
 
-        if (member) {
+        // P0 remediation (2026-07-21) — only ACTIVE membership authorizes
+        // (schema invariant: "every access check MUST reject anything
+        // other than ACTIVE"). Suspended/revoked members are denied.
+        if (member?.status === "ACTIVE") {
           return evidence;
         }
       }
@@ -2535,9 +2597,11 @@ async function getEvidenceWithReadAccess(
           userId,
         },
       },
+      select: { status: true },
     });
 
-    if (member) {
+    // P0 remediation (2026-07-21) — ACTIVE-only, as above.
+    if (member?.status === "ACTIVE") {
       return evidence;
     }
   }
@@ -2547,37 +2611,64 @@ async function getEvidenceWithReadAccess(
   throw err;
 }
 
-async function getEvidenceWithOwnerAccess(
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical per-record loader.
+ *
+ * Replaces `getEvidenceWithOwnerAccess` on every route that can target
+ * Workspace-bound Evidence: personal-scope evidence (teamId null) keeps the
+ * Personal-owner rule; workspace-bound evidence requires ACTIVE membership +
+ * Organization lifecycle + the OPERATION-SPECIFIC capability against the
+ * PERSISTED evidence.teamId (creator identity grants nothing). Every denial
+ * class — missing record, cross-tenant record, inactive membership, missing
+ * capability — throws the SAME 404 "Evidence not found" so the existing
+ * route catch blocks emit one indistinguishable public response
+ * (anti-enumeration); the internal reason stays in the audit trail written
+ * by the canonical engine.
+ */
+async function getEvidenceWithRecordAccess(
   userId: string,
-  evidenceId: string
+  evidenceId: string,
+  permission: EvidenceRecordPermission,
 ): Promise<SelectedEvidence> {
+  const access = await resolveEvidenceRecordAccess({
+    userId,
+    evidenceId,
+    permission,
+  });
+  if (!access.allowed) {
+    const err: Error & { statusCode?: number } = new Error(
+      "Evidence not found",
+    );
+    err.statusCode = 404;
+    throw err;
+  }
   const evidence = await prisma.evidence.findUnique({
     where: { id: evidenceId },
     select: SAFE_EVIDENCE_SELECT,
   });
-
   if (!evidence) {
-    const err: Error & { statusCode?: number } = new Error("Evidence not found");
+    const err: Error & { statusCode?: number } = new Error(
+      "Evidence not found",
+    );
     err.statusCode = 404;
     throw err;
   }
-
-  if (evidence.ownerUserId !== userId) {
-    const err: Error & { statusCode?: number } = new Error("Forbidden");
-    err.statusCode = 403;
-    throw err;
-  }
-
   return evidence;
 }
+
+// `getEvidenceWithOwnerAccess` (owner-identity-only gate) was removed in the
+// PHASE 1 final classification pass — every former caller now routes through
+// `getEvidenceWithRecordAccess` above (canonical membership + lifecycle +
+// capability for workspace-bound evidence; owner rule for personal-scope).
 
 async function getTeamMembershipRole(teamId: string, userId: string) {
   const membership = await prisma.teamMember.findUnique({
     where: { teamId_userId: { teamId, userId } },
-    select: { role: true },
+    select: { role: true, status: true },
   });
 
-  return membership?.role ?? null;
+  // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+  return membership?.status === "ACTIVE" ? membership.role : null;
 }
 
 async function canManageEvidenceCollaborativeContent(
@@ -4565,7 +4656,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
     // materials are never lost. This arm sits here (before the main
     // try/catch) so tests can verify it short-circuits 500 paths.
     try {
-      const _preflightScope = await resolveWorkspaceScopeForUser({
+      const _preflightScope = await resolveEnforcementScopeForRequester({
         ownerUserId,
         teamId: null, // full scope resolved inside createEvidence; this resolves the personal gate
       });
@@ -4626,8 +4717,12 @@ intakePlanJson:
       // 4B-I1: QUOTA_EVIDENCE_COUNT — gate on workspace evidence count.
       // Denial: 429 { denial: "QUOTA_EXCEEDED", entitlement: "QUOTA_EVIDENCE_COUNT" }.
       // recordEntitlementUsage is fire-and-forget. Engine errors are swallowed.
+      // PHASE 11 §3 Batch A — hoisted out of the try block (unchanged query,
+      // just widened scope) so the create-success audit below can read the
+      // AUTHORITATIVE persisted teamId without a second lookup.
+      let createdForQuota: { teamId: string | null } | null = null;
       try {
-        const createdForQuota = await prisma.evidence.findUnique({
+        createdForQuota = await prisma.evidence.findUnique({
           where: { id: result.id },
           select: { teamId: true },
         });
@@ -4677,6 +4772,7 @@ intakePlanJson:
         action: "evidence.create",
         outcome: "success",
         resourceId: result.id,
+        teamId: createdForQuota?.teamId ?? null,
         metadata: {
           type: body.type,
           mimeType: body.mimeType ?? null,
@@ -4781,13 +4877,12 @@ intakePlanJson:
                 templateDbId: trio.templateDbId,
               },
             });
-            void appendPlatformAuditLog({
-              userId: ownerUserId,
+            void emitTenantAudit({
               action: "evidence.template_identity.stamped",
-              category: "evidence",
-              severity: "info",
-              source: "evidence_create",
               outcome: "success",
+              sourceApp: "API",
+              actorUserId: ownerUserId,
+              workspaceId: result.teamId,
               resourceType: "evidence",
               resourceId: result.id,
               metadata: templateIdentityAuditMetadata({
@@ -4966,7 +5061,7 @@ if (
 
       let evidence: SelectedEvidence;
       try {
-        evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
+        evidence = await getEvidenceWithRecordAccess(ownerUserId, id, "evidence.read");
       } catch (err) {
         const statusCode =
           err instanceof Error && "statusCode" in err
@@ -5002,7 +5097,7 @@ if (
 
       let evidence: SelectedEvidence;
       try {
-        evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
+        evidence = await getEvidenceWithRecordAccess(ownerUserId, id, "evidence.update_metadata");
       } catch (err) {
         const statusCode =
           err instanceof Error && "statusCode" in err
@@ -5019,6 +5114,7 @@ if (
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: { reason: "deleted_evidence" },
         });
         return reply.code(409).send({ message: "Evidence is deleted" });
@@ -5058,6 +5154,7 @@ if (
         action: "evidence.update_label",
         outcome: "success",
         resourceId: id,
+        teamId: updated.teamId,
         metadata: { label: body.label },
       });
 
@@ -5136,10 +5233,43 @@ const storage = await getStorageProtectionSummary(
         return reply.code(400).send({ message: "Invalid contentMd5Base64" });
       }
 
+// PHASE 11 §3 Batch A — hoisted to function scope (unchanged lookup, just
+// widened scope) so the part-presign audit calls below can read the
+// AUTHORITATIVE persisted teamId without a second lookup.
+let evidence: SelectedEvidence;
 try {
-  const evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
+  evidence = await getEvidenceWithRecordAccess(ownerUserId, id, "evidence.update_metadata");
   assertEvidenceNotLocked(evidence);
+
+  // PHASE 10 §13.2 STEP 6 (2026-07-23) — NO-PERSONAL enforcement on ADDING a
+  // part. Personal scope = teamId null (legacy) OR the evidence's Team is the
+  // owner's personal Team (`isPersonal`). A managed enterprise identity has
+  // no personal space, so deny BEFORE any EvidencePart row is created or a
+  // presigned upload URL is minted. Fails closed for MANAGED +
+  // MANAGED_UNRESOLVED; TEAM evidence is unaffected.
+  const partScopeTeam = evidence.teamId
+    ? await prisma.team.findUnique({
+        where: { id: evidence.teamId },
+        select: { isPersonal: true },
+      })
+    : null;
+  const isPersonalScopedPart = !evidence.teamId || partScopeTeam?.isPersonal === true;
+  if (isPersonalScopedPart) {
+    const { assertPersonalSpaceAllowed } = await import(
+      "../services/identity/identity-mode.service.js"
+    );
+    await assertPersonalSpaceAllowed(ownerUserId);
+  }
 } catch (err) {
+  const e = err as { statusCode?: number; code?: string; message?: string };
+  if (e.code === "MANAGED_IDENTITY_NO_PERSONAL_SPACE" || e.code === "SECURITY_SCHEMA_UNAVAILABLE") {
+    return reply.code(e.statusCode ?? 403).send({
+      code: e.code,
+      message:
+        e.message ??
+        "Managed enterprise identities do not have a personal workspace.",
+    });
+  }
   const statusCode =
     err instanceof Error && "statusCode" in err
       ? (err as Error & { statusCode?: number }).statusCode ?? 500
@@ -5275,6 +5405,7 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
           action: "evidence.part_presign_created",
           outcome: "success",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: {
             partIndex: body.partIndex,
             created: result.created,
@@ -5322,6 +5453,7 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
           outcome: "failure",
           severity: "warning",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: {
             reason: err instanceof Error ? err.message : "unknown_error",
             partIndex: body.partIndex,
@@ -5430,6 +5562,7 @@ return {
         action: "evidence.parts_listed",
         outcome: "success",
         resourceId: id,
+        teamId: evidence.teamId,
         metadata: { partCount: parts.length },
       });
 
@@ -5486,7 +5619,7 @@ return {
 
       const evidence = await prisma.evidence.findMany({
         where,
-        select: { id: true },
+        select: { id: true, teamId: true },
       });
 
       if (evidence.length === 0) {
@@ -5517,6 +5650,7 @@ return {
           action: "evidence.claimed",
           outcome: "success",
           resourceId: item.id,
+          teamId: item.teamId,
           metadata: {
             fromUserId: guestUserId,
             toUserId: userId,
@@ -5541,7 +5675,7 @@ return {
 
       let evidence: SelectedEvidence;
       try {
-        evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
+        evidence = await getEvidenceWithRecordAccess(ownerUserId, id, "evidence.update_metadata");
       } catch (err) {
         const statusCode =
           err instanceof Error && "statusCode" in err
@@ -5561,6 +5695,7 @@ return {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: { reason: "not_signed_yet" },
         });
         return reply
@@ -5588,6 +5723,7 @@ return {
           action: "evidence.lock",
           outcome: "success",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: { lockedByUserId: ownerUserId },
         });
 
@@ -5654,7 +5790,7 @@ return {
 
       let evidence: SelectedEvidence;
       try {
-        evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
+        evidence = await getEvidenceWithRecordAccess(ownerUserId, id, "evidence.archive");
       } catch (err) {
         const statusCode =
           err instanceof Error && "statusCode" in err
@@ -5671,6 +5807,7 @@ return {
           outcome: "blocked",
           severity: "info",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: { reason: "not_locked" },
         });
         return reply.code(409).send({
@@ -5690,6 +5827,7 @@ return {
         action: "evidence.unlock",
         outcome: "success",
         resourceId: id,
+        teamId: evidence.teamId,
         metadata: {
           unlockedByUserId: ownerUserId,
           previousLockedByUserId: evidence.lockedByUserId,
@@ -5733,17 +5871,33 @@ return {
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
-      let evidence: SelectedEvidence;
-      try {
-        evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
-      } catch (err) {
-        const statusCode =
-          err instanceof Error && "statusCode" in err
-            ? (err as Error & { statusCode?: number }).statusCode ?? 500
-            : 500;
-        const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+      // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical destructive
+      // gate. Personal-scope evidence keeps the owner rule; workspace-bound
+      // evidence requires ACTIVE membership + org lifecycle +
+      // `evidence.archive` against the PERSISTED teamId (creator identity
+      // grants nothing). Every denial — missing record, cross-tenant record,
+      // missing/inactive membership, no capability — is the SAME public 404
+      // (anti-enumeration); the internal reason stays in logs/audit only.
+      const access = await resolveEvidenceDestructiveAccess({
+        userId: ownerUserId,
+        evidenceId: id,
+        permission: "evidence.archive",
+      });
+      if (!access.allowed) {
+        req.log.info(
+          { internalReason: access.internalReason },
+          "evidence archive denied",
+        );
+        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
       }
+      const archiveTarget = await prisma.evidence.findUnique({
+        where: { id },
+        select: SAFE_EVIDENCE_SELECT,
+      });
+      if (!archiveTarget) {
+        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
+      }
+      const evidence: SelectedEvidence = archiveTarget;
       try {
   assertEvidenceNotLocked(evidence);
 } catch (err) {
@@ -5817,6 +5971,7 @@ return {
         action: "evidence.archive",
         outcome: "success",
         resourceId: id,
+        teamId: evidence.teamId,
         metadata: { archivedByUserId: ownerUserId },
       });
 
@@ -5852,17 +6007,28 @@ return {
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
-      let evidence: SelectedEvidence;
-      try {
-        evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
-      } catch (err) {
-        const statusCode =
-          err instanceof Error && "statusCode" in err
-            ? (err as Error & { statusCode?: number }).statusCode ?? 500
-            : 500;
-        const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+      // PHASE 1 (2026-07-21) — same canonical destructive gate as /archive
+      // (evidence.archive capability; anti-enumeration 404 on every denial).
+      const access = await resolveEvidenceDestructiveAccess({
+        userId: ownerUserId,
+        evidenceId: id,
+        permission: "evidence.archive",
+      });
+      if (!access.allowed) {
+        req.log.info(
+          { internalReason: access.internalReason },
+          "evidence unarchive denied",
+        );
+        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
       }
+      const unarchiveTarget = await prisma.evidence.findUnique({
+        where: { id },
+        select: SAFE_EVIDENCE_SELECT,
+      });
+      if (!unarchiveTarget) {
+        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
+      }
+      const evidence: SelectedEvidence = unarchiveTarget;
       try {
   assertEvidenceNotLocked(evidence);
 } catch (err) {
@@ -5915,6 +6081,7 @@ await appendCustodyEvent({
         action: "evidence.unarchive",
         outcome: "success",
         resourceId: id,
+        teamId: evidence.teamId,
         metadata: { restoredByUserId: ownerUserId },
       });
 
@@ -5950,17 +6117,30 @@ await appendCustodyEvent({
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
-      let evidence: SelectedEvidence;
-      try {
-        evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
-      } catch (err) {
-        const statusCode =
-          err instanceof Error && "statusCode" in err
-            ? (err as Error & { statusCode?: number }).statusCode ?? 500
-            : 500;
-        const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
+      // PHASE 1 (2026-07-21) — canonical destructive gate. Personal evidence:
+      // owner rule. Workspace evidence: ACTIVE membership + org lifecycle +
+      // `evidence.delete` against the PERSISTED teamId. Anti-enumeration 404
+      // for every denial class; internal reason logged only.
+      const access = await resolveEvidenceDestructiveAccess({
+        userId: ownerUserId,
+        evidenceId: id,
+        permission: "evidence.delete",
+      });
+      if (!access.allowed) {
+        req.log.info(
+          { internalReason: access.internalReason },
+          "evidence delete denied",
+        );
+        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
       }
+      const deleteTarget = await prisma.evidence.findUnique({
+        where: { id },
+        select: SAFE_EVIDENCE_SELECT,
+      });
+      if (!deleteTarget) {
+        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
+      }
+      const evidence: SelectedEvidence = deleteTarget;
 
       try {
   assertEvidenceNotLocked(evidence);
@@ -6040,6 +6220,7 @@ await appendCustodyEvent({
             outcome: "blocked",
             severity: "warning",
             resourceId: id,
+            teamId: evidence.teamId,
             metadata: {
               reason: "retention_policy_blocked",
               denial: retentionGate.denial,
@@ -6063,6 +6244,7 @@ await appendCustodyEvent({
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: { reason: "already_deleted" },
         });
         return reply.code(409).send({ message: "Evidence is already deleted" });
@@ -6099,6 +6281,7 @@ await appendCustodyEvent({
         action: "evidence.delete",
         outcome: "success",
         resourceId: id,
+        teamId: evidence.teamId,
         metadata: {
           deletedByUserId: ownerUserId,
           deleteScheduledForUtc: deleteScheduledForUtc.toISOString(),
@@ -6186,6 +6369,7 @@ await appendCustodyEvent({
         action: "evidence.restore",
         outcome: "success",
         resourceId: id,
+        teamId: evidence.teamId,
         metadata: { restoredByUserId: ownerUserId, restoreSource: "trash" },
       });
 
@@ -6219,7 +6403,8 @@ await appendCustodyEvent({
     }
 
     const memberTeams = await prisma.teamMember.findMany({
-      where: { userId: ownerUserId },
+      // P0 remediation (2026-07-21) — ACTIVE memberships only.
+      where: { userId: ownerUserId, status: "ACTIVE" },
       select: { teamId: true },
     });
     const memberTeamIds = memberTeams.map((entry) => entry.teamId);
@@ -6349,7 +6534,8 @@ await appendCustodyEvent({
       }
 
       const memberTeams = await prisma.teamMember.findMany({
-        where: { userId: ownerUserId },
+        // P0 remediation (2026-07-21) — ACTIVE memberships only.
+        where: { userId: ownerUserId, status: "ACTIVE" },
         select: { teamId: true },
       });
       const memberTeamIds = memberTeams.map((entry) => entry.teamId);
@@ -6512,11 +6698,12 @@ await appendCustodyEvent({
 
       let canAccessCase = caseItem.ownerUserId === userId;
       if (!canAccessCase && caseItem.teamId) {
-        canAccessCase = Boolean(
-          await prisma.teamMember.findUnique({
-            where: { teamId_userId: { teamId: caseItem.teamId, userId } },
-          })
-        );
+        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+        const caseTeamMember = await prisma.teamMember.findUnique({
+          where: { teamId_userId: { teamId: caseItem.teamId, userId } },
+          select: { status: true },
+        });
+        canAccessCase = caseTeamMember?.status === "ACTIVE";
       }
       if (!canAccessCase) {
         return reply.code(403).send({ message: "Forbidden" });
@@ -6538,15 +6725,30 @@ await appendCustodyEvent({
 
     for (const evidenceId of uniqueIds) {
       try {
+        // PHASE 1 (2026-07-21) — per-action canonical capability against the
+        // PERSISTED evidence.teamId (owner rule only for personal-scope
+        // evidence): case linking → update_metadata; (un)archive →
+        // evidence.archive; trash/restore → evidence.delete.
         const evidence =
-          body.action === "ADD_TO_CASE" ||
-          body.action === "REMOVE_FROM_CASE" ||
-          body.action === "ARCHIVE" ||
-          body.action === "RESTORE_ARCHIVED" ||
-          body.action === "TRASH" ||
-          body.action === "RESTORE_TRASH"
-            ? await getEvidenceWithOwnerAccess(userId, evidenceId)
-            : await getEvidenceWithReadAccess(userId, evidenceId);
+          body.action === "ADD_TO_CASE" || body.action === "REMOVE_FROM_CASE"
+            ? await getEvidenceWithRecordAccess(
+                userId,
+                evidenceId,
+                "evidence.update_metadata",
+              )
+            : body.action === "ARCHIVE" || body.action === "RESTORE_ARCHIVED"
+              ? await getEvidenceWithRecordAccess(
+                  userId,
+                  evidenceId,
+                  "evidence.archive",
+                )
+              : body.action === "TRASH" || body.action === "RESTORE_TRASH"
+                ? await getEvidenceWithRecordAccess(
+                    userId,
+                    evidenceId,
+                    "evidence.delete",
+                  )
+                : await getEvidenceWithReadAccess(userId, evidenceId);
 
         switch (body.action) {
           case "ADD_TO_CASE": {
@@ -6555,6 +6757,35 @@ await appendCustodyEvent({
             }
             if (evidence.deletedAt) {
               throw new Error("Cannot add deleted evidence to a case");
+            }
+            // PHASE 6 §9.3/§9.6 (2026-07-22) — the SAME cross-team attach
+            // gate as the single-record path (cases.routes.ts). Without
+            // it this branch overwrote evidence.teamId with the target
+            // case's teamId — an implicit cross-tenant transfer a
+            // dual-workspace member could trigger in bulk. Strict
+            // equality (null === null for personal scope) or 403.
+            const crossTeam = evaluateCrossTeamAttach({
+              caseTeamId: caseItem.teamId,
+              evidenceTeamId: evidence.teamId,
+            });
+            if (!crossTeam.allowed) {
+              auditEvidenceAction(req, {
+                userId,
+                action: "evidence.bulk",
+                outcome: "blocked",
+                severity: "critical",
+                resourceId: evidenceId,
+                teamId: evidence.teamId,
+                metadata: {
+                  reason: "forbidden",
+                  denyCode: crossTeam.code,
+                  eventKind: "CROSS_TEAM_ATTACH_BLOCKED",
+                  caseId: caseItem.id,
+                  caseTeamId: caseItem.teamId,
+                  evidenceTeamId: evidence.teamId,
+                },
+              });
+              throw new Error("Cross-workspace attach is not permitted");
             }
             const updated = await prisma.evidence.update({
               where: { id: evidenceId },
@@ -7593,6 +7824,8 @@ await appendCustodyEvent({
                   where: {
                     teamId: evidence.teamId,
                     userId: body.assignedToUserId,
+                    // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
+                    status: "ACTIVE",
                   },
                   select: { id: true },
                 })
@@ -8844,6 +9077,7 @@ const timestampDigestMatches: boolean | null =
           action: "evidence.review_workspace_viewed",
           outcome: "success",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: {
             itemCount,
             forensicEventCount: forensicCustodyEvents.length,
@@ -9214,6 +9448,7 @@ const timestampDigestMatches: boolean | null =
           action: "evidence.view",
           outcome: "success",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: {
             itemCount,
             status: evidence.status,
@@ -9342,8 +9577,12 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
+// PHASE 11 §3 Batch A — hoisted to function scope (unchanged lookup, just
+// widened scope) so every audit call in this handler (including the later
+// catch block) can read the AUTHORITATIVE persisted teamId.
+let evidence: SelectedEvidence;
 try {
-  const evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
+  evidence = await getEvidenceWithRecordAccess(ownerUserId, id, "evidence.update_metadata");
   assertEvidenceNotLocked(evidence);
 } catch (err) {
           const statusCode =
@@ -9352,6 +9591,47 @@ try {
             : 500;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
+      }
+
+      // PHASE 10 §13.2 STEP 6 (2026-07-23) — NO-PERSONAL enforcement on FINALIZE.
+      // Finalizing (`/complete`) PERSONAL-scope Evidence is a personal action: a
+      // managed enterprise identity has no personal space, so deny BEFORE
+      // `completeEvidence` runs any mutation (report/package/public-verify
+      // pipeline). Personal scope = teamId null (legacy) OR the evidence's Team
+      // is the owner's personal Team (`isPersonal`). TEAM evidence is governed by
+      // the workspace policy gates below, not this check. Fails closed for
+      // MANAGED + MANAGED_UNRESOLVED; a denial performs ZERO mutation (Personal
+      // Evidence is never finalized, deleted, or transferred on denial).
+      try {
+        const scopeRow = await prisma.evidence.findUnique({
+          where: { id },
+          select: { teamId: true },
+        });
+        const scopeTeam = scopeRow?.teamId
+          ? await prisma.team.findUnique({
+              where: { id: scopeRow.teamId },
+              select: { isPersonal: true },
+            })
+          : null;
+        const isPersonalScoped =
+          !scopeRow?.teamId || scopeTeam?.isPersonal === true;
+        if (isPersonalScoped) {
+          const { assertPersonalSpaceAllowed } = await import(
+            "../services/identity/identity-mode.service.js"
+          );
+          await assertPersonalSpaceAllowed(ownerUserId);
+        }
+      } catch (err) {
+        const e = err as { statusCode?: number; code?: string; message?: string };
+        if (e.code === "MANAGED_IDENTITY_NO_PERSONAL_SPACE" || e.code === "SECURITY_SCHEMA_UNAVAILABLE") {
+          return reply.code(e.statusCode ?? 403).send({
+            code: e.code,
+            message:
+              e.message ??
+              "Managed enterprise identities do not have a personal workspace.",
+          });
+        }
+        throw err;
       }
 
       const plan = await getUserPlan(ownerUserId);
@@ -9369,6 +9649,7 @@ try {
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: { reason: "rate_limit_exceeded", plan },
         });
         return reply.code(429).send({ message: "Rate limit exceeded" });
@@ -9389,6 +9670,7 @@ try {
         const { enforceSensitiveAction, evidenceIsReviewed } = await import(
           "../services/governance.service.js"
         );
+        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
         const membership = await prisma.teamMember.findUnique({
           where: {
             teamId_userId: {
@@ -9396,7 +9678,10 @@ try {
               userId: ownerUserId,
             },
           },
+          select: { role: true, status: true },
         });
+        const membershipRole =
+          membership?.status === "ACTIVE" ? membership.role : undefined;
         const isReviewed = await evidenceIsReviewed(id);
         const reviewState = { isReviewed };
 
@@ -9407,7 +9692,7 @@ try {
         ] as const) {
           const decision = await enforceSensitiveAction(action, {
             teamId: completionEvidence.teamId,
-            role: membership?.role,
+            role: membershipRole,
             evidence: {
               id: completionEvidence.id,
               teamId: completionEvidence.teamId,
@@ -9574,6 +9859,7 @@ try {
           action: "evidence.complete",
           outcome: "success",
           resourceId: id,
+          teamId: refreshed.teamId,
           metadata: {
             status: refreshed.status,
             verificationStatus: refreshed.verificationStatus,
@@ -9690,6 +9976,7 @@ if (
     outcome: "blocked",
     severity: "warning",
     resourceId: id,
+    teamId: evidence.teamId,
     metadata: { reason: "INSUFFICIENT_CREDITS" },
   });
   return reply.code(402).send({
@@ -9708,6 +9995,7 @@ if (
             outcome: "failure",
             severity: "warning",
             resourceId: id,
+            teamId: evidence.teamId,
             metadata: { reason: err.message },
           });
           return reply.code(400).send({ message: err.message });
@@ -9724,6 +10012,7 @@ if (
             outcome: "failure",
             severity: "warning",
             resourceId: id,
+            teamId: evidence.teamId,
             metadata: { reason: "uploaded_object_not_found" },
           });
           return reply.code(404).send({ message: "Uploaded object not found" });
@@ -9749,6 +10038,7 @@ if (
             outcome: "blocked",
             severity: "warning",
             resourceId: id,
+            teamId: evidence.teamId,
             metadata: { reason: `upload_session_gate:${reason}` },
           });
           return reply.code(statusCode).send({
@@ -9794,6 +10084,7 @@ if (
             outcome: "blocked",
             severity: "warning",
             resourceId: id,
+            teamId: lockedEvidence?.teamId ?? evidence.teamId,
             metadata: {
               reason: "STORAGE_LIMIT_REACHED",
             },
@@ -9808,6 +10099,7 @@ if (
           outcome: "failure",
           severity: "critical",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: {
             reason: err instanceof Error ? err.message : "unknown_error",
           },
@@ -9950,7 +10242,7 @@ if (
       // mutations use. Translates not-found → 404 and not-owner → 403.
       let evidenceRecord: SelectedEvidence;
       try {
-        evidenceRecord = await getEvidenceWithOwnerAccess(userId, id);
+        evidenceRecord = await getEvidenceWithRecordAccess(userId, id, "evidence.generate_report");
       } catch (err) {
         const statusCode =
           err instanceof Error && "statusCode" in err
@@ -9976,6 +10268,7 @@ if (
           outcome: "blocked",
           resourceId: id,
           severity: "warning",
+          teamId: evidenceRecord.teamId ?? null,
           metadata: {
             reason: "integrity_failed",
             evidenceStatus: evidenceRecord.status,
@@ -10008,6 +10301,7 @@ if (
           outcome: "failure",
           resourceId: id,
           severity: "warning",
+          teamId: evidenceRecord.teamId ?? null,
           metadata: { error: message },
         });
         return reply.code(500).send({ message });
@@ -10018,6 +10312,7 @@ if (
         action: "evidence.report.regenerate_requested",
         outcome: result.enqueued ? "success" : "blocked",
         resourceId: id,
+        teamId: evidenceRecord.teamId ?? null,
         metadata: {
           enqueued: result.enqueued,
           reason: result.reason ?? null,
@@ -10082,6 +10377,7 @@ if (
           const { enforceSensitiveAction } = await import(
             "../services/governance.service.js"
           );
+          // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
           const membership = await prisma.teamMember.findUnique({
             where: {
               teamId_userId: {
@@ -10089,10 +10385,11 @@ if (
                 userId: ownerUserId,
               },
             },
+            select: { role: true, status: true },
           });
           const decision = await enforceSensitiveAction("download_report", {
             teamId: evidenceForGate.teamId,
-            role: membership?.role,
+            role: membership?.status === "ACTIVE" ? membership.role : undefined,
             evidence: {
               id: evidenceForGate.id,
               teamId: evidenceForGate.teamId,
@@ -10190,6 +10487,7 @@ limitationsSnapshot: true,
         action: "evidence.report_viewed",
         outcome: "success",
         resourceId: id,
+        teamId: reportDownloadTeamId,
         metadata: {
           reportVersion: latest.version,
         },
@@ -10206,6 +10504,7 @@ limitationsSnapshot: true,
         action: "evidence.report.downloaded",
         outcome: "success",
         resourceId: id,
+        teamId: reportDownloadTeamId,
         metadata: {
           reportVersion: latest.version,
           ...(reportDownloadTeamId ? { teamId: reportDownloadTeamId } : {}),
@@ -10309,6 +10608,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         const { enforceSensitiveAction } = await import(
           "../services/governance.service.js"
         );
+        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
         const membership = await prisma.teamMember.findUnique({
           where: {
             teamId_userId: {
@@ -10316,10 +10616,11 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
               userId: ownerUserId,
             },
           },
+          select: { role: true, status: true },
         });
         const decision = await enforceSensitiveAction("download_original", {
           teamId: evidence.teamId,
-          role: membership?.role,
+          role: membership?.status === "ACTIVE" ? membership.role : undefined,
           evidence: {
             id: evidence.id,
             teamId: evidence.teamId,
@@ -10402,6 +10703,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         action: "evidence.downloaded",
         outcome: "success",
         resourceId: id,
+        teamId: evidence.teamId,
         metadata: {
           accessMode: "original_presign",
         },
@@ -10418,6 +10720,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         action: "evidence.original.downloaded",
         outcome: "success",
         resourceId: id,
+        teamId: evidence.teamId,
         metadata: {
           accessMode: "original_presign",
           ...(evidence.teamId ? { teamId: evidence.teamId } : {}),
@@ -10543,6 +10846,7 @@ displayName: resolvedDisplayName,
           const { enforceSensitiveAction } = await import(
             "../services/governance.service.js"
           );
+          // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
           const membership = await prisma.teamMember.findUnique({
             where: {
               teamId_userId: {
@@ -10550,10 +10854,11 @@ displayName: resolvedDisplayName,
                 userId: ownerUserId,
               },
             },
+            select: { role: true, status: true },
           });
           const decision = await enforceSensitiveAction("download_package", {
             teamId: evidenceForGate.teamId,
-            role: membership?.role,
+            role: membership?.status === "ACTIVE" ? membership.role : undefined,
             evidence: {
               id: evidenceForGate.id,
               teamId: evidenceForGate.teamId,
@@ -10773,6 +11078,7 @@ displayName: resolvedDisplayName,
         action: "verification.package_accessed",
         outcome: "success",
         resourceId: id,
+        teamId: packageDownloadTeamId,
         metadata: {
           packageKey: latest.storageKey,
           version: latest.version,
@@ -10793,6 +11099,7 @@ displayName: resolvedDisplayName,
         action: "evidence.verification_package.downloaded",
         outcome: "success",
         resourceId: id,
+        teamId: packageDownloadTeamId,
         metadata: {
           version: latest.version,
           packageType: latest.packageType ?? null,
@@ -10824,7 +11131,7 @@ return reply.code(200).send({
       req.log = req.log.child({ evidenceId: id });
 
       try {
-        await getEvidenceWithReadAccess(ownerUserId, id);
+        const evidence = await getEvidenceWithReadAccess(ownerUserId, id);
         const certifications = await listEvidenceCertifications(id);
 
         auditEvidenceAction(req, {
@@ -10832,6 +11139,7 @@ return reply.code(200).send({
           action: "evidence.certifications_listed",
           outcome: "success",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: { certificationCount: certifications.length },
         });
 
@@ -10859,7 +11167,7 @@ return reply.code(200).send({
       req.log = req.log.child({ evidenceId: id });
 
       try {
-        await getEvidenceWithOwnerAccess(ownerUserId, id);
+        const evidence = await getEvidenceWithRecordAccess(ownerUserId, id, "evidence.generate_report");
 
         const certification = await requestEvidenceCertification({
           evidenceId: id,
@@ -10883,6 +11191,7 @@ void appendCustodyEvent({
 action: "evidence.certification_requested",
           outcome: "success",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: {
             declarationType: body.declarationType,
             version: certification.version,
@@ -10913,7 +11222,7 @@ action: "evidence.certification_requested",
       req.log = req.log.child({ evidenceId: id });
 
       try {
-        await getEvidenceWithOwnerAccess(ownerUserId, id);
+        const evidence = await getEvidenceWithRecordAccess(ownerUserId, id, "evidence.generate_report");
 
         const certification = await revokeEvidenceCertification({
           evidenceId: id,
@@ -10940,6 +11249,7 @@ action: "evidence.certification_requested",
           action: "evidence.certification_revoked",
           outcome: "success",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: {
             declarationType: body.declarationType,
             version: certification.version,
@@ -11000,6 +11310,8 @@ action: "evidence.certification_requested",
       auditVerificationAction(req, {
         userId: null,
         action: "verification.page_opened",
+        outcome: "denied",
+        denialReason: "rate_limited",
         resourceId: null,
         metadata: { outcome: "rate_limited", bucket: "ip" },
       });
@@ -11041,6 +11353,8 @@ action: "evidence.certification_requested",
       auditVerificationAction(req, {
         userId: null,
         action: "verification.page_opened",
+        outcome: "denied",
+        denialReason: "rate_limited",
         resourceId: id,
         metadata: { outcome: "rate_limited", bucket: "evidence" },
       });
@@ -11159,7 +11473,10 @@ action: "evidence.certification_requested",
       auditVerificationAction(req, {
         userId: null,
         action: "verification.page_opened",
+        outcome: "denied",
+        denialReason: "publication_not_available",
         resourceId: id,
+        teamId: evidence.teamId,
         metadata: {
           outcome: "publication_not_available",
           publicVerifyState: evidence.publicVerifyState,
@@ -11186,7 +11503,10 @@ action: "evidence.certification_requested",
         auditVerificationAction(req, {
           userId: null,
           action: "verification.page_opened",
+          outcome: "denied",
+          denialReason: "integrity_failed",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: {
             outcome: "integrity_failed",
             status: evidenceStatus,
@@ -11210,7 +11530,10 @@ action: "evidence.certification_requested",
         auditVerificationAction(req, {
           userId: null,
           action: "verification.page_opened",
+          outcome: "denied",
+          denialReason: "lifecycle_destroyed",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: {
             outcome: "lifecycle_destroyed",
             status: evidenceStatus ?? null,
@@ -11226,7 +11549,10 @@ action: "evidence.certification_requested",
         auditVerificationAction(req, {
           userId: null,
           action: "verification.page_opened",
+          outcome: "denied",
+          denialReason: "not_finalized",
           resourceId: id,
+          teamId: evidence.teamId,
           metadata: {
             outcome: "not_finalized",
             status: evidenceStatus ?? null,
@@ -11394,7 +11720,9 @@ action: "evidence.certification_requested",
       auditVerificationAction(req, {
         userId: null,
         action: "verification.page_opened",
+        outcome: "error",
         resourceId: id,
+        teamId: evidence.teamId,
         metadata: {
           outcome: "signing_key_missing",
           signingKeyId: evidence.signingKeyId,
@@ -11981,7 +12309,9 @@ const overallIntegrity =
     auditVerificationAction(req, {
       userId: null,
       action: "verification.page_opened",
+      outcome: "success",
       resourceId: id,
+      teamId: evidence.teamId,
       metadata: {
         evidenceId: id,
         overallIntegrity,

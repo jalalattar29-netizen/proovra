@@ -128,33 +128,36 @@ describe("Phase IA-intake-personal-space-fix — copy", () => {
 describe("Phase IA-intake-personal-space-fix — backend works for PERSONAL", () => {
   const ROUTE = readApi("src/routes/workflow-intake-links.routes.ts");
 
-  it("requireAdmin / requireMember check TeamMember by teamId + userId (works for personal workspaces)", () => {
-    // The auth helpers do a plain TeamMember lookup keyed by
-    // teamId+userId. Personal workspaces are Team rows with an OWNER
-    // TeamMember row, so the lookup succeeds for PERSONAL workspaces
+  it("authorization composes the canonical primitive keyed by the target teamId (works for personal workspaces)", () => {
+    // PHASE 1 (2026-07-21): the auth helpers route through authorizeOrFail,
+    // which resolves the actor's ACTIVE membership by teamId + userId (via
+    // loadMemberAccessSnapshot). Personal workspaces are PERSONAL-kind Team
+    // rows with an ACTIVE OWNER TeamMember and are exempt from CUSTOMER-org
+    // lifecycle, so the canonical gate succeeds for PERSONAL workspaces
     // without ANY backend change.
+    expect(ROUTE).toMatch(/authorizeOrFail\(/);
+    // requireAdmin's informational OWNER/ADMIN role read is keyed by
+    // teamId + the authorized actor userId.
     expect(ROUTE).toMatch(
-      /prisma\.teamMember\.findUnique\(\s*\{\s*where:\s*\{\s*teamId_userId:\s*\{\s*teamId,\s*userId\s*\}\s*\}/,
+      /teamId_userId:\s*\{\s*teamId,\s*userId:\s*outcome\.actorUserId\s*\}/,
     );
     // No path filters out PERSONAL scope.
     expect(ROUTE).not.toMatch(/scope:\s*"PERSONAL"/);
     expect(ROUTE).not.toMatch(/scope:\s*"TEAM"/);
   });
 
-  it("POST /v1/workflow/intake-links accepts a teamId for any workspace the caller is ADMIN of", () => {
+  it("POST /v1/workflow/intake-links gates the admin create path on workflow.intake_link.create", () => {
     expect(ROUTE).toMatch(
-      /app\.post\(\s*"\/v1\/workflow\/intake-links"[\s\S]{0,1500}requireAdmin\(req, reply, body\.teamId\)/,
+      /app\.post\(\s*"\/v1\/workflow\/intake-links"[\s\S]{0,1500}requireAdmin\(req, reply, body\.teamId, "workflow\.intake_link\.create"\)/,
     );
   });
 
-  it("Send / revoke endpoints reuse the same requireAdmin path", () => {
-    // Two distinct routes (send + revoke) call requireAdmin with the
-    // link's teamId.
+  it("Send / revoke endpoints reuse the same requireAdmin path with the right capability", () => {
     expect(ROUTE).toMatch(
-      /\/v1\/workflow\/intake-links\/:id\/revoke[\s\S]{0,1500}requireAdmin\(req, reply, existing\.teamId\)/,
+      /\/v1\/workflow\/intake-links\/:id\/revoke[\s\S]{0,1500}requireAdmin\(req, reply, existing\.teamId, "workflow\.intake_link\.revoke"\)/,
     );
     expect(ROUTE).toMatch(
-      /\/v1\/workflow\/intake-links\/:id\/send[\s\S]{0,1500}requireAdmin\(req, reply, existing\.teamId\)/,
+      /\/v1\/workflow\/intake-links\/:id\/send[\s\S]{0,1500}requireAdmin\(req, reply, existing\.teamId, "workflow\.intake_link\.create"\)/,
     );
   });
 });

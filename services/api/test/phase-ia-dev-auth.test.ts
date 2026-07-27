@@ -59,6 +59,29 @@ describe("Phase IA-dev-auth — production safety", () => {
     expect(ROUTE).toMatch(/if \(!devAuthEnabled\(\)\)/);
     expect(ROUTE).toMatch(/code\(404\)/);
   });
+
+  // PHASE 10 §0A — dev-login must never be a production authentication path,
+  // and must never satisfy Organization SSO / support / break-glass.
+  it("§0A production dev-login entry paths = 0 (registered only behind the guard)", () => {
+    const SERVER = readApi("src/server.ts");
+    // Exactly ONE registration, and it is inside the devAuthEnabled() guard.
+    const registrations = SERVER.match(/app\.register\(devLoginRoutes\)/g) ?? [];
+    // Exactly ONE registration, and it sits inside the devAuthEnabled() guard —
+    // so in production (guard false) the route is never mounted.
+    expect(registrations).toHaveLength(1);
+    expect(SERVER).toMatch(/if \(devAuthEnabled\(\)\) \{[\s\S]*?await app\.register\(devLoginRoutes\)/);
+  });
+
+  it("§0A dev-login mints PASSWORD provenance → CANNOT satisfy Mandatory SSO", () => {
+    const ROUTE = readApi("src/dev/dev-login.ts");
+    // Provenance is PASSWORD (non-SSO) — a managed + ssoRequired Org denies it.
+    expect(ROUTE).toMatch(/authMethod:\s*["']PASSWORD["']/);
+    // It NEVER mints an Organization-bound SAML/OIDC provenance or ssoConnId.
+    expect(ROUTE).not.toMatch(/authMethod:\s*["'](SAML|OIDC)["']/);
+    expect(ROUTE).not.toMatch(/ssoConnId/);
+    // It is not a support or break-glass path.
+    expect(ROUTE.toLowerCase()).not.toMatch(/break.?glass|supportaccess|support_access/);
+  });
 });
 
 // ============================================================================

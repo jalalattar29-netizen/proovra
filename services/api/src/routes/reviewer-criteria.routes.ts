@@ -10,19 +10,30 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical review-criteria gate.
+ * Routes through authorizeOrFail (ACTIVE membership + org lifecycle +
+ * `review.queue.read` capability + fail-closed + anti-enumeration 404). Reads
+ * use the returned userId; the mutation handlers additionally enforce their
+ * existing OWNER/ADMIN-only restriction using the informational `role`.
+ */
 async function requireMember(req: FastifyRequest, reply: FastifyReply, teamId: string) {
-  const userId = getAuthUserId(req);
-  const m = await prisma.teamMember.findUnique({ where: { teamId_userId: { teamId, userId } } });
-  if (!m) {
-    reply.code(403).send({ error: { code: "not_a_member" } });
-    return null;
-  }
-  return { userId, role: m.role };
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission: "review.queue.read",
+    antiEnumeration: true,
+  });
+  if (!outcome) return null;
+  const m = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId: outcome.actorUserId } },
+    select: { role: true },
+  });
+  return { userId: outcome.actorUserId, role: m?.role ?? "VIEWER" };
 }
 
 const CriterionInput = z.object({
@@ -77,9 +88,14 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
       },
       include: { versions: true },
     });
-    await appendPlatformAuditLog({
-      userId: ok.userId, action: "reviewer_criteria.created", category: "review", source: "api",
-      outcome: "success", resourceType: "reviewer_criteria_set", resourceId: set.id,
+    await emitTenantAudit({
+      action: "reviewer_criteria.created",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: ok.userId,
+      workspaceId: body.teamId,
+      resourceType: "reviewer_criteria_set",
+      resourceId: set.id,
       metadata: { name: body.name, criteriaCount: body.criteria.length },
     });
     return reply.code(201).send({ set });
@@ -111,9 +127,14 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
         data: { status: "PUBLISHED", currentVersionId: latest.id },
       }),
     ]);
-    await appendPlatformAuditLog({
-      userId: ok.userId, action: "reviewer_criteria.published", category: "review", source: "api",
-      outcome: "success", resourceType: "reviewer_criteria_set", resourceId: setId,
+    await emitTenantAudit({
+      action: "reviewer_criteria.published",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: ok.userId,
+      workspaceId: body.teamId,
+      resourceType: "reviewer_criteria_set",
+      resourceId: setId,
       metadata: { version: latest.version },
     });
     return reply.code(200).send({ version: published[0] });
@@ -169,9 +190,14 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
       // Touch the set row so its @updatedAt advances — the concurrency token.
       prisma.reviewerCriteriaSet.update({ where: { id: setId }, data: { status: set.status } }),
     ]);
-    await appendPlatformAuditLog({
-      userId: ok.userId, action: "reviewer_criteria.draft_updated", category: "review", source: "api",
-      outcome: "success", resourceType: "reviewer_criteria_set", resourceId: setId,
+    await emitTenantAudit({
+      action: "reviewer_criteria.draft_updated",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: ok.userId,
+      workspaceId: body.teamId,
+      resourceType: "reviewer_criteria_set",
+      resourceId: setId,
       metadata: { version: latest.version, criteriaCount: body.criteria.length },
     });
     return reply.code(200).send({ ok: true, version: latest.version });
@@ -252,9 +278,14 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
       },
     });
     await prisma.reviewerCriteriaSet.update({ where: { id: setId }, data: { status: "DRAFT" } });
-    await appendPlatformAuditLog({
-      userId: ok.userId, action: "reviewer_criteria.duplicated", category: "review", source: "api",
-      outcome: "success", resourceType: "reviewer_criteria_set", resourceId: setId,
+    await emitTenantAudit({
+      action: "reviewer_criteria.duplicated",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: ok.userId,
+      workspaceId: body.teamId,
+      resourceType: "reviewer_criteria_set",
+      resourceId: setId,
       metadata: { newVersion: created.version },
     });
     return reply.code(201).send({ version: created.version });
@@ -276,9 +307,15 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
         data: { retiredAt: new Date() },
       }),
     ]);
-    await appendPlatformAuditLog({
-      userId: ok.userId, action: "reviewer_criteria.retired", category: "review", source: "api",
-      outcome: "success", resourceType: "reviewer_criteria_set", resourceId: setId, metadata: {},
+    await emitTenantAudit({
+      action: "reviewer_criteria.retired",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: ok.userId,
+      workspaceId: body.teamId,
+      resourceType: "reviewer_criteria_set",
+      resourceId: setId,
+      metadata: {},
     });
     return reply.code(200).send({ ok: true });
   });

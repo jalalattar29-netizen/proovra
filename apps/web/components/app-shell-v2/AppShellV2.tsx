@@ -4,11 +4,14 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { AppSidebarV2 } from "./AppSidebarV2";
 import { AppAccountToolbar } from "./AppAccountToolbar";
+import { SupportAccessBanner } from "./SupportAccessBanner";
 import { CommandPalette } from "../navigation/CommandPalette";
 import { usePathname } from "next/navigation";
 import {
   usePlatformContext,
   WorkspaceRecoveryPanel,
+  usePersonalSpaceGate,
+  PersonalSpaceUnavailablePanel,
 } from "../../lib/platform-context";
 import { resolveWorkspaceExperience } from "../../lib/workspace-experience";
 
@@ -52,6 +55,18 @@ export function AppShellV2({ children, onLogout }: AppShellV2Props) {
   const recoveryActions = ctx.envelope?.recoveryActions ?? [];
   const needsRecovery = recoveryActions.length > 0;
 
+  // PHASE 10 CLOSURE FIX 3 (2026-07-23) — canonical no-Personal client
+  // gate. Every (app) route is wrapped by this shell, so mounting the gate
+  // here protects capture, evidence, billing, settings, and any deep link
+  // alike from ever rendering Personal content once the server-projected
+  // `personalSpaceAllowed` flips to false. The hook itself drives the
+  // heal-out switchWorkspace attempt; this component only decides what to
+  // render. Recovery (envelope assembly failure) takes precedence — a
+  // broken envelope can't be gated on a field it may not even have.
+  const personalSpaceGateState = usePersonalSpaceGate();
+  const personalSpaceBlocked =
+    !needsRecovery && personalSpaceGateState === "blocked";
+
   // R1.5B — workspace experience segmentation. The mode is a
   // presentation-only data attribute (CSS, R5/R6 hooks, tests). It
   // NEVER drives authorization — capabilities remain authoritative.
@@ -92,7 +107,20 @@ export function AppShellV2({ children, onLogout }: AppShellV2Props) {
 
       <div className="app-shell-v2-content-slot">
         <main className="app-shell-v2-content">
-          {needsRecovery ? <WorkspaceRecoveryPanel /> : children}
+          {/*
+           * PHASE 10 STEP 5 — persistent support-access banner. Renders
+           * only when the envelope reports active support access; a no-op
+           * for every ordinary user. Kept above page content so it is
+           * visible on every route during a support session.
+           */}
+          <SupportAccessBanner />
+          {needsRecovery ? (
+            <WorkspaceRecoveryPanel />
+          ) : personalSpaceBlocked ? (
+            <PersonalSpaceUnavailablePanel />
+          ) : (
+            children
+          )}
         </main>
       </div>
 

@@ -35,7 +35,11 @@ import type {
   EvidenceReviewWorkflow as DbWorkflow,
   PrismaClient,
 } from "@prisma/client";
-import type { NotificationEventType } from "@proovra/shared";
+import {
+  absoluteInternalUrl,
+  internalResourcePath,
+  type NotificationEventType,
+} from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { safeSendEmailNotification } from "../notifications/index.js";
@@ -85,8 +89,11 @@ async function resolveAssigneeAndWorkspace(
     }
   }
 
-  const base = getEmailWebBaseUrl().replace(/\/+$/, "");
-  const evidenceUrl = `${base}/evidence/${workflow.evidenceId}`;
+  // PHASE 11 — canonical evidence resource link (resource-id family).
+  const evidenceUrl = absoluteInternalUrl(
+    getEmailWebBaseUrl(),
+    internalResourcePath({ type: "evidence", id: workflow.evidenceId }),
+  );
 
   return { reviewer, workspaceName, evidenceUrl };
 }

@@ -246,6 +246,21 @@ export type PlatformContextValue = {
    * means a forced page refresh is required.
    */
   schemaCompatible: boolean;
+
+  /**
+   * PHASE 7 §10 — the effective tenant (active workspace id), or null
+   * before the first READY envelope. Use as the tenant component of
+   * cache/draft/storage keys.
+   */
+  activeWorkspaceId: string | null;
+
+  /**
+   * PHASE 7 §10 — monotonic tenant generation. Bumps only when
+   * `activeWorkspaceId` changes. Capture it before async work and
+   * compare after (`gen !== contextGeneration` ⇒ tenant changed, drop
+   * the result); use it to key tenant-scoped caches/drafts.
+   */
+  contextGeneration: number;
 };
 
 const PlatformContextReactContext = createContext<PlatformContextValue | null>(
@@ -307,6 +322,17 @@ export function PlatformContextProvider({
   // shows one workspace while page uses another" failure mode.
   const fetchSequenceRef = useRef(0);
 
+  // PHASE 7 §10.2/§10.3 (2026-07-22) — canonical TENANT GENERATION.
+  // Increments ONLY when the active workspace id actually changes (a
+  // same-workspace refresh does NOT bump it). Consumers key caches/drafts
+  // by it (§10.2) and capture-then-compare it around async work to reject
+  // stale-tenant responses/mutations (§10.3). This is the ONE source of
+  // truth for "am I still in the tenant I started in".
+  const [contextGeneration, setContextGeneration] = useState(0);
+  const lastAppliedWorkspaceIdRef = useRef<string | null>(
+    testEnvelope ? testEnvelope.workspace.id : null,
+  );
+
   const ingestEnvelope = useCallback(
     (envelope: PlatformContextEnvelope): "applied" | "stale-version" => {
       if (!versionsAreCompatible(envelope)) {
@@ -340,6 +366,14 @@ export function PlatformContextProvider({
       }
       setSchemaCompatible(true);
       setState({ name: "READY", envelope });
+      // PHASE 7 §10 — bump the tenant generation only on an actual
+      // workspace-id change (never on same-workspace refresh), so
+      // consumers can distinguish "new data, same tenant" from "tenant
+      // changed — drop stale state".
+      if (lastAppliedWorkspaceIdRef.current !== envelope.workspace.id) {
+        lastAppliedWorkspaceIdRef.current = envelope.workspace.id;
+        setContextGeneration((g) => g + 1);
+      }
       // CR1.5 / R1 — dev-only observability. No-op in production.
       emitStateEvent("platform-envelope:loaded", "PlatformContextProvider", {
         workspaceId: redactWorkspaceId(envelope.workspace.id),
@@ -536,24 +570,26 @@ export function PlatformContextProvider({
     [state],
   );
 
-  const value = useMemo<PlatformContextValue>(
-    () => ({
-      state,
-      envelope:
-        state.name === "READY"
-          ? state.envelope
-          : state.name === "SWITCHING"
+  const value = useMemo<PlatformContextValue>(() => {
+    const activeEnvelope =
+      state.name === "READY"
+        ? state.envelope
+        : state.name === "SWITCHING"
+          ? state.previous
+          : state.name === "FAILED"
             ? state.previous
-            : state.name === "FAILED"
-              ? state.previous
-              : null,
+            : null;
+    return {
+      state,
+      envelope: activeEnvelope,
       can,
       switchWorkspace,
       refresh,
       schemaCompatible,
-    }),
-    [state, can, switchWorkspace, refresh, schemaCompatible],
-  );
+      activeWorkspaceId: activeEnvelope?.workspace.id ?? null,
+      contextGeneration,
+    };
+  }, [state, can, switchWorkspace, refresh, schemaCompatible, contextGeneration]);
 
   return (
     <PlatformContextReactContext.Provider value={value}>

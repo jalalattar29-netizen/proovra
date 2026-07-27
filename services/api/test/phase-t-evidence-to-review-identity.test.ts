@@ -664,9 +664,13 @@ describe("Phase T — reviewer-workflow.service.ts hard-rules guard", () => {
     "../src/services/evidence-review/reviewer-workflow.service.ts",
   );
 
-  it("imports appendPlatformAuditLog from the existing platform-audit emitter", () => {
-    expect(src).toContain("appendPlatformAuditLog");
-    expect(src).toContain("platform-audit-log.service");
+  it("imports emitTenantAudit from the canonical tenant-audit facade", () => {
+    // PHASE 11 §3 Batch A — migrated off the direct appendPlatformAuditLog
+    // call onto the canonical tenant-audit facade, which still writes
+    // through appendPlatformAuditLog under the hood (same hash-chained
+    // sink) but now records an authoritative workspaceId column.
+    expect(src).toContain("emitTenantAudit");
+    expect(src).toContain("audit/tenant-audit.service");
   });
 
   it("imports templateIdentityAuditMetadata + TemplateIdentityTrio from the canonical resolver", () => {
@@ -688,8 +692,8 @@ describe("Phase T — reviewer-workflow.service.ts hard-rules guard", () => {
   });
 
   it("calls audit emission via void + .catch so it cannot break the upsert", () => {
-    // Either appendPlatformAuditLog is followed by .catch, or the call is
+    // Either emitTenantAudit is followed by .catch, or the call is
     // wrapped in void + chained .catch. Both patterns are acceptable.
-    expect(src).toMatch(/appendPlatformAuditLog\([\s\S]*?\}\)\.catch/);
+    expect(src).toMatch(/emitTenantAudit\([\s\S]*?\}\)\.catch/);
   });
 });

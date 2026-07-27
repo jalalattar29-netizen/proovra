@@ -24,9 +24,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 // Phase O2.1 — route through the backend selector so the same
 // endpoints work against either the in-memory Phase G3 store or the
 // opt-in Redis backend (`PROOVRA_PRESENCE_BACKEND=redis`). The
@@ -66,17 +66,19 @@ export async function presenceRoutes(app: FastifyInstance) {
     "/v1/me/presence/heartbeat",
     { preHandler: requireAuth },
     async (req, reply) => {
-      const userId = getAuthUserId(req);
       const body = HeartbeatBody.parse(req.body ?? {});
 
-      // Workspace membership gate — a viewer must be a member of the
-      // workspace to record presence on its resources.
-      const membership = await prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId: body.teamId, userId } },
+      // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical gate: a viewer
+      // must be an ACTIVE member (org lifecycle enforced, fail-closed,
+      // anti-enumeration 404) with collaboration.thread.read to record presence
+      // on a workspace's resources.
+      const authz = await authorizeOrFail(req, reply, {
+        teamId: body.teamId,
+        permission: "collaboration.thread.read",
+        antiEnumeration: true,
       });
-      if (!membership) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
+      if (!authz) return;
+      const userId = authz.actorUserId;
 
       // Capture a bounded display name. Falls back to the user id
       // suffix when no displayName is set so the indicator never
@@ -121,15 +123,15 @@ export async function presenceRoutes(app: FastifyInstance) {
     "/v1/me/presence/here",
     { preHandler: requireAuth },
     async (req, reply) => {
-      const userId = getAuthUserId(req);
       const query = HereQuery.parse(req.query ?? {});
 
-      const membership = await prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId: query.teamId, userId } },
+      const authz = await authorizeOrFail(req, reply, {
+        teamId: query.teamId,
+        permission: "collaboration.thread.read",
+        antiEnumeration: true,
       });
-      if (!membership) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
+      if (!authz) return;
+      const userId = authz.actorUserId;
 
       const viewers = await listViewers({
         teamId: query.teamId,

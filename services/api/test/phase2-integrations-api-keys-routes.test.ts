@@ -131,8 +131,9 @@ describe("PHASE 2 — rotate route", () => {
     expect(rotMatch).not.toBeNull();
     const body = rotMatch![0];
     expect(body).toMatch(/preHandler:\s*requireAuth/);
-    expect(body).toMatch(/requireMember\(/);
-    expect(body).toMatch(/requirePermission\([^,]+,\s*"integration\.api_key\.manage"\)/);
+    // PHASE 1 (2026-07-21): the capability is the 4th arg to the canonical
+    // requireMember wrapper (→ authorizeOrFail), not a separate requirePermission.
+    expect(body).toMatch(/requireMember\([^)]*"integration\.api_key\.manage"\)/);
   });
 
   it("requires step-up for the rotation flow (same posture as create/revoke)", () => {

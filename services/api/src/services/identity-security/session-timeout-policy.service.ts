@@ -41,8 +41,9 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { organizationIdForPolicy } from "../identity/org-security-policy.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { bump } from "../ops/metrics.service.js";
 
 export type SessionTimeoutEnforcementInput = {
@@ -91,16 +92,19 @@ export async function enforceSessionTimeoutPolicy(
   };
   let role: SessionTimeoutRole;
   try {
-    // Read only what we need. Both lookups are keyed single-row reads,
-    // O(1) on the hot path.
+    // §1.1 — the policy is read by AUTHORITATIVE organizationId (never teamId)
+    // via the zero-decision adapter. Both lookups are keyed single-row reads.
+    const policyOrgId = await organizationIdForPolicy(input.teamId, client);
     const [policyRow, memberRow] = await Promise.all([
-      client.organizationSecurityPolicy.findUnique({
-        where: { teamId: input.teamId },
-        select: {
-          reviewerSessionTimeoutSeconds: true,
-          contributorSessionTimeoutSeconds: true,
-        },
-      }),
+      policyOrgId
+        ? client.organizationSecurityPolicy.findUnique({
+            where: { organizationId: policyOrgId },
+            select: {
+              reviewerSessionTimeoutSeconds: true,
+              contributorSessionTimeoutSeconds: true,
+            },
+          })
+        : Promise.resolve(null),
       client.teamMember.findUnique({
         where: {
           teamId_userId: { teamId: input.teamId, userId: input.userId },
@@ -208,25 +212,23 @@ async function recordPolicyExpiry(
       },
       client,
     );
-    await appendPlatformAuditLog({
-      userId: input.userId,
+    await emitTenantAudit({
       action: "identity_security.session.expired_by_policy",
-      category: "identity_security.sessions",
-      severity: "info",
-      source: "session_timeout_policy",
       outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.userId,
+      serviceActor: "session_timeout_policy",
+      workspaceId: input.teamId,
       resourceType: "authenticated_session",
       resourceId: input.userId,
       metadata: {
-        teamId: input.teamId,
         reason: input.reason,
         appliedTimeoutSeconds: input.appliedTimeoutSeconds,
         ageSeconds: input.ageSeconds,
         idleSeconds: input.idleSeconds,
         role: input.role,
       },
-      db: client,
-    });
+    }, client);
   } catch {
     /* audit is best-effort; never break the auth decision */
   }

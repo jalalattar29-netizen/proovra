@@ -29,9 +29,9 @@ import type {
 } from "fastify";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import {
   MANDATORY_INAPP_PREFERENCE_TYPES,
   MANDATORY_ORG_PREFERENCE_TYPES,
@@ -57,6 +57,18 @@ function isMissingScheduleSchema(err: unknown): boolean {
   return code === "P2021" || code === "P2022";
 }
 
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization.
+ *
+ * These preferences are WORKSPACE-SCOPED (keyed by teamId; the toggle list is
+ * per-(user, workspace, type, channel)), so workspace authorization is the
+ * correct model — there is NO account-wide preference endpoint here being
+ * forced through workspace authz. Routes through authorizeOrFail (ACTIVE
+ * membership + org lifecycle + `notification.delivery.read`, which every role
+ * incl. VIEWER holds so self-service is preserved + fail-closed +
+ * anti-enumeration 404). The read/write remain caller-scoped: the returned
+ * userId is the authorized actor; operators cannot set another user's prefs.
+ */
 async function requireMember(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -66,7 +78,13 @@ async function requireMember(
   isPersonalWorkspace: boolean;
   organizationId: string | null;
 } | null> {
-  const userId = getAuthUserId(req);
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission: "notification.delivery.read",
+    antiEnumeration: true,
+  });
+  if (!outcome) return null;
+  const userId = outcome.actorUserId;
   const membership = await prisma.teamMember.findUnique({
     where: { teamId_userId: { teamId, userId } },
     select: { team: { select: { isPersonal: true, organizationId: true } } },

@@ -36,16 +36,42 @@ const H = vi.hoisted(() => ({
   searchCalls: [] as Array<Record<string, unknown>>,
   evidenceRow: null as Record<string, unknown> | null,
   evidenceRows: [] as Array<{ id: string; title: string | null }>,
+  // PHASE 1 (2026-07-21) — side-effect trackers for the policy-before-data /
+  // deny-has-no-side-effects proofs.
+  billingReserved: 0,
+  providerCalls: 0,
 }));
 
 vi.mock("../src/db.js", () => ({
   prisma: {
     teamMember: {
+      // PHASE 1 (2026-07-21): the canonical primitive's loadMemberAccessSnapshot
+      // reads status + accessExpiresAtUtc + team.organization.status +
+      // capabilityGrants + delegatedAdminScopes. ADMIN has intelligence.read
+      // AND intelligence.run, so member requests still authorize.
       findUnique: async ({ where }: { where: { teamId_userId: { teamId: string; userId: string } } }) =>
         H.memberTeams.has(where.teamId_userId.teamId)
-          ? { teamId: where.teamId_userId.teamId, userId: where.teamId_userId.userId, role: "ADMIN" }
+          ? {
+              id: `tm-${where.teamId_userId.teamId}`,
+              teamId: where.teamId_userId.teamId,
+              userId: where.teamId_userId.userId,
+              role: "ADMIN",
+              status: "ACTIVE",
+              accessExpiresAtUtc: null,
+              team: {
+                isPersonal: false,
+                workspaceKind: "ORGANIZATION",
+                billingPlan: "ENTERPRISE",
+                organization: { status: "ACTIVE" },
+              },
+              capabilityGrants: [],
+              delegatedAdminScopes: [],
+            }
           : null,
     },
+    // recordPermissionDecision (on deny) writes a SecurityEvent; provide a
+    // no-op sink so the fail-closed audit path never throws in this mock.
+    securityEvent: { create: async () => ({ id: "se-1" }) },
     evidence: {
       findUnique: async () => H.evidenceRow,
       findMany: async () => H.evidenceRows,
@@ -92,7 +118,10 @@ vi.mock("../src/services/ai/workspace-ai-policy.service.js", async (importOrigin
   };
 });
 vi.mock("../src/services/ai/ai-usage-ledger.service.js", () => ({
-  tryReserveAiBudget: async () => ({ decision: { allowed: true, code: "OK" }, reservationId: null }),
+  tryReserveAiBudget: async () => {
+    H.billingReserved += 1;
+    return { decision: { allowed: true, code: "OK" }, reservationId: null };
+  },
   reconcileAiUsage: async () => undefined,
   releaseAiReservation: async () => undefined,
   buildPrismaLedgerStore: () => ({}),
@@ -245,7 +274,9 @@ describe("Phase 5 — Evidence Copilot route: canonical result contract (inject)
     const { status, body } = await run();
     expect(status).toBe(200);
     expect(body.status).toBe("provider_unavailable");
-    expect(H.audits.some((e) => e.action === "ai.evidence_copilot" && e.outcome === "failure")).toBe(true);
+    // PHASE 11 §3 — migrated onto the canonical tenant-audit facade, which
+    // maps the old "failure" outcome onto TenantAuditOutcome "error".
+    expect(H.audits.some((e) => e.action === "ai.evidence_copilot" && e.outcome === "error")).toBe(true);
   });
 
   it("policy denied → policy_denied with decision code; provider NEVER called", async () => {
@@ -279,12 +310,34 @@ describe("Phase 5 — Evidence Copilot route: canonical result contract (inject)
     expect(status).toBe(429);
   });
 
-  it("non-member → 403; deleted/missing record → 404", async () => {
+  it("non-member → 404 (anti-enumeration); deleted/missing record → 404", async () => {
+    // PHASE 1 (2026-07-21): the canonical primitive conceals non-membership as
+    // 404 so a non-member cannot distinguish "record exists but you're not a
+    // member" from "record does not exist".
     H.memberTeams = new Set();
-    expect((await run()).status).toBe(403);
+    expect((await run()).status).toBe(404);
     H.memberTeams = new Set([TEAM_1]);
     H.evidenceRow = null;
     expect((await run()).status).toBe(404);
+  });
+
+  it("E: authorization denial performs NO billing reservation, NO provider call, NO success audit", async () => {
+    // Item E — the AI provider call and billable usage happen strictly AFTER
+    // canonical authorization + AI policy. On an authorization denial the
+    // handler short-circuits before any of them.
+    H.memberTeams = new Set(); // non-member → authz denies (404)
+    H.billingReserved = 0;
+    let providerCalled = false;
+    H.provider = async () => {
+      providerCalled = true;
+      return {};
+    };
+    H.audits.length = 0;
+    const { status } = await run();
+    expect(status).toBe(404);
+    expect(H.billingReserved).toBe(0);
+    expect(providerCalled).toBe(false);
+    expect(H.audits.some((e) => e.outcome === "success")).toBe(false);
   });
 
   it("stale evidenceVersion → 409", async () => {
@@ -304,10 +357,11 @@ describe("Phase 6 — NL Search route: authorization, languages, honesty, audit 
     return { status: res.statusCode, body: JSON.parse(res.body), headers: res.headers };
   }
 
-  it("non-member is rejected 403 before any parsing or audit", async () => {
+  it("non-member is rejected 404 (anti-enumeration) before any audit", async () => {
+    // PHASE 1 (2026-07-21): non-membership conceals as 404 not_found.
     const { status, body } = await search({ teamId: TEAM_2, query: "show evidence with tsa pending" });
-    expect(status).toBe(403);
-    expect(body.error.code).toBe("not_a_member");
+    expect(status).toBe(404);
+    expect(body.error.code).toBe("not_found");
     expect(H.audits.length).toBe(0);
   });
 

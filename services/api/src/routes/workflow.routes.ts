@@ -17,10 +17,9 @@ import {
   WorkflowVisibilityPolicySchema,
 } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { hasRole } from "../services/rbac.js";
 import {
   archiveWorkspaceWorkflowTemplate,
   createWorkspaceWorkflowTemplate,
@@ -104,26 +103,26 @@ const ParamsId = z.object({ id: z.string().uuid() });
 // Membership helpers
 // -----------------------------------------------------------------------------
 
-async function loadActorMembership(teamId: string, userId: string) {
-  return prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-  });
-}
-
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization.
+ * Both gates route through authorizeOrFail (ACTIVE membership + org lifecycle
+ * + capability + fail-closed + anti-enumeration 404). Reads use `evidence.read`
+ * (the base evidence-domain read every member holds; workflow templates govern
+ * evidence workflows and have no dedicated read permission). Template mutations
+ * use `workflow.template.manage` (held by OWNER + ADMIN only — the same set the
+ * former `hasRole(ADMIN)` check enforced).
+ */
 async function requireWorkspaceMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
 ): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await loadActorMembership(teamId, userId);
-  if (!membership) {
-    reply
-      .code(403)
-      .send({ message: "Not a member of the requested workspace" });
-    return null;
-  }
-  return { userId };
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission: "evidence.read",
+    antiEnumeration: true,
+  });
+  return outcome ? { userId: outcome.actorUserId } : null;
 }
 
 async function requireWorkspaceAdmin(
@@ -131,21 +130,12 @@ async function requireWorkspaceAdmin(
   reply: FastifyReply,
   teamId: string,
 ): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await loadActorMembership(teamId, userId);
-  if (!membership) {
-    reply
-      .code(403)
-      .send({ message: "Not a member of the requested workspace" });
-    return null;
-  }
-  if (!hasRole(membership.role, "ADMIN")) {
-    reply
-      .code(403)
-      .send({ message: "Admin role required to modify workflow templates" });
-    return null;
-  }
-  return { userId };
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission: "workflow.template.manage",
+    antiEnumeration: true,
+  });
+  return outcome ? { userId: outcome.actorUserId } : null;
 }
 
 // -----------------------------------------------------------------------------

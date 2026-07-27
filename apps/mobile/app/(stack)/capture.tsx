@@ -36,6 +36,16 @@ import {
   runTrustCapture,
   listTrustQueueSummary,
 } from "../../src/trust";
+// PHASE 10 CLOSURE FIX 3 (2026-07-23) — no-Personal client gate. The
+// citizen-capture app has no workspace switcher/alternative target, so a
+// disallowed Personal Space blocks capture outright (never a silent
+// Personal fallback) with a bounded explanation.
+import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
+import {
+  PERSONAL_SPACE_UNAVAILABLE_MESSAGE,
+  PERSONAL_SPACE_UNAVAILABLE_TITLE,
+  shouldBlockMobileCapture,
+} from "../../src/personal-space";
 
 // Bounded PROOVRA-language chip strings — render after a successful
 // trust capture, when the capture was signed but queued offline, when
@@ -77,6 +87,13 @@ export default function CaptureScreen() {
   const typeMap: CaptureKind[] = ["PHOTO", "VIDEO", "DOCUMENT"];
   const activeType = typeMap[activeIndex];
 
+  // PHASE 10 CLOSURE FIX 3 — client-hiding hint only; the server
+  // independently rejects any personal-scope mutation regardless. The
+  // blocked decision also depends on whether a local capture session is
+  // active (see isSessionActive + shouldBlockMobileCapture below), so the
+  // final `personalSpaceBlocked` is computed after that flag is known.
+  const personalSpace = usePersonalSpaceAllowed();
+
   const [cameraOpen, setCameraOpen] = useState(false);
   const [useLocation, setUseLocation] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -104,6 +121,18 @@ export default function CaptureScreen() {
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
 
   const isSessionActive = Boolean(sessionEvidenceId) || sessionItems.length > 0;
+
+  // PHASE 10 CLOSURE FIX 3 — behavior E. Only block a FRESH capture surface;
+  // never yank an in-progress local draft off the screen when the policy
+  // flips to disallowed mid-session (the operator keeps their staged items
+  // to finish or discard; the server independently blocks a disallowed
+  // finalize). No workspace switch exists on mobile, so there is nothing to
+  // silently switch to.
+  const personalSpaceBlocked = shouldBlockMobileCapture({
+    loading: personalSpace.loading,
+    allowed: personalSpace.allowed,
+    hasActiveDraft: isSessionActive,
+  });
 
   const setSessionState = useCallback((items: CapturedItem[]) => {
     sessionItemsRef.current = items;
@@ -659,6 +688,15 @@ setSessionState(
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {personalSpaceBlocked ? (
+          <View style={styles.blockedCard} testID="personal-space-blocked">
+            <Text style={[styles.blockedTitle, { fontFamily: fontFamilyBold }]}>
+              {PERSONAL_SPACE_UNAVAILABLE_TITLE}
+            </Text>
+            <Text style={styles.blockedText}>{PERSONAL_SPACE_UNAVAILABLE_MESSAGE}</Text>
+          </View>
+        ) : (
+        <>
         <Tabs
           items={[t("photo"), t("video"), t("document")]}
           activeIndex={activeIndex}
@@ -866,6 +904,8 @@ setSessionState(
             <Text style={styles.secondaryText}>Open Settings</Text>
           </Pressable>
         ) : null}
+        </>
+        )}
 
         <View style={styles.listCard}>
           {recent.length === 0 ? (
@@ -918,6 +958,25 @@ const styles = StyleSheet.create({
   headerIcon: {
     fontSize: 18,
     color: "rgba(219,235,248,0.70)"
+  },
+  // PHASE 10 CLOSURE FIX 3 — no-Personal blocked state (bounded copy, no
+  // policy internals exposed).
+  blockedCard: {
+    backgroundColor: "rgba(127,29,29,0.14)",
+    borderRadius: 18,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.30)"
+  },
+  blockedTitle: {
+    fontSize: typography.size.h4,
+    color: "rgba(245,251,255,0.94)",
+    marginBottom: spacing.sm
+  },
+  blockedText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "rgba(219,235,248,0.80)"
   },
   preview: {
     minHeight: 60,

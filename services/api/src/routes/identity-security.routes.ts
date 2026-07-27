@@ -43,6 +43,7 @@ import {
 } from "@proovra/shared";
 
 import { getAuthUserId } from "../auth.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
@@ -86,10 +87,43 @@ import {
   isPasswordPolicyCompliant,
 } from "../services/email-password-auth.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 
 const TeamIdQuery = z.object({ teamId: z.string().uuid() });
 const ParamsId = z.object({ id: z.string().uuid() });
+
+/**
+ * PHASE 11 §3 Batch B — D-5 personal Security Center surfaces carry NO
+ * teamId (operator's own account scope; see the section comment above) →
+ * genuinely GLOBAL platform events, routed through `emitPlatformAudit`.
+ */
+function auditIdentitySecurityEvent(
+  req: FastifyRequest,
+  params: {
+    userId: string;
+    action: string;
+    outcome: "success" | "failure" | "blocked";
+    resourceType: string;
+    resourceId: string;
+    metadata?: Record<string, unknown>;
+    ip: string | null;
+    ua: string | null;
+  },
+): void {
+  const outcome =
+    params.outcome === "failure" ? "error" : params.outcome === "blocked" ? "denied" : "success";
+  const reason = params.metadata?.["reason"];
+  void emitPlatformAudit({
+    action: params.action,
+    outcome,
+    denialReason: outcome !== "success" ? (typeof reason === "string" ? reason : params.action) : null,
+    sourceApp: "API",
+    actorUserId: params.userId,
+    resourceType: params.resourceType,
+    resourceId: params.resourceId,
+    correlationId: req.id,
+    metadata: { ...(params.metadata ?? {}), ipAddress: params.ip, userAgent: params.ua },
+  }).catch(() => null);
+}
 
 function requestIp(req: FastifyRequest): string | null {
   const raw = (req.ip ?? "").trim();
@@ -576,20 +610,16 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         windowSec: 60,
       });
       if (!userRl.allowed) {
-        await appendPlatformAuditLog({
+        auditIdentitySecurityEvent(req, {
           userId,
           action: "identity_security.password_change",
-          category: "identity_security",
-          severity: "warning",
-          source: "api_identity_security",
           outcome: "blocked",
           resourceType: "user",
           resourceId: userId,
-          requestId: req.id,
           metadata: { reason: "rate_limited_user" },
-          ipAddress: ip,
-          userAgent: ua,
-        }).catch(() => null);
+          ip,
+          ua,
+        });
         return reply.code(429).send({ error: { code: "rate_limited" } });
       }
       const ipRl = await enforceRateLimit({
@@ -606,20 +636,16 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       // Quick policy preflight so we can return a precise error
       // before doing the scrypt round-trip in the service.
       if (!isPasswordPolicyCompliant(body.newPassword)) {
-        await appendPlatformAuditLog({
+        auditIdentitySecurityEvent(req, {
           userId,
           action: "identity_security.password_change",
-          category: "identity_security",
-          severity: "warning",
-          source: "api_identity_security",
           outcome: "failure",
           resourceType: "user",
           resourceId: userId,
-          requestId: req.id,
           metadata: { reason: "weak_new_password" },
-          ipAddress: ip,
-          userAgent: ua,
-        }).catch(() => null);
+          ip,
+          ua,
+        });
         return reply
           .code(400)
           .send({ error: { code: "weak_new_password" } });
@@ -632,21 +658,16 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       });
 
       if (!result.ok) {
-        await appendPlatformAuditLog({
+        auditIdentitySecurityEvent(req, {
           userId,
           action: "identity_security.password_change",
-          category: "identity_security",
-          severity:
-            result.reason === "current_password_mismatch" ? "warning" : "info",
-          source: "api_identity_security",
           outcome: "failure",
           resourceType: "user",
           resourceId: userId,
-          requestId: req.id,
           metadata: { reason: result.reason },
-          ipAddress: ip,
-          userAgent: ua,
-        }).catch(() => null);
+          ip,
+          ua,
+        });
 
         // For `current_password_mismatch` we return a generic 400 so
         // the caller cannot use the response shape as an oracle for
@@ -704,23 +725,19 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         revokedOtherSessions = upd.count;
       }
 
-      await appendPlatformAuditLog({
+      auditIdentitySecurityEvent(req, {
         userId,
         action: "identity_security.password_change",
-        category: "identity_security",
-        severity: "info",
-        source: "api_identity_security",
         outcome: "success",
         resourceType: "user",
         resourceId: userId,
-        requestId: req.id,
         metadata: {
           revokeOtherSessions: Boolean(body.revokeOtherSessions),
           revokedOtherSessionsCount: revokedOtherSessions,
         },
-        ipAddress: ip,
-        userAgent: ua,
-      }).catch(() => null);
+        ip,
+        ua,
+      });
 
       return reply.code(200).send({
         ok: true,
@@ -811,20 +828,16 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
           revokedReason: "SELF_REVOKE_OTHERS",
         },
       });
-      await appendPlatformAuditLog({
+      auditIdentitySecurityEvent(req, {
         userId,
         action: "identity_security.self_revoke_others",
-        category: "identity_security",
-        severity: "info",
-        source: "api_identity_security",
         outcome: "success",
         resourceType: "user",
         resourceId: userId,
-        requestId: req.id,
         metadata: { revoked: upd.count },
-        ipAddress: requestIp(req),
-        userAgent: requestUa(req),
-      }).catch(() => null);
+        ip: requestIp(req),
+        ua: requestUa(req),
+      });
       return reply.code(200).send({ revoked: upd.count });
     },
   );
@@ -877,20 +890,16 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
           revokedReason: "SELF_REVOKE_SINGLE",
         },
       });
-      await appendPlatformAuditLog({
+      auditIdentitySecurityEvent(req, {
         userId,
         action: "identity_security.self_revoke_session",
-        category: "identity_security",
-        severity: "info",
-        source: "api_identity_security",
         outcome: "success",
         resourceType: "authenticated_session",
         resourceId: target.id,
-        requestId: req.id,
         metadata: {},
-        ipAddress: requestIp(req),
-        userAgent: requestUa(req),
-      }).catch(() => null);
+        ip: requestIp(req),
+        ua: requestUa(req),
+      });
       return reply.code(200).send({ revoked: 1 });
     },
   );

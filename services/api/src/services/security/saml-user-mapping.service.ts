@@ -36,6 +36,11 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
 import type { SamlAssertion } from "./saml-assertion.service.js";
+// P0 remediation (2026-07-21) — canonical guard for linking an IdP-asserted
+// email to a PRE-EXISTING User (cross-tenant account-takeover fix).
+import { evaluateExistingAccountLink } from "./enterprise-account-linking.service.js";
+// PHASE 3 (2026-07-21) — canonical membership orchestrator.
+import { provisionMembership } from "../identity/membership-provisioning.service.js";
 
 // ---------------------------------------------------------------------------
 // Error class
@@ -46,7 +51,9 @@ export type SamlMappingErrorCode =
   | "SAML_EMAIL_DOMAIN_NOT_ALLOWED"
   | "SAML_JIT_DISABLED"
   | "SAML_CONNECTION_NOT_FOUND"
-  | "SAML_CONNECTION_INACTIVE";
+  | "SAML_CONNECTION_INACTIVE"
+  // P0 remediation (2026-07-21) — unsafe existing-account link denial.
+  | "SAML_ACCOUNT_LINK_DENIED";
 
 export class SamlMappingError extends Error {
   constructor(
@@ -279,7 +286,13 @@ export async function handleSamlAssertion(
   // -------------------------------------------------------------------------
   // Resolve email and display name
   // -------------------------------------------------------------------------
-  const email = resolveEmail(assertion, attributeMapping ?? null);
+  // P0 remediation (2026-07-21) — normalize the asserted email exactly like
+  // registration / SSO / SCIM do (trim + lowercase). Without this, an IdP
+  // asserting a different casing than the stored (lowercased) account
+  // silently created a DUPLICATE User instead of matching the existing one.
+  const email =
+    resolveEmail(assertion, attributeMapping ?? null)?.trim().toLowerCase() ??
+    null;
   if (!email || !email.includes("@")) {
     // R8.2.1 — Attribute mapping failure: IdP did not return a mappable email.
     // Emit the new hardening event so operators can diagnose attribute name mismatches.
@@ -343,7 +356,48 @@ export async function handleSamlAssertion(
   let role: "MEMBER" | "VIEWER" = "MEMBER";
 
   if (externalMapping) {
-    // Repeat login — user already linked
+    // PHASE 8 §11.1 (2026-07-22) — REPEAT LOGIN MUST NOT BYPASS THE
+    // LINKING GUARD. The mapping is keyed globally by
+    // (provider, externalSubjectId), so a mapping created under a
+    // DIFFERENT connection/team — or a pre-remediation mapping that no
+    // longer satisfies policy — would otherwise authorize its user
+    // straight into THIS connection. Re-validate the stored mapping
+    // against the current connection before trusting it, and QUARANTINE
+    // (soft-unlink) any mapping that fails so it can never authorize
+    // again without an explicit operator re-link. The email-domain gate
+    // above already re-ran; here we bind team + quarantine state.
+    const revalidationFailure =
+      externalMapping.unlinkedAtUtc !== null
+        ? "mapping_quarantined"
+        : externalMapping.teamId !== teamId
+          ? "connection_team_mismatch"
+          : null;
+    if (revalidationFailure) {
+      if (externalMapping.unlinkedAtUtc === null) {
+        await client.externalIdentityMapping.update({
+          where: { id: externalMapping.id },
+          data: { unlinkedAtUtc: new Date() },
+        });
+      }
+      bump("saml_login_failure_total");
+      safeEmitSecurityEvent({
+        teamId,
+        eventType: "saml_mapping_quarantined",
+        severity: "WARNING",
+        details: {
+          connectionId,
+          reason: revalidationFailure,
+          mappingTeamId: externalMapping.teamId,
+          nameIdHash: assertion.nameIdHash,
+        },
+      });
+      throw new SamlMappingError("SAML_ACCOUNT_LINK_DENIED", {
+        connectionId,
+        reason: revalidationFailure,
+      });
+    }
+
+    // Repeat login — user already linked and revalidated.
     userId = externalMapping.userId;
 
     safeEmitSecurityEvent({
@@ -413,13 +467,40 @@ export async function handleSamlAssertion(
 
     role = jitDecision.role;
 
-    // Find or create User by email
+    // Find or create User by email (normalized lowercase — see above).
     const existingUser = await client.user.findFirst({
       where: { email: email },
       select: { id: true },
     });
 
     if (existingUser) {
+      // P0 remediation (2026-07-21) — linking an IdP-asserted email to a
+      // PRE-EXISTING account requires the domain to be DNS-verified by
+      // exactly this connection's own organization (globally-unique
+      // claim). Otherwise any tenant-controlled IdP could assert an
+      // arbitrary existing user's email and mint a session as them.
+      // Fail closed; never fall through to creating a duplicate account.
+      const link = await evaluateExistingAccountLink(
+        { teamId, email },
+        client,
+      );
+      if (!link.ok) {
+        bump("saml_login_failure_total");
+        safeEmitSecurityEvent({
+          teamId,
+          eventType: "saml_login_failed",
+          severity: "HIGH",
+          details: {
+            connectionId,
+            reason: `unsafe_account_link:${link.reason}`,
+            nameIdHash: assertion.nameIdHash,
+          },
+        });
+        throw new SamlMappingError("SAML_ACCOUNT_LINK_DENIED", {
+          connectionId,
+          reason: link.reason,
+        });
+      }
       userId = existingUser.id;
     } else {
       const created = await client.user.create({
@@ -446,18 +527,21 @@ export async function handleSamlAssertion(
       },
     });
 
-    // Upsert TeamMember (idempotent)
-    await client.teamMember.upsert({
-      where: { teamId_userId: { teamId, userId } },
-      update: {},
-      create: {
+    // PHASE 3 (2026-07-21) — canonical orchestrator: SSO_JIT intent.
+    // `preserveExistingStatus` — a SAML login never silently reactivates a
+    // SUSPENDED/REVOKED member; the grant provenance is recorded either way.
+    await provisionMembership(client, {
+      intent: "SSO_JIT",
+      source: "SSO_JIT",
+      userId,
+      workspace: {
         teamId,
-        userId,
         role: role === "VIEWER" ? "VIEWER" : "MEMBER",
-        status: "ACTIVE",
-        accessGrantedByUserId: userId, // self-provisioned
-        accessReason: `SAML JIT (${provider})`,
       },
+      actorUserId: null, // self-provisioned via IdP assertion
+      externalRef: `saml:${provider}:${externalSubjectId}`.slice(0, 200),
+      accessReason: `SAML JIT (${provider})`,
+      preserveExistingStatus: true,
     });
 
     bump("saml_jit_provisioned_total");

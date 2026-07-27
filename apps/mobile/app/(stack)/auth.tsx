@@ -85,17 +85,9 @@ export default function AuthScreen() {
     })();
   }, [googleResponse, router, setSession]);
 
-  const handleGuest = async () => {
-    setError(null);
-    setStatus("Signing in as guest...");
-    try {
-      const data = await apiFetch("/v1/auth/guest", { method: "POST" });
-      setSession({ token: data.token, user: data.user ?? null, mode: "guest" });
-      router.replace("/(tabs)");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Guest login failed");
-    }
-  };
+  // PHASE 10 (2026-07-23) — Guest Login REMOVED from PROOVRA. The guest handler
+  // and its guest-continue control were deleted. Users authenticate with
+  // email/SSO or arrive via a resource-scoped invitation/access link.
 
   const handleApple = async () => {
     setError(null);
@@ -176,12 +168,6 @@ export default function AuthScreen() {
             {appleAvailable ? (
               <Button label="Continue with Apple" variant="secondary" onPress={handleApple} />
             ) : null}
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>Or</Text>
-              <View style={styles.dividerLine} />
-            </View>
-            <Button label="Continue as Guest" variant="secondary" onPress={handleGuest} />
             {status ? <Text style={styles.status}>{status}</Text> : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
             {process.env.EXPO_PUBLIC_API_BASE ? (

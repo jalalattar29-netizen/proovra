@@ -41,7 +41,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { resolveTeamRetentionPolicy } from "../organization/retention-inheritance.service.js";
 
 // -----------------------------------------------------------------------------
@@ -189,22 +189,19 @@ export async function createRetentionPolicy(
         actorUserId: input.actorUserId,
       },
     });
-    await appendPlatformAuditLog({
-      userId: input.actorUserId,
+    await emitTenantAudit({
       action: "retention.policy.create",
-      category: "governance",
-      severity: "warning",
-      source: "retention_engine",
       outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
       resourceType: "evidence_retention_policy",
       resourceId: row.id,
       metadata: {
-        teamId: input.teamId,
         scope: input.scope,
         retentionDays: input.retentionDays,
       },
-      db: client,
-    });
+    }, client);
     return projectPolicy(row);
   } catch (err) {
     if (
@@ -345,18 +342,16 @@ export async function updateRetentionPolicy(
       actorUserId: input.actorUserId,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "retention.policy.update",
-    category: "governance",
-    severity: "warning",
-    source: "retention_engine",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "evidence_retention_policy",
     resourceId: updated.id,
-    metadata: { teamId: input.teamId, version: nextVersion, diffKeys: Object.keys(diff) },
-    db: client,
-  });
+    metadata: { version: nextVersion, diffKeys: Object.keys(diff) },
+  }, client);
   return projectPolicy(updated);
 }
 

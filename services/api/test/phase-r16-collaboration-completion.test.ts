@@ -435,9 +435,14 @@ describe("Phase R16 — API routes", () => {
     );
   });
 
-  it("every mutation calls appendPlatformAuditLog via the audit helper", () => {
-    expect(routes).toMatch(/appendPlatformAuditLog/);
-    expect(routes).toMatch(/category: "collaboration_team"/);
+  it("every mutation calls the canonical emitTenantAudit facade via the audit helper", () => {
+    // PHASE 11 §3 Batch A — migrated off the ad-hoc `category:
+    // "collaboration_team"` field onto the canonical tenant-audit
+    // facade, which writes an authoritative `workspaceId` DB column
+    // (proven via the same requireMemberRole check the mutation itself
+    // already ran) instead of a free-form category string.
+    expect(routes).toMatch(/emitTenantAudit/);
+    expect(routes).toMatch(/workspaceId: args\.workspaceId/);
   });
 
   it("uses the Phase 3 canonical resolveActiveOperationalWorkspace helper", () => {

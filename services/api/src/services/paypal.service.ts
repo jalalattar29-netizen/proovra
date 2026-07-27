@@ -13,6 +13,10 @@ import {
   MIGRATED_SECRETS,
   requireSecret,
 } from "../config/runtime-secrets.js";
+// PHASE 11 — canonical internal URL builder. Used ONLY to compose the
+// return/cancel URL (buildReturnUrl below); the PayPal API-call endpoints
+// (apiBase/must) are untouched.
+import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 
 type PayPalToken = {
   access_token: string;
@@ -49,7 +53,11 @@ function getWebBaseUrl() {
 }
 
 function buildReturnUrl(path: string) {
-  return `${getWebBaseUrl()}${path}`;
+  // PHASE 11 — canonical absolute-internal-URL builder. `path` may carry a
+  // query string (e.g. "/billing?checkout=success&kind=storage-addon");
+  // internalNavPath only normalises the leading slash and leaves the rest
+  // of the string intact, so callers are unaffected.
+  return absoluteInternalUrl(getWebBaseUrl(), internalNavPath(path));
 }
 
 function buildStorageAddonCustomId(params: {

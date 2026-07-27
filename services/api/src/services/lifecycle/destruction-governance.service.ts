@@ -50,7 +50,11 @@ import { deleteObject, putObjectBuffer, getObjectStream } from "../../storage.js
 // Constants
 // -----------------------------------------------------------------------------
 
-const CERTIFICATE_VERSION = "PROOVRA_DESTRUCTION_CERT_V1" as const;
+// PHASE 6 §9.5 (2026-07-22) — V2 binds the policy decision-context
+// snapshot into the hashed certificate body (retention policy versions +
+// legal-hold-cleared-at-execute). V1 certificates remain valid under
+// their own version; the version string discriminates the hashed shape.
+const CERTIFICATE_VERSION = "PROOVRA_DESTRUCTION_CERT_V2" as const;
 const REASON_MAX = 600;
 
 function getS3Bucket(): string | null {
@@ -640,9 +644,33 @@ export async function certifyDestruction(
 
   const certifiedAtUtc = new Date();
 
+  // PHASE 6 §9.5 (2026-07-22) — snapshot the policy decision context that
+  // governed this destruction. The tombstoned evidence rows still carry
+  // their `retentionPolicyVersionId`; execution already re-asserted that
+  // no legal hold blocked (executeDestruction), so the certificate records
+  // BOTH the retention policy versions in force AND the hold-cleared fact.
+  // Binding it into the hashed body means a later policy edit can never
+  // rewrite what actually authorized the destruction (§9.5 invariant).
+  const evidenceRows = await prisma.evidence.findMany({
+    where: { id: { in: evidenceIds } },
+    select: { retentionPolicyVersionId: true },
+  });
+  const retentionPolicyVersionIds = Array.from(
+    new Set(
+      evidenceRows
+        .map((e) => e.retentionPolicyVersionId)
+        .filter((v): v is string => Boolean(v)),
+    ),
+  ).sort();
+  const policySnapshot = {
+    retentionPolicyVersionIds,
+    legalHoldClearedAtExecute: true,
+    snapshotVersion: CERTIFICATE_VERSION,
+  };
+
   // Build canonical certificate body — binds the request, evidence hash,
-  // approval chain, timestamps, and certificate version. The hash of this
-  // body is the on-chain fingerprint.
+  // approval chain, timestamps, policy snapshot, and certificate version.
+  // The hash of this body is the on-chain fingerprint.
   const evidenceIdsHash = hashSortedEvidenceIds(evidenceIds);
   const certificateBody = {
     requestId: row.id,
@@ -650,6 +678,7 @@ export async function certifyDestruction(
     evidenceIdsHash,
     executedAtUtc: row.executedAtUtc.toISOString(),
     approvalChainUserIds,
+    policySnapshot,
     certifiedAtUtc: certifiedAtUtc.toISOString(),
     certificateVersion: CERTIFICATE_VERSION,
   };
@@ -670,7 +699,10 @@ export async function certifyDestruction(
     evidenceCount: evidenceIds.length,
     evidenceIdsHash,
     approvalChain: approvalChainFull,
-    policyReferences: [] as string[],
+    // PHASE 6 §9.5 — the retention policy versions that governed the
+    // destroyed evidence (was a permanent empty placeholder).
+    policyReferences: retentionPolicyVersionIds,
+    policySnapshot,
     executedAtUtc: row.executedAtUtc.toISOString(),
     certifiedAtUtc: certifiedAtUtc.toISOString(),
     certificateHash,

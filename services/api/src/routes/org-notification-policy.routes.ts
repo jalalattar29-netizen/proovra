@@ -22,7 +22,7 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   NOTIFICATION_FREQUENCIES,
   NOTIFICATION_PREFERENCE_TYPES,
@@ -132,12 +132,12 @@ export async function orgNotificationPolicyRoutes(app: FastifyInstance) {
           policyVersion: { increment: 1 },
         },
       });
-      await appendPlatformAuditLog({
-        userId,
+      await emitTenantAudit({
         action: "org.notification_policy_updated",
-        category: "governance",
-        source: "api",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: userId,
+        organizationId: orgId,
         resourceType: "organization",
         resourceId: orgId,
         metadata: {

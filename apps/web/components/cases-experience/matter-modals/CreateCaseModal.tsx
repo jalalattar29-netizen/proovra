@@ -27,6 +27,11 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+// PHASE 7 §10 — canonical context-safety primitives.
+import {
+  WorkspaceContextBanner,
+  useWorkspaceContextSafety,
+} from "../../../lib/platform-context";
 import { AccessGate, classifyAccessError } from "../../access/AccessGate";
 import { Modal } from "./Modal";
 
@@ -49,6 +54,13 @@ export function CreateCaseModal({
 }) {
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // PHASE 7 §10.1/§10.3 — register unsaved case name as dirty work (blocks
+  // silent workspace switch) + guard the create against a mid-flight
+  // tenant change.
+  const { runGuarded } = useWorkspaceContextSafety({
+    isDirty: open && name.trim().length > 0,
+    dirtyLabel: "Unsaved new case",
+  });
   const [errorState, setErrorState] = useState<null | {
     kind: "gate" | "message";
     gate?: ReturnType<typeof classifyAccessError>;
@@ -86,12 +98,21 @@ export function CreateCaseModal({
     setSubmitting(true);
     setErrorState(null);
     try {
-      const created = (await apiFetch("/v1/cases", {
-        method: "POST",
-        body: JSON.stringify({ name: trimmed, teamId }),
-      })) as CreateCaseResponse;
-      reset();
-      onCreated({ id: created.id, name: created.name });
+      // §10.3 — if the operator switches workspace while the create is in
+      // flight, drop the result rather than surfacing a case created in
+      // the prior tenant into the new context. (teamId is explicit, so the
+      // row itself is correct; this guards the UI application only.)
+      await runGuarded(
+        () =>
+          apiFetch("/v1/cases", {
+            method: "POST",
+            body: JSON.stringify({ name: trimmed, teamId }),
+          }) as Promise<CreateCaseResponse>,
+        (created) => {
+          reset();
+          onCreated({ id: created.id, name: created.name });
+        },
+      );
     } catch (err) {
       const e = err as {
         statusCode?: number;
@@ -156,6 +177,12 @@ export function CreateCaseModal({
         </>
       }
     >
+      {/* PHASE 7 §10.5 — show the owning workspace/org before this
+          high-impact create lands. */}
+      <WorkspaceContextBanner
+        action="New case will be created in"
+        className="create-case-context-banner"
+      />
       <form id="create-case-form" onSubmit={handleSubmit}>
         <label
           htmlFor="create-case-name"

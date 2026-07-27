@@ -161,12 +161,12 @@ describe("Pin 3 — routes require admin + audit + correct shape", () => {
       src.indexOf("\"/v1/workflow/intake-links/:id/archive\""),
     );
     assert.match(archiveBlock, /preHandler: requireAuth/);
-    assert.match(archiveBlock, /requireAdmin\(req, reply, existing\.teamId\)/);
+    assert.match(archiveBlock, /requireAdmin\(req, reply, existing\.teamId, "workflow\.intake_link\.revoke"\)/);
     const unarchiveBlock = src.slice(
       src.indexOf("\"/v1/workflow/intake-links/:id/unarchive\""),
     );
     assert.match(unarchiveBlock, /preHandler: requireAuth/);
-    assert.match(unarchiveBlock, /requireAdmin\(req, reply, existing\.teamId\)/);
+    assert.match(unarchiveBlock, /requireAdmin\(req, reply, existing\.teamId, "workflow\.intake_link\.create"\)/);
   });
 
   it("both endpoints emit a platform audit log row", () => {

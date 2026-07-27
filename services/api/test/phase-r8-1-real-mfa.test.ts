@@ -258,8 +258,15 @@ describe("R8.1 Part 7 — bounded surface area (R8.1.1-aware)", () => {
       // password-reset (DEF-037 closure).
       // Rebaselined post-G3.x/G4/G5 — auth.routes.ts grew.
       // Phase EV: rebaselined post enterprise email verification.
-      { rel: "src/routes/auth.routes.ts", expectedBytes: 57000 },
-      { rel: "src/routes/sso-auth.routes.ts", expectedBytes: 18565 },
+      { rel: "src/routes/auth.routes.ts", expectedBytes: 56683 },
+      // Rebaselined 2026-07-23 (PHASE 10 §Step-2): +establish-org-session-context
+      // + orphan-session cleanup on the SAML/OIDC callback path.
+      // Rebaselined 2026-07-23 (PHASE 11 §URL convergence): 23138→24990 —
+      // post-login/MFA-challenge/error-bounce destinations now route through
+      // the canonical safeIntendedDestination + absoluteInternalUrl/
+      // internalNavPath helpers from @proovra/shared (open-redirect
+      // hardening); no identity/session logic changed.
+      { rel: "src/routes/sso-auth.routes.ts", expectedBytes: 24990 },
       { rel: "src/routes/identity.routes.ts", expectedBytes: 31353 },
       {
         rel: "src/routes/identity-security.routes.ts",

@@ -2,17 +2,37 @@
  * Phase D1/D2 — Live Case Copilot route.
  *   POST /v1/ai/case/:caseId/copilot
  */
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { buildBaseContext, buildCaseContext, buildEvidenceContext } from "../services/ai/ai-context-resolver.service.js";
 
-function auditCase(userId: string, outcome: string, resourceId: string, metadata: Record<string, unknown>) {
-  return appendPlatformAuditLog({ userId, action: "ai.case_copilot", category: "ai", source: "api_ai", outcome, resourceType: "case", resourceId, metadata });
+function auditCase(
+  req: FastifyRequest,
+  userId: string,
+  outcome: "success" | "failure" | "blocked",
+  resourceId: string,
+  teamId: string,
+  metadata: Record<string, unknown>,
+) {
+  const mapped = outcome === "blocked" ? "denied" : outcome === "failure" ? "error" : "success";
+  return emitTenantAudit({
+    action: "ai.case_copilot",
+    outcome: mapped,
+    denialReason: mapped !== "success" ? (typeof metadata.status === "string" ? metadata.status : outcome) : null,
+    sourceApp: "API",
+    actorUserId: userId,
+    workspaceId: teamId,
+    resourceType: "case",
+    resourceId,
+    correlationId: req.id ?? null,
+    metadata,
+  });
 }
 import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
 import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
@@ -43,10 +63,22 @@ export async function aiCaseRoutes(app: FastifyInstance) {
       select: { id: true, teamId: true, name: true, status: true },
     });
     if (!caseRow?.teamId) return reply.code(404).send({ error: { code: "case_not_found" } });
+    // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization
+    // against the RESOURCE's team (ACTIVE membership + org lifecycle +
+    // capability `intelligence.run` + fail-closed + anti-enumeration 404).
+    const authz = await authorizeOrFail(req, reply, {
+      teamId: caseRow.teamId,
+      permission: "intelligence.run",
+      resourceKind: "case",
+      resourceId: caseRow.id,
+      antiEnumeration: true,
+    });
+    if (!authz) return reply;
+    // Role read for AI-policy + context only; authorization enforced above.
     const membership = await prisma.teamMember.findUnique({
       where: { teamId_userId: { teamId: caseRow.teamId, userId } },
     });
-    if (!membership) return reply.code(403).send({ error: { code: "not_a_member" } });
+    if (!membership) return reply.code(404).send({ error: { code: "not_found" } });
     const teamId = caseRow.teamId;
 
     // D2 — authorize + load explicitly-selected evidence (tenant-scoped, live).
@@ -123,7 +155,7 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     } catch (err) {
       if (err instanceof CaseCopilotProviderUnavailable) {
         if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
-        await auditCase(userId, "failure", caseId, { status: "provider_unavailable", selectedCount: ids.length });
+        await auditCase(req, userId, "failure", caseId, teamId, { status: "provider_unavailable", selectedCount: ids.length });
         return reply.code(200).send({ status: "provider_unavailable", advisoryBoundary: "AI assistance is advisory only." });
       }
       if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
@@ -131,7 +163,7 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     }
     if (ledger.reservationId) await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
 
-    await auditCase(userId, result.status === "ok" ? "success" : result.status === "blocked_prohibited_claim" ? "blocked" : "failure", caseId, {
+    await auditCase(req, userId, result.status === "ok" ? "success" : result.status === "blocked_prohibited_claim" ? "blocked" : "failure", caseId, teamId, {
       status: result.status, selectedCount: ids.length, droppedCitations: result.droppedCitations ?? 0, policyDecision: policyDecision.decision,
     });
 

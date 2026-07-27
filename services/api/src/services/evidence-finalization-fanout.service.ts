@@ -43,7 +43,7 @@ import { enqueueSearchIndexingJob } from "../queue/search-queue.js";
 import { enqueueMediaIntelligenceAnalysis } from "../queue/media-intelligence-queue.js";
 import { enqueueGraphReconcileJob } from "../queue/graph-reconcile-queue.js";
 import { prisma } from "../db.js";
-import { appendPlatformAuditLog } from "./platform-audit-log.service.js";
+import { emitTenantAudit } from "./audit/tenant-audit.service.js";
 // Wave 4 — automatic extraction wiring. The fanout consults the
 // producer-mode resolver gates + canonical probes BEFORE enqueueing so
 // the queue does not accumulate jobs for credentials that aren't bound
@@ -230,9 +230,10 @@ export async function runEvidenceFinalizationFanout(
   //     existing queued job.
   //   * Best-effort + non-blocking. A producer outage or a missing
   //     evidence row MUST NOT poison the finalize fanout return value.
-  //   * Audit emit goes through appendPlatformAuditLog with action
-  //     `PERCEPTUAL_HASH_QUEUED` (free-form action vocabulary, bounded
-  //     to 128 chars; no AdminAuditLog direct write per dedup register).
+  //   * Audit emit goes through the canonical emitTenantAudit facade with
+  //     action `PERCEPTUAL_HASH_QUEUED` (free-form action vocabulary,
+  //     bounded to 128 chars; no AdminAuditLog direct write per dedup
+  //     register).
   try {
     const ev = await prisma.evidence.findUnique({
       where: { id: input.evidenceId },
@@ -256,21 +257,19 @@ export async function runEvidenceFinalizationFanout(
           enqueueResult.reason.startsWith("job_"));
       // Bounded audit emit. Non-blocking — never throw to caller.
       try {
-        await appendPlatformAuditLog({
-          userId: input.userId ?? null,
-          isPublic: input.userId ? false : true,
+        await emitTenantAudit({
           action: "PERCEPTUAL_HASH_QUEUED",
-          category: "media_intelligence",
-          severity: "info",
-          source: "evidence_finalization_fanout",
-          outcome: result.perceptualHashEnqueued ? "queued" : "skipped",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: input.userId ?? null,
+          workspaceId: input.teamId,
           resourceType: "evidence",
           resourceId: input.evidenceId,
-          requestId: input.requestId ?? null,
+          correlationId: input.requestId ?? null,
           metadata: {
-            teamId: input.teamId,
             reason: input.reason,
             mimeFamily: ev?.type ?? null,
+            queued: result.perceptualHashEnqueued,
             enqueueOutcome:
               enqueueResult.enqueued === true
                 ? "enqueued"
@@ -338,21 +337,19 @@ export async function runEvidenceFinalizationFanout(
           typeof enqueueResult.reason === "string" &&
           enqueueResult.reason.startsWith("job_"));
       try {
-        await appendPlatformAuditLog({
-          userId: input.userId ?? null,
-          isPublic: input.userId ? false : true,
+        await emitTenantAudit({
           action: "OCR_EXTRACTION_QUEUED",
-          category: "media_intelligence",
-          severity: "info",
-          source: "evidence_finalization_fanout",
-          outcome: result.ocrExtractionEnqueued ? "queued" : "skipped",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: input.userId ?? null,
+          workspaceId: input.teamId,
           resourceType: "evidence",
           resourceId: input.evidenceId,
-          requestId: input.requestId ?? null,
+          correlationId: input.requestId ?? null,
           metadata: {
-            teamId: input.teamId,
             evidenceType: ev?.type ?? null,
             provider: "azure",
+            queued: result.ocrExtractionEnqueued,
             enqueueOutcome:
               enqueueResult.enqueued === true
                 ? "enqueued"
@@ -401,21 +398,19 @@ export async function runEvidenceFinalizationFanout(
           typeof enqueueResult.reason === "string" &&
           enqueueResult.reason.startsWith("job_"));
       try {
-        await appendPlatformAuditLog({
-          userId: input.userId ?? null,
-          isPublic: input.userId ? false : true,
+        await emitTenantAudit({
           action: "TRANSCRIPT_EXTRACTION_QUEUED",
-          category: "media_intelligence",
-          severity: "info",
-          source: "evidence_finalization_fanout",
-          outcome: result.transcriptExtractionEnqueued ? "queued" : "skipped",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: input.userId ?? null,
+          workspaceId: input.teamId,
           resourceType: "evidence",
           resourceId: input.evidenceId,
-          requestId: input.requestId ?? null,
+          correlationId: input.requestId ?? null,
           metadata: {
-            teamId: input.teamId,
             evidenceType: ev?.type ?? null,
             provider: "deepgram",
+            queued: result.transcriptExtractionEnqueued,
             enqueueOutcome:
               enqueueResult.enqueued === true
                 ? "enqueued"

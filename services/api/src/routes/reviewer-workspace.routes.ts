@@ -138,20 +138,30 @@ async function resolveTeam(
     return null;
   }
 
+  // P0 remediation (2026-07-21) — FAIL CLOSED. The reviewer workspace is a
+  // tenant-scoped operational surface: a caller with no ACTIVE membership in
+  // the (possibly client-supplied ?teamId=) workspace receives 403 before
+  // any context is returned. Previously this resolver returned a usable
+  // context for NON-members (workspaceRole: null), and un-gated read routes
+  // then served the victim team's data — a cross-tenant read. Platform
+  // admins get no implicit customer access here either; support access must
+  // go through a separate audited mechanism.
   const membership = await prisma.teamMember.findFirst({
-    where: { teamId: team.id, userId },
+    where: { teamId: team.id, userId, status: "ACTIVE" },
     select: { role: true },
   });
+  if (!membership) {
+    reply.code(403).send({ denial: "NOT_PERMITTED" });
+    return null;
+  }
   return {
     teamId: team.id,
     userId,
-    workspaceRole: (membership?.role ?? null) as
-      | "OWNER"
-      | "ADMIN"
-      | "MEMBER"
-      | "VIEWER"
-      | null,
-    isPlatformAdmin: user?.platformRole !== null,
+    workspaceRole: membership.role as "OWNER" | "ADMIN" | "MEMBER" | "VIEWER",
+    // Note: the previous strict not-null comparison on platformRole
+    // coerced a MISSING user row (undefined) to `true`. Bounded fix.
+    isPlatformAdmin:
+      typeof user?.platformRole === "string" && user.platformRole.length > 0,
   };
 }
 
@@ -284,6 +294,9 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      // P0 remediation (2026-07-21) — explicit read capability (defense in
+      // depth on top of the fail-closed resolveTeam membership gate).
+      if (!requireCap(ctx, "review.code")) return denyNoPermission(reply);
       const q = z
         .object({
           status: z.string().optional(),
@@ -332,6 +345,9 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      // P0 remediation (2026-07-21) — explicit read capability (defense in
+      // depth on top of the fail-closed resolveTeam membership gate).
+      if (!requireCap(ctx, "review.code")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const schema = await getSchema({ teamId: ctx.teamId, schemaId: id });
       if (!schema) return denyWith(reply, 404, "SCHEMA_NOT_FOUND");

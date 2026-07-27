@@ -423,7 +423,7 @@ export default function OrganizationAdminLayout({
             Legacy detail
           </Link>
           <Link
-            href={`/teams?org=${orgId}`}
+            href="/teams"
             data-action="workspace-admin-link"
             className="cases-filter-chip"
           >

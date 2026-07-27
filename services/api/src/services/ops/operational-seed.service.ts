@@ -40,7 +40,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "./metrics.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { ensureReviewWorkflow } from "../review-operations/review-operations.service.js";
 import {
   createEscalation,
@@ -189,21 +189,20 @@ async function auditSeedRun(
   actorUserId: string,
   requestId: string | null,
 ): Promise<void> {
-  await appendPlatformAuditLog({
-    userId: actorUserId,
+  await emitTenantAudit({
     action: AUDIT_ACTION_SEED_RUN,
-    category: "ops",
-    severity: "info",
-    source: AUDIT_SOURCE,
-    outcome: result.dryRun ? "dry_run" : "success",
+    outcome: "success",
+    sourceApp: "API",
+    actorUserId,
+    workspaceId: result.teamId,
     resourceType: "operational_seed_run",
     resourceId: result.seedRunId,
-    requestId: requestId ?? null,
+    correlationId: requestId ?? null,
     metadata: {
+      source: AUDIT_SOURCE,
       seeded: true,
       seedRunId: result.seedRunId,
       seedScenario: result.scenario,
-      teamId: result.teamId,
       dryRun: result.dryRun,
       createdResourceIds: result.created,
       evidenceConsidered: result.evidenceConsidered,
@@ -216,18 +215,20 @@ async function auditSeedCleanup(
   result: SeedCleanupResult,
   actorUserId: string,
   requestId: string | null,
+  teamId: string | null,
 ): Promise<void> {
-  await appendPlatformAuditLog({
-    userId: actorUserId,
+  await emitTenantAudit({
     action: AUDIT_ACTION_SEED_CLEANUP,
-    category: "ops",
-    severity: "info",
-    source: AUDIT_SOURCE,
-    outcome: result.notFound ? "not_found" : "success",
+    outcome: result.notFound ? "error" : "success",
+    denialReason: result.notFound ? "seed_run_not_found" : null,
+    sourceApp: "API",
+    actorUserId,
+    workspaceId: teamId,
     resourceType: "operational_seed_run",
     resourceId: result.seedRunId,
-    requestId: requestId ?? null,
+    correlationId: requestId ?? null,
     metadata: {
+      source: AUDIT_SOURCE,
       seedRunId: result.seedRunId,
       deleted: result.deleted,
       notFound: result.notFound,
@@ -242,7 +243,7 @@ async function auditSeedCleanup(
 async function loadSeedRunAuditRow(
   seedRunId: string,
   client: PrismaClient,
-): Promise<{ createdResourceIds: SeedCreatedResources } | null> {
+): Promise<{ createdResourceIds: SeedCreatedResources; teamId: string | null } | null> {
   // Find the most-recent run row for this seedRunId. We look up by
   // resourceId to leverage the existing index on AdminAuditLog.
   const row = await client.adminAuditLog.findFirst({
@@ -276,6 +277,7 @@ async function loadSeedRunAuditRow(
           ? createdResourceIds.workloadSnapshotsCreated
           : 0,
     },
+    teamId: row.workspaceId ?? (typeof meta.teamId === "string" ? meta.teamId : null),
   };
 }
 
@@ -301,7 +303,7 @@ export async function cleanupSeedRun(input: {
       },
       notFound: true,
     };
-    await auditSeedCleanup(notFoundResult, input.actorUserId, input.requestId ?? null);
+    await auditSeedCleanup(notFoundResult, input.actorUserId, input.requestId ?? null, null);
     return notFoundResult;
   }
   const ids = audit.createdResourceIds;
@@ -365,7 +367,7 @@ export async function cleanupSeedRun(input: {
     },
     notFound: false,
   };
-  await auditSeedCleanup(result, input.actorUserId, input.requestId ?? null);
+  await auditSeedCleanup(result, input.actorUserId, input.requestId ?? null, audit.teamId);
   return result;
 }
 

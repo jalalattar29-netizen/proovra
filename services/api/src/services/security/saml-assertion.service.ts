@@ -107,6 +107,27 @@ export type ValidateSamlResponseInput = {
    * Applied symmetrically to NotBefore and NotOnOrAfter.
    */
   allowedClockSkewSeconds?: number;
+  /**
+   * P0 remediation (2026-07-21) — the IdP entityID pinned on the
+   * SsoConnection (`samlIdpEntityId`). When provided, the assertion's
+   * Issuer MUST equal it exactly; a mismatch is rejected. When the
+   * connection has no pinned entityID (legacy, metadata never ingested)
+   * the check is skipped — callers should surface that as a warning.
+   */
+  expectedIdpEntityId?: string | null;
+  /**
+   * PHASE 8 §11.2 — when true, an assertion with NO AudienceRestriction
+   * is rejected (mandatory audience). Default (unset) preserves the
+   * legacy "enforce only when declared" behavior.
+   */
+  requireAudience?: boolean;
+  /**
+   * PHASE 8 §11.2 — the SP's own ACS URL. When `requireRecipientDestination`
+   * is set, the response Destination + assertion Recipient must both equal
+   * this. Default (unset) preserves legacy behavior.
+   */
+  expectedAcsUrl?: string | null;
+  requireRecipientDestination?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -125,7 +146,88 @@ export type SamlAssertionErrorCode =
   | "SAML_AUDIENCE_MISMATCH"
   | "SAML_IN_RESPONSE_TO_MISMATCH"
   | "SAML_NAME_ID_MISSING"
-  | "SAML_ASSERTION_MISSING";
+  | "SAML_ASSERTION_MISSING"
+  // P0 remediation (2026-07-21) — signature-wrapping + issuer binding.
+  | "SAML_MULTIPLE_ASSERTIONS"
+  | "SAML_SIGNATURE_NOT_BOUND"
+  | "SAML_ISSUER_MISMATCH"
+  // PHASE 8 §11.2 (2026-07-22) — mandatory issuer: connection has no
+  // pinned IdP entityID; login fails closed pending metadata ingestion.
+  | "SAML_ISSUER_UNPINNED"
+  // PHASE 8 §11.2 — Destination/Recipient not bound to this SP's ACS URL.
+  | "SAML_RECIPIENT_DESTINATION_MISMATCH";
+
+/**
+ * PHASE 8 §11.2 (2026-07-22) — pure audience decision (mandatory-audience
+ * enforcement). Extracted so the fail-closed behavior is unit-testable
+ * without constructing a signature-valid SAML fixture:
+ *   - `requireAudience` + NO AudienceRestriction declared  → REJECT;
+ *   - AudienceRestriction declared but SP entityID absent   → REJECT;
+ *   - SP entityID present (or no restriction + !require)    → ACCEPT.
+ */
+/**
+ * PHASE 8 §11.2 (2026-07-22) — pure Recipient/Destination decision.
+ * The response's `Destination` (Response @Destination) and the assertion's
+ * `Recipient` (SubjectConfirmationData @Recipient) MUST equal the SP's own
+ * ACS URL when the check is required. This defeats a token minted for a
+ * DIFFERENT SP / a DIFFERENT tenant's ACS from being replayed at ours.
+ *   - required + either value missing → REJECT;
+ *   - present but ≠ our ACS URL      → REJECT (alternate-tenant ACS);
+ *   - both equal our ACS URL         → ACCEPT.
+ */
+export function evaluateSamlRecipientDestination(input: {
+  destination: string | null;
+  recipient: string | null;
+  expectedAcsUrl: string | null;
+  require: boolean;
+}): { ok: true } | { ok: false; reason: string } {
+  if (!input.require || !input.expectedAcsUrl) return { ok: true };
+  if (!input.destination || !input.recipient) {
+    return {
+      ok: false,
+      reason: "Missing SAML Destination/Recipient (both required).",
+    };
+  }
+  if (input.destination !== input.expectedAcsUrl) {
+    return { ok: false, reason: "SAML Destination does not match this SP's ACS URL." };
+  }
+  if (input.recipient !== input.expectedAcsUrl) {
+    return { ok: false, reason: "SAML Recipient does not match this SP's ACS URL." };
+  }
+  return { ok: true };
+}
+
+export function evaluateSamlAudience(input: {
+  audienceRestriction: string[];
+  spEntityId: string;
+  requireAudience: boolean;
+}): { ok: true } | { ok: false; reason: string } {
+  if (input.requireAudience && input.audienceRestriction.length === 0) {
+    return {
+      ok: false,
+      reason: "Assertion has no AudienceRestriction; audience is mandatory.",
+    };
+  }
+  if (
+    input.audienceRestriction.length > 0 &&
+    !input.audienceRestriction.includes(input.spEntityId)
+  ) {
+    return { ok: false, reason: "SP entityID not found in AudienceRestriction." };
+  }
+  return { ok: true };
+}
+
+/**
+ * PHASE 8 §11.2 — pure issuer-remediation predicate: a SAML connection
+ * with no pinned IdP entityID cannot verify the issuer and therefore
+ * must fail closed (login denied) + enter remediation until metadata is
+ * ingested.
+ */
+export function samlConnectionRequiresIssuerRemediation(conn: {
+  samlIdpEntityId: string | null | undefined;
+}): boolean {
+  return !conn.samlIdpEntityId;
+}
 
 /** Thrown when SAML assertion validation fails. */
 export class SamlAssertionError extends Error {
@@ -339,8 +441,16 @@ export function validateSamlResponse(
       "No saml:Assertion element found in Response.",
     );
   }
-  // Use the first assertion (multiple assertions are rare; reject if present
-  // to avoid confusion attacks). We only need one.
+  // P0 remediation (2026-07-21) — a Response carrying MORE than one
+  // assertion is the classic XML-Signature-Wrapping setup (signed decoy +
+  // unsigned payload). We consume exactly one assertion, so more than one
+  // is rejected outright instead of silently picking the first.
+  if (assertions.length > 1) {
+    throw new SamlAssertionError(
+      "SAML_MULTIPLE_ASSERTIONS",
+      `Response contains ${assertions.length} assertions; exactly one is required.`,
+    );
+  }
   const assertion = assertions[0]!;
 
   // -------------------------------------------------------------------------
@@ -403,9 +513,16 @@ export function validateSamlResponse(
   for (const certBase64 of certsToTry) {
     const certPem = certToPem(certBase64);
     const verifier = new SignedXml({
-      // idAttribute tells xml-crypto that SAML uses 'ID' (not 'id' or 'Id')
-      // to identify referenced elements in Reference/@URI.
-      idAttribute: "ID",
+      // PHASE 8 §11.2 (2026-07-22) — CRITICAL: do NOT pass
+      // `idAttribute: "ID"`. xml-crypto 6.x's constructor `unshift`s the
+      // supplied idAttribute onto its defaults ["Id","ID","id"], yielding
+      // ["ID","Id","ID","id"] — "ID" DUPLICATED. The signature-wrapping
+      // guard then double-counts every assertion referenced by an `ID`
+      // attribute (standard SAML 2.0) and throws "multiple elements with
+      // the same ID", REJECTING legitimately-signed assertions. The 6.x
+      // defaults already include "ID"/"Id"/"id", so the explicit option
+      // is redundant and harmful. Proven by phase-8-saml-signed-fixture
+      // (validates with defaults, throws with the redundant option).
       // We supply the IdP's public certificate directly.
       // This OVERRIDES any KeyInfo in the document (key confusion prevention).
       publicCert: certPem,
@@ -434,11 +551,62 @@ export function validateSamlResponse(
   }
 
   // -------------------------------------------------------------------------
+  // P0 remediation (2026-07-21) — bind the VERIFIED signature to the
+  // CONSUMED assertion (XML-Signature-Wrapping defence). checkSignature
+  // proves that *some* referenced element hashes correctly; here we prove
+  // that the signed Reference actually targets either the assertion we are
+  // about to extract NameID/attributes from, or the enclosing Response
+  // element (a response-level signature covers the whole document). Any
+  // other target means the verified bytes are not the bytes we consume.
+  // -------------------------------------------------------------------------
+  {
+    const assertionId = assertion.getAttribute("ID") ?? "";
+    const responseId = doc.documentElement.getAttribute("ID") ?? "";
+    const referenceEls = getByNsLocalName(signatureNode, NS_DSIG, "Reference");
+    if (referenceEls.length !== 1) {
+      throw new SamlAssertionError(
+        "SAML_SIGNATURE_NOT_BOUND",
+        `Signature carries ${referenceEls.length} References; exactly one is required.`,
+      );
+    }
+    const uri = referenceEls[0]!.getAttribute("URI") ?? "";
+    const boundToAssertion =
+      assertionId.length > 0 && uri === `#${assertionId}`;
+    const boundToResponse = responseId.length > 0 && uri === `#${responseId}`;
+    // An empty URI ("") signs the enclosing document root — acceptable only
+    // when the signature itself is a direct child of the Response element.
+    const boundToDocumentRoot =
+      uri === "" &&
+      (signatureNode.parentNode as Node | null) ===
+        (doc.documentElement as unknown as Node);
+    if (!boundToAssertion && !boundToResponse && !boundToDocumentRoot) {
+      throw new SamlAssertionError(
+        "SAML_SIGNATURE_NOT_BOUND",
+        "Verified signature does not reference the consumed Assertion or its enclosing Response.",
+      );
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Step 7: Extract InResponseTo from Response element
   // -------------------------------------------------------------------------
   const responseEls = getByNsLocalName(doc as unknown as Document, NS_SAMLP, "Response");
   const responseEl = responseEls[0] ?? doc.documentElement;
   const inResponseTo = responseEl.getAttribute("InResponseTo") ?? null;
+  // PHASE 8 §11.2 — Destination (Response @Destination) + Recipient
+  // (SubjectConfirmationData @Recipient) binding to THIS SP's ACS URL.
+  const destination = responseEl.getAttribute("Destination") ?? null;
+  const scdEls = getByNsLocalName(assertion, NS_SAML, "SubjectConfirmationData");
+  const recipient = scdEls[0]?.getAttribute("Recipient") ?? null;
+  const rd = evaluateSamlRecipientDestination({
+    destination,
+    recipient,
+    expectedAcsUrl: input.expectedAcsUrl ?? null,
+    require: input.requireRecipientDestination === true,
+  });
+  if (!rd.ok) {
+    throw new SamlAssertionError("SAML_RECIPIENT_DESTINATION_MISMATCH", rd.reason);
+  }
 
   if (
     input.expectedInResponseTo != null &&
@@ -492,17 +660,15 @@ export function validateSamlResponse(
     );
   }
 
-  // Audience check — our SP entityID must appear in AudienceRestriction
-  // if one is declared. If no AudienceRestriction declared, we still enforce
-  // that the Issuer matches what we expect (done at the service layer).
-  if (
-    audienceRestriction.length > 0 &&
-    !audienceRestriction.includes(input.spEntityId)
-  ) {
-    throw new SamlAssertionError(
-      "SAML_AUDIENCE_MISMATCH",
-      "SP entityID not found in AudienceRestriction.",
-    );
+  // Audience check — PHASE 8 §11.2 via the pure `evaluateSamlAudience`
+  // decision (behaviorally tested without a signed-XML harness).
+  const audienceDecision = evaluateSamlAudience({
+    audienceRestriction,
+    spEntityId: input.spEntityId,
+    requireAudience: input.requireAudience === true,
+  });
+  if (!audienceDecision.ok) {
+    throw new SamlAssertionError("SAML_AUDIENCE_MISMATCH", audienceDecision.reason);
   }
 
   // -------------------------------------------------------------------------
@@ -583,6 +749,23 @@ export function validateSamlResponse(
   // -------------------------------------------------------------------------
   const issuerEls = getByNsLocalName(assertion, NS_SAML, "Issuer");
   const issuer = issuerEls.length > 0 ? textOf(issuerEls[0]!) : "";
+
+  // P0 remediation (2026-07-21) — enforce the pinned IdP entityID. The
+  // pinned certificate proves WHO signed; the issuer proves WHICH IdP the
+  // assertion claims to come from. Both must agree with the connection's
+  // configuration. Skipped only when the connection has no pinned entityID
+  // (legacy — callers surface a warning; new connections should always
+  // ingest metadata).
+  if (
+    input.expectedIdpEntityId != null &&
+    input.expectedIdpEntityId.trim() !== "" &&
+    issuer.trim() !== input.expectedIdpEntityId.trim()
+  ) {
+    throw new SamlAssertionError(
+      "SAML_ISSUER_MISMATCH",
+      "Assertion Issuer does not match the connection's configured IdP entityID.",
+    );
+  }
 
   // -------------------------------------------------------------------------
   // Return validated assertion (NameID hashed for audit safety)

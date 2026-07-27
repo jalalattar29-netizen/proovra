@@ -306,7 +306,7 @@ function Overview() {
           }
           footer={
             <Link
-              href={`/teams?org=${orgId}`}
+              href="/teams"
               data-testid="overview-link-billing"
               style={tileLink}
             >
@@ -583,7 +583,7 @@ function Overview() {
           <QuickAction
             testId="quick-action-configure-billing"
             label="Configure billing / seats"
-            href={`/teams?org=${orgId}`}
+            href="/teams"
           />
         </div>
       </Card>

@@ -38,9 +38,11 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { prisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
 import { getEmailService } from "../email.service.js";
+// PHASE 11 — canonical internal URL builder.
+import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 
 /** Default TTL for the entire request (admin queue + email
  *  preflight combined). 7 days — admins not actioning within the
@@ -84,11 +86,14 @@ function hashEmailToken(rawToken: string): string {
 }
 
 function buildVerificationUrl(requestId: string, rawToken: string): string {
+  // PHASE 11 — nav path (query-carried id + token, not a resource-id
+  // family), composed via internalNavPath + absoluteInternalUrl.
   const base = process.env.WEB_BASE_URL || "https://www.proovra.com";
-  const u = new URL("/auth/mfa-recovery/verify", base);
-  u.searchParams.set("id", requestId);
-  u.searchParams.set("token", rawToken);
-  return u.toString();
+  const query = new URLSearchParams({ id: requestId, token: rawToken }).toString();
+  return absoluteInternalUrl(
+    base,
+    internalNavPath(`/auth/mfa-recovery/verify?${query}`),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -185,23 +190,20 @@ export async function createRecoveryRequest(
       : new Date(
           Date.now() + MFA_RECOVERY_PER_ACCOUNT_WINDOW_SECONDS * 1000,
         );
-    void appendPlatformAuditLog({
-      userId: input.userId,
+    void emitTenantAudit({
       action: "mfa.recovery.throttled",
-      category: "identity_security.mfa_recovery",
-      severity: "warning",
-      source: "mfa_recovery_service",
-      outcome: "blocked",
+      outcome: "denied",
+      denialReason: "rate_limited",
+      sourceApp: "API",
+      actorUserId: input.userId,
+      workspaceId: input.teamId,
       resourceType: "mfa_recovery_request",
       resourceId: input.userId,
       metadata: {
-        teamId: input.teamId,
         recentCount,
         limit: MFA_RECOVERY_PER_ACCOUNT_LIMIT,
         windowSeconds: MFA_RECOVERY_PER_ACCOUNT_WINDOW_SECONDS,
       },
-      ipAddress: input.ipAddress ?? null,
-      userAgent: input.userAgent ?? null,
     }).catch(() => null);
     safeEmitSecurityEvent({
       teamId: input.teamId,
@@ -300,25 +302,21 @@ export async function createRecoveryRequest(
     // Swallow — the request is still created; user can resend.
   }
 
-  void appendPlatformAuditLog({
-    userId: input.userId,
+  void emitTenantAudit({
     action: "mfa.recovery.request_created",
-    category: "identity_security.mfa_recovery",
-    severity: "info",
-    source: "mfa_recovery_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.userId,
+    workspaceId: input.teamId,
     resourceType: "mfa_recovery_request",
     resourceId: row.id,
     metadata: {
-      teamId: input.teamId,
       requiredApprovals: required,
       // mailboxBound boolean — true means the email service was
       // configured + the send did not throw. Never include the
       // raw token, URL, or email address verbatim.
       mailboxBound: true,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
   }).catch(() => null);
   safeEmitSecurityEvent({
     teamId: input.teamId,
@@ -443,16 +441,15 @@ export async function verifyRecoveryRequestEmail(
   if (r.count !== 1) {
     return { ok: false, reason: "request_not_in_email_pending" };
   }
-  void appendPlatformAuditLog({
-    userId: row.userId,
+  void emitTenantAudit({
     action: "mfa.recovery.email_verified",
-    category: "identity_security.mfa_recovery",
-    severity: "info",
-    source: "mfa_recovery_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: row.userId,
+    workspaceId: row.teamId,
     resourceType: "mfa_recovery_request",
     resourceId: row.id,
-    metadata: { teamId: row.teamId },
+    metadata: {},
   }).catch(() => null);
   safeEmitSecurityEvent({
     teamId: row.teamId,
@@ -635,18 +632,15 @@ export async function cancelRecoveryRequest(
   if (r.count !== 1) {
     return { ok: false, reason: "request_not_pending" };
   }
-  void appendPlatformAuditLog({
-    userId: input.actorUserId,
+  void emitTenantAudit({
     action: "mfa.recovery.cancelled",
-    category: "identity_security.mfa_recovery",
-    severity: "info",
-    source: "mfa_recovery_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: row.teamId,
     resourceType: "mfa_recovery_request",
     resourceId: row.id,
-    metadata: { teamId: row.teamId },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
+    metadata: {},
   }).catch(() => null);
   safeEmitSecurityEvent({
     teamId: row.teamId,
@@ -749,23 +743,19 @@ export async function approveRecoveryRequest(
       where: { id: row.id },
       data: { approvalCount: newCount },
     });
-    void appendPlatformAuditLog({
-      userId: input.approverUserId,
+    void emitTenantAudit({
       action: "mfa.recovery.approval_recorded",
-      category: "identity_security.mfa_recovery",
-      severity: "info",
-      source: "mfa_recovery_service",
       outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.approverUserId,
+      workspaceId: row.teamId,
       resourceType: "mfa_recovery_request",
       resourceId: row.id,
       metadata: {
         targetUserId: row.userId,
-        teamId: row.teamId,
         approvalCount: newCount,
         requiredApprovals: row.requiredApprovals,
       },
-      ipAddress: input.ipAddress ?? null,
-      userAgent: input.userAgent ?? null,
     }).catch(() => null);
     return { ok: true, approvedNow: false, reason: "quorum_not_met" };
   }
@@ -796,22 +786,18 @@ export async function approveRecoveryRequest(
       data: { batchInvalidatedAt: new Date() },
     }),
   ]);
-  void appendPlatformAuditLog({
-    userId: input.approverUserId,
+  void emitTenantAudit({
     action: "mfa.recovery.approved",
-    category: "identity_security.mfa_recovery",
-    severity: "warning",
-    source: "mfa_recovery_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.approverUserId,
+    workspaceId: teamId,
     resourceType: "mfa_recovery_request",
     resourceId: requestId,
     metadata: {
       targetUserId,
-      teamId,
       approvalCount: newCount,
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
   }).catch(() => null);
   safeEmitSecurityEvent({
     teamId,
@@ -883,16 +869,15 @@ export async function rejectRecoveryRequest(
         input.reason?.toString().slice(0, 400) ?? "admin_rejected",
     },
   });
-  void appendPlatformAuditLog({
-    userId: input.approverUserId,
+  void emitTenantAudit({
     action: "mfa.recovery.rejected",
-    category: "identity_security.mfa_recovery",
-    severity: "info",
-    source: "mfa_recovery_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.approverUserId,
+    workspaceId: row.teamId,
     resourceType: "mfa_recovery_request",
     resourceId: row.id,
-    metadata: { targetUserId: row.userId, teamId: row.teamId },
+    metadata: { targetUserId: row.userId },
   }).catch(() => null);
   return { ok: true };
 }

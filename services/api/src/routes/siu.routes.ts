@@ -24,7 +24,7 @@ import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   SIU_INTAKE_TEMPLATES,
   SIU_REVIEW_INDICATOR_CODES,
@@ -184,15 +184,15 @@ export async function siuRoutes(app: FastifyInstance) {
       if (!profile) {
         return reply.code(404).send({ error: { code: "case_not_found" } });
       }
-      await appendPlatformAuditLog({
-        userId: ctx.userId,
+      await emitTenantAudit({
         action: "siu_profile_updated",
-        category: "case",
-        severity: "info",
-        source: "siu_routes",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
         resourceType: "case",
         resourceId: params.id,
+        correlationId: req.id ?? null,
         metadata: {
           teamId: ctx.teamId,
           claimType: patch.claimType,
@@ -294,15 +294,16 @@ export async function siuRoutes(app: FastifyInstance) {
       if (!profile) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
-      await appendPlatformAuditLog({
-        userId: ctx.userId,
+      await emitTenantAudit({
         action: "siu_review_indicator_added",
-        category: "case",
-        severity: body.severity === "block_export" ? "warning" : "info",
-        source: "siu_routes",
         outcome: "success",
+        severity: body.severity === "block_export" ? "warning" : "info",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
         resourceType: "case",
         resourceId: params.id,
+        correlationId: req.id ?? null,
         metadata: { teamId: ctx.teamId, code: body.code },
       }).catch(() => {});
       return reply.code(200).send({ profile });
@@ -339,15 +340,15 @@ export async function siuRoutes(app: FastifyInstance) {
       if (!followUp) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
-      await appendPlatformAuditLog({
-        userId: ctx.userId,
+      await emitTenantAudit({
         action: "siu_follow_up_requested",
-        category: "case",
-        severity: "info",
-        source: "siu_routes",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
         resourceType: "case",
         resourceId: params.id,
+        correlationId: req.id ?? null,
         metadata: {
           teamId: ctx.teamId,
           followUpId: followUp.id,
@@ -390,15 +391,15 @@ export async function siuRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
       if (body.status === "received" || body.status === "satisfied") {
-        await appendPlatformAuditLog({
-          userId: ctx.userId,
+        await emitTenantAudit({
           action: "siu_follow_up_received",
-          category: "case",
-          severity: "info",
-          source: "siu_routes",
           outcome: "success",
+          sourceApp: "API",
+          actorUserId: ctx.userId,
+          workspaceId: ctx.teamId,
           resourceType: "case",
           resourceId: params.id,
+          correlationId: req.id ?? null,
           metadata: {
             teamId: ctx.teamId,
             followUpId: followUp.id,
@@ -427,15 +428,16 @@ export async function siuRoutes(app: FastifyInstance) {
       if (!result) {
         return reply.code(404).send({ error: { code: "siu_profile_not_found" } });
       }
-      await appendPlatformAuditLog({
-        userId: ctx.userId,
+      await emitTenantAudit({
         action: "siu_export_preflight_run",
-        category: "case",
-        severity: result.readiness === "blocked" ? "warning" : "info",
-        source: "siu_routes",
         outcome: "success",
+        severity: result.readiness === "blocked" ? "warning" : "info",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
         resourceType: "case",
         resourceId: params.id,
+        correlationId: req.id ?? null,
         metadata: {
           teamId: ctx.teamId,
           readiness: result.readiness,
@@ -480,15 +482,16 @@ export async function siuRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: { code: "siu_profile_not_found" } });
       }
       if (preflight.readiness === "blocked") {
-        await appendPlatformAuditLog({
-          userId: ctx.userId,
+        await emitTenantAudit({
           action: "siu_export_blocked",
-          category: "case",
-          severity: "warning",
-          source: "siu_routes",
           outcome: "denied",
+          severity: "warning",
+          sourceApp: "API",
+          actorUserId: ctx.userId,
+          workspaceId: ctx.teamId,
           resourceType: "case",
           resourceId: params.id,
+          correlationId: req.id ?? null,
           metadata: {
             teamId: ctx.teamId,
             blockers: preflight.totals.blockers,
@@ -529,15 +532,15 @@ export async function siuRoutes(app: FastifyInstance) {
         warningExportReason: body.warningExportReason ?? null,
         actorUserId: ctx.userId,
       });
-      await appendPlatformAuditLog({
-        userId: ctx.userId,
+      await emitTenantAudit({
         action: "siu_export_generated",
-        category: "case",
-        severity: "info",
-        source: "siu_routes",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
         resourceType: "case",
         resourceId: params.id,
+        correlationId: req.id ?? null,
         metadata: {
           teamId: ctx.teamId,
           fileCount: out.files.length,
@@ -627,15 +630,17 @@ export async function siuRoutes(app: FastifyInstance) {
         capability: "siu.pii.view",
       });
       if (!decision.allowed) {
-        await appendPlatformAuditLog({
-          userId: ctx.userId,
+        await emitTenantAudit({
           action: "siu_pii_revealed",
-          category: "case",
-          severity: "warning",
-          source: "siu_routes",
           outcome: "denied",
+          denialReason: decision.reason ?? null,
+          severity: "warning",
+          sourceApp: "API",
+          actorUserId: ctx.userId,
+          workspaceId: ctx.teamId,
           resourceType: "case",
           resourceId: params.id,
+          correlationId: req.id ?? null,
           metadata: {
             teamId: ctx.teamId,
             capability: decision.capability,
@@ -672,15 +677,16 @@ export async function siuRoutes(app: FastifyInstance) {
           .code(404)
           .send({ error: { code: "siu_profile_not_found" } });
       }
-      await appendPlatformAuditLog({
-        userId: ctx.userId,
+      await emitTenantAudit({
         action: "siu_pii_revealed",
-        category: "case",
-        severity: "warning",
-        source: "siu_routes",
         outcome: "success",
+        severity: "warning",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
         resourceType: "case",
         resourceId: params.id,
+        correlationId: req.id ?? null,
         metadata: {
           teamId: ctx.teamId,
           capability: decision.capability,
@@ -869,15 +875,15 @@ export async function siuRoutes(app: FastifyInstance) {
           },
         });
       }
-      await appendPlatformAuditLog({
-        userId: ctx.userId,
+      await emitTenantAudit({
         action: "siu_export_downloaded",
-        category: "case",
-        severity: "info",
-        source: "siu_routes",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
         resourceType: "case",
         resourceId: params.id,
+        correlationId: req.id ?? null,
         metadata: {
           teamId: ctx.teamId,
           exportRowId: outcome.exportRowId,

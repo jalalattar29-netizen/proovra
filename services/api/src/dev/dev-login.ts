@@ -70,9 +70,18 @@ export async function devLoginRoutes(app: FastifyInstance): Promise<void> {
 
       // Identical shape + lifetime model to the production email-login
       // mint. provider is a clearly-labelled dev value so a session
-      // minted this way is auditable as an impersonation.
+      // minted this way is auditable as an impersonation. PHASE 10 §10.2 —
+      // carry a SUPPORTED provenance (PASSWORD, mirroring the impersonated
+      // email user) + authAt so requireAuth accepts the dev session; without
+      // proven provenance the canonical rule would require reauthentication.
       const token = signJwt(
-        { sub: p.userId, provider: "DEV_IMPERSONATION", email: p.email },
+        {
+          sub: p.userId,
+          provider: "DEV_IMPERSONATION",
+          email: p.email,
+          authMethod: "PASSWORD",
+          authAt: Math.floor(Date.now() / 1000),
+        },
         secret,
         60 * 60 * 24, // 24h — long enough for an e2e run, short by design
       );

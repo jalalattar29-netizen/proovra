@@ -32,10 +32,10 @@ import type {
 } from "fastify";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { PERMISSIONS, WEBHOOK_EVENT_TYPES } from "@proovra/shared";
+import { PERMISSIONS, WEBHOOK_EVENT_TYPES, type Permission } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import {
@@ -93,31 +93,33 @@ import {
   TEST_EVENT_MAX_PAYLOAD_BYTES,
   TEST_EVENT_TYPE,
 } from "../services/integrations/webhook-dispatcher.js";
-import { requirePermission } from "../services/governance.service.js";
 
 const ParamsId = z.object({ id: z.string().uuid() });
 
+/**
+ * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization.
+ *
+ * Replaces the former status-blind `requireMember` + role-only
+ * `requirePermission` pair. Routes through `authorizeOrFail`, gaining ACTIVE
+ * membership + parent-Organization lifecycle + access-expiry + capability /
+ * delegated-admin resolution + fail-closed + anti-enumeration (404 for
+ * non-members / cross-tenant probes) + audit — in one call. The permission
+ * passed at each call site is UNCHANGED from the pre-Phase-1 gate.
+ */
 async function requireMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
-): Promise<{ userId: string; role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+  permission: Permission,
+): Promise<{ actorUserId: string } | null> {
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
+    permission,
+    antiEnumeration: true,
   });
-  if (!membership) {
-    reply.code(403).send({ message: "Not a member of the workspace" });
-    return null;
-  }
-  return { userId, role: membership.role };
+  return outcome ? { actorUserId: outcome.actorUserId } : null;
 }
 
-function denyByPermission(reply: FastifyReply, reason: string): void {
-  reply.code(403).send({
-    error: { code: "permission_denied", reason },
-  });
-}
 
 function gateFeatureOrReply(reply: FastifyReply): boolean {
   const reason = integrationsFeatureDisabledReason();
@@ -259,13 +261,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "integration.api_key.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.api_key.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       const rows = await listApiCredentials({
         teamId: query.teamId,
         status: query.status,
@@ -293,13 +290,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
             .max(PERMISSIONS.length),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "integration.api_key.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.api_key.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Phase 4 closure — dedicated integration step-up purpose.
       // Previously this route reused SERVICE_ACCOUNT_CREATE (an
       // identity-surface purpose); a row carrying the legacy purpose
@@ -308,7 +300,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "INTEGRATION_API_KEY_CREATE",
         resourceKind: "team",
         resourceId: body.teamId,
@@ -320,13 +312,13 @@ export async function integrationsRoutes(app: FastifyInstance) {
           name: body.name,
           description: body.description ?? null,
           scopes: body.scopes,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
         });
         // Audit: PHASE 2 — credential lifecycle is workspace-visible.
         // Never persist the raw key or hash, only the operator-visible prefix.
         await emitApiKeyAudit({
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           credentialId: credential.id,
           eventType: "integration.api_key.created",
           metadata: {
@@ -369,20 +361,15 @@ export async function integrationsRoutes(app: FastifyInstance) {
           reason: z.string().max(400).nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "integration.api_key.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.api_key.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Phase 4 closure — dedicated INTEGRATION_API_KEY_REVOKE
       // purpose. Legacy SERVICE_ACCOUNT_REVOKE rows are still
       // accepted via the canonical alias map.
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "INTEGRATION_API_KEY_REVOKE",
         resourceKind: "api_credential",
         resourceId: id,
@@ -392,7 +379,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         const revoked = await revokeApiCredential({
           id,
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           reason: body.reason ?? null,
         });
         // Audit: revoke event includes the persisted reason (already
@@ -400,7 +387,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         // shows operators why the key was revoked.
         await emitApiKeyAudit({
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           credentialId: revoked.id,
           eventType: "integration.api_key.revoked",
           metadata: {
@@ -448,13 +435,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
             .optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "integration.api_key.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.api_key.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Phase 4 closure — rotation now has its own dedicated purpose
       // (INTEGRATION_API_KEY_ROTATE). Previously this reused
       // SERVICE_ACCOUNT_REVOKE which conflated revoke-step-up
@@ -467,7 +449,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         req,
         reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "INTEGRATION_API_KEY_ROTATE",
         resourceKind: "api_credential",
         resourceId: id,
@@ -477,12 +459,12 @@ export async function integrationsRoutes(app: FastifyInstance) {
         const result = await rotateApiCredential({
           id,
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           graceMinutes: body.graceMinutes,
         });
         await emitApiKeyAudit({
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           credentialId: result.credential.id,
           eventType: "integration.api_key.rotated",
           metadata: {
@@ -548,13 +530,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
             .optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "integration.api_key.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.api_key.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Phase 4 closure — expiry change is now gated by a dedicated
       // step-up purpose. Setting or clearing an expiry mutates the
       // credential's lifecycle window and may extend a key that was
@@ -569,7 +546,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
           req,
           reply,
           teamId: body.teamId,
-          userId: ok.userId,
+          userId: ok.actorUserId,
           purpose: "INTEGRATION_API_KEY_EXPIRY_UPDATE",
           resourceKind: "api_credential",
           resourceId: id,
@@ -595,7 +572,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         if (expiresAtUtc !== undefined) {
           await emitApiKeyAudit({
             teamId: body.teamId,
-            actorUserId: ok.userId,
+            actorUserId: ok.actorUserId,
             credentialId: updated.id,
             eventType: "integration.api_key.expiry_changed",
             metadata: {
@@ -643,13 +620,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "integration.api_key.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.api_key.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Verify the credential belongs to the caller's workspace before
       // returning any audit rows. Without this check, a caller could
       // probe credential ids belonging to other workspaces.
@@ -689,13 +661,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "integration.webhook.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.webhook.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       const rows = await listWebhookEndpoints({
         teamId: query.teamId,
         status: query.status,
@@ -720,13 +687,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
           eventTypes: z.array(z.enum(WEBHOOK_EVENT_TYPES)).optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "integration.webhook.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.webhook.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Phase 4 closure — creating a webhook endpoint provisions a
       // signing secret and registers a destination URL that the
       // dispatcher will sign + POST to on every matching event. It is
@@ -736,7 +698,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         req,
         reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "INTEGRATION_WEBHOOK_CREATE",
         resourceKind: "team",
         resourceId: body.teamId,
@@ -748,7 +710,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
           url: body.url,
           description: body.description ?? null,
           eventTypes: body.eventTypes ?? [],
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
         });
         return reply.code(201).send({
           webhook: projectWebhookEndpoint(endpoint),
@@ -786,13 +748,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
           status: z.enum(["ACTIVE", "DISABLED"]).optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "integration.webhook.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.webhook.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Phase 4 closure — status transitions on the endpoint are
       // sensitive: re-enabling resumes outbound signed deliveries on
       // a workspace-configured URL, disabling pauses an active
@@ -805,7 +762,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
           req,
           reply,
           teamId: body.teamId,
-          userId: ok.userId,
+          userId: ok.actorUserId,
           purpose: "INTEGRATION_WEBHOOK_ENABLE",
           resourceKind: "webhook_endpoint",
           resourceId: id,
@@ -816,7 +773,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
           req,
           reply,
           teamId: body.teamId,
-          userId: ok.userId,
+          userId: ok.actorUserId,
           purpose: "INTEGRATION_WEBHOOK_DISABLE",
           resourceKind: "webhook_endpoint",
           resourceId: id,
@@ -876,13 +833,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
             .optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "integration.webhook.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.webhook.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Phase 4 closure — secret rotation now has its own dedicated
       // purpose (INTEGRATION_WEBHOOK_SECRET_ROTATE). Previously this
       // reused SERVICE_ACCOUNT_HARDENING_UPDATE; that legacy purpose
@@ -892,7 +844,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         req,
         reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "INTEGRATION_WEBHOOK_SECRET_ROTATE",
         resourceKind: "webhook_endpoint",
         resourceId: id,
@@ -906,7 +858,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         });
         await emitWebhookAudit({
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           endpointId: result.endpoint.id,
           eventType: "integration.webhook.secret_rotated",
           metadata: {
@@ -954,13 +906,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
       const body = z
         .object({ teamId: z.string().uuid() })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "integration.webhook.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.webhook.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Phase 4 closure — disabling an endpoint stops outbound
       // deliveries to a workspace-configured URL. Gated on its own
       // dedicated step-up purpose; the equivalent PUT
@@ -969,7 +916,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         req,
         reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "INTEGRATION_WEBHOOK_DISABLE",
         resourceKind: "webhook_endpoint",
         resourceId: id,
@@ -1040,13 +987,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
           payload: z.record(z.string(), z.unknown()).optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "integration.webhook.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.webhook.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Phase 4 closure — sending a test event now has its own
       // dedicated purpose (INTEGRATION_WEBHOOK_TEST). Test-send and
       // secret-rotation are now distinct on the audit trail (they
@@ -1064,7 +1006,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         req,
         reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "INTEGRATION_WEBHOOK_TEST",
         resourceKind: "webhook_endpoint",
         resourceId: id,
@@ -1090,7 +1032,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
       // signing secret.
       await emitWebhookAudit({
         teamId: body.teamId,
-        actorUserId: ok.userId,
+        actorUserId: ok.actorUserId,
         endpointId: id,
         eventType: "integration.webhook.test_sent",
         metadata: {
@@ -1124,13 +1066,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "integration.webhook.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.webhook.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       const endpoint = await getWebhookEndpoint({ id, teamId: query.teamId });
       if (!endpoint) {
         return reply.code(404).send({ error: { code: "endpoint_not_found" } });
@@ -1171,13 +1108,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
       const query = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "integration.webhook.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.webhook.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       const row = await getWebhookDelivery({ id, teamId: query.teamId });
       if (!row) {
         return reply.code(404).send({ error: { code: "delivery_not_found" } });
@@ -1197,13 +1129,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
       const body = z
         .object({ teamId: z.string().uuid() })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "integration.webhook.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.webhook.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       // Phase 4 closure — operator-initiated retry emits a signed
       // outbound POST to the endpoint URL outside the normal retry
       // schedule. The action is bounded but sensitive enough to gate
@@ -1213,7 +1140,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         req,
         reply,
         teamId: body.teamId,
-        userId: ok.userId,
+        userId: ok.actorUserId,
         purpose: "INTEGRATION_WEBHOOK_RETRY",
         resourceKind: "webhook_delivery",
         resourceId: id,
@@ -1231,7 +1158,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         // status. NEVER the payload, signature, or response body.
         await emitWebhookAudit({
           teamId: body.teamId,
-          actorUserId: ok.userId,
+          actorUserId: ok.actorUserId,
           endpointId: updated.endpointId,
           eventType: "integration.webhook.delivery_retried",
           metadata: {
@@ -1270,13 +1197,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
       const body = z
         .object({ teamId: z.string().uuid() })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId);
+      const ok = await requireMember(req, reply, body.teamId, "integration.webhook.manage");
       if (!ok) return;
-      const perm = requirePermission(ok.role, "integration.webhook.manage");
-      if (!perm.allowed) {
-        denyByPermission(reply, perm.reason);
-        return;
-      }
       try {
         const updated = await cancelWebhookDelivery({
           id,
@@ -1322,12 +1244,10 @@ export async function integrationsRoutes(app: FastifyInstance) {
       const query = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      // integration.api_key.manage is held by OWNER + ADMIN only — the same
+      // set the former inline role check enforced.
+      const ok = await requireMember(req, reply, query.teamId, "integration.api_key.manage");
       if (!ok) return;
-      if (ok.role !== "OWNER" && ok.role !== "ADMIN") {
-        denyByPermission(reply, `role_${ok.role}_lacks_integration.diagnostics.read`);
-        return;
-      }
       const diag = getIntegrationsRuntimeDiagnostics();
       return reply.code(200).send({
         diagnostics: {
@@ -1366,15 +1286,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
       const query = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId);
+      const ok = await requireMember(req, reply, query.teamId, "integration.api_key.manage");
       if (!ok) return;
-      if (ok.role !== "OWNER" && ok.role !== "ADMIN") {
-        denyByPermission(
-          reply,
-          `role_${ok.role}_lacks_integration.health.read`,
-        );
-        return;
-      }
       const snapshot = await computeIntegrationsHealthSnapshot(query.teamId);
       return reply.code(200).send({ health: snapshot });
     },

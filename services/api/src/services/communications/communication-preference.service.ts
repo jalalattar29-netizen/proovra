@@ -17,7 +17,7 @@ import * as prismaPkg from "@prisma/client";
 import type { CommunicationChannel } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
 import { hashRecipientPhone } from "./communication.service.js";
@@ -97,24 +97,21 @@ export async function upsertContactPreference(
           ...data,
         },
       });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "communications.preference.upsert",
-    category: "communications.preference",
-    severity: "info",
-    source: "communications_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "communication_preference",
     resourceId: row.id,
     metadata: {
-      teamId: input.teamId,
       externalContactHash: hash,
       smsOptOut: row.smsOptOut,
       whatsappOptOut: row.whatsappOptOut,
       preferredChannel: row.preferredChannel,
     },
-    db: client,
-  });
+  }, client);
   return row;
 }
 
@@ -154,24 +151,21 @@ export async function upsertUserPreference(
           ...data,
         },
       });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "communications.preference.user.upsert",
-    category: "communications.preference",
-    severity: "info",
-    source: "communications_service",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "communication_preference",
     resourceId: row.id,
     metadata: {
-      teamId: input.teamId,
       subjectUserId: input.userId,
       smsOptOut: row.smsOptOut,
       whatsappOptOut: row.whatsappOptOut,
       preferredChannel: row.preferredChannel,
     },
-    db: client,
-  });
+  }, client);
   return row;
 }
 

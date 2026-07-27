@@ -34,7 +34,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeJsonSnapshot } from "./redact.js";
 
@@ -286,26 +286,26 @@ export async function assignIncident(
   }
   bump("operational_incident_assigned");
 
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: "observability.incident.assigned",
-    category: "observability.incident",
-    severity: "info",
-    source: "incident_service",
-    outcome: "success",
-    resourceType: "operational_incident",
-    resourceId: updated.id,
-    metadata: {
-      teamId: input.teamId,
-      assigneeUserId: input.assigneeUserId,
-      fingerprint: existing.fingerprint,
-      severity: existing.severity,
-      category: existing.category,
+  await emitTenantAudit(
+    {
+      action: "observability.incident.assigned",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: existing.teamId,
+      resourceType: "operational_incident",
+      resourceId: updated.id,
+      metadata: {
+        assigneeUserId: input.assigneeUserId,
+        fingerprint: existing.fingerprint,
+        severity: existing.severity,
+        category: existing.category,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+    client,
+  );
 
   return updated;
 }
@@ -366,25 +366,25 @@ async function transitionIncident(
   if (next === prismaPkg.IncidentStatus.SUPPRESSED)
     bump("operational_incident_suppressed");
 
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
-    action: `observability.incident.${eventType}`,
-    category: "observability.incident",
-    severity: "info",
-    source: "incident_service",
-    outcome: "success",
-    resourceType: "operational_incident",
-    resourceId: updated.id,
-    metadata: {
-      teamId: input.teamId,
-      fingerprint: existing.fingerprint,
-      severity: existing.severity,
-      category: existing.category,
+  await emitTenantAudit(
+    {
+      action: `observability.incident.${eventType}`,
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: existing.teamId,
+      resourceType: "operational_incident",
+      resourceId: updated.id,
+      metadata: {
+        fingerprint: existing.fingerprint,
+        severity: existing.severity,
+        category: existing.category,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
     },
-    ipAddress: input.ipAddress ?? null,
-    userAgent: input.userAgent ?? null,
-    db: client,
-  });
+    client,
+  );
 
   await refreshIncidentGauges(client).catch(() => null);
   return updated;

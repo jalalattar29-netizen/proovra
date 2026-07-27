@@ -36,7 +36,10 @@ const ROUTE = resolve(
 );
 
 function read(p: string): string {
-  return readFileSync(p, "utf8");
+  // Normalize line endings — the contract asserts CONTENT (helper bodies,
+  // branch order), not checkout formatting. The `\n}\n` body-end sentinel
+  // below would otherwise fail on a CRLF checkout without any real change.
+  return readFileSync(p, "utf8").replace(/\r\n/g, "\n");
 }
 
 // ============================================================================

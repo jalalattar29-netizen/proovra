@@ -192,84 +192,12 @@ export type CollaborationTeamActivityEventType =
 // Plan limits (Phase 5 conservative defaults; enforced by service)
 // =============================================================================
 
-export type CollaborationTeamPlanLimits = {
-  /** Max number of ACTIVE collaboration teams in a workspace. */
-  maxTeams: number;
-  /** Max ACTIVE members per team (the OWNER counts as 1). */
-  maxMembersPerTeam: number;
-  /** Max pending invites per team (operational abuse rail). */
-  maxPendingInvitesPerTeam: number;
-  /** Max invites a single user can issue per 24h window (abuse rail). */
-  maxInvitesPer24h: number;
-};
-
-/**
- * THE canonical commercial Teams contract (Entitlement Alignment,
- * 2026-07-14). These values ARE the published product: the public
- * Pricing page, the authenticated Billing page, the frontend gates,
- * and the backend guards all read THIS table — no other Teams limit
- * table may exist.
- *
- *   - FREE / PAYG include ZERO Teams (creation → 402
- *     TEAM_PLAN_REQUIRED; existing grandfathered Teams stay readable
- *     but all membership growth is locked → TEAM_INVITES_NOT_INCLUDED).
- *   - Invitations are EMAIL-ONLY. SMS invites, shareable invite links
- *     and external guests were never published by Pricing or Billing
- *     and were removed from self-service entirely (their code paths
- *     are deleted, not disabled).
- *   - "Up to N members" means members PER TEAM, everywhere.
- *   - ENTERPRISE numbers are a provisioned ceiling; the commercial
- *     contract is custom provisioning, and pricing shows "Custom".
- *   - Pending/24h caps are operational abuse rails, not commercial
- *     promises.
- */
-export const COLLABORATION_TEAM_PLAN_LIMITS: Record<
-  "FREE" | "PAYG" | "PRO" | "TEAM" | "ENTERPRISE",
-  CollaborationTeamPlanLimits
-> = {
-  FREE: {
-    maxTeams: 0,
-    maxMembersPerTeam: 0,
-    maxPendingInvitesPerTeam: 0,
-    maxInvitesPer24h: 0,
-  },
-  PAYG: {
-    maxTeams: 0,
-    maxMembersPerTeam: 0,
-    maxPendingInvitesPerTeam: 0,
-    maxInvitesPer24h: 0,
-  },
-  PRO: {
-    maxTeams: 2,
-    maxMembersPerTeam: 5,
-    maxPendingInvitesPerTeam: 10,
-    maxInvitesPer24h: 50,
-  },
-  TEAM: {
-    maxTeams: 5,
-    maxMembersPerTeam: 5,
-    maxPendingInvitesPerTeam: 25,
-    maxInvitesPer24h: 100,
-  },
-  ENTERPRISE: {
-    maxTeams: 1000,
-    maxMembersPerTeam: 500,
-    maxPendingInvitesPerTeam: 1000,
-    maxInvitesPer24h: 5000,
-  },
-};
-
-export function getCollaborationTeamPlanLimits(
-  plan: string | null | undefined,
-): CollaborationTeamPlanLimits {
-  const key = (plan ?? "FREE").toUpperCase();
-  if (key in COLLABORATION_TEAM_PLAN_LIMITS) {
-    return COLLABORATION_TEAM_PLAN_LIMITS[
-      key as keyof typeof COLLABORATION_TEAM_PLAN_LIMITS
-    ];
-  }
-  return COLLABORATION_TEAM_PLAN_LIMITS.FREE;
-}
+// PHASE 9 §9.6 corrected (2026-07-22) — the Teams limit table/type/accessor
+// were RELOCATED to `@proovra/shared-billing` (zero-decision projections of
+// the canonical PlanCapabilities). This package holds NO limit vocabulary and
+// no longer depends on the billing package (layering restored). Import
+// `CollaborationTeamPlanLimits` / `COLLABORATION_TEAM_PLAN_LIMITS` /
+// `getCollaborationTeamPlanLimits` from `@proovra/shared-billing`.
 
 // =============================================================================
 // Permissions per role

@@ -76,22 +76,25 @@ const DUPLICATES_PAGE = readWeb(
 );
 
 describe("Wave 2 Phase 6 — manual relationship audit hooks", () => {
-  it("createManualRelationship route emits GRAPH_MANUAL_RELATIONSHIP_CREATED via appendPlatformAuditLog", () => {
+  // PHASE 11 §3 Batch A — migrated onto the canonical emitTenantAudit
+  // facade (authoritative workspaceId column, still the same
+  // hash-chained appendPlatformAuditLog sink underneath).
+  it("createManualRelationship route emits GRAPH_MANUAL_RELATIONSHIP_CREATED via emitTenantAudit", () => {
     expect(GRAPH_ROUTES).toMatch(
       /"GRAPH_MANUAL_RELATIONSHIP_CREATED"/,
     );
-    // The emit must live inside an awaited appendPlatformAuditLog call.
+    // The emit must live inside an awaited emitTenantAudit call.
     expect(GRAPH_ROUTES).toMatch(
-      /appendPlatformAuditLog\([\s\S]*?GRAPH_MANUAL_RELATIONSHIP_CREATED[\s\S]*?\}\)/,
+      /emitTenantAudit\([\s\S]*?GRAPH_MANUAL_RELATIONSHIP_CREATED[\s\S]*?\}\)/,
     );
   });
 
-  it("retractManualRelationship route emits GRAPH_MANUAL_RELATIONSHIP_RETRACTED via appendPlatformAuditLog", () => {
+  it("retractManualRelationship route emits GRAPH_MANUAL_RELATIONSHIP_RETRACTED via emitTenantAudit", () => {
     expect(GRAPH_ROUTES).toMatch(
       /"GRAPH_MANUAL_RELATIONSHIP_RETRACTED"/,
     );
     expect(GRAPH_ROUTES).toMatch(
-      /appendPlatformAuditLog\([\s\S]*?GRAPH_MANUAL_RELATIONSHIP_RETRACTED[\s\S]*?\}\)/,
+      /emitTenantAudit\([\s\S]*?GRAPH_MANUAL_RELATIONSHIP_RETRACTED[\s\S]*?\}\)/,
     );
   });
 });
@@ -212,14 +215,18 @@ describe("Wave 2 Phase 6 — parallel namespace forbidden", () => {
 });
 
 describe("Wave 2 Phase 6 — audit emit dedup register compliance", () => {
-  it("graph.routes.ts never writes to AdminAuditLog directly — only via appendPlatformAuditLog", () => {
-    // The route file is allowed to import appendPlatformAuditLog and
-    // call it; it must NEVER call prisma.adminAuditLog.* directly.
+  it("graph.routes.ts never writes to AdminAuditLog directly — only via the canonical emitTenantAudit facade", () => {
+    // The route file is allowed to import emitTenantAudit and call it
+    // (which itself composes appendPlatformAuditLog as the sink); it
+    // must NEVER call prisma.adminAuditLog.* directly.
     expect(GRAPH_ROUTES).not.toMatch(/prisma\.adminAuditLog\./);
-    expect(GRAPH_ROUTES).toMatch(/appendPlatformAuditLog/);
+    expect(GRAPH_ROUTES).toMatch(/emitTenantAudit/);
   });
-  it("media-intelligence.routes.ts never writes to AdminAuditLog directly — only via appendPlatformAuditLog", () => {
+  it("media-intelligence.routes.ts never writes to AdminAuditLog directly — only via the canonical emitTenantAudit facade", () => {
+    // The route file is allowed to import emitTenantAudit and call it
+    // (which itself composes appendPlatformAuditLog as the sink); it
+    // must NEVER call prisma.adminAuditLog.* directly.
     expect(MI_ROUTES).not.toMatch(/prisma\.adminAuditLog\./);
-    expect(MI_ROUTES).toMatch(/appendPlatformAuditLog/);
+    expect(MI_ROUTES).toMatch(/emitTenantAudit/);
   });
 });

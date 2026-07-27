@@ -35,7 +35,6 @@ type AuthUser = {
 type AuthContextValue = {
   token: string | null;
   user: AuthUser | null;
-  ensureGuest: () => Promise<void>;
   setToken: (token: string | null) => void;
   refreshMe: () => Promise<void>;
   updateUser: (next: AuthUser | null) => void;
@@ -187,32 +186,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }
     };
 
-    const ensureGuest = async () => {
-      if (typeof window === "undefined") return;
-
-      // If we already have a session cookie, /v1/auth/me will return the
-      // user and we don't need a fresh guest mint.
-      const existing = await fetchMe();
-      if (existing) {
-        setUser(existing);
-        return;
-      }
-
-      try {
-        const data = await apiFetch("/v1/auth/guest", { method: "POST" });
-        setToken(data?.token ?? null);
-        setUser((data?.user ?? null) as AuthUser | null);
-      } catch {
-        setUser(null);
-      }
-    };
-
     const hasSession = Boolean(user || token);
 
     return {
       token,
       user,
-      ensureGuest,
       setToken,
       refreshMe,
       updateUser,

@@ -432,11 +432,32 @@ describe("8. C3 — certifyDestruction produces certificate with SHA-256 hash", 
     expect(/^[0-9a-f]{64}$/.test(result.certificateHash)).toBe(true);
   });
 
+  // PHASE 6 §9.5 — the certificate snapshots the policy decision-context:
+  // it reads each destroyed evidence's retentionPolicyVersionId, binds the
+  // snapshot into the HASHED certificate body, and populates
+  // policyReferences from it (was a permanent empty placeholder). A later
+  // policy edit therefore cannot rewrite what authorized the destruction.
+  it("snapshots retention policy versions + hold-cleared context into the certificate", () => {
+    const src = readSrc("services/lifecycle/destruction-governance.service.ts");
+    // Reads the versions off the (tombstoned) evidence rows.
+    expect(src).toMatch(/retentionPolicyVersionId:\s*true/);
+    expect(src).toContain("retentionPolicyVersionIds");
+    // The snapshot is inside the hashed certificateBody, and the artifact's
+    // policyReferences is fed from it (no longer `[] as string[]`).
+    expect(src).toContain("policySnapshot");
+    expect(src).toContain("legalHoldClearedAtExecute");
+    expect(src).not.toContain("policyReferences: [] as string[]");
+    const bodyIdx = src.indexOf("const certificateBody = {");
+    const bodyEnd = src.indexOf("canonicalJsonValue(certificateBody)");
+    expect(src.slice(bodyIdx, bodyEnd)).toContain("policySnapshot");
+  });
+
   it("source persists certificateBytesSha256 + certificateVersion", () => {
     const src = readSrc("services/lifecycle/destruction-governance.service.ts");
     expect(src).toContain("certificateBytesSha256");
     expect(src).toContain("certificateVersion");
-    expect(src).toContain("PROOVRA_DESTRUCTION_CERT_V1");
+    // PHASE 6 §9.5 — V2 binds the policy decision-context snapshot.
+    expect(src).toContain("PROOVRA_DESTRUCTION_CERT_V2");
   });
 
   it("getDestructionCertificateArtifact is exported and is a function", async () => {

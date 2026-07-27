@@ -33,7 +33,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
   hashSessionId,
   revokeAllSessionsForUser,
@@ -248,22 +248,19 @@ export async function revokeActiveSession(
       reason: input.reason ?? "OPERATOR_REVOKED",
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "session.revoke.single",
-    category: "identity",
-    severity: "warning",
-    source: "session_inventory",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "authenticated_session",
     resourceId: row.id,
     metadata: {
-      teamId: input.teamId,
       subjectUserId: row.userId,
       reason: input.reason ?? "OPERATOR_REVOKED",
     },
-    db: client,
-  });
+  }, client);
   return projectSession(updated);
 }
 
@@ -305,22 +302,19 @@ export async function revokeAllSessionsForUserAdmin(
       revokedCount: result.count,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "session.revoke.all",
-    category: "identity",
-    severity: "warning",
-    source: "session_inventory",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "user",
     resourceId: input.userId,
     metadata: {
-      teamId: input.teamId,
       revokedCount: result.count,
       reason: input.reason ?? "OPERATOR_REVOKED",
     },
-    db: client,
-  });
+  }, client);
   return { revokedCount: result.count };
 }
 

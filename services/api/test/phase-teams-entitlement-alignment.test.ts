@@ -21,46 +21,92 @@ const H = vi.hoisted(() => ({
 }));
 
 vi.mock("../src/db.js", () => {
+  // §9.7 target-architecture harness: member/invite guards resolve the PARENT
+  // WORKSPACE's plan through the canonical envelope. The test workspace is
+  // the owner's PERSONAL space (kind PERSONAL → plan = owner entitlement),
+  // which preserves the original intent: the owner's plan drives the rails.
   const track =
     (name: string) =>
     async (..._args: unknown[]) => {
       H.writes.push(name);
       return { id: "x" };
     };
-  return {
-    prisma: {
-      entitlement: {
-        findFirst: async () => ({ plan: H.plan }),
-      },
-      collaborationTeam: {
-        count: async () => H.ownedTeams,
-        findFirst: async () => ({
-          id: "team-1",
-          workspace: { ownerUserId: "owner-1" },
-        }),
-        findUnique: async () => ({
-          id: "team-1",
-          workspaceId: "ws-1",
-          workspace: { ownerUserId: "owner-1" },
-        }),
-        create: track("collaborationTeam.create"),
-      },
-      collaborationTeamMember: {
-        count: async () => H.memberCount,
-        create: track("collaborationTeamMember.create"),
-      },
-      collaborationTeamInvite: {
-        count: async (args: { where?: Record<string, unknown> } = {}) =>
-          args.where && "createdAt" in (args.where as object)
-            ? H.invites24h
-            : H.pendingInvites,
-        create: track("collaborationTeamInvite.create"),
-      },
-      subscription: {
-        findFirst: async () => null, // no row → entitlement authoritative
-      },
+  const explicit: Record<string, Record<string, unknown>> = {
+    entitlement: {
+      findFirst: async () => ({ plan: H.plan }),
+    },
+    team: {
+      findUnique: async () => ({
+        id: "ws-1",
+        ownerUserId: "owner-1",
+        billingOwnerUserId: "owner-1",
+        organizationId: "org-1",
+        billingPlan: "FREE",
+        billingStatus: "INACTIVE",
+        includedSeats: 0,
+        storageBytesOverride: null,
+        workspaceKind: "PERSONAL",
+        isPersonal: true,
+      }),
+      findFirst: async () => ({ id: "ws-1", organizationId: "org-1" }),
+    },
+    workspaceStorageAddon: {
+      aggregate: async () => ({ _sum: { extraStorageBytes: 0n } }),
+    },
+    collaborationTeam: {
+      count: async () => H.ownedTeams,
+      findFirst: async () => ({
+        id: "team-1",
+        workspace: { id: "ws-1", ownerUserId: "owner-1", isPersonal: true },
+      }),
+      findUnique: async () => ({
+        id: "team-1",
+        workspaceId: "ws-1",
+        workspace: { id: "ws-1", ownerUserId: "owner-1", isPersonal: true },
+      }),
+      create: track("collaborationTeam.create"),
+    },
+    collaborationTeamMember: {
+      count: async () => H.memberCount,
+      create: track("collaborationTeamMember.create"),
+    },
+    collaborationTeamInvite: {
+      count: async (args: { where?: Record<string, unknown> } = {}) =>
+        args.where && "createdAt" in (args.where as object)
+          ? H.invites24h
+          : H.pendingInvites,
+      create: track("collaborationTeamInvite.create"),
+    },
+    subscription: {
+      findFirst: async () => null, // no row → entitlement authoritative
+      findMany: async () => [], // §9.5 ambiguity probe — no rows
     },
   };
+  // Fallback for every other model the envelope touches (usage/contract/...):
+  // reads resolve empty, writes are tracked.
+  const prisma = new Proxy(explicit, {
+    get(target, model: string) {
+      if (model in target) return target[model];
+      if (model.startsWith("$")) return async (fn?: unknown) =>
+        typeof fn === "function" ? (fn as (tx: unknown) => unknown)(prisma) : 0;
+      return new Proxy(
+        {},
+        {
+          get(_t, method: string) {
+            return async () => {
+              if (/^(create|update|upsert|delete)/.test(String(method)))
+                H.writes.push(`${model}.${String(method)}`);
+              if (method === "findMany") return [];
+              if (method === "count") return 0;
+              if (method === "aggregate") return { _sum: {} };
+              return null;
+            };
+          },
+        },
+      );
+    },
+  });
+  return { prisma };
 });
 
 import {

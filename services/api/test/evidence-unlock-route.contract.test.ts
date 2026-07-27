@@ -65,9 +65,16 @@ describe("POST /v1/evidence/:id/unlock — contract", () => {
     );
   });
 
-  it("uses getEvidenceWithOwnerAccess (same ownership gate as /lock)", () => {
+  it("uses the canonical record-access gate (evidence.archive tier — unlock removes preservation protection)", () => {
+    // PHASE 1 (2026-07-21): the owner-identity gate was replaced by
+    // getEvidenceWithRecordAccess — personal-scope evidence keeps the owner
+    // rule; workspace-bound evidence requires ACTIVE membership + org
+    // lifecycle + evidence.archive (OWNER/ADMIN) since unlocking is the
+    // gateway to archive/delete.
     const block = unlockRouteBody();
-    expect(block).toMatch(/getEvidenceWithOwnerAccess\(ownerUserId, id\)/);
+    expect(block).toMatch(
+      /getEvidenceWithRecordAccess\(ownerUserId, id, "evidence\.archive"\)/,
+    );
   });
 
   it("rejects with 409 EVIDENCE_NOT_LOCKED when lockedAt is null", () => {

@@ -13,7 +13,8 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
 import { classifyChatScope } from "../services/ai/chat-scope-classifier.service.js";
 import { parseNlSearch, type NlStateQuery } from "../services/ai/nl-search-parser.service.js";
@@ -80,10 +81,22 @@ export async function aiSearchRoutes(app: FastifyInstance) {
   app.post("/v1/ai/search/nl", { preHandler: requireAuth }, async (req, reply) => {
     const userId = getAuthUserId(req);
     const body = Body.parse(req.body ?? {});
+    // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization
+    // for the claimed workspace (ACTIVE membership + org lifecycle +
+    // capability `intelligence.read` + fail-closed + anti-enumeration 404).
+    // Membership in body.teamId is verified here, so the downstream
+    // tenant-scoped queries against body.teamId cannot cross tenants.
+    const authz = await authorizeOrFail(req, reply, {
+      teamId: body.teamId,
+      permission: "intelligence.read",
+      antiEnumeration: true,
+    });
+    if (!authz) return reply;
+    // Role read for reviewer-capability flag only; authorization enforced above.
     const membership = await prisma.teamMember.findUnique({
       where: { teamId_userId: { teamId: body.teamId, userId } },
     });
-    if (!membership) return reply.code(403).send({ error: { code: "not_a_member" } });
+    if (!membership) return reply.code(404).send({ error: { code: "not_found" } });
 
     // Rate limit + dedup (deterministic path, but still bounded per user/IP).
     const guard = await enforceAiEndpointGuard({
@@ -106,9 +119,15 @@ export async function aiSearchRoutes(app: FastifyInstance) {
     }
 
     const parsed = parseNlSearch(body.query);
-    await appendPlatformAuditLog({
-      userId, action: "ai.nl_search", category: "ai", source: "api_ai", outcome: "success",
-      resourceType: "workspace", resourceId: body.teamId,
+    await emitTenantAudit({
+      action: "ai.nl_search",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: userId,
+      workspaceId: body.teamId,
+      resourceType: "workspace",
+      resourceId: body.teamId,
+      correlationId: req.id ?? null,
       metadata: { kind: parsed.kind, ...(parsed.kind === "STATE_QUERY" ? { query: parsed.query } : {}) },
     });
 

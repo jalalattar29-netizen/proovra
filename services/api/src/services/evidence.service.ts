@@ -2,11 +2,11 @@ import { prisma } from "../db.js";
 import { getPublicBaseUrl, presignPutObject } from "../storage.js";
 import {
   assertWorkspaceAllowsEvidenceCreation,
-  resolveWorkspaceScopeForUser,
+  resolveEnforcementScopeForRequester,
   assertWorkspaceAllowsStorageGrowth,
 } from "./billing-enforcement.service.js";
 import * as prismaPkg from "@prisma/client";
-import { ensureGuestIdentity } from "./auth.service.js";
+import { ensureLegacyGuestCustodyIdentity } from "./evidence-legacy-custody.js";
 import { appendCustodyEventTx } from "./custody-events.service.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
 import {
@@ -25,6 +25,8 @@ import {
   resolveUserDepartmentScope,
 } from "./governance/department-scope.service.js";
 import { ensurePersonalWorkspace } from "./platform-context/workspace-bootstrap.service.js";
+// PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
+import { assertPersonalSpaceAllowed } from "./identity/identity-mode.service.js";
 
 function must(name: string): string {
   const v = process.env[name];
@@ -239,14 +241,20 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
           userId: params.ownerUserId,
         },
       },
-      select: { teamId: true },
+      select: { teamId: true, status: true },
     });
 
-    if (!membership && isPersonalWorkspaceCapture) {
+    // P0 remediation (2026-07-21) — only an ACTIVE membership may write
+    // evidence into a workspace. A SUSPENDED/REVOKED row no longer
+    // authorizes capture (schema invariant: reject anything not ACTIVE).
+    const activeMembership =
+      membership?.status === "ACTIVE" ? membership : null;
+
+    if (!activeMembership && isPersonalWorkspaceCapture) {
       // Self-heal: the bootstrap upserts the OWNER membership row for
       // the caller's own personal team.
       await ensurePersonalWorkspace({ userId: params.ownerUserId });
-    } else if (!membership) {
+    } else if (!activeMembership) {
       const err: Error & { statusCode?: number; code?: string } = new Error(
         "Forbidden team workspace"
       );
@@ -260,6 +268,21 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     });
     effectiveTeamId = personal.teamId;
     isPersonalWorkspaceCapture = true;
+  }
+
+  // PHASE 10 §13.2 STEP 6 (2026-07-23) — NO-PERSONAL end-to-end enforcement.
+  // A managed enterprise identity has NO personal space, so it may NOT create
+  // PERSONAL-scope Evidence (teamId omitted, or targeting its own personal
+  // Team — both resolve `isPersonalWorkspaceCapture`). This funnels EVERY
+  // personal-capture caller (POST /v1/evidence, mobile citizen capture, intake
+  // links) through the canonical gate and FAILS CLOSED for MANAGED and
+  // MANAGED_UNRESOLVED. It runs BEFORE any Evidence/custody write, so a denial
+  // never creates, transfers, or mutates Personal Evidence. TEAM captures
+  // (a real workspace membership) are unaffected. `ensurePersonalWorkspace`
+  // already blocks NEW personal spaces; this also covers a grandfathered
+  // personal Team whose owner has since become managed.
+  if (isPersonalWorkspaceCapture) {
+    await assertPersonalSpaceAllowed(params.ownerUserId);
   }
 
   // Snapshots and TEAM billing semantics only apply to REAL team
@@ -281,7 +304,7 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
         })
       : null;
 
-  const scope = await resolveWorkspaceScopeForUser({
+  const scope = await resolveEnforcementScopeForRequester({
     ownerUserId: params.ownerUserId,
     teamId: isPersonalWorkspaceCapture ? null : effectiveTeamId,
   });
@@ -292,9 +315,13 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     incomingBytes: 0n,
   });
 
-  const guestIdentity =
+  // HISTORICAL custody only: fires solely when the Evidence owner is a
+  // pre-existing provider=GUEST User (Guest Login is removed — no new such
+  // users are created, and legacy guest tokens can't authenticate). The helper
+  // is a non-interactive Prisma custody link; it never authenticates.
+  const legacyGuestCustodyIdentity =
     owner.provider === prismaPkg.AuthProvider.GUEST
-      ? await ensureGuestIdentity(params.ownerUserId)
+      ? await ensureLegacyGuestCustodyIdentity(params.ownerUserId)
       : null;
 
   // Phase 4A Closure — resolve the actor's department scope envelope at
@@ -398,7 +425,7 @@ data: {
   lat: params.gps?.lat ?? null,
   lng: params.gps?.lng ?? null,
   accuracyMeters: params.gps?.accuracyMeters ?? null,
-  guestIdentityId: guestIdentity?.id ?? null,
+  guestIdentityId: legacyGuestCustodyIdentity?.id ?? null,
 },
       select: {
         id: true,

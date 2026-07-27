@@ -31,7 +31,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { computeReadinessPosture } from "../services/operations/readiness-posture.service.js";
 
 function readUserAgent(req: {
@@ -52,25 +52,23 @@ export async function operationsReadinessRoutes(app: FastifyInstance) {
       // (never blocks the read) — bounded, operator-safe metadata only
       // (no secrets, no key material). Mirrors the audit pattern used
       // by admin-audit.routes.ts.
-      void appendPlatformAuditLog({
-        userId: req.user?.sub ?? null,
+      void emitPlatformAudit({
         action: "operations.readiness.viewed",
-        category: "operations_readiness_access",
-        severity: "info",
-        source: "api_operations_readiness",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: req.user?.sub ?? null,
         resourceType: "operations_readiness",
         resourceId: null,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: {
           objectLockEnabled: posture.backup.objectLockEnabled,
           databaseBackup: posture.backup.databaseBackup,
           signerProvider: posture.keys.signerProvider,
           runtimeStatus: posture.resiliency.runtimeReadinessSummary.status,
           schemaStatus: posture.resiliency.schemaDriftSummary.status,
+          ipAddress: (req as { ip?: string }).ip,
+          userAgent: readUserAgent(req),
         },
-        ipAddress: (req as { ip?: string }).ip,
-        userAgent: readUserAgent(req),
       }).catch(() => {
         /* audit is best-effort; never fail the read */
       });

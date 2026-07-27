@@ -322,10 +322,16 @@ describe("E4 Test 4 — REST endpoints contract", () => {
     expect(idxAutomation).toBeGreaterThan(-1);
   });
 
-  it("gate calls prisma.teamMember + prisma.team and replies 403 on non-membership", () => {
-    expect(ROUTES).toMatch(/prisma\.teamMember\.findUnique/);
+  it("gate composes the canonical primitive (intelligence.read) and replies 404 anti-enum on non-membership", () => {
+    // PHASE 1 (2026-07-21): the analytics-read gate routes through
+    // authorizeOrFail (ACTIVE membership + org lifecycle + intelligence.read +
+    // anti-enumeration). The former resolveCapabilities({ isPlatformAdmin })
+    // path (and its 403 "Not a member" leak) was removed; non-members now get
+    // a 404. `prisma.team` is still read to resolve the analytics scope.
+    expect(ROUTES).toMatch(/authorizeOrFail\(/);
+    expect(ROUTES).toMatch(/permission:\s*"intelligence\.read"/);
     expect(ROUTES).toMatch(/prisma\.team\.findUnique/);
-    expect(ROUTES).toMatch(/Not a member of the workspace/);
+    expect(ROUTES).not.toMatch(/Not a member of the workspace/);
   });
 });
 

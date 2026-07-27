@@ -76,11 +76,16 @@ describe("Phase 32.8C FINAL-4 — workspace menu count text", () => {
     expect(TOPBAR).not.toMatch(/\{workspaceList\.length\}\s*available/);
   });
 
-  it("no longer renders a workspace count strip (folded switcher) (account-menu refactor 2026-07-21)", () => {
-    // The retired standalone chip rendered "Only Personal Space" / "<N>
-    // spaces". The folded in-menu switcher has no count strip.
-    expect(TOPBAR).not.toMatch(/"Only Personal Space"/);
-    expect(TOPBAR).not.toMatch(/spaces`/);
+  it("workspace count strip lives on the canonical switcher PANEL, not the account menu (P3/P4 domain remediation 2026-07-21)", () => {
+    // The persistent context chip's panel carries the bounded count strip
+    // again ("Only Personal Space" / "N workspaces"); the account menu
+    // carries no count strip at all.
+    expect(TOPBAR).toMatch(/data-context-switcher-count/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/"Only Personal Space"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/\$\{menu\.workspaces\.total\} workspaces`/); // (P3/P4 domain remediation 2026-07-21)
+    const acctIdx = TOPBAR.indexOf("data-app-topbar-account-menu");
+    expect(acctIdx).toBeGreaterThan(-1);
+    expect(TOPBAR.slice(acctIdx)).not.toMatch(/data-context-switcher-count/); // (P3/P4 domain remediation 2026-07-21)
   });
 
   it("switcher visibility is gated on the resolved switchable total (account-menu refactor 2026-07-21)", () => {
@@ -95,34 +100,38 @@ describe("Phase 32.8C FINAL-4 — workspace menu count text", () => {
 // =============================================================================
 
 describe("Phase 32.8C FINAL-4 — grouped workspace switcher", () => {
-  it("renders separate groups for PERSONAL and ORGANIZATIONS — no ACTIONS group (account-menu refactor 2026-07-21)", () => {
-    // The folded switcher renders two groups inside the account menu: Personal
-    // Space and Organizations. The retired standalone chip's ACTIONS group
-    // (create/join/manage) is gone.
-    expect(TOPBAR).toMatch(/data-workspace-menu-group="PERSONAL"/);
-    expect(TOPBAR).toMatch(/data-workspace-menu-group="ORGANIZATIONS"/);
-    expect(TOPBAR).not.toMatch(/data-workspace-menu-group="ACTIONS"/);
-    // The switcher lives inside the account menu.
-    expect(TOPBAR).toMatch(/data-account-menu-switcher/);
+  it("renders PERSONAL / OWNED / per-ORGANIZATION groups — no ACTIONS group (P3/P4 domain remediation 2026-07-21)", () => {
+    // The persistent context chip's canonical panel renders three group
+    // kinds: Personal, Your workspaces (OWNED), and one ORGANIZATION group
+    // per organization. The retired ACTIONS group (create/join/manage)
+    // stays gone.
+    expect(TOPBAR).toMatch(/data-context-group="PERSONAL"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/data-context-group="OWNED"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/data-context-group="ORGANIZATION"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/data-context-organization=\{group\.organizationId\}/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).not.toMatch(/data-context-group="ACTIONS"/); // (P3/P4 domain remediation 2026-07-21)
+    // The groups live in the ONE canonical panel owned by the chip.
+    const panels = TOPBAR.match(/data-app-context-switcher/g) ?? []; // (P3/P4 domain remediation 2026-07-21)
+    expect(panels.length).toBe(1); // (P3/P4 domain remediation 2026-07-21)
   });
 
-  it("switcher section is labelled 'Workspaces' with per-option scope chips (account-menu refactor 2026-07-21)", () => {
-    // The section carries a "Workspaces" label; each option carries a scope
-    // chip reading Personal / Organization.
-    expect(TOPBAR).toMatch(/>\s*Workspaces\s*</);
-    expect(TOPBAR).toMatch(
-      /data-workspace-scope-chip="PERSONAL"[\s\S]{0,40}Personal/,
-    );
-    expect(TOPBAR).toMatch(
-      /data-workspace-scope-chip="ORGANIZATION"[\s\S]{0,40}Organization/,
-    );
+  it("panel is headed 'Switch workspace' with 'Your workspaces' group label + per-option scope chips (P3/P4 domain remediation 2026-07-21)", () => {
+    // The panel header reads "Switch workspace"; the OWNED group is
+    // labelled "Your workspaces"; each option carries a scope chip keyed by
+    // its canonical kind with bounded chip copy.
+    expect(TOPBAR).toMatch(/>Switch workspace</); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/>\s*Your workspaces\s*</); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/data-workspace-scope-chip=\{option\.kind\}/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/chip="Personal"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/chip="Workspace"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/chip="Organization"/); // (P3/P4 domain remediation 2026-07-21)
   });
 
   it("active workspace is visually marked (is-active + aria-current)", () => {
-    // The live toolbar marks the active space via the is-active class
-    // modifier on the workspace button, plus aria-current.
-    expect(TOPBAR).toMatch(/app-topbar-v2-account-menu-workspace is-active/);
-    expect(TOPBAR).toMatch(/aria-current=/);
+    // The shared SwitcherOption marks the active space via the is-active
+    // class modifier on the menu item, plus aria-current="true".
+    expect(TOPBAR).toMatch(/app-topbar-v2-workspace-menu-item is-active/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/aria-current=\{option\.active \? "true" : undefined\}/); // (P3/P4 domain remediation 2026-07-21)
   });
 
   it("menu items expose the workspace scope chip", () => {

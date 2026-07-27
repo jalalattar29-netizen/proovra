@@ -1081,7 +1081,10 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // Product-approved physical deletion of the workspace-persona API route
 // family (123 → 122). The route was UX-layer only and never granted
 // capabilities; the whole feature was removed repository-wide.
-const ROUTE_COUNT_PHASE_2_BASELINE = 122;
+// Rebaselined 2026-07-23 (PHASE 10 §Step-4): +1 for enterprise-security.routes.ts
+// (break-glass activation surface, registered in server.ts). Argued for in the
+// Phase-10 brief; the pin continues to detect further unaudited route adds.
+const ROUTE_COUNT_PHASE_2_BASELINE = 124;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

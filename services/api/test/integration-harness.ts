@@ -305,7 +305,17 @@ async function seedFixtures(
   }
   const mintToken = (userId: string, email: string | null): string =>
     signJwt(
-      { sub: userId, provider: "EMAIL", email },
+      // PHASE 10 §10.2 — mint a token with SUPPORTED provenance (PASSWORD), as
+      // production does. `requireAuth` rejects tokens with missing/UNKNOWN
+      // provenance (→ reauthenticate), so integration fixtures must carry a
+      // proven authMethod exactly like a real logged-in user.
+      {
+        sub: userId,
+        provider: "EMAIL",
+        email,
+        authMethod: "PASSWORD",
+        authAt: Math.floor(Date.now() / 1000),
+      },
       secret,
       60 * 60 * 1, // 1 hour
     );

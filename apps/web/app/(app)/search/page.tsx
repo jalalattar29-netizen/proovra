@@ -1850,7 +1850,6 @@ function SearchInner() {
             <Inspector
               row={selected}
               relationships={relationships}
-              teamId={teamId}
               canSeeWorkflows={canSeeWorkflows}
               canSeeInvestigation={canSeeInvestigation}
             />
@@ -2033,13 +2032,11 @@ function getOpenAction(
 function Inspector({
   row,
   relationships,
-  teamId,
   canSeeWorkflows,
   canSeeInvestigation,
 }: {
   row: ResultRow;
   relationships: Relationship[] | null;
-  teamId: string;
   // Phase IA-self-serve-completion — surface-tier gates for the
   // pointer + pivot links. Self-serve users see the IDs but not the
   // links, and the "Investigation pivots" section is renamed and
@@ -2263,9 +2260,7 @@ function Inspector({
                   <li key={r.relationshipId} style={relationshipRowStyle}>
                     <span style={relTypeChipStyle}>{r.relationshipType}</span>
                     <a
-                      href={`/evidence/${otherId}?teamId=${encodeURIComponent(
-                        teamId
-                      )}`}
+                      href={`/evidence/${otherId}`}
                       style={pointerLinkStyle}
                     >
                       {otherId.slice(0, 12)}…

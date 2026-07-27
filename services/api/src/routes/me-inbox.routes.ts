@@ -73,7 +73,7 @@ import {
   invalidateOperationsSummary,
   setCachedOperationsSummary,
 } from "../services/notifications/operations-summary-cache.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { formatTimestampForReportUtc } from "@proovra/shared";
 
 /**
@@ -3178,14 +3178,17 @@ export async function meInboxRoutes(app: FastifyInstance) {
         }
       });
       await invalidateOperationsSummary(userId);
-      await appendPlatformAuditLog({
-        userId,
+      // PLATFORM — a bulk-read spans the caller's own inbox items across
+      // however many workspaces they belong to; there is no single owning
+      // Workspace to attribute the event to.
+      await emitPlatformAudit({
         action: "inbox.bulk_mark_read",
-        category: "operations",
-        source: "api",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: userId,
         resourceType: "user",
         resourceId: userId,
+        correlationId: req.id ?? null,
         metadata: { markedRead: keys.length, appliedFilter: bulkFilter ?? null },
       }).catch(() => undefined);
       return reply

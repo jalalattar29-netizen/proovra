@@ -26,11 +26,13 @@ import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
+// PHASE 10 §13.2 — managed-identity personal-export guard.
+import { assertPersonalExportAllowed } from "../services/identity/identity-mode.service.js";
 import {
   verifyAccountStepUp,
   type AccountStepUpProof,
 } from "../services/identity-security/account-step-up.service.js";
-import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 
 const RequestBody = z.object({
   stepUp: z
@@ -78,6 +80,23 @@ export async function accountDataExportRoutes(app: FastifyInstance) {
       if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const body = RequestBody.parse(req.body ?? {});
 
+      // PHASE 10 §13.2 (2026-07-22) — a MANAGED_ENTERPRISE identity has NO
+      // personal data export; the organization controls its data
+      // lifecycle. Fail closed BEFORE step-up so a managed user cannot
+      // even initiate a personal export. Dormant (all STANDARD) until the
+      // identity_mode migration is applied.
+      try {
+        await assertPersonalExportAllowed(userId);
+      } catch (err) {
+        const e = err as { statusCode?: number; code?: string; message?: string };
+        return reply.code(e.statusCode ?? 403).send({
+          error: {
+            code: e.code ?? "MANAGED_IDENTITY_NO_PERSONAL_EXPORT",
+            message: e.message ?? "Personal data export is not available for managed identities.",
+          },
+        });
+      }
+
       const stepUp = await verifyAccountStepUp({
         req,
         reply,
@@ -109,19 +128,15 @@ export async function accountDataExportRoutes(app: FastifyInstance) {
         data: { userId, status: "REQUESTED" },
         select: { id: true, status: true, requestedAtUtc: true },
       });
-      await appendPlatformAuditLog({
-        userId,
+      await emitPlatformAudit({
         action: "identity.data_export_requested",
-        category: "identity",
-        severity: "info",
-        source: "api_data_export",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: userId,
         resourceType: "account_data_export_request",
         resourceId: created.id,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: {},
-        ipAddress: null,
-        userAgent: null,
       }).catch(() => null);
       return reply.code(201).send({ request: created });
     },
@@ -184,19 +199,15 @@ export async function accountDataExportRoutes(app: FastifyInstance) {
           lastDownloadedAtUtc: new Date(),
         },
       });
-      await appendPlatformAuditLog({
-        userId,
+      await emitPlatformAudit({
         action: "identity.data_export_downloaded",
-        category: "identity",
-        severity: "info",
-        source: "api_data_export",
         outcome: "success",
+        sourceApp: "API",
+        actorUserId: userId,
         resourceType: "account_data_export_request",
         resourceId: row.id,
-        requestId: req.id,
+        correlationId: req.id,
         metadata: { sha256: row.packageSha256 },
-        ipAddress: null,
-        userAgent: null,
       }).catch(() => null);
 
       reply.header("content-type", "application/json; charset=utf-8");

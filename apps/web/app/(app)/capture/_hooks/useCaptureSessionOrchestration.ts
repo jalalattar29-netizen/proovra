@@ -7,7 +7,7 @@ import { useToast } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
 // Phase HOME-DATA-OWNERSHIP — capture stamps the ACTIVE workspace id
 // (personal Team id or team id) on every new evidence record.
-import { useActiveSpaceId } from "../../../../lib/platform-context";
+import { useActiveSpaceId, useTenantGuard } from "../../../../lib/platform-context";
 // Phase 30.12 — resumable upload adoption. Only the routing helper +
 // chunk planner are imported eagerly; the orchestrator type is
 // imported as a type-only reference so the bundle isn't pulled in
@@ -233,6 +233,12 @@ export function useCaptureSessionOrchestration({
   const router = useRouter();
   const { addToast } = useToast();
   const activeSpaceId = useActiveSpaceId();
+  // PHASE 7 §10.3/§10.E — capture the tenant generation when finalize
+  // begins; if the operator switches workspace mid-finalize the Evidence
+  // is still safely bound server-side to the ORIGINAL workspace
+  // (evidenceTeamId), but we must NOT auto-navigate into it under the new
+  // active context nor claim success for the wrong Workspace.
+  const { stamp: ctxStamp, isStale: ctxIsStale } = useTenantGuard();
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -511,6 +517,8 @@ export function useCaptureSessionOrchestration({
       addToast("No items in session", "error");
       return;
     }
+
+    const captured = ctxStamp();
 
     setBusy(true);
     setError(null);
@@ -883,6 +891,23 @@ export function useCaptureSessionOrchestration({
       const reportReady = await pollArtifacts(evidenceId);
 
       setProgress(100);
+
+      // PHASE 7 §10.3/§10.E — the operator switched workspace during
+      // finalize. The Evidence row is safely bound to its original
+      // workspace (server-verified), but auto-navigating into it under
+      // the NEW active context would either fail-closed at the detail
+      // gate or surface cross-context. Complete quietly: keep the staged
+      // material cleared (the server already finalized it), tell the
+      // operator where it landed, and do NOT redirect.
+      if (ctxIsStale(captured)) {
+        addToast(
+          "Evidence finalized in the workspace it was started in. Switch back to open it.",
+          "info"
+        );
+        onSessionFinalized?.();
+        resetCaptureState({ preserveTimeline: true });
+        return;
+      }
 
       if (reportReady) {
         addToast("Evidence record created successfully!", "success");

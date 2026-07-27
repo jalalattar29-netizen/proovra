@@ -57,6 +57,8 @@ import {
 } from "@proovra/shared";
 import * as prismaPkg from "@prisma/client";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+// WAVE A FINAL CLOSURE (2026-07-22) — member transitions are consumed via the
+// Membership Orchestrator public command surface; the rbac engine is internal.
 import {
   RbacError,
   changeMemberRole,
@@ -68,7 +70,7 @@ import {
   revokeDelegatedAdminScope,
   revokeMember,
   suspendMember,
-} from "../services/identity/rbac.service.js";
+} from "../services/identity/membership-provisioning.service.js";
 import {
   disableApiCredential,
   enableApiCredential,

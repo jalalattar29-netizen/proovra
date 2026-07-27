@@ -36,6 +36,9 @@ function memberActor(overrides: Partial<{
   role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
   status: "ACTIVE" | "SUSPENDED" | "REVOKED";
   accessExpiresAtUtc: Date | null;
+  // PHASE 1 (2026-07-21, corrected) — workspace-kind + org-lifecycle fields.
+  workspaceKind: "PERSONAL" | "OWNED" | "ORGANIZATION" | "UNKNOWN";
+  organizationStatus: string | null;
   capabilityGrants: Array<{
     id: string;
     permission: string;
@@ -68,6 +71,15 @@ function memberActor(overrides: Partial<{
         overrides.accessExpiresAtUtc === undefined
           ? null
           : overrides.accessExpiresAtUtc,
+      // PHASE 1 (2026-07-21, corrected) — default to a PERSONAL workspace so
+      // pre-existing cases (which don't set org state) are exempt from
+      // CUSTOMER-org lifecycle; override to drive the org-lifecycle / kind
+      // deny paths.
+      workspaceKind: overrides.workspaceKind ?? "PERSONAL",
+      organizationStatus:
+        overrides.organizationStatus === undefined
+          ? "ACTIVE"
+          : overrides.organizationStatus,
       capabilityGrants: overrides.capabilityGrants ?? [],
       delegatedAdminScopes: overrides.delegatedAdminScopes ?? [],
     },
@@ -161,6 +173,78 @@ describe("Access policy engine — member evaluation", () => {
     );
     expect(d.allowed).toBe(false);
     if (!d.allowed) expect(d.reason).toBe("member_access_expired");
+  });
+
+  // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21, CORRECTED) — workspace-kind +
+  // org-lifecycle gate, FAIL CLOSED (no "null means skip"). The 8 required
+  // A-cases:
+
+  // (3) ORGANIZATION + SUSPENDED → deny.
+  it("A3: denies an ORGANIZATION member whose CUSTOMER Organization is SUSPENDED", () => {
+    const d = evaluateAccess(
+      memberActor({ role: "OWNER", workspaceKind: "ORGANIZATION", organizationStatus: "SUSPENDED" }),
+      { permission: "evidence.read" },
+    );
+    expect(d.allowed).toBe(false);
+    if (!d.allowed) expect(d.reason).toBe("organization_not_active");
+  });
+
+  // (4) ORGANIZATION + ARCHIVED → deny.
+  it("A4: denies an ORGANIZATION member whose CUSTOMER Organization is ARCHIVED", () => {
+    const d = evaluateAccess(
+      memberActor({ role: "ADMIN", workspaceKind: "ORGANIZATION", organizationStatus: "ARCHIVED" }),
+      { permission: "evidence.read" },
+    );
+    expect(d.allowed).toBe(false);
+    if (!d.allowed) expect(d.reason).toBe("organization_not_active");
+  });
+
+  // (1)+(2) ORGANIZATION + missing Organization / null status → deny (NOT skip).
+  it("A1/A2: denies an ORGANIZATION member when the Organization row/status is missing (null)", () => {
+    const d = evaluateAccess(
+      memberActor({ role: "OWNER", workspaceKind: "ORGANIZATION", organizationStatus: null }),
+      { permission: "evidence.read" },
+    );
+    expect(d.allowed).toBe(false);
+    if (!d.allowed) expect(d.reason).toBe("organization_not_active");
+  });
+
+  // (5) ORGANIZATION + ACTIVE → continue evaluation (allowed via role floor).
+  it("A5: allows an ORGANIZATION member whose CUSTOMER Organization is ACTIVE", () => {
+    const d = evaluateAccess(
+      memberActor({ role: "OWNER", workspaceKind: "ORGANIZATION", organizationStatus: "ACTIVE" }),
+      { permission: "evidence.read" },
+    );
+    expect(d.allowed).toBe(true);
+  });
+
+  // (6) PERSONAL → CUSTOMER-org lifecycle not applicable (exempt even if the
+  // backing SYSTEM container somehow carried a non-ACTIVE status).
+  it("A6: PERSONAL workspace is exempt from CUSTOMER-org lifecycle", () => {
+    const d = evaluateAccess(
+      memberActor({ role: "OWNER", workspaceKind: "PERSONAL", organizationStatus: "ARCHIVED" }),
+      { permission: "evidence.read" },
+    );
+    expect(d.allowed).toBe(true);
+  });
+
+  // (7) OWNED → CUSTOMER-org lifecycle not incorrectly applied.
+  it("A7: OWNED workspace is exempt from CUSTOMER-org lifecycle", () => {
+    const d = evaluateAccess(
+      memberActor({ role: "OWNER", workspaceKind: "OWNED", organizationStatus: "SUSPENDED" }),
+      { permission: "evidence.read" },
+    );
+    expect(d.allowed).toBe(true);
+  });
+
+  // (8) Unknown/unprovable kind → deny (fail closed).
+  it("A8: denies when the workspace kind cannot be proven (workspace_kind_unresolved)", () => {
+    const d = evaluateAccess(
+      memberActor({ role: "OWNER", workspaceKind: "UNKNOWN", organizationStatus: "ACTIVE" }),
+      { permission: "evidence.read" },
+    );
+    expect(d.allowed).toBe(false);
+    if (!d.allowed) expect(d.reason).toBe("workspace_kind_unresolved");
   });
 
   it("allows via canonical role floor (ADMIN -> identity.member.suspend)", () => {

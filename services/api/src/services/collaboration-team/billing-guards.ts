@@ -29,11 +29,17 @@ import * as prismaPkg from "@prisma/client";
 import {
   COLLABORATION_TEAM_BILLING_ERROR_HTTP_STATUS,
   COLLABORATION_TEAM_BILLING_UPGRADE_CTA,
-  getCollaborationTeamPlanLimits,
   type CollaborationTeamBillingErrorCode,
 } from "@proovra/shared";
+// §9.6 corrected — the limits adapter lives in the canonical billing package.
+import { getCollaborationTeamPlanLimits } from "@proovra/shared-billing";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import {
+  resolveCommercialContext,
+  COMMERCIAL_GRACE_PERIOD_DAYS,
+} from "../billing/commercial-context.service.js";
+// §9.4/§9.7 — workspace-subject plan via the canonical envelope.
 
 // =============================================================================
 // PlanType + SubscriptionStatus surface
@@ -62,7 +68,11 @@ export type SubscriptionStatus =
  * Teams for 7 days, after which mutations are blocked until the
  * subscription returns to ACTIVE.
  */
-export const SUBSCRIPTION_GRACE_PERIOD_DAYS = 7;
+// PHASE 9 STEP 5 — the grace window is no longer defined here; it is the ONE
+// canonical policy in commercial-context.service. These re-exports preserve
+// the public constant names for any external importer but carry no
+// independent value (single source of truth).
+export const SUBSCRIPTION_GRACE_PERIOD_DAYS = COMMERCIAL_GRACE_PERIOD_DAYS;
 export const SUBSCRIPTION_GRACE_PERIOD_MS =
   SUBSCRIPTION_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
 
@@ -114,8 +124,8 @@ function throwBillingError(args: {
 
 /**
  * Resolve the canonical billing PlanType for a given user. Reads from
- * the same `Entitlement` table that `ensureEntitlement` / the legacy
- * `getPersonalWorkspaceScope` helper read from, so the two surfaces
+ * the same `Entitlement` table that `ensureEntitlement` and the legacy
+ * personal-scope adapter read from, so the two surfaces
  * never drift.
  */
 async function resolveUserPlan(
@@ -155,6 +165,49 @@ async function resolveCollaborationTeamOwnerUserId(
     });
   }
   return row.workspace.ownerUserId;
+}
+
+/**
+ * PHASE 9 §9.4 corrected (2026-07-22) — SUBJECT-CORRECT plan resolution for
+ * EXISTING-team operations (member adds / invites). The commercial subject
+ * is the PARENT WORKSPACE, not the owner's account: the plan comes from the
+ * workspace's own effective scope (canonical subject-aware policy — PERSONAL
+ * workspaces resolve the personal entitlement, OWNED workspaces their own
+ * commercial state, ORGANIZATION workspaces their contract coverage). The
+ * owner-account plan is used ONLY for the creation-allowance guard
+ * (`assertCanCreateCollaborationTeam` — an ACCOUNT/PERSONAL decision).
+ */
+async function resolveCollaborationTeamWorkspacePlan(
+  client: PrismaClient,
+  teamId: string,
+): Promise<PlanType> {
+  const row = await client.collaborationTeam.findUnique({
+    where: { id: teamId },
+    select: {
+      workspace: { select: { id: true, ownerUserId: true, isPersonal: true } },
+    },
+  });
+  if (!row) {
+    throwBillingError({
+      code: "TEAM_LIMIT_REACHED",
+      message: "Collaboration team not found.",
+      details: { teamId },
+    });
+  }
+  // §9.7 — canonical envelope with the subject the persisted discriminator
+  // names: a collaboration team hosted in the owner's PERSONAL space belongs
+  // to the PERSONAL_ACCOUNT subject; otherwise the WORKSPACE aggregate.
+  const ctx = row.workspace.isPersonal
+    ? await resolveCommercialContext({
+        type: "PERSONAL_ACCOUNT",
+        userId: row.workspace.ownerUserId,
+      })
+    : await resolveCommercialContext({
+        type: "WORKSPACE",
+        teamId: row.workspace.id,
+        requesterUserId: row.workspace.ownerUserId,
+      });
+  return ctx.scope.plan;
 }
 
 // =============================================================================
@@ -295,8 +348,10 @@ export async function assertCollaborationTeamMemberLimit(
   seatRemaining: number;
 }> {
   const safeAdding = Math.max(1, Math.floor(addingCount));
-  const ownerUserId = await resolveCollaborationTeamOwnerUserId(client, teamId);
-  const plan = await resolveUserPlan(client, ownerUserId);
+  // §9.4 corrected — existing-team member limits are a WORKSPACE-subject
+  // decision (the parent workspace's own effective plan), never the owner's
+  // account plan.
+  const plan = await resolveCollaborationTeamWorkspacePlan(client, teamId);
   // Commercial contract: a plan with ZERO Teams locks ALL membership
   // growth on grandfathered Teams (adds, every invite channel, and
   // acceptance) — data stays readable, growth requires an upgrade.
@@ -373,8 +428,8 @@ export async function assertCanInviteCollaborationTeamMember(
   maxPendingPerTeam: number;
   max24hRate: number;
 }> {
-  const ownerUserId = await resolveCollaborationTeamOwnerUserId(client, teamId);
-  const plan = await resolveUserPlan(client, ownerUserId);
+  // §9.4 corrected — invite limits are a WORKSPACE-subject decision.
+  const plan = await resolveCollaborationTeamWorkspacePlan(client, teamId);
   const limits = getCollaborationTeamPlanLimits(plan);
 
   // Invitations are EMAIL-ONLY (Teams Entitlement Alignment,
@@ -462,134 +517,45 @@ export async function assertCanInviteCollaborationTeamMember(
  */
 export async function assertSubscriptionActiveOrGraceAllowed(
   userId: string,
-  client: PrismaClient = defaultPrisma,
+  _client: PrismaClient = defaultPrisma,
 ): Promise<{
   plan: PlanType;
   status: SubscriptionStatus;
   inGracePeriod: boolean;
 }> {
-  const plan = await resolveUserPlan(client, userId);
+  // PHASE 9 STEP 5 (2026-07-22) — THIN ADAPTER (zero independent decision).
+  // The subscription-active + grace DECISION now lives in the ONE canonical
+  // lifecycle policy (`resolveCommercialContext` → `lifecycle`, which itself
+  // hosts the relocated corroboration + single bounded-grace rule). This
+  // function no longer reads `Subscription.status` and no longer computes an
+  // independent grace window; it only maps the canonical verdict to the
+  // collaboration-team error contract. The production stale-row 402 invariant
+  // is preserved by the resolver (see commercial-context.service
+  // `resolvePaidLifecycle` + `production-subscription-gate-stale-row.test`).
+  const ctx = await resolveCommercialContext({ ownerUserId: userId });
+  const life = ctx.lifecycle;
+  const status = (life.providerStatus ??
+    (life.state === "CANCELLED" ? "CANCELLED" : "ACTIVE")) as SubscriptionStatus;
 
-  // FREE-tier users have no subscription row by design. Their writes
-  // are gated by per-feature plan limits (maxTeams etc), not by
-  // subscription state.
-  if (plan === prismaPkg.PlanType.FREE) {
-    return { plan, status: "ACTIVE", inGracePeriod: false };
-  }
-
-  // For paid plans, the gate must corroborate the entitlement with
-  // the user's CURRENT subscription state. The previous implementation
-  // picked the most-recently-updated subscription row for the user
-  // regardless of `plan` or `status` — but the `subscriptions` table
-  // accumulates one row per `(provider, providerSubId)`, so a user
-  // who:
-  //
-  //   * cancelled a prior PAYG subscription before upgrading to PRO,
-  //   * abandoned a checkout (INCOMPLETE_EXPIRED row left behind),
-  //   * had a past renewal go PAST_DUE then later succeeded on a
-  //     fresh subscription,
-  //
-  // would have one or more stale rows in a terminal state. The naive
-  // `findFirst({ where: { userId } })` then surfaced the stale row
-  // (because a refund / webhook bump made it the most-recently-
-  // updated) and the gate rejected the mutation with 402
-  // SUBSCRIPTION_INACTIVE — even though the user's active entitlement
-  // legitimately said PRO. This is the production 402 regression
-  // observed on POST /v1/collaboration-teams.
-  //
-  // Policy (corroboration, not contradiction):
-  //
-  //   1. If a subscription row exists for the user matching the
-  //      ENTITLEMENT plan AND status is ACTIVE/TRIALING → allow.
-  //   2. Else if a matching-plan PAST_DUE row exists inside the grace
-  //      window → allow (legacy seat-state grace behaviour).
-  //   3. Else if NO subscription row matches the current plan → allow
-  //      (entitlement is authoritative; tolerate webhook lag).
-  //   4. Else (every matching-plan row is terminal) → block.
-  //
-  // Stale rows for OTHER plans (a CANCELED PAYG row when the current
-  // entitlement is PRO) are ignored entirely — they describe a
-  // historical billing state, not the user's current one.
-
-  // Step 1 — live (ACTIVE/TRIALING) subscription for the current plan.
-  const liveSubscription = await client.subscription.findFirst({
-    where: {
-      userId,
-      plan,
-      status: {
-        in: [
-          prismaPkg.SubscriptionStatus.ACTIVE,
-          prismaPkg.SubscriptionStatus.TRIALING,
-        ],
+  if (!life.mutationsAllowed) {
+    throwBillingError({
+      code: "SUBSCRIPTION_INACTIVE",
+      message: `Your subscription is ${status} and cannot be used for collaboration team mutations.`,
+      details: {
+        plan: ctx.plan,
+        status,
+        inGracePeriod: false,
+        lifecycleState: life.state,
+        gracePeriodDays: COMMERCIAL_GRACE_PERIOD_DAYS,
       },
-    },
-    orderBy: { updatedAt: "desc" },
-    select: { status: true, currentPeriodEnd: true },
-  });
-
-  if (liveSubscription) {
-    return {
-      plan,
-      status: liveSubscription.status as SubscriptionStatus,
-      inGracePeriod: false,
-    };
+    });
   }
 
-  // Step 2 — PAST_DUE for current plan, inside grace window.
-  const pastDueSubscription = await client.subscription.findFirst({
-    where: {
-      userId,
-      plan,
-      status: prismaPkg.SubscriptionStatus.PAST_DUE,
-    },
-    orderBy: { updatedAt: "desc" },
-    select: { status: true, currentPeriodEnd: true },
-  });
-
-  if (pastDueSubscription) {
-    const periodEndMs =
-      pastDueSubscription.currentPeriodEnd?.getTime() ?? null;
-    const inGracePeriod =
-      periodEndMs !== null &&
-      Date.now() - periodEndMs <= SUBSCRIPTION_GRACE_PERIOD_MS;
-    if (inGracePeriod) {
-      return {
-        plan,
-        status: pastDueSubscription.status as SubscriptionStatus,
-        inGracePeriod: true,
-      };
-    }
-  }
-
-  // Step 3 — any subscription row matching the current plan. If none
-  // exist, the entitlement table is authoritative (tolerate webhook
-  // lag): allow. The only way we reach this branch with an entitlement
-  // saying PRO and no PRO subscription row is a manual grant, a
-  // provider switch, or a brand-new subscription whose webhook has not
-  // yet committed — none of which should produce a 402.
-  const matchingPlanRow = await client.subscription.findFirst({
-    where: { userId, plan },
-    orderBy: { updatedAt: "desc" },
-    select: { status: true, currentPeriodEnd: true },
-  });
-
-  if (!matchingPlanRow) {
-    return { plan, status: "ACTIVE", inGracePeriod: false };
-  }
-
-  // Step 4 — every matching-plan row is terminal. Block.
-  const status = matchingPlanRow.status as SubscriptionStatus;
-  throwBillingError({
-    code: "SUBSCRIPTION_INACTIVE",
-    message: `Your subscription is ${status} and cannot be used for collaboration team mutations.`,
-    details: {
-      plan,
-      status,
-      inGracePeriod: false,
-      currentPeriodEnd: matchingPlanRow.currentPeriodEnd ?? null,
-      gracePeriodDays: SUBSCRIPTION_GRACE_PERIOD_DAYS,
-    },
-  });
+  return {
+    plan: ctx.plan,
+    status,
+    inGracePeriod: life.state === "GRACE",
+  };
 }
 
 // =============================================================================

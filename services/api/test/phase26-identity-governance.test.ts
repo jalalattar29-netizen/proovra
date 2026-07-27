@@ -150,8 +150,11 @@ describe("Phase 26 — SCIM service", () => {
     expect(src).toMatch(/findUserBySubject/);
   });
 
-  it("deactivation is SOFT (TeamMember.status = SUSPENDED + external mapping unlinked)", () => {
-    expect(src).toMatch(/status: "SUSPENDED"/);
+  it("deactivation is SOFT (canonical suspendWorkspaceMembership + mapping unlinked)", () => {
+    // PHASE 3 (2026-07-21): the literal SUSPENDED write moved into the
+    // canonical orchestrator; the SCIM service composes it. Same soft
+    // semantics, one implementation.
+    expect(src).toMatch(/suspendWorkspaceMembership\(/);
     expect(src).toMatch(/unlinkedAtUtc/);
     // No hard delete of users.
     expect(src).not.toMatch(/client\.user\.delete/);

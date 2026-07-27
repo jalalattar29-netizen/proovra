@@ -55,10 +55,10 @@ import { useAccount, usePersonalSpace } from "../../../lib/platform-context";
 import type { WorkspacePlan } from "../../../lib/platform-context/types";
 import {
   COLLABORATION_TEAM_TYPES,
-  getCollaborationTeamPlanLimits,
   type CollaborationTeamType,
   type CollaborationTeamStatus,
 } from "@proovra/shared";
+import { getCollaborationTeamPlanLimits } from "@proovra/shared-billing";
 
 export default function TeamsOverviewPage() {
   return (

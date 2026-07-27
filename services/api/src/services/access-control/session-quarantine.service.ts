@@ -27,7 +27,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
-import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
 
 // -----------------------------------------------------------------------------
@@ -108,22 +108,19 @@ export async function quarantineSession(
       releaseHours: hours,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "session.quarantine",
-    category: "identity",
-    severity: "warning",
-    source: "session_quarantine",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "authenticated_session",
     resourceId: row.id,
     metadata: {
-      teamId: input.teamId,
       reason: input.reason,
       releaseHours: hours,
     },
-    db: client,
-  });
+  }, client);
   return projectQuarantine(updated);
 }
 
@@ -161,18 +158,16 @@ export async function releaseQuarantine(
       actorUserId: input.actorUserId,
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "session.quarantine_released",
-    category: "identity",
-    severity: "info",
-    source: "session_quarantine",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "authenticated_session",
     resourceId: row.id,
-    metadata: { teamId: input.teamId, note: input.note ?? null },
-    db: client,
-  });
+    metadata: { note: input.note ?? null },
+  }, client);
   return true;
 }
 
@@ -325,13 +320,12 @@ export async function emergencyOrgRevoke(
       reason: input.reason.slice(0, 200),
     },
   });
-  await appendPlatformAuditLog({
-    userId: input.actorUserId,
+  await emitTenantAudit({
     action: "session.emergency_org_revoke",
-    category: "identity",
-    severity: "critical",
-    source: "session_quarantine",
     outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    workspaceId: input.teamId,
     resourceType: "team",
     resourceId: input.teamId,
     metadata: {
@@ -339,8 +333,7 @@ export async function emergencyOrgRevoke(
       sessionsAffected,
       reason: input.reason,
     },
-    db: client,
-  });
+  }, client);
   return { usersRevoked: activeUsers.length, sessionsAffected };
 }
 
