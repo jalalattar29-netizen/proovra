@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "prebuild": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/ui build",
+    "prebuild": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-billing build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/ui build",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
