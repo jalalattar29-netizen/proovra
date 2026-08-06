@@ -307,7 +307,26 @@ describe("Phase 12 Point 4 — no test is skipped in either project", () => {
     const pkg = JSON.parse(
       readFileSync(resolve(REPO, "services/api/package.json"), "utf8"),
     ) as { scripts: Record<string, string> };
-    expect(pkg.scripts["test:integration"]).toMatch(/vitest run --config vitest\.integration\.config\.ts/);
+
+    // `test:integration` no longer invokes the runner directly: it PREPARES —
+    // generating the Prisma client and building the workspace packages the API
+    // imports — and only then runs. It had to. A clean checkout has no
+    // `packages/shared-runtime/dist`, so the raw runner died during module
+    // collection and reported the missing suites as "skipped", which is exactly
+    // the failure this file exists to catch.
+    //
+    // So follow the chain instead of pinning one string: the runner must still
+    // be reachable, and preparation must still come first.
+    const entry = pkg.scripts["test:integration"];
+    expect(entry).toContain("test:integration:prepare");
+    expect(entry).toContain("test:integration:run");
+    expect(entry.indexOf("test:integration:prepare")).toBeLessThan(
+      entry.indexOf("test:integration:run"),
+    );
+    expect(pkg.scripts["test:integration:run"]).toMatch(
+      /vitest run --config vitest\.integration\.config\.ts/,
+    );
+
     // A suite nobody runs is the same as a skipped suite.
     const workflow = readFileSync(
       resolve(REPO, ".github/workflows/schema-reproducibility.yml"),

@@ -121,8 +121,16 @@ jobs:
           version: "10.28.2"
 
       - name: Install dependencies
-        run: pnpm install
+        # Frozen: a clean checkout must resolve exactly the committed lockfile,
+        # or this job stops reproducing the artifact it exists to reproduce.
+        run: pnpm install --frozen-lockfile
 
+      # These two steps prepare the MIGRATION and BOOT steps below, which run
+      # before the integration suite. They are NOT the integration suite's
+      # prerequisites — `pnpm test:integration` prepares itself (see
+      # `services/api` `test:integration:prepare`). Both are idempotent, so the
+      # later self-preparation re-runs them at no cost and neither is a second
+      # copy of the build ordering.
       - name: Build shared packages (needed by API runtime imports)
         run: pnpm run build:shared
 
@@ -193,6 +201,18 @@ jobs:
           PGPASSWORD=proovra_password createdb -h localhost -U proovra proovra_integration_test
           pnpm prisma:migrate
 
+      # `pnpm test:integration` is SELF-CONTAINED: it generates the Prisma
+      # client and builds every workspace package the API imports before it
+      # starts Vitest.
+      #
+      # It has to be. This job previously ran the raw runner against a clean
+      # checkout where `packages/shared-runtime/dist` had never been produced —
+      # `build:shared` does not build that package — so Vite could not resolve
+      # `@proovra/shared-runtime`, all 23 suites died during module collection,
+      # and the run reported 86 tests with 84 skipped: the cases in the
+      # collected suites, while the 23 that failed to load never registered a
+      # case at all. A green-looking "skipped" count was really 23 suites that
+      # never executed.
       - name: API integration suite (formerly the 21 skipped tests)
         working-directory: services/api
         env:
