@@ -88,7 +88,20 @@ export default defineConfig({
     include: ["test/**/*.integration.test.ts"],
     // Container start + `prisma migrate deploy` + Fastify boot.
     hookTimeout: 900_000,
-    testTimeout: 300_000,
+    // PHASE 12 — measured, not guessed.
+    //
+    // 300_000 was five minutes of silence per test. Three tests hit it in CI
+    // when losing purge transactions blocked on a row lock with no
+    // `lock_timeout`, and the job burned ~19 minutes to report nothing but
+    // "Test timed out in 300000ms".
+    //
+    // Healthy execution measured against a disposable PostgreSQL 16 + pgvector:
+    // the slowest ENTIRE FILE is ~13s (51 tests), the whole integration project
+    // ~131s. 60s per test is roughly 4.6x the slowest whole file and far above
+    // any single case, while the harness bounds each session below it
+    // (lock 15s, statement 30s, idle-in-transaction 30s) so the database
+    // reports a classified cause before this deadline is ever reached.
+    testTimeout: 60_000,
     teardownTimeout: 120_000,
     // Serial: the suites seed and tear down overlapping fixture namespaces in
     // one database, and a shared container must not be raced.

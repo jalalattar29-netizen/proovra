@@ -259,6 +259,57 @@ export async function acquireIntegrationDatabase(): Promise<IntegrationDatabase>
 // =============================================================================
 
 /**
+ * Bound how long a DISPOSABLE TEST database session may wait.
+ *
+ * PostgreSQL applies no `lock_timeout` by default, so a query blocked on a row
+ * lock waits forever. That is what turned a concurrency defect into three
+ * silent five-minute Vitest timeouts in CI: the losing purge transactions sat
+ * blocked on `FOR UPDATE`, holding both their row locks and their pool
+ * connections, and every later write queued behind them until the test deadline
+ * killed the run with no cause reported.
+ *
+ * The production defect is fixed at its source (the purge now uses SKIP LOCKED
+ * and never creates a waiter). These settings are the SAFETY NET: any residual
+ * wait — from this suite or a future one — surfaces as a fast, classified
+ * PostgreSQL error instead of a five-minute silence.
+ *
+ * Applied through the connection URL's `options` parameter, which `pg` passes
+ * as startup options, so EVERY pooled connection inherits it. Applied only to
+ * the URL the tests and the booted app use; migrations keep the raw URL, since
+ * a long DDL statement is legitimate. Never applied to production: this
+ * function is test-harness code and the URL it bounds is the disposable
+ * integration database.
+ *
+ * Chosen against measured healthy behaviour — integration transactions here
+ * complete in milliseconds and the slowest whole FILE is ~13s — so these are
+ * far above anything healthy and far below the per-test deadline.
+ */
+export function withBoundedWaits(rawUrl: string): string {
+  const settings = [
+    // A lock wait longer than this is a defect, not slowness.
+    "-c lock_timeout=15s",
+    // A single statement longer than this is a defect too. Deliberately BELOW
+    // the per-test deadline so the database reports the cause before Vitest
+    // reports a bare timeout.
+    "-c statement_timeout=30s",
+    // A transaction left open and idle is exactly the leak that starved the
+    // pool; PostgreSQL reclaims it instead of the suite hanging on it.
+    "-c idle_in_transaction_session_timeout=30s",
+  ].join(" ");
+
+  try {
+    const url = new URL(rawUrl);
+    // Never clobber an explicit caller-supplied `options`.
+    if (url.searchParams.has("options")) return rawUrl;
+    url.searchParams.set("options", settings);
+    return url.toString();
+  } catch {
+    // An unparseable URL is the caller's problem to report, not ours to mask.
+    return rawUrl;
+  }
+}
+
+/**
  * Boots the Fastify app + opens a Prisma client against TEST_DATABASE_URL.
  * The caller is responsible for running migrations beforehand — the
  * harness deliberately does NOT shell out to prisma migrate.
@@ -272,7 +323,7 @@ export async function bootIntegrationHarness(): Promise<IntegrationHarness> {
   // Override DATABASE_URL for the lifetime of this process so Prisma
   // points at the test DB. Save the original so cleanup can restore it.
   const originalDatabaseUrl = process.env.DATABASE_URL;
-  process.env.DATABASE_URL = database.url;
+  process.env.DATABASE_URL = withBoundedWaits(database.url);
 
   // Late-bind imports so we don't accidentally read DATABASE_URL at
   // module load time before we've overridden it.

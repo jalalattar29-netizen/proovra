@@ -195,4 +195,78 @@ describe("PHASE 12 — integration-test prerequisites", () => {
 
     expect(tracked).toEqual([]);
   });
+
+  it("the integration per-test budget never returns to five minutes", () => {
+    // 300_000 was five minutes of SILENCE per test: three tests hit it in CI and
+    // the job burned ~19 minutes to report "Test timed out in 300000ms" and
+    // nothing else. The budget must stay small enough that a hang is visible
+    // quickly, and the database bounds must stay BELOW it so PostgreSQL reports
+    // the cause before Vitest reports a bare timeout.
+    const cfg = readFileSync(resolve(API_ROOT, "vitest.integration.config.ts"), "utf8");
+
+    const testTimeout = Number(
+      /testTimeout:\s*([0-9_]+)/.exec(cfg)?.[1]?.replace(/_/g, "") ?? "0",
+    );
+    expect(testTimeout).toBeGreaterThan(0);
+    expect(testTimeout).toBeLessThanOrEqual(120_000);
+
+    const harness = readFileSync(resolve(API_ROOT, "test/integration-harness.ts"), "utf8");
+    const secondsOf = (name: string): number =>
+      Number(new RegExp(`-c ${name}=(\\d+)s`).exec(harness)?.[1] ?? "0");
+
+    const lock = secondsOf("lock_timeout");
+    const statement = secondsOf("statement_timeout");
+    const idle = secondsOf("idle_in_transaction_session_timeout");
+
+    // Each must be set (0 means "wait forever" — the original defect)…
+    expect(lock).toBeGreaterThan(0);
+    expect(statement).toBeGreaterThan(0);
+    expect(idle).toBeGreaterThan(0);
+    // …and each must fire before the per-test deadline.
+    expect(lock * 1000).toBeLessThan(testTimeout);
+    expect(statement * 1000).toBeLessThan(testTimeout);
+    expect(idle * 1000).toBeLessThan(testTimeout);
+    // A lock wait is a narrower failure than a whole statement.
+    expect(lock).toBeLessThanOrEqual(statement);
+  });
+
+  it("the purge claim stands down instead of waiting for a competing worker", () => {
+    // The production defect: a bare `FOR UPDATE` made the losing purge WAIT for
+    // the winner with no `lock_timeout`, so the loser held its row lock and its
+    // pool connection until the test deadline. Losers must never block.
+    const processor = readFileSync(
+      resolve(REPO_ROOT, "services/worker/src/processor.ts"),
+      "utf8",
+    );
+
+    // Comments discuss `FOR UPDATE` by name — including the one explaining this
+    // very fix — so inspect SQL, not prose.
+    const blocking = processor
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .filter((l) => /FOR UPDATE\s*$/.test(l.trim()))
+      .filter((l) => !/SKIP LOCKED|NOWAIT/.test(l));
+
+    expect(
+      blocking,
+      "a blocking FOR UPDATE returned to the worker; losers must stand down, not wait",
+    ).toEqual([]);
+  });
+
+  it("integration failure can block the downstream release", () => {
+    const files = execFileSync("git", ["-C", REPO_ROOT, "ls-files", "--", ".github/workflows"], {
+      encoding: "utf8",
+      maxBuffer: 1 << 28,
+    })
+      .split("\n")
+      .filter(Boolean);
+
+    for (const rel of files) {
+      const body = readFileSync(resolve(REPO_ROOT, rel), "utf8");
+      // Neither the job nor the step may swallow a red integration run.
+      expect(body, `${rel} allows a failing step to pass`).not.toMatch(
+        /continue-on-error:\s*true/,
+      );
+    }
+  });
 });

@@ -4934,9 +4934,27 @@ if (latestRetentionUntilUtc && isRetentionStillActive(latestRetentionUntilUtc)) 
       //
       // A plain re-read does NOT fix that. At READ COMMITTED both
       // transactions see the row, because neither has committed its delete
-      // yet. `FOR UPDATE` is what actually serialises them: the second
-      // transaction blocks until the first commits, then re-reads and finds
-      // nothing, and returns a bounded no-op.
+      // yet. A row lock is what actually serialises them.
+      //
+      // SKIP LOCKED, not a bare FOR UPDATE. The intent was always "the loser
+      // finds nothing and returns a bounded no-op" — but a bare FOR UPDATE
+      // reaches that outcome by WAITING for the winner to commit, and that wait
+      // has no bound. PostgreSQL applies no `lock_timeout` by default, and a
+      // query already blocked on a row lock is not interrupted by Prisma's
+      // interactive-transaction timer, so the loser sits in an open transaction
+      // holding a pool connection for as long as the winner takes. On a
+      // two-core CI runner the winner's transaction — a custody event plus ten
+      // cascade deletes — is slow enough that the two losers were still blocked
+      // when the next test began, and every later write that touched those rows
+      // queued behind them. Three tests then burned the full 300s Vitest
+      // deadline each, and the failure surfaced as a timeout with no cause.
+      //
+      // SKIP LOCKED gives the SAME outcome without the wait: if another
+      // transaction holds this row, we get zero rows immediately and stand
+      // down. Exactly one worker can hold the lock, so exactly one destruction
+      // still happens; the difference is that the losers cost nothing instead
+      // of blocking. Standing down is also the conservative choice for an
+      // irreversible operation — the queue redelivers if the winner fails.
       //
       // This is the last check before an irreversible write, not a substitute
       // for the queue-level claim.
@@ -4944,7 +4962,7 @@ if (latestRetentionUntilUtc && isRetentionStillActive(latestRetentionUntilUtc)) 
         SELECT "id" FROM "evidence"
          WHERE "id" = ${evidence.id}::uuid
            AND "deleted_at" IS NOT NULL
-         FOR UPDATE
+         FOR UPDATE SKIP LOCKED
       `;
       if (locked.length === 0) return;
 
